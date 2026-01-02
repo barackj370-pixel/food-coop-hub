@@ -298,7 +298,7 @@ const App: React.FC = () => {
 
     if (validated.length === 0) { alert("No records to export."); return; }
 
-    const csvRows: any[][] = [["Date", "Crop", "Qty", "Total", "Comm"]];
+    const csvRows: any[][] = [["Date", "Crop", "Qty (Unit)", "Total Sales", "Coop Comm"]];
     
     // Grouping logic
     let currentMonthStr = "";
@@ -345,8 +345,8 @@ const App: React.FC = () => {
         currentWeekNum = wNum;
       }
 
-      // Add actual record
-      csvRows.push([r.date, r.cropType, r.unitsSold, r.totalSale, r.coopProfit]);
+      // Add actual record with units exactly as they are
+      csvRows.push([r.date, r.cropType, `${r.unitsSold} ${r.unitType}`, r.totalSale, r.coopProfit]);
       
       // Update totals
       weekTotalSales += r.totalSale;
