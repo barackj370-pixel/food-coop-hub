@@ -114,7 +114,7 @@ const IdentityModal: React.FC<{ currentName: string; currentPhone: string; curre
   useEffect(() => { if (name === 'CD Otieno') setPhone('0721609699'); }, [name]);
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
+      <div className="bg-white w-full max-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
         <div className="p-8 bg-emerald-950 text-white flex justify-between items-center">
           <div><h3 className="text-xl font-black uppercase tracking-widest">System Access</h3><p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Credentials Terminal</p></div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
@@ -192,6 +192,7 @@ const App: React.FC = () => {
   const [selectedReceipt, setSelectedReceipt] = useState<SaleRecord | null>(null);
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
   const [showValidatedLedger, setShowValidatedLedger] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const [userName, setUserName] = useState<string>(() => persistence.get('coop_user_name') || 'Field Agent');
   const [userPhone, setUserPhone] = useState<string>(() => persistence.get('coop_user_phone') || '0700000000');
@@ -221,10 +222,13 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    setIsSyncing(true);
     persistence.set('food_coop_data', JSON.stringify(records));
     persistence.set('coop_user_name', userName);
     persistence.set('coop_user_phone', userPhone);
     persistence.set('coop_user_role', userRole);
+    const timer = setTimeout(() => setIsSyncing(false), 800);
+    return () => clearTimeout(timer);
   }, [records, userName, userPhone, userRole]);
 
   const handleSaveIdentity = (newName: string, newPhone: string, newRole: string) => {
@@ -298,9 +302,8 @@ const App: React.FC = () => {
 
     if (validated.length === 0) { alert("No records to export."); return; }
 
-    const csvRows: any[][] = [["Date", "Crop", "Qty (Unit)", "Total Sales", "Coop Comm"]];
+    const csvRows: any[][] = [["Date", "Crop", "Qty (Unit)", "Total Sales", "Coop Comm (10%)"]];
     
-    // Grouping logic
     let currentMonthStr = "";
     let currentWeekNum = -1;
     
@@ -320,7 +323,7 @@ const App: React.FC = () => {
     const pushMonthTotal = (monthLabel: string) => {
       if (monthTotalSales > 0) {
         csvRows.push(["", "", `TOTAL FOR ${monthLabel.toUpperCase()}`, monthTotalSales.toFixed(2), monthTotalComm.toFixed(2)]);
-        csvRows.push(["", "", "", "", ""]); // Spacer
+        csvRows.push(["", "", "", "", ""]); 
         monthTotalSales = 0;
         monthTotalComm = 0;
       }
@@ -331,7 +334,6 @@ const App: React.FC = () => {
       const mStr = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
       const wNum = getWeekNumber(dateObj);
 
-      // Period change detection
       if (mStr !== currentMonthStr) {
         if (idx > 0) {
           pushWeekTotal();
@@ -345,16 +347,13 @@ const App: React.FC = () => {
         currentWeekNum = wNum;
       }
 
-      // Add actual record with units exactly as they are
       csvRows.push([r.date, r.cropType, `${r.unitsSold} ${r.unitType}`, r.totalSale, r.coopProfit]);
       
-      // Update totals
       weekTotalSales += r.totalSale;
       weekTotalComm += r.coopProfit;
       monthTotalSales += r.totalSale;
       monthTotalComm += r.coopProfit;
 
-      // Last record handling
       if (idx === validated.length - 1) {
         pushWeekTotal();
         pushMonthTotal(currentMonthStr);
@@ -364,7 +363,7 @@ const App: React.FC = () => {
     const csvContent = csvRows.map(e => e.join(",")).join("\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv' }));
-    link.download = `CoopLedger_Audit_Report_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `FoodCoop_MasterLedger_Audit_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
@@ -380,7 +379,16 @@ const App: React.FC = () => {
         <div className="container mx-auto px-6 flex flex-col lg:flex-row justify-between items-center gap-6">
           <div className="flex items-center space-x-5">
             <div className={`w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center transition-colors ${userName === 'CD Otieno' ? 'bg-indigo-500' : 'bg-emerald-500'}`}><i className={`fas ${userName === 'CD Otieno' ? 'fa-user-tie' : isDeveloper ? 'fa-shield-halved' : 'fa-leaf'} text-white text-3xl`}></i></div>
-            <div><h1 className="text-2xl font-black tracking-tight uppercase">Food Coop Hub</h1><div className="mt-1 flex items-center space-x-2"><p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">{roleLabel}</p><span className="text-white/20">|</span><p className="text-white font-bold text-xs">{userName}</p></div></div>
+            <div>
+              <div className="flex items-center space-x-3">
+                <h1 className="text-2xl font-black tracking-tight uppercase">Food Coop Hub</h1>
+                <div className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-full border border-white/10 bg-white/5 transition-opacity duration-500 ${isSyncing ? 'opacity-50' : 'opacity-100'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></div>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-white/60">{isSyncing ? 'Securing Ledger...' : 'Ledger Secured'}</span>
+                </div>
+              </div>
+              <div className="mt-1 flex items-center space-x-2"><p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">{roleLabel}</p><span className="text-white/20">|</span><p className="text-white font-bold text-xs">{userName}</p></div>
+            </div>
           </div>
           <nav className="flex space-x-1 bg-white/5 p-1.5 rounded-2xl border border-white/10">
             {canAccessSales && <button onClick={() => setActiveTab('sales')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'sales' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-emerald-400 hover:bg-white/5'}`}>Sales Portal</button>}
@@ -474,7 +482,7 @@ const App: React.FC = () => {
                   <p className="text-xs text-slate-500 font-medium leading-relaxed">Cryptographic validation and bulk export console for auditing.</p>
                   <div className="pt-4 flex flex-wrap gap-4 justify-center md:justify-start">
                     <button onClick={() => setShowValidatedLedger(!showValidatedLedger)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center"><i className="fas fa-eye mr-2"></i> {showValidatedLedger ? 'Hide Records' : 'View Verified Records'}</button>
-                    <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100"><i className="fas fa-download mr-2"></i> Export CSV</button>
+                    <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100"><i className="fas fa-download mr-2"></i> Export Master CSV</button>
                   </div>
                </div>
             </div>
@@ -544,7 +552,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="mt-24 text-center"><div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm"><i className="fas fa-shield-check text-emerald-600 text-sm"></i><span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.2.5</span></div></footer>
+      <footer className="mt-24 text-center"><div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm"><i className="fas fa-shield-check text-emerald-600 text-sm"></i><span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.3.0</span></div></footer>
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }`}</style>
     </div>
   );
