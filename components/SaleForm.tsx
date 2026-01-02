@@ -189,9 +189,9 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
             className="w-full bg-slate-900 hover:bg-black text-white font-black uppercase text-[10px] tracking-widest py-3 rounded-lg transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2 disabled:opacity-50"
           >
             {isSigning ? (
-              <><i className="fas fa-spinner fa-spin"></i></>
+              <><i className="fas fa-spinner fa-spin mr-2"></i> Signing...</>
             ) : (
-              <><i className="fas fa-plus-circle"></i></>
+              <>Add Records</>
             )}
           </button>
         </div>
