@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { CROP_TYPES, CROP_CONFIG, PROFIT_MARGIN } from '../constants.ts';
 
@@ -171,7 +172,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
         </div>
 
         <div className="space-y-1 xl:col-span-1">
-          <label className="text-[10px] font-bold text-slate-400 uppercase">Price</label>
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Price per Unit</label>
           <input 
             type="number" 
             placeholder="0.00"

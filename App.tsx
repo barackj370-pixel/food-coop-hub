@@ -329,7 +329,7 @@ const App: React.FC = () => {
           <StatCard label="Total Revenue" value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
           <StatCard label="Finalized Commission" value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
           <StatCard label="Total Units" value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
-          <StatCard label="Avg. Price" value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
+          <StatCard label="Price per Unit" value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
         </div>
 
         {activeTab === 'sales' && canAccessSales && (
@@ -340,7 +340,7 @@ const App: React.FC = () => {
                 <div className="overflow-x-auto">
                    <table className="w-full text-left">
                       <thead className="bg-white border-b text-[10px] text-slate-400 font-black uppercase">
-                        <tr><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty</th><th className="px-8 py-5">Finance</th><th className="px-8 py-5">Coop Comm</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
+                        <tr><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty</th><th className="px-8 py-5">Total Sales</th><th className="px-8 py-5">Coop Comm(10%)</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {records.length === 0 ? (
@@ -414,6 +414,57 @@ const App: React.FC = () => {
                 </tbody></table></div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'management' && canAccessBoard && (
+          <div className="animate-fade-in space-y-10">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+               <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl">
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest">Revenue Flow</h3>
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Total Sales Distribution by Crop</p>
+                    </div>
+                    <button onClick={exportToExcel} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center shadow-lg shadow-indigo-600/20">
+                      <i className="fas fa-file-export mr-2"></i> Export Data
+                    </button>
+                  </div>
+                  <div className="h-80 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} dy={10} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} />
+                        <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 800, fontSize: '12px' }} cursor={{ fill: '#f8fafc' }} />
+                        <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+               </div>
+               <div className="bg-indigo-950 p-8 rounded-[2.5rem] text-white flex flex-col justify-between shadow-2xl relative overflow-hidden">
+                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
+                  <div className="space-y-8 relative z-10">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Validated Commission</p>
+                      <p className="text-5xl font-black tracking-tighter">KSh {stats.finalizedProfit.toLocaleString()}</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Verified Batches</p>
+                        <p className="text-xl font-black mt-1">{stats.countValidated} records</p>
+                      </div>
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Total Volume</p>
+                        <p className="text-xl font-black mt-1">{stats.totalUnits.toLocaleString()} units</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-8 relative z-10">
+                    <p className="text-[9px] italic text-indigo-300">"Providing strategic oversight for sustainable agricultural growth through transparent financial ledger systems."</p>
+                  </div>
+               </div>
+            </div>
           </div>
         )}
       </main>
