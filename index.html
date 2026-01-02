@@ -11,21 +11,33 @@
       window.process = { env: { API_KEY: "" } };
       var process = window.process;
 
-      // Clean up any old service workers
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-      }
-      
-      // Safety: Auto-hide loader after 10 seconds if application fails to initialize
+      // Global Error Handler for early catch
+      window.addEventListener('error', function(e) {
+        console.error("System Runtime Error:", e.message, "at", e.filename, ":", e.lineno);
+        const root = document.getElementById('root');
+        if (root && !root.hasChildNodes()) {
+          root.innerHTML = '<div style="padding: 40px; color: #ef4444; font-family: system-ui; text-align: center;">' +
+            '<h2 style="font-weight: 900; margin-bottom: 10px;">BOOT ERROR</h2>' +
+            '<p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">The application failed to initialize. This is often due to script loading issues or MIME type mismatches on certain hosting providers.</p>' +
+            '<code style="display: block; padding: 15px; background: #fee2e2; border-radius: 10px; font-size: 12px; text-align: left; overflow-x: auto;">' + e.message + '</code>' +
+            '<button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #064e3b; color: white; border-radius: 8px; border: none; font-weight: bold; cursor: pointer;">Retry Boot Sequence</button>' +
+            '</div>';
+          document.getElementById('loading-screen').style.display = 'none';
+        }
+      });
+
+      // Safety: Auto-hide loader after 12 seconds with a warning if the app hasn't mounted
       window.addEventListener('load', () => {
         setTimeout(() => {
           const loader = document.getElementById('loading-screen');
-          if (loader && loader.style.opacity !== '0') {
-            console.warn("Loader safety timeout triggered. The application might have initialization errors.");
-            loader.style.opacity = '0';
-            setTimeout(() => loader.remove(), 500);
+          const root = document.getElementById('root');
+          if (loader && loader.style.opacity !== '0' && (!root || !root.hasChildNodes())) {
+             console.warn("Loader safety timeout triggered.");
+             loader.style.background = "#991b1b";
+             const text = loader.querySelector('p');
+             if (text) text.innerText = "INITIALIZATION HANG DETECTED...";
           }
-        }, 10000);
+        }, 12000);
       });
     </script>
 
@@ -54,7 +66,7 @@
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
+    "recharts": "https://esm.sh/recharts@2.15.0?deps=react@19.0.0,react-dom@19.0.0",
     "react/": "https://esm.sh/react@19.0.0/",
     "react-dom/": "https://esm.sh/react-dom@19.0.0/"
   }
@@ -64,7 +76,7 @@
 <body>
     <div id="loading-screen">
         <div class="spinner"></div>
-        <p style="margin-top: 1rem; font-weight: bold; letter-spacing: 0.1em; font-size: 12px;">HUB INITIALIZING...</p>
+        <p style="margin-top: 1.5rem; font-weight: 900; letter-spacing: 0.2em; font-size: 11px; text-transform: uppercase;">Syncing Core Assets...</p>
     </div>
 
     <div id="root"></div>

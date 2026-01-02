@@ -10,20 +10,29 @@ import { PROFIT_MARGIN } from './constants.ts';
 // Pre-authorized Developers & Directors with Full Access
 const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];
 
+// Defensive Storage Helpers
+const safeStorage = {
+  get: (key: string) => {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  },
+  set: (key: string, val: string) => {
+    try { localStorage.setItem(key, val); } catch (e) { console.warn("Storage blocked"); }
+  }
+};
+
 const computeHash = async (record: any): Promise<string> => {
   const msg = `${record.id}-${record.date}-${record.cropType}-${record.unitType}-${record.farmerName}-${record.farmerPhone}-${record.customerName}-${record.customerPhone}-${record.unitsSold}-${record.unitPrice}-${record.createdBy}-${record.agentPhone}-${record.status}-${record.confirmedBy || 'none'}`;
   
   const cryptoObj = window.crypto || (window as any).msCrypto;
   
   if (!cryptoObj || !cryptoObj.subtle) {
-    console.warn("Crypto Subtle not available, using fallback hashing");
     let hash = 0;
     for (let i = 0; i < msg.length; i++) {
       const char = msg.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
       hash |= 0;
     }
-    return `FB-${Math.abs(hash).toString(16)}-${Date.now().toString(16)}`;
+    return `FALLBACK-${Math.abs(hash).toString(16)}-${Date.now().toString(16)}`;
   }
 
   const encoder = new TextEncoder();
@@ -40,13 +49,9 @@ const computeHash = async (record: any): Promise<string> => {
 const generateUUID = (): string => {
   const cryptoObj = window.crypto || (window as any).msCrypto;
   if (cryptoObj && cryptoObj.randomUUID) {
-    return cryptoObj.randomUUID();
+    try { return cryptoObj.randomUUID(); } catch(e) {}
   }
-  // Fallback UUID
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  return 'uuid-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now().toString(36);
 };
 
 const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ record, onClose }) => {
@@ -181,13 +186,13 @@ const App: React.FC = () => {
   const [showValidatedLedger, setShowValidatedLedger] = useState(false);
   
   const [userName, setUserName] = useState<string>(() => {
-    try { return localStorage.getItem('coop_user_name') || 'Field Agent'; } catch(e) { return 'Field Agent'; }
+    return safeStorage.get('coop_user_name') || 'Field Agent';
   });
   const [userPhone, setUserPhone] = useState<string>(() => {
-    try { return localStorage.getItem('coop_user_phone') || '0700000000'; } catch(e) { return '0700000000'; }
+    return safeStorage.get('coop_user_phone') || '0700000000';
   });
   const [userRole, setUserRole] = useState<string>(() => {
-    try { return localStorage.getItem('coop_user_role') || 'agent'; } catch(e) { return 'agent'; }
+    return safeStorage.get('coop_user_role') || 'agent';
   });
   
   const isPrivilegedUser = AUTHORIZED_USERS.includes(userName);
@@ -204,26 +209,20 @@ const App: React.FC = () => {
   }, [userRole, isDeveloper]);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('food_coop_data');
-      if (saved) { 
+    const saved = safeStorage.get('food_coop_data');
+    if (saved) { 
+      try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setRecords(parsed);
-      }
-    } catch (e) { 
-      console.warn("Storage access denied or data corrupted");
+      } catch(e) { console.error("Data parse error"); }
     }
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('food_coop_data', JSON.stringify(records));
-      localStorage.setItem('coop_user_name', userName);
-      localStorage.setItem('coop_user_phone', userPhone);
-      localStorage.setItem('coop_user_role', userRole);
-    } catch (e) {
-      console.warn("Could not persist data to storage");
-    }
+    safeStorage.set('food_coop_data', JSON.stringify(records));
+    safeStorage.set('coop_user_name', userName);
+    safeStorage.set('coop_user_phone', userPhone);
+    safeStorage.set('coop_user_role', userRole);
   }, [records, userName, userPhone, userRole]);
 
   const handleSaveIdentity = (newName: string, newPhone: string, newRole: string) => {
@@ -535,7 +534,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="mt-24 text-center"><div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm"><i className="fas fa-shield-check text-emerald-600 text-sm"></i><span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.2.3</span></div></footer>
+      <footer className="mt-24 text-center"><div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm"><i className="fas fa-shield-check text-emerald-600 text-sm"></i><span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.2.4</span></div></footer>
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }`}</style>
     </div>
   );
