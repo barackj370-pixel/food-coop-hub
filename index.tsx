@@ -31,17 +31,12 @@ const init = () => {
       </React.StrictMode>
     );
     
-    // We check for successful render content
-    const checkRender = setInterval(() => {
-      if (rootElement.innerHTML.length > 0) {
-        console.log("System: App mounted successfully.");
-        clearInterval(checkRender);
-        hideLoader();
-      }
-    }, 50);
-
-    // Timeout check after 10 seconds to stop checking
-    setTimeout(() => clearInterval(checkRender), 10000);
+    // Hide loader once the rendering cycle has been initiated.
+    // We use a small timeout to allow React 19 to perform the initial paint.
+    setTimeout(() => {
+      console.log("System: App mounting initiated.");
+      hideLoader();
+    }, 300);
 
   } catch (err) {
     console.error("System: Initialization crashed:", err);
