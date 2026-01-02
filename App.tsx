@@ -11,6 +11,20 @@ const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];
 
 const computeHash = async (record: any): Promise<string> => {
   const msg = `${record.id}-${record.date}-${record.cropType}-${record.unitType}-${record.farmerName}-${record.farmerPhone}-${record.customerName}-${record.customerPhone}-${record.unitsSold}-${record.unitPrice}-${record.createdBy}-${record.agentPhone}-${record.status}-${record.confirmedBy || 'none'}`;
+  
+  // Safety fallback if crypto.subtle is not available (e.g. non-HTTPS)
+  if (!window.crypto || !window.crypto.subtle) {
+    console.warn("Crypto Subtle not available, using fallback hashing");
+    // Extremely basic fallback hash for development/insecure contexts
+    let hash = 0;
+    for (let i = 0; i < msg.length; i++) {
+      const char = msg.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return `FB-${Math.abs(hash).toString(16)}-${Date.now().toString(16)}`;
+  }
+
   const encoder = new TextEncoder();
   const dataUint8 = encoder.encode(msg);
   const hashBuffer = await crypto.subtle.digest('SHA-256', dataUint8);
@@ -168,7 +182,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const saved = localStorage.getItem('food_coop_data');
-    if (saved) { try { setRecords(JSON.parse(saved)); } catch (e) { console.error(e); } }
+    if (saved) { 
+      try { 
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setRecords(parsed);
+      } catch (e) { 
+        console.error("Corrupted record data, resetting:", e); 
+        localStorage.removeItem('food_coop_data');
+      } 
+    }
   }, []);
 
   useEffect(() => {
@@ -358,25 +380,29 @@ const App: React.FC = () => {
                         <tr><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty & Unit</th><th className="px-8 py-5">Finance</th><th className="px-8 py-5">Coop Comm</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {records.map(r => (
-                          <tr key={r.id} className="hover:bg-slate-50/50 transition">
-                            <td className="px-8 py-5">
-                              <div className="space-y-1">
-                                <p className="text-xs font-black text-slate-800"><span className="text-[9px] text-slate-400 uppercase tracking-tighter mr-1">F:</span>{r.farmerName}</p>
-                                <p className="text-[10px] text-emerald-600 font-bold ml-3">{r.farmerPhone}</p>
-                                <div className="h-[1px] w-full bg-slate-50 my-1"></div>
-                                <p className="text-xs font-black text-slate-800"><span className="text-[9px] text-blue-400 uppercase tracking-tighter mr-1">C:</span>{r.customerName}</p>
-                                <p className="text-[10px] text-blue-600 font-bold ml-3">{r.customerPhone}</p>
-                              </div>
-                            </td>
-                            <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-tight">{r.cropType}</span></td>
-                            <td className="px-8 py-5 text-center"><p className="text-xs font-bold text-slate-600">{r.unitsSold} <span className="text-[10px] font-black text-slate-400 uppercase">{r.unitType}</span></p></td>
-                            <td className="px-8 py-5"><p className="text-sm font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</p><p className="text-[9px] font-black text-slate-400 uppercase">@ KSh {r.unitPrice}</p></td>
-                            <td className="px-8 py-5"><div className={`px-3 py-1.5 rounded-xl border inline-block ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}><p className={`text-xs font-black ${r.status === RecordStatus.VALIDATED ? 'text-emerald-700' : 'text-slate-400'}`}>KSh {r.coopProfit.toLocaleString()}{r.status === RecordStatus.VALIDATED && <i className="fas fa-stamp ml-2 text-[10px]"></i>}</p></div></td>
-                            <td className="px-8 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td>
-                            <td className="px-8 py-5 text-right"><div className="flex items-center justify-end space-x-2"><span className={`w-2 h-2 rounded-full ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-500' : r.status === RecordStatus.PAID ? 'bg-blue-500' : 'bg-slate-200'}`}></span><span className="text-[10px] font-black uppercase text-slate-400">{r.status}</span></div></td>
-                          </tr>
-                        ))}
+                        {records.length === 0 ? (
+                          <tr><td colSpan={7} className="px-8 py-10 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">No local records available</td></tr>
+                        ) : (
+                          records.map(r => (
+                            <tr key={r.id} className="hover:bg-slate-50/50 transition">
+                              <td className="px-8 py-5">
+                                <div className="space-y-1">
+                                  <p className="text-xs font-black text-slate-800"><span className="text-[9px] text-slate-400 uppercase tracking-tighter mr-1">F:</span>{r.farmerName}</p>
+                                  <p className="text-[10px] text-emerald-600 font-bold ml-3">{r.farmerPhone}</p>
+                                  <div className="h-[1px] w-full bg-slate-50 my-1"></div>
+                                  <p className="text-xs font-black text-slate-800"><span className="text-[9px] text-blue-400 uppercase tracking-tighter mr-1">C:</span>{r.customerName}</p>
+                                  <p className="text-[10px] text-blue-600 font-bold ml-3">{r.customerPhone}</p>
+                                </div>
+                              </td>
+                              <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-tight">{r.cropType}</span></td>
+                              <td className="px-8 py-5 text-center"><p className="text-xs font-bold text-slate-600">{r.unitsSold} <span className="text-[10px] font-black text-slate-400 uppercase">{r.unitType}</span></p></td>
+                              <td className="px-8 py-5"><p className="text-sm font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</p><p className="text-[9px] font-black text-slate-400 uppercase">@ KSh {r.unitPrice}</p></td>
+                              <td className="px-8 py-5"><div className={`px-3 py-1.5 rounded-xl border inline-block ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}><p className={`text-xs font-black ${r.status === RecordStatus.VALIDATED ? 'text-emerald-700' : 'text-slate-400'}`}>KSh {r.coopProfit.toLocaleString()}{r.status === RecordStatus.VALIDATED && <i className="fas fa-stamp ml-2 text-[10px]"></i>}</p></div></td>
+                              <td className="px-8 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td>
+                              <td className="px-8 py-5 text-right"><div className="flex items-center justify-end space-x-2"><span className={`w-2 h-2 rounded-full ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-500' : r.status === RecordStatus.PAID ? 'bg-blue-500' : 'bg-slate-200'}`}></span><span className="text-[10px] font-black uppercase text-slate-400">{r.status}</span></div></td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                    </table>
                 </div>
@@ -429,7 +455,7 @@ const App: React.FC = () => {
                <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-inner shrink-0"><i className="fas fa-file-excel"></i></div>
                <div className="flex-1 space-y-2 text-center md:text-left">
                   <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Excel Master Ledger</h3>
-                  <p className="text-xs text-slate-500 font-medium leading-relaxed">The Master Ledger contains **all validated entries** desde you started using this hub, sorted by date.</p>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed">The Master Ledger contains **all validated entries** since you started using this hub, sorted by date.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100"><p className="text-[10px] font-black text-emerald-600 uppercase mb-1">Step 1</p><p className="text-[9px] font-bold text-slate-600 uppercase leading-tight">Review cryptographic security signatures for all entries.</p></div>
                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100"><p className="text-[10px] font-black text-emerald-600 uppercase mb-1">Step 2</p><p className="text-[9px] font-bold text-slate-600 uppercase leading-tight">Click 'Update Official Ledger' to move commission to validated status.</p></div>
