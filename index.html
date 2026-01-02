@@ -7,37 +7,30 @@
     <title>Food Coop Hub</title>
     
     <script>
-      // Global process shim for libraries that expect it
+      // 1. Core System Shims
       window.process = { env: { API_KEY: "" } };
-      var process = window.process;
-
-      // Global Error Handler for early catch
+      window.global = window;
+      
+      // 2. Advanced Error Diagnostic
       window.addEventListener('error', function(e) {
-        console.error("System Runtime Error:", e.message, "at", e.filename, ":", e.lineno);
+        console.error("Critical System Error:", e);
         const root = document.getElementById('root');
         if (root && !root.hasChildNodes()) {
-          root.innerHTML = '<div style="padding: 40px; color: #ef4444; font-family: system-ui; text-align: center;">' +
-            '<h2 style="font-weight: 900; margin-bottom: 10px;">BOOT ERROR</h2>' +
-            '<p style="font-size: 14px; opacity: 0.8; margin-bottom: 20px;">The application failed to initialize. This is often due to script loading issues or MIME type mismatches on certain hosting providers.</p>' +
-            '<code style="display: block; padding: 15px; background: #fee2e2; border-radius: 10px; font-size: 12px; text-align: left; overflow-x: auto;">' + e.message + '</code>' +
-            '<button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #064e3b; color: white; border-radius: 8px; border: none; font-weight: bold; cursor: pointer;">Retry Boot Sequence</button>' +
-            '</div>';
-          document.getElementById('loading-screen').style.display = 'none';
-        }
-      });
-
-      // Safety: Auto-hide loader after 12 seconds with a warning if the app hasn't mounted
-      window.addEventListener('load', () => {
-        setTimeout(() => {
+          root.innerHTML = `
+            <div style="padding: 40px; font-family: system-ui, sans-serif; text-align: center; color: #1e293b;">
+              <div style="background: #fff1f2; border: 1px solid #fda4af; border-radius: 16px; padding: 24px; max-width: 500px; margin: 0 auto;">
+                <h2 style="margin: 0 0 12px 0; color: #e11d48; font-weight: 800;">BOOT FAILURE</h2>
+                <p style="font-size: 14px; color: #4b5563; margin-bottom: 20px;">The application engine failed to start. This is usually caused by browser security settings or network blocks in Incognito mode.</p>
+                <div style="text-align: left; background: #000; color: #10b981; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 11px; overflow-x: auto;">
+                  ${e.message || 'Check browser console for details'}
+                </div>
+                <button onclick="location.reload()" style="margin-top: 20px; padding: 12px 24px; background: #064e3b; color: white; border-radius: 12px; border: none; font-weight: bold; cursor: pointer;">RETRY SYSTEM</button>
+              </div>
+            </div>
+          `;
           const loader = document.getElementById('loading-screen');
-          const root = document.getElementById('root');
-          if (loader && loader.style.opacity !== '0' && (!root || !root.hasChildNodes())) {
-             console.warn("Loader safety timeout triggered.");
-             loader.style.background = "#991b1b";
-             const text = loader.querySelector('p');
-             if (text) text.innerText = "INITIALIZATION HANG DETECTED...";
-          }
-        }, 12000);
+          if (loader) loader.style.display = 'none';
+        }
       });
     </script>
 
@@ -45,16 +38,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f8fafc; }
+        body { font-family: sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
         #loading-screen {
             position: fixed; inset: 0; z-index: 9999;
-            background: #064e3b; color: white;
+            background: #022c22; color: white;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.5s ease-out;
+            transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .spinner {
-            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
-            border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;
+            width: 48px; height: 48px; border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #10b981; border-radius: 50%; animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
@@ -66,7 +59,7 @@
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-    "recharts": "https://esm.sh/recharts@2.15.0?deps=react@19.0.0,react-dom@19.0.0",
+    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
     "react/": "https://esm.sh/react@19.0.0/",
     "react-dom/": "https://esm.sh/react-dom@19.0.0/"
   }
@@ -76,7 +69,7 @@
 <body>
     <div id="loading-screen">
         <div class="spinner"></div>
-        <p style="margin-top: 1.5rem; font-weight: 900; letter-spacing: 0.2em; font-size: 11px; text-transform: uppercase;">Syncing Core Assets...</p>
+        <p style="margin-top: 1.5rem; font-weight: 800; letter-spacing: 0.3em; font-size: 10px; text-transform: uppercase; color: #10b981;">HUB INITIALIZING</p>
     </div>
 
     <div id="root"></div>
