@@ -177,6 +177,14 @@ const SecurityCheckBadge: React.FC<{ record: SaleRecord; onClick?: () => void }>
   );
 };
 
+// Helper for week numbers (ISO)
+const getWeekNumber = (d: Date) => {
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [activeTab, setActiveTab] = useState<'sales' | 'finance' | 'analyst' | 'management'>('sales');
@@ -284,12 +292,79 @@ const App: React.FC = () => {
   }, [records]);
 
   const exportToExcel = () => {
-    const validated = [...records].filter(r => r.status === RecordStatus.VALIDATED);
+    const validated = [...records]
+      .filter(r => r.status === RecordStatus.VALIDATED)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     if (validated.length === 0) { alert("No records to export."); return; }
-    const csv = [["Date", "Crop", "Qty", "Total", "Comm"], ...validated.map(r => [r.date, r.cropType, r.unitsSold, r.totalSale, r.coopProfit])].map(e => e.join(",")).join("\n");
+
+    const csvRows: any[][] = [["Date", "Crop", "Qty", "Total", "Comm"]];
+    
+    // Grouping logic
+    let currentMonthStr = "";
+    let currentWeekNum = -1;
+    
+    let monthTotalSales = 0;
+    let monthTotalComm = 0;
+    let weekTotalSales = 0;
+    let weekTotalComm = 0;
+
+    const pushWeekTotal = () => {
+      if (weekTotalSales > 0) {
+        csvRows.push(["", "", "WEEK TOTAL", weekTotalSales.toFixed(2), weekTotalComm.toFixed(2)]);
+        weekTotalSales = 0;
+        weekTotalComm = 0;
+      }
+    };
+
+    const pushMonthTotal = (monthLabel: string) => {
+      if (monthTotalSales > 0) {
+        csvRows.push(["", "", `TOTAL FOR ${monthLabel.toUpperCase()}`, monthTotalSales.toFixed(2), monthTotalComm.toFixed(2)]);
+        csvRows.push(["", "", "", "", ""]); // Spacer
+        monthTotalSales = 0;
+        monthTotalComm = 0;
+      }
+    };
+
+    validated.forEach((r, idx) => {
+      const dateObj = new Date(r.date);
+      const mStr = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
+      const wNum = getWeekNumber(dateObj);
+
+      // Period change detection
+      if (mStr !== currentMonthStr) {
+        if (idx > 0) {
+          pushWeekTotal();
+          pushMonthTotal(currentMonthStr);
+        }
+        currentMonthStr = mStr;
+        currentWeekNum = wNum;
+        csvRows.push([`--- ${mStr.toUpperCase()} ---`, "", "", "", ""]);
+      } else if (wNum !== currentWeekNum) {
+        pushWeekTotal();
+        currentWeekNum = wNum;
+      }
+
+      // Add actual record
+      csvRows.push([r.date, r.cropType, r.unitsSold, r.totalSale, r.coopProfit]);
+      
+      // Update totals
+      weekTotalSales += r.totalSale;
+      weekTotalComm += r.coopProfit;
+      monthTotalSales += r.totalSale;
+      monthTotalComm += r.coopProfit;
+
+      // Last record handling
+      if (idx === validated.length - 1) {
+        pushWeekTotal();
+        pushMonthTotal(currentMonthStr);
+      }
+    });
+
+    const csvContent = csvRows.map(e => e.join(",")).join("\n");
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    link.download = `CoopLedger_${Date.now()}.csv`;
+    link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv' }));
+    link.download = `CoopLedger_Audit_Report_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
