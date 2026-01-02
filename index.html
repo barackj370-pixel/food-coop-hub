@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,29 +29,49 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         html, body { overscroll-behavior-y: contain; }
+        #error-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            z-index: 9999;
+            font-family: monospace;
+            font-size: 12px;
+            border-bottom: 2px solid #ef4444;
+            white-space: pre-wrap;
+        }
     </style>
 
 <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
     "react/": "https://esm.sh/react@^19.2.3/",
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "recharts": "https://esm.sh/recharts@^3.6.0"
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
 </head>
 <body class="bg-slate-50">
+    <div id="error-overlay"></div>
     <div id="root"></div>
     
     <script>
-      // Global error handler to catch loading issues
+      // Shim process.env for browser compatibility
+      window.process = { env: { API_KEY: '' } };
+
+      // Global error handler to catch loading issues and show them on screen
       window.onerror = function(msg, url, line, col, error) {
+        const overlay = document.getElementById('error-overlay');
+        overlay.style.display = 'block';
+        overlay.innerText = `FATAL ERROR: ${msg}\nFile: ${url}\nLine: ${line}:${col}\n\nStack: ${error ? error.stack : 'N/A'}`;
         console.error("Critical Error:", msg, "at", url, ":", line);
-        // Alert is useful for mobile debugging if the screen is just blank
-        // alert("App Error: " + msg + "\nFile: " + url + "\nLine: " + line);
         return false;
       };
     </script>
