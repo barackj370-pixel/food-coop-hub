@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, CoopStats, UserRole } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -12,10 +13,10 @@ const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];
 const computeHash = async (record: any): Promise<string> => {
   const msg = `${record.id}-${record.date}-${record.cropType}-${record.unitType}-${record.farmerName}-${record.farmerPhone}-${record.customerName}-${record.customerPhone}-${record.unitsSold}-${record.unitPrice}-${record.createdBy}-${record.agentPhone}-${record.status}-${record.confirmedBy || 'none'}`;
   
-  // Safety fallback if crypto.subtle is not available (e.g. non-HTTPS)
-  if (!window.crypto || !window.crypto.subtle) {
+  const cryptoObj = window.crypto || (window as any).msCrypto;
+  
+  if (!cryptoObj || !cryptoObj.subtle) {
     console.warn("Crypto Subtle not available, using fallback hashing");
-    // Extremely basic fallback hash for development/insecure contexts
     let hash = 0;
     for (let i = 0; i < msg.length; i++) {
       const char = msg.charCodeAt(i);
@@ -27,9 +28,25 @@ const computeHash = async (record: any): Promise<string> => {
 
   const encoder = new TextEncoder();
   const dataUint8 = encoder.encode(msg);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', dataUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    const hashBuffer = await cryptoObj.subtle.digest('SHA-256', dataUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    return `ERR-${Date.now().toString(16)}`;
+  }
+};
+
+const generateUUID = (): string => {
+  const cryptoObj = window.crypto || (window as any).msCrypto;
+  if (cryptoObj && cryptoObj.randomUUID) {
+    return cryptoObj.randomUUID();
+  }
+  // Fallback UUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 };
 
 const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ record, onClose }) => {
@@ -163,9 +180,15 @@ const App: React.FC = () => {
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
   const [showValidatedLedger, setShowValidatedLedger] = useState(false);
   
-  const [userName, setUserName] = useState<string>(() => localStorage.getItem('coop_user_name') || 'Field Agent');
-  const [userPhone, setUserPhone] = useState<string>(() => localStorage.getItem('coop_user_phone') || '0700000000');
-  const [userRole, setUserRole] = useState<string>(() => localStorage.getItem('coop_user_role') || 'agent');
+  const [userName, setUserName] = useState<string>(() => {
+    try { return localStorage.getItem('coop_user_name') || 'Field Agent'; } catch(e) { return 'Field Agent'; }
+  });
+  const [userPhone, setUserPhone] = useState<string>(() => {
+    try { return localStorage.getItem('coop_user_phone') || '0700000000'; } catch(e) { return '0700000000'; }
+  });
+  const [userRole, setUserRole] = useState<string>(() => {
+    try { return localStorage.getItem('coop_user_role') || 'agent'; } catch(e) { return 'agent'; }
+  });
   
   const isPrivilegedUser = AUTHORIZED_USERS.includes(userName);
   const isDeveloper = userRole === 'developer' || isPrivilegedUser;
@@ -181,23 +204,26 @@ const App: React.FC = () => {
   }, [userRole, isDeveloper]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('food_coop_data');
-    if (saved) { 
-      try { 
+    try {
+      const saved = localStorage.getItem('food_coop_data');
+      if (saved) { 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) setRecords(parsed);
-      } catch (e) { 
-        console.error("Corrupted record data, resetting:", e); 
-        localStorage.removeItem('food_coop_data');
-      } 
+      }
+    } catch (e) { 
+      console.warn("Storage access denied or data corrupted");
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('food_coop_data', JSON.stringify(records));
-    localStorage.setItem('coop_user_name', userName);
-    localStorage.setItem('coop_user_phone', userPhone);
-    localStorage.setItem('coop_user_role', userRole);
+    try {
+      localStorage.setItem('food_coop_data', JSON.stringify(records));
+      localStorage.setItem('coop_user_name', userName);
+      localStorage.setItem('coop_user_phone', userPhone);
+      localStorage.setItem('coop_user_role', userRole);
+    } catch (e) {
+      console.warn("Could not persist data to storage");
+    }
   }, [records, userName, userPhone, userRole]);
 
   const handleSaveIdentity = (newName: string, newPhone: string, newRole: string) => {
@@ -212,7 +238,7 @@ const App: React.FC = () => {
   };
 
   const handleAddRecord = async (data: any) => {
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     const totalSale = data.unitsSold * data.unitPrice;
     const coopProfit = totalSale * PROFIT_MARGIN;
     const recordToSign = { ...data, id, createdBy: userName, agentPhone: userPhone, status: RecordStatus.DRAFT };
