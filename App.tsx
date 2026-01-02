@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { SaleRecord, RecordStatus, CoopStats, UserRole } from './types';
-import SaleForm from './components/SaleForm';
-import StatCard from './components/StatCard';
-import { analyzeSalesData } from './services/geminiService';
+import { SaleRecord, RecordStatus, CoopStats, UserRole } from './types.ts';
+import SaleForm from './components/SaleForm.tsx';
+import StatCard from './components/StatCard.tsx';
+import { analyzeSalesData } from './services/geminiService.ts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { PROFIT_MARGIN } from './constants';
+import { PROFIT_MARGIN } from './constants.ts';
 
 // Pre-authorized Developers & Directors with Full Access
 const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];

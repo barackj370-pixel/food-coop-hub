@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,7 +9,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CoopHub">
     
-    <!-- Using ./ ensures it looks in the current folder, vital for GitHub Pages -->
     <link rel="manifest" href="./manifest.json">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
     
@@ -47,12 +45,21 @@
 <body class="bg-slate-50">
     <div id="root"></div>
     
+    <script>
+      // Global error handler to catch loading issues
+      window.onerror = function(msg, url, line, col, error) {
+        console.error("Critical Error:", msg, "at", url, ":", line);
+        // Alert is useful for mobile debugging if the screen is just blank
+        // alert("App Error: " + msg + "\nFile: " + url + "\nLine: " + line);
+        return false;
+      };
+    </script>
+
     <script type="text/babel" data-type="module" src="./index.tsx"></script>
 
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Register using relative path
           navigator.serviceWorker.register('./sw.js').then(reg => {
             console.log('SW registered:', reg.scope);
           }).catch(err => {

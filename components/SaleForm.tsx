@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { CROP_TYPES, CROP_CONFIG, PROFIT_MARGIN } from '../constants';
+import { CROP_TYPES, CROP_CONFIG, PROFIT_MARGIN } from '../constants.ts';
 
 interface SaleFormProps {
   onSubmit: (data: {

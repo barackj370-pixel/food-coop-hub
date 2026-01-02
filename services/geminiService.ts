@@ -1,6 +1,5 @@
-
 import { GoogleGenAI } from "@google/genai";
-import { SaleRecord } from "../types";
+import { SaleRecord } from "../types.ts";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
   if (!process.env.API_KEY) {
