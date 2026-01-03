@@ -282,7 +282,7 @@ const App: React.FC = () => {
     setRecords(updated);
   };
 
-  // --- NEW: Context-Aware Stats Logic ---
+  // --- Context-Aware Stats Logic ---
   const stats = useMemo(() => {
     // 1. Calculate GLOBAL stats for management/all-time views
     let tSales = 0, tFinalizedProfit = 0, tUnits = 0, vCount = 0;
@@ -434,9 +434,17 @@ const App: React.FC = () => {
                           records.map(r => (
                             <tr key={r.id} className="hover:bg-slate-50/50 transition">
                               <td className="px-8 py-5">
-                                <div className="space-y-1">
-                                  <p className="text-xs font-black text-slate-800">{r.farmerName}</p>
-                                  <p className="text-[10px] text-emerald-600 font-bold">{r.farmerPhone}</p>
+                                <div className="flex flex-col space-y-2">
+                                  <div>
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Farmer</p>
+                                    <p className="text-xs font-black text-slate-800">{r.farmerName}</p>
+                                    <p className="text-[9px] text-emerald-600 font-bold">{r.farmerPhone}</p>
+                                  </div>
+                                  <div className="pt-1 border-t border-slate-100">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Customer</p>
+                                    <p className="text-xs font-black text-slate-800">{r.customerName}</p>
+                                    <p className="text-[9px] text-blue-600 font-bold">{r.customerPhone}</p>
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-tight">{r.cropType}</span></td>
