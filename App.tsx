@@ -10,19 +10,27 @@ import { PROFIT_MARGIN } from './constants.ts';
 // Pre-authorized Users
 const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];
 
-// Safe Storage - prevents crashes in Incognito/Private modes
+// Hardened Persistence - handles blocked cookies/storage in private mode
 const persistence = {
   get: (key: string): string | null => {
-    try { return localStorage.getItem(key); } catch (e) { return null; }
+    try { 
+      return localStorage.getItem(key); 
+    } catch (e) { 
+      console.warn("Storage Get Blocked:", e);
+      return null; 
+    }
   },
   set: (key: string, val: string) => {
-    try { localStorage.setItem(key, val); } catch (e) { console.warn("Storage restricted"); }
+    try { 
+      localStorage.setItem(key, val); 
+    } catch (e) { 
+      console.warn("Storage Set Blocked/Full:", e); 
+    }
   }
 };
 
 const computeHash = async (record: any): Promise<string> => {
   const msg = `${record.id}-${record.date}-${record.cropType}-${record.unitType}-${record.farmerName}-${record.farmerPhone}-${record.customerName}-${record.customerPhone}-${record.unitsSold}-${record.unitPrice}-${record.createdBy}-${record.agentPhone}-${record.status}-${record.confirmedBy || 'none'}`;
-  
   const cryptoObj = window.crypto || (window as any).msCrypto;
   
   if (!cryptoObj || !cryptoObj.subtle) {
@@ -32,7 +40,7 @@ const computeHash = async (record: any): Promise<string> => {
       hash = ((hash << 5) - hash) + char;
       hash |= 0;
     }
-    return `LEGACY-${Math.abs(hash).toString(16)}-${Date.now().toString(16)}`;
+    return `LGC-${Math.abs(hash).toString(16)}`;
   }
 
   const encoder = new TextEncoder();
@@ -42,7 +50,7 @@ const computeHash = async (record: any): Promise<string> => {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   } catch (e) {
-    return `FALLBACK-${Date.now().toString(16)}`;
+    return `FBK-${Date.now().toString(16)}`;
   }
 };
 
@@ -51,7 +59,7 @@ const generateUUID = (): string => {
   if (cryptoObj && cryptoObj.randomUUID) {
     try { return cryptoObj.randomUUID(); } catch(e) {}
   }
-  return 'x' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  return 'uuid-' + Math.random().toString(36).substring(2, 10);
 };
 
 const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ record, onClose }) => {
@@ -114,7 +122,7 @@ const IdentityModal: React.FC<{ currentName: string; currentPhone: string; curre
   useEffect(() => { if (name === 'CD Otieno') setPhone('0721609699'); }, [name]);
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white w-full max-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
+      <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
         <div className="p-8 bg-emerald-950 text-white flex justify-between items-center">
           <div><h3 className="text-xl font-black uppercase tracking-widest">System Access</h3><p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Credentials Terminal</p></div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
@@ -177,7 +185,6 @@ const SecurityCheckBadge: React.FC<{ record: SaleRecord; onClick?: () => void }>
   );
 };
 
-// Helper for week numbers (ISO)
 const getWeekNumber = (d: Date) => {
   d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -303,74 +310,45 @@ const App: React.FC = () => {
     if (validated.length === 0) { alert("No records to export."); return; }
 
     const csvRows: any[][] = [["Date", "Crop", "Qty (Unit)", "Total Sales", "Coop Comm (10%)"]];
-    
     let currentMonthStr = "";
-    let currentWeekNum = -1;
-    
     let monthTotalSales = 0;
     let monthTotalComm = 0;
-    let weekTotalSales = 0;
-    let weekTotalComm = 0;
-
-    const pushWeekTotal = () => {
-      if (weekTotalSales > 0) {
-        csvRows.push(["", "", "WEEK TOTAL", weekTotalSales.toFixed(2), weekTotalComm.toFixed(2)]);
-        weekTotalSales = 0;
-        weekTotalComm = 0;
-      }
-    };
-
-    const pushMonthTotal = (monthLabel: string) => {
-      if (monthTotalSales > 0) {
-        csvRows.push(["", "", `TOTAL FOR ${monthLabel.toUpperCase()}`, monthTotalSales.toFixed(2), monthTotalComm.toFixed(2)]);
-        csvRows.push(["", "", "", "", ""]); 
-        monthTotalSales = 0;
-        monthTotalComm = 0;
-      }
-    };
 
     validated.forEach((r, idx) => {
       const dateObj = new Date(r.date);
       const mStr = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
-      const wNum = getWeekNumber(dateObj);
 
       if (mStr !== currentMonthStr) {
         if (idx > 0) {
-          pushWeekTotal();
-          pushMonthTotal(currentMonthStr);
+          csvRows.push(["", "", `TOTAL FOR ${currentMonthStr.toUpperCase()}`, monthTotalSales.toFixed(2), monthTotalComm.toFixed(2)]);
+          csvRows.push(["", "", "", "", ""]); 
+          monthTotalSales = 0;
+          monthTotalComm = 0;
         }
         currentMonthStr = mStr;
-        currentWeekNum = wNum;
         csvRows.push([`--- ${mStr.toUpperCase()} ---`, "", "", "", ""]);
-      } else if (wNum !== currentWeekNum) {
-        pushWeekTotal();
-        currentWeekNum = wNum;
       }
 
       csvRows.push([r.date, r.cropType, `${r.unitsSold} ${r.unitType}`, r.totalSale, r.coopProfit]);
-      
-      weekTotalSales += r.totalSale;
-      weekTotalComm += r.coopProfit;
       monthTotalSales += r.totalSale;
       monthTotalComm += r.coopProfit;
 
       if (idx === validated.length - 1) {
-        pushWeekTotal();
-        pushMonthTotal(currentMonthStr);
+        csvRows.push(["", "", `TOTAL FOR ${currentMonthStr.toUpperCase()}`, monthTotalSales.toFixed(2), monthTotalComm.toFixed(2)]);
       }
     });
 
     const csvContent = csvRows.map(e => e.join(",")).join("\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv' }));
-    link.download = `FoodCoop_MasterLedger_Audit_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Ledger_Export_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
   const roleLabel = userName === 'CD Otieno' ? 'Senior Director' : userName === 'Barack James' ? 'System Developer' : userName === 'Fred Dola' ? 'Data Analyst' : userRole === 'accounts' ? 'Accounts Office' : userRole === 'analyst' ? 'Data Analyst' : userRole === 'management' ? 'Coop Director' : userRole === 'developer' ? 'System Developer' : 'Field Agent';
 
   return (
-    <div className="min-h-screen pb-12 bg-[#F8FAFC] selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen pb-12 bg-[#F8FAFC]">
       {auditRecord && <AuditModal record={auditRecord} onClose={() => setAuditRecord(null)} />}
       {selectedReceipt && <ReceiptModal record={selectedReceipt} onClose={() => setSelectedReceipt(null)} />}
       {isIdentityModalOpen && <IdentityModal currentName={userName} currentPhone={userPhone} currentRole={userRole} onSave={handleSaveIdentity} onClose={() => setIsIdentityModalOpen(false)} />}
@@ -391,10 +369,10 @@ const App: React.FC = () => {
             </div>
           </div>
           <nav className="flex space-x-1 bg-white/5 p-1.5 rounded-2xl border border-white/10">
-            {canAccessSales && <button onClick={() => setActiveTab('sales')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'sales' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-emerald-400 hover:bg-white/5'}`}>Sales Portal</button>}
-            {canAccessFinance && <button onClick={() => setActiveTab('finance')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'finance' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-blue-400 hover:bg-white/5'}`}>Finance Desk</button>}
-            {canAccessIntegrity && <button onClick={() => setActiveTab('analyst')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'analyst' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-amber-400 hover:bg-white/5'}`}>Integrity Portal</button>}
-            {canAccessBoard && <button onClick={() => setActiveTab('management')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'management' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-indigo-400 hover:bg-white/5'}`}>Board View</button>}
+            {canAccessSales && <button onClick={() => setActiveTab('sales')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'sales' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-400 hover:bg-white/5'}`}>Sales Portal</button>}
+            {canAccessFinance && <button onClick={() => setActiveTab('finance')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'finance' ? 'bg-blue-500 text-white shadow-lg' : 'text-blue-400 hover:bg-white/5'}`}>Finance Desk</button>}
+            {canAccessIntegrity && <button onClick={() => setActiveTab('analyst')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'analyst' ? 'bg-amber-500 text-white shadow-lg' : 'text-amber-400 hover:bg-white/5'}`}>Integrity Portal</button>}
+            {canAccessBoard && <button onClick={() => setActiveTab('management')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'management' ? 'bg-indigo-500 text-white shadow-lg' : 'text-indigo-400 hover:bg-white/5'}`}>Board View</button>}
           </nav>
         </div>
       </header>
@@ -405,7 +383,7 @@ const App: React.FC = () => {
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${isDeveloper ? 'bg-slate-900' : userRole === 'management' ? 'bg-indigo-600' : userRole === 'accounts' ? 'bg-blue-600' : 'bg-emerald-600'}`}><i className={`fas ${isDeveloper ? 'fa-code' : userRole === 'management' ? 'fa-user-tie' : userRole === 'accounts' ? 'fa-cash-register' : 'fa-user'} text-xl`}></i></div>
             <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Authenticated Session</p><p className="text-sm font-black text-slate-800 uppercase tracking-tight">{userName} • {userPhone}</p></div>
           </div>
-          <button onClick={() => setIsIdentityModalOpen(true)} className="w-full sm:w-auto px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-600 hover:bg-white hover:border-emerald-500 hover:text-emerald-600 transition-all shadow-sm">Switch Identity</button>
+          <button onClick={() => setIsIdentityModalOpen(true)} className="w-full sm:w-auto px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-600 hover:bg-white transition-all shadow-sm">Switch Identity</button>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
@@ -433,19 +411,16 @@ const App: React.FC = () => {
                             <tr key={r.id} className="hover:bg-slate-50/50 transition">
                               <td className="px-8 py-5">
                                 <div className="space-y-1">
-                                  <p className="text-xs font-black text-slate-800"><span className="text-[9px] text-slate-400 uppercase tracking-tighter mr-1">F:</span>{r.farmerName}</p>
-                                  <p className="text-[10px] text-emerald-600 font-bold ml-3">{r.farmerPhone}</p>
-                                  <div className="h-[1px] w-full bg-slate-50 my-1"></div>
-                                  <p className="text-xs font-black text-slate-800"><span className="text-[9px] text-blue-400 uppercase tracking-tighter mr-1">C:</span>{r.customerName}</p>
-                                  <p className="text-[10px] text-blue-600 font-bold ml-3">{r.customerPhone}</p>
+                                  <p className="text-xs font-black text-slate-800">{r.farmerName}</p>
+                                  <p className="text-[10px] text-emerald-600 font-bold">{r.farmerPhone}</p>
                                 </div>
                               </td>
                               <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-tight">{r.cropType}</span></td>
-                              <td className="px-8 py-5 text-center"><p className="text-xs font-bold text-slate-600">{r.unitsSold} <span className="text-[10px] font-black text-slate-400 uppercase">{r.unitType}</span></p></td>
-                              <td className="px-8 py-5"><p className="text-sm font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</p></td>
-                              <td className="px-8 py-5"><div className={`px-3 py-1.5 rounded-xl border inline-block ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}><p className={`text-xs font-black ${r.status === RecordStatus.VALIDATED ? 'text-emerald-700' : 'text-slate-400'}`}>KSh {r.coopProfit.toLocaleString()}</p></div></td>
+                              <td className="px-8 py-5 text-center text-xs font-bold text-slate-600">{r.unitsSold} <span className="text-[10px] font-black text-slate-400 uppercase">{r.unitType}</span></td>
+                              <td className="px-8 py-5 text-sm font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
+                              <td className="px-8 py-5 font-black text-emerald-700">KSh {r.coopProfit.toLocaleString()}</td>
                               <td className="px-8 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td>
-                              <td className="px-8 py-5 text-right"><div className="flex items-center justify-end space-x-2"><span className={`w-2 h-2 rounded-full ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-500' : r.status === RecordStatus.PAID ? 'bg-blue-500' : 'bg-slate-200'}`}></span><span className="text-[10px] font-black uppercase text-slate-400">{r.status}</span></div></td>
+                              <td className="px-8 py-5 text-right"><span className="text-[10px] font-black uppercase text-slate-400">{r.status}</span></td>
                             </tr>
                           ))
                         )}
@@ -463,7 +438,7 @@ const App: React.FC = () => {
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {records.filter(r => r.status === RecordStatus.DRAFT).map(r => (
                     <div key={r.id} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 flex flex-col justify-between shadow-sm">
-                      <div className="mb-6"><div className="flex justify-between items-start mb-4"><span className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-500 uppercase">{r.cropType}</span><p className="text-lg font-black text-blue-600">KSh {r.coopProfit.toLocaleString()}</p></div><div className="space-y-2 text-[11px]"><div className="flex justify-between"><span className="font-bold text-slate-400 uppercase">Sale Value</span><span className="font-black text-slate-800">KSh {r.totalSale.toLocaleString()}</span></div><div className="flex justify-between"><span className="font-bold text-slate-400 uppercase">Field Agent</span><span className="font-black text-slate-800">{r.createdBy}</span></div></div></div>
+                      <div className="mb-6"><div className="flex justify-between items-start mb-4"><span className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-500 uppercase">{r.cropType}</span><p className="text-lg font-black text-blue-600">KSh {r.coopProfit.toLocaleString()}</p></div><div className="space-y-2 text-[11px] font-bold"><p>Farmer: {r.farmerName}</p><p>Agent: {r.createdBy}</p></div></div>
                       <button onClick={() => handleConfirmPayment(r.id)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all">Confirm Payment</button>
                     </div>
                   ))}
@@ -488,11 +463,11 @@ const App: React.FC = () => {
             </div>
             {showValidatedLedger && (
               <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
-                <div className="p-8 bg-slate-900 text-white"><h3 className="text-xl font-black uppercase tracking-widest">Post-Audit Commission Ledger</h3></div>
+                <div className="p-8 bg-slate-900 text-white"><h3 className="text-xl font-black uppercase tracking-widest">Verified Commission Ledger</h3></div>
                 <div className="overflow-x-auto"><table className="w-full text-left"><thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400"><tr><th className="px-6 py-5">Audit Status</th><th className="px-6 py-5">Details</th><th className="px-6 py-5">Confirmation</th><th className="px-6 py-5 text-right">Action</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
-                    <tr key={r.id} className="hover:bg-slate-50 transition"><td className="px-6 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td><td className="px-6 py-5"><p className="text-xs font-black text-slate-800">KSh {r.coopProfit.toLocaleString()} Commission</p><p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter mt-1">{r.date} | {r.cropType}</p></td><td className="px-6 py-5 text-[10px] font-black text-blue-600 uppercase">Received by {r.confirmedBy}</td><td className="px-6 py-5 text-right">{r.status === RecordStatus.VALIDATED ? <span className="text-emerald-600 font-black uppercase text-[10px] bg-emerald-50 px-4 py-2 rounded-lg">Validated</span> : <button onClick={() => handleFinalVerify(r.id)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">Stamp & Verify</button>}</td></tr>
+                    <tr key={r.id} className="hover:bg-slate-50 transition"><td className="px-6 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td><td className="px-6 py-5"><p className="text-xs font-black text-slate-800">KSh {r.coopProfit.toLocaleString()} Comm</p><p className="text-[9px] text-slate-400 font-bold uppercase mt-1">{r.date} | {r.cropType}</p></td><td className="px-6 py-5 text-[10px] font-black text-blue-600 uppercase">Received by {r.confirmedBy}</td><td className="px-6 py-5 text-right">{r.status === RecordStatus.VALIDATED ? <span className="text-emerald-600 font-black uppercase text-[10px] bg-emerald-50 px-4 py-2 rounded-lg">Validated</span> : <button onClick={() => handleFinalVerify(r.id)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">Stamp & Verify</button>}</td></tr>
                   ))}
                 </tbody></table></div>
               </div>
@@ -503,48 +478,33 @@ const App: React.FC = () => {
         {activeTab === 'management' && canAccessBoard && (
           <div className="animate-fade-in space-y-10">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-               <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl">
-                  <div className="flex justify-between items-center mb-8">
-                    <div>
-                      <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest">Revenue Flow</h3>
-                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Total Sales Distribution by Crop</p>
-                    </div>
-                    <button onClick={exportToExcel} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center shadow-lg shadow-indigo-600/20">
-                      <i className="fas fa-file-export mr-2"></i> Export Data
-                    </button>
-                  </div>
+               <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl min-h-[400px]">
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-8">Revenue Flow</h3>
                   <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} dy={10} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} />
-                        <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 800, fontSize: '12px' }} cursor={{ fill: '#f8fafc' }} />
+                        <Tooltip cursor={{ fill: '#f8fafc' }} />
                         <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                </div>
-               <div className="bg-indigo-950 p-8 rounded-[2.5rem] text-white flex flex-col justify-between shadow-2xl relative overflow-hidden">
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
+               <div className="bg-indigo-950 p-8 rounded-[2.5rem] text-white flex flex-col justify-between shadow-2xl overflow-hidden">
                   <div className="space-y-8 relative z-10">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Validated Commission</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Finalized Commission</p>
                       <p className="text-5xl font-black tracking-tighter">KSh {stats.finalizedProfit.toLocaleString()}</p>
                     </div>
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Verified Batches</p>
-                        <p className="text-xl font-black mt-1">{stats.countValidated} records</p>
-                      </div>
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Total Volume</p>
-                        <p className="text-xl font-black mt-1">{stats.totalUnits.toLocaleString()} units</p>
-                      </div>
+                    <div className="grid grid-cols-1 gap-4 font-bold text-xs uppercase tracking-widest">
+                        <p className="text-indigo-300">Verified Batches: {stats.countValidated}</p>
+                        <p className="text-indigo-300">Total Volume: {stats.totalUnits.toLocaleString()} units</p>
                     </div>
                   </div>
                   <div className="mt-8 relative z-10">
-                    <p className="text-[9px] italic text-indigo-300">"Providing strategic oversight for sustainable agricultural growth through transparent financial ledger systems."</p>
+                    <p className="text-[9px] italic text-indigo-300">"Trust ledger verified and secured."</p>
                   </div>
                </div>
             </div>
@@ -552,7 +512,12 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="mt-24 text-center"><div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm"><i className="fas fa-shield-check text-emerald-600 text-sm"></i><span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.3.0</span></div></footer>
+      <footer className="mt-24 text-center pb-12">
+        <div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm">
+          <i className="fas fa-shield-check text-emerald-600 text-sm"></i>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.3.1</span>
+        </div>
+      </footer>
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }`}</style>
     </div>
   );

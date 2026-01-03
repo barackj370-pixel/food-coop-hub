@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,11 +11,12 @@
       window.global = window;
       window.process = { env: { API_KEY: "" } };
 
-      // 2. Diagnostic & Recovery System
-      window.BOOT_LOG = [];
-      const log = (msg) => {
-        console.log(`[System] ${msg}`);
-        window.BOOT_LOG.push(`${new Date().toLocaleTimeString()} - ${msg}`);
+      // 2. Global Diagnostic System
+      window.HUB_LOG = [];
+      window.logToHub = (msg) => {
+        const timestamp = new Date().toLocaleTimeString();
+        console.log(`[Hub] ${msg}`);
+        window.HUB_LOG.push(`${timestamp}: ${msg}`);
       };
 
       window.hideHubLoader = function() {
@@ -26,33 +28,40 @@
         }
       };
 
-      // Failsafe: If the app hasn't mounted in 5 seconds, something is wrong.
-      // Force unmask and show diagnostic info.
-      const recoveryTimeout = setTimeout(() => {
-        const root = document.getElementById('root');
-        if (root && root.children.length === 0) {
-          log("Recovery triggered: App failed to mount.");
-          window.hideHubLoader();
-          root.innerHTML = `
-            <div style="padding: 30px; font-family: monospace; font-size: 12px; line-height: 1.5; color: #444; max-width: 600px; margin: 40px auto; background: white; border-radius: 12px; border: 1px solid #ddd;">
-              <h2 style="color: #e11d48; margin-top: 0;">System Boot Timeout</h2>
-              <p>The application is taking too long to start. This usually indicates a network error or a module resolution failure.</p>
-              <div style="background: #f1f5f9; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
-                <strong>Boot Log:</strong><br>
-                ${window.BOOT_LOG.join('<br>')}
-              </div>
-              <button onclick="location.reload()" style="margin-top: 15px; padding: 10px 20px; background: #022c22; color: white; border: none; border-radius: 6px; cursor: pointer;">Retry Boot</button>
-            </div>
-          `;
-        }
-      }, 5000);
-
+      // 3. Global Error Capture
       window.addEventListener('error', function(e) {
-        log(`Fatal: ${e.message}`);
+        window.logToHub(`Fatal: ${e.message}`);
+        const errorDiv = document.createElement('div');
+        errorDiv.style = "position:fixed; bottom:10px; left:10px; right:10px; background:#fef2f2; border:1px solid #ef4444; color:#991b1b; padding:12px; font-family:monospace; font-size:11px; z-index:10001; border-radius:8px;";
+        errorDiv.innerHTML = `<strong>Runtime Error:</strong><br>${e.message}<br><small>${e.filename}:${e.lineno}</small>`;
+        document.body.appendChild(errorDiv);
         window.hideHubLoader();
       });
 
-      log("Engine standby. Waiting for modules...");
+      window.addEventListener('unhandledrejection', function(e) {
+        window.logToHub(`Async Error: ${e.reason}`);
+      });
+
+      // 4. Emergency Failsafe (If app fails to mount in 7 seconds)
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.children.length === 0) {
+          window.logToHub("Timeout: Mounting failed.");
+          window.hideHubLoader();
+          root.innerHTML = `
+            <div style="padding:40px; text-align:center; font-family:sans-serif;">
+              <h1 style="color:#ef4444; font-size:20px;">System Connection Lost</h1>
+              <p style="color:#64748b; font-size:14px; margin-bottom:20px;">The application failed to initialize. This may be due to a blocked script or a network error.</p>
+              <div style="background:#f1f5f9; padding:15px; border-radius:8px; text-align:left; font-family:monospace; font-size:11px; max-width:500px; margin:0 auto 20px;">
+                <strong>Diagnostic Log:</strong><br>${window.HUB_LOG.join('<br>')}
+              </div>
+              <button onclick="location.reload()" style="background:#022c22; color:white; padding:12px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:bold;">RETRY BOOT</button>
+            </div>
+          `;
+        }
+      }, 7000);
+
+      window.logToHub("Engine: Standby...");
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -81,7 +90,7 @@
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-    "recharts": "https://esm.sh/recharts@2.12.0?bundle",
+    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
     "react/": "https://esm.sh/react@19.0.0/",
     "react-dom/": "https://esm.sh/react-dom@19.0.0/"
   }
