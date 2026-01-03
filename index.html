@@ -7,27 +7,52 @@
     <title>Food Coop Hub</title>
     
     <script>
-      // 1. Core System Shims
+      // 1. Core System Shims (Must run before any module loads)
       window.global = window;
-      window.process = { env: { API_KEY: "" } };
+      // Robust process shim that doesn't overwrite existing platform-injected keys
+      window.process = window.process || { env: {} };
+      window.process.env = window.process.env || {};
+      if (window.process.env.API_KEY === undefined) {
+        window.process.env.API_KEY = ""; 
+      }
       
-      // 2. Global Loader Control
-      window.hideHubLoader = function() {
-        const loader = document.getElementById('loading-screen');
-        if (loader) {
-          loader.style.opacity = '0';
-          loader.style.pointerEvents = 'none';
+      // 2. Automated Loader Management
+      // This observer hides the green screen as soon as React adds content to #root
+      (function() {
+        const observer = new MutationObserver((mutations, obs) => {
+          const root = document.getElementById('root');
+          if (root && root.children.length > 0) {
+            const loader = document.getElementById('loading-screen');
+            if (loader) {
+              loader.style.opacity = '0';
+              loader.style.pointerEvents = 'none';
+              setTimeout(() => { if (loader.parentNode) loader.parentNode.removeChild(loader); }, 500);
+            }
+            obs.disconnect(); // Stop looking once we've found content
+          }
+        });
+        document.addEventListener('DOMContentLoaded', () => {
+          const root = document.getElementById('root');
+          if (root) observer.observe(root, { childList: true });
+          
+          // Failsafe: If the app hasn't loaded in 6 seconds, show whatever we have
           setTimeout(() => {
-            if (loader.parentNode) loader.parentNode.removeChild(loader);
-          }, 500);
-        }
-      };
+            const loader = document.getElementById('loading-screen');
+            if (loader) {
+              console.warn("System: Loader timeout triggered.");
+              loader.style.opacity = '0';
+              loader.style.pointerEvents = 'none';
+            }
+          }, 6000);
+        });
+      })();
 
-      // 3. Error Diagnostic
+      // 3. Global Error Recovery
       window.addEventListener('error', function(e) {
-        console.error("Critical System Error:", e);
-        // If we haven't mounted after 5 seconds, something is wrong
-        setTimeout(window.hideHubLoader, 5000);
+        console.error("System Boot Error:", e);
+        // Force hide loader on error so user can see crash diagnostics
+        const loader = document.getElementById('loading-screen');
+        if (loader) loader.style.display = 'none';
       });
     </script>
 
@@ -35,7 +60,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
         #loading-screen {
             position: fixed; inset: 0; z-index: 9999;
             background: #022c22; color: white;
@@ -44,7 +69,7 @@
             pointer-events: all;
         }
         .spinner {
-            width: 48px; height: 48px; border: 3px solid rgba(255,255,255,0.1);
+            width: 40px; height: 40px; border: 3px solid rgba(16, 185, 129, 0.1);
             border-top-color: #10b981; border-radius: 50%; animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -57,7 +82,7 @@
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-    "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
+    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
     "react/": "https://esm.sh/react@19.0.0/",
     "react-dom/": "https://esm.sh/react-dom@19.0.0/"
   }

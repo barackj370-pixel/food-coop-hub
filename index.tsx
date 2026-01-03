@@ -3,47 +3,29 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 
-// Log to help debugging in the browser console
-console.log("System: Hub Engine Booting...");
+// Log for debugging visibility
+console.log("System: Hub UI Rendering...");
 
-const init = () => {
+const startApplication = () => {
   const rootElement = document.getElementById('root');
   
   if (!rootElement) {
-    console.error("System: #root target missing in DOM.");
-    // Emergency hide if we can't even find root
-    if ((window as any).hideHubLoader) (window as any).hideHubLoader();
+    console.error("System Failure: #root element missing in DOM.");
     return;
   }
 
   try {
     const root = createRoot(rootElement);
     root.render(<App />);
-    
-    // Hide loader immediately after starting the render
-    // Use a small delay to allow the browser to process the first frame
-    setTimeout(() => {
-      console.log("System: Hub UI Mounted.");
-      if ((window as any).hideHubLoader) (window as any).hideHubLoader();
-    }, 100);
-
+    console.log("System: Render successfully dispatched.");
   } catch (err) {
-    console.error("System: Critical render crash:", err);
-    if ((window as any).hideHubLoader) (window as any).hideHubLoader();
+    console.error("System Failure: Could not mount React tree.", err);
   }
 };
 
-// Start initialization
+// Initiate boot process
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', startApplication);
 } else {
-  init();
+  startApplication();
 }
-
-// Global safety timeout: if nothing happens in 4 seconds, force hide the loader
-setTimeout(() => {
-  if (document.getElementById('loading-screen')) {
-    console.warn("System: Loader stuck. Forcing display.");
-    if ((window as any).hideHubLoader) (window as any).hideHubLoader();
-  }
-}, 4000);
