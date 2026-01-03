@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
@@ -9,6 +8,17 @@ const boot = () => {
 
   const log = (window as any).logToHub;
   if (log) log("System: Initiating Mount Sequence...");
+
+  // Register Service Worker for PWA support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').then(registration => {
+        if (log) log("System: Service Worker Registered.");
+      }).catch(err => {
+        if (log) log(`System: SW Registration Failed: ${err}`);
+      });
+    });
+  }
 
   try {
     const root = createRoot(rootElement);
