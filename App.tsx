@@ -307,11 +307,11 @@ const App: React.FC = () => {
     const latest = records[0];
     const recent = latest ? {
       totalSales: latest.totalSale,
-      finalizedProfit: tFinalizedProfit, // Commission card ALWAYS shows global finalized total
+      finalizedProfit: latest.coopProfit, // In entry view, finalizedProfit acts as "Recent Pending"
       totalUnits: latest.unitsSold,
       countValidated: vCount,
       avgUnitPrice: latest.unitPrice
-    } : { totalSales: 0, finalizedProfit: tFinalizedProfit, totalUnits: 0, countValidated: vCount, avgUnitPrice: 0 };
+    } : { totalSales: 0, finalizedProfit: 0, totalUnits: 0, countValidated: vCount, avgUnitPrice: 0 };
 
     // 3. Decide which to return based on active tab
     const isDashboardContext = activeTab === 'sales' || activeTab === 'finance';
@@ -371,6 +371,15 @@ const App: React.FC = () => {
 
   const isRecentView = activeTab === 'sales' || activeTab === 'finance';
 
+  const getLogStatusLabel = (status: RecordStatus) => {
+    switch (status) {
+      case RecordStatus.DRAFT: return "Awaiting Collection";
+      case RecordStatus.PAID: return "Awaiting Approval";
+      case RecordStatus.VALIDATED: return "Approved & Finalized";
+      default: return status;
+    }
+  };
+
   return (
     <div className="min-h-screen pb-12 bg-[#F8FAFC]">
       {auditRecord && <AuditModal record={auditRecord} onClose={() => setAuditRecord(null)} />}
@@ -412,7 +421,7 @@ const App: React.FC = () => {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           <StatCard label={isRecentView ? "Recent Revenue" : "Total Revenue"} value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
-          <StatCard label="Finalized Commission" value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
+          <StatCard label={isRecentView ? "Pending Commission" : "Finalized Commission"} value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
           <StatCard label={isRecentView ? "Recent Units" : "Total Units"} value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
           <StatCard label={isRecentView ? "Unit Price" : "Avg Unit Price"} value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
         </div>
@@ -425,11 +434,11 @@ const App: React.FC = () => {
                 <div className="overflow-x-auto">
                    <table className="w-full text-left">
                       <thead className="bg-white border-b text-[10px] text-slate-400 font-black uppercase">
-                        <tr><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty</th><th className="px-8 py-5">Total Sales</th><th className="px-8 py-5">Coop Comm(10%)</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
+                        <tr><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty</th><th className="px-8 py-5">Unit Price</th><th className="px-8 py-5">Total Sales</th><th className="px-8 py-5">Coop Comm(10%)</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {records.length === 0 ? (
-                          <tr><td colSpan={7} className="px-8 py-10 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">No records available</td></tr>
+                          <tr><td colSpan={8} className="px-8 py-10 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">No records available</td></tr>
                         ) : (
                           records.map(r => (
                             <tr key={r.id} className="hover:bg-slate-50/50 transition">
@@ -449,10 +458,14 @@ const App: React.FC = () => {
                               </td>
                               <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-tight">{r.cropType}</span></td>
                               <td className="px-8 py-5 text-center text-xs font-bold text-slate-600">{r.unitsSold} <span className="text-[10px] font-black text-slate-400 uppercase">{r.unitType}</span></td>
+                              <td className="px-8 py-5 text-xs font-bold text-slate-600">KSh {r.unitPrice.toLocaleString()}</td>
                               <td className="px-8 py-5 text-sm font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
-                              <td className="px-8 py-5 font-black text-emerald-700">KSh {r.coopProfit.toLocaleString()}</td>
+                              <td className="px-8 py-5">
+                                <p className={`text-sm font-black ${r.status === RecordStatus.VALIDATED ? 'text-emerald-700' : 'text-slate-400 italic'}`}>KSh {r.coopProfit.toLocaleString()}</p>
+                                {r.status !== RecordStatus.VALIDATED && <p className="text-[8px] font-black uppercase text-slate-300">Pending Approval</p>}
+                              </td>
                               <td className="px-8 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td>
-                              <td className="px-8 py-5 text-right"><span className="text-[10px] font-black uppercase text-slate-400">{r.status}</span></td>
+                              <td className="px-8 py-5 text-right"><span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>{getLogStatusLabel(r.status)}</span></td>
                             </tr>
                           ))
                         )}
