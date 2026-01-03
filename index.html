@@ -1,15 +1,19 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Food Coop Hub</title>
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
     
     <script>
-      // 1. Critical Environment Shims
+      // 1. Improved Environment Shims (Defensive)
       window.global = window;
-      window.process = { env: { API_KEY: "" } };
+      if (typeof window.process === 'undefined') {
+        window.process = { env: { API_KEY: "" } };
+      } else if (!window.process.env) {
+        window.process.env = { API_KEY: "" };
+      }
 
       // 2. Global Diagnostic System
       window.HUB_LOG = [];
@@ -30,7 +34,7 @@
         }
       };
 
-      // 3. Rescue System: If app doesn't boot in 5s, show debug info
+      // 3. Rescue System: Increased timeout to 15s for slower ESM resolution
       setTimeout(() => {
         const root = document.getElementById('root');
         const loaderMsg = document.getElementById('loader-msg');
@@ -38,21 +42,30 @@
           window.logToHub("System Boot Timeout - Displaying Diagnostic Panel");
           if (loaderMsg) {
             loaderMsg.innerHTML = `
-              <div style="margin-top:20px; text-align:center;">
-                <p style="color:#ef4444; font-size:11px; font-weight:900; margin-bottom:10px;">BOOT FAILURE DETECTED</p>
-                <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; font-family:monospace; font-size:9px; color:#fff; text-align:left; max-width:250px; margin:0 auto 15px;">
-                  ${window.HUB_LOG.join('<br>')}
+              <div style="margin-top:20px; text-align:center; padding: 20px;">
+                <p style="color:#ef4444; font-size:11px; font-weight:900; margin-bottom:10px; letter-spacing: 0.1em;">BOOT SEQUENCE STALLED</p>
+                <div style="background:rgba(0,0,0,0.4); padding:12px; border-radius:12px; font-family:monospace; font-size:9px; color:#10b981; text-align:left; max-width:300px; margin:0 auto 20px; border: 1px solid rgba(16,185,129,0.2); max-height: 150px; overflow-y: auto;">
+                  ${window.HUB_LOG.map(l => `> ${l}`).join('<br>')}
                 </div>
-                <button onclick="location.reload()" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-size:10px; font-weight:bold; cursor:pointer;">RETRY CONNECTION</button>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                  <button onclick="location.reload()" style="background:#10b981; color:white; border:none; padding:10px 20px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer; text-transform: uppercase;">Retry Boot</button>
+                  <button onclick="localStorage.clear(); location.reload();" style="background:rgba(255,255,255,0.1); color:white; border:none; padding:10px 20px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer; text-transform: uppercase;">Clear Cache</button>
+                </div>
               </div>
             `;
           }
         }
-      }, 5000);
+      }, 15000);
 
       window.addEventListener('error', function(e) {
-        window.logToHub(`Critical: ${e.message}`);
+        window.logToHub(`Critical Error: ${e.message}`);
       });
+
+      window.addEventListener('unhandledrejection', function(event) {
+        window.logToHub(`Promise Rejection: ${event.reason}`);
+      });
+      
+      window.logToHub("System sequence initiated.");
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
