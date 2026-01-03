@@ -522,6 +522,23 @@ const App: React.FC = () => {
 
         {activeTab === 'management' && canAccessBoard && (
           <div className="animate-fade-in space-y-10">
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+               <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-xl shadow-inner">
+                    <i className="fas fa-chart-line"></i>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Executive Dashboard</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Real-time performance metrics</p>
+                  </div>
+               </div>
+               <button 
+                  onClick={exportToExcel} 
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 flex items-center"
+               >
+                  <i className="fas fa-download mr-2"></i> Download Audit Report
+               </button>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl min-h-[400px]">
                   <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-8">Revenue Flow</h3>
