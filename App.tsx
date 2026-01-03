@@ -319,9 +319,13 @@ const App: React.FC = () => {
   }, [records, activeTab]);
 
   const chartData = useMemo(() => {
-    const crops: Record<string, number> = {};
-    records.forEach(r => { crops[r.cropType] = (crops[r.cropType] || 0) + r.totalSale; });
-    return Object.entries(crops).map(([name, value]) => ({ name, value }));
+    const daily: Record<string, number> = {};
+    records.forEach(r => { 
+      daily[r.date] = (daily[r.date] || 0) + r.totalSale; 
+    });
+    return Object.entries(daily)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime());
   }, [records]);
 
   const exportToExcel = () => {
