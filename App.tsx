@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, CoopStats, UserRole } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -283,7 +282,9 @@ const App: React.FC = () => {
     setRecords(updated);
   };
 
+  // --- NEW: Context-Aware Stats Logic ---
   const stats = useMemo(() => {
+    // 1. Calculate GLOBAL stats for management/all-time views
     let tSales = 0, tFinalizedProfit = 0, tUnits = 0, vCount = 0;
     records.forEach(r => {
       tSales += r.totalSale;
@@ -293,8 +294,29 @@ const App: React.FC = () => {
         vCount += 1;
       }
     });
-    return { totalSales: tSales, finalizedProfit: tFinalizedProfit, totalUnits: tUnits, countValidated: vCount, avgUnitPrice: tUnits > 0 ? tSales / tUnits : 0 };
-  }, [records]);
+
+    const global = {
+      totalSales: tSales,
+      finalizedProfit: tFinalizedProfit,
+      totalUnits: tUnits,
+      countValidated: vCount,
+      avgUnitPrice: tUnits > 0 ? tSales / tUnits : 0
+    };
+
+    // 2. Calculate RECENT stats for current entry focus
+    const latest = records[0];
+    const recent = latest ? {
+      totalSales: latest.totalSale,
+      finalizedProfit: latest.coopProfit,
+      totalUnits: latest.unitsSold,
+      countValidated: 1,
+      avgUnitPrice: latest.unitPrice
+    } : { totalSales: 0, finalizedProfit: 0, totalUnits: 0, countValidated: 0, avgUnitPrice: 0 };
+
+    // 3. Decide which to return based on active tab
+    const isDashboardContext = activeTab === 'sales' || activeTab === 'finance';
+    return isDashboardContext ? recent : global;
+  }, [records, activeTab]);
 
   const chartData = useMemo(() => {
     const crops: Record<string, number> = {};
@@ -347,6 +369,8 @@ const App: React.FC = () => {
 
   const roleLabel = userName === 'CD Otieno' ? 'Senior Director' : userName === 'Barack James' ? 'System Developer' : userName === 'Fred Dola' ? 'Data Analyst' : userRole === 'accounts' ? 'Accounts Office' : userRole === 'analyst' ? 'Data Analyst' : userRole === 'management' ? 'Coop Director' : userRole === 'developer' ? 'System Developer' : 'Field Agent';
 
+  const isRecentView = activeTab === 'sales' || activeTab === 'finance';
+
   return (
     <div className="min-h-screen pb-12 bg-[#F8FAFC]">
       {auditRecord && <AuditModal record={auditRecord} onClose={() => setAuditRecord(null)} />}
@@ -387,10 +411,10 @@ const App: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <StatCard label="Total Revenue" value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
-          <StatCard label="Finalized Commission" value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
-          <StatCard label="Total Units" value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
-          <StatCard label="Price per Unit" value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
+          <StatCard label={isRecentView ? "Recent Revenue" : "Total Revenue"} value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
+          <StatCard label={isRecentView ? "Recent Commission" : "Finalized Commission"} value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
+          <StatCard label={isRecentView ? "Recent Units" : "Total Units"} value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
+          <StatCard label={isRecentView ? "Unit Price" : "Avg Unit Price"} value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
         </div>
 
         {activeTab === 'sales' && canAccessSales && (
@@ -499,8 +523,8 @@ const App: React.FC = () => {
                       <p className="text-5xl font-black tracking-tighter">KSh {stats.finalizedProfit.toLocaleString()}</p>
                     </div>
                     <div className="grid grid-cols-1 gap-4 font-bold text-xs uppercase tracking-widest">
-                        <p className="text-indigo-300">Verified Batches: {stats.countValidated}</p>
-                        <p className="text-indigo-300">Total Volume: {stats.totalUnits.toLocaleString()} units</p>
+                        <p className="text-indigo-300">Verified Batches: {records.filter(r => r.status === RecordStatus.VALIDATED).length}</p>
+                        <p className="text-indigo-300">Total Volume: {records.reduce((acc, r) => acc + r.unitsSold, 0).toLocaleString()} units</p>
                     </div>
                   </div>
                   <div className="mt-8 relative z-10">
