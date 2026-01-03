@@ -145,7 +145,7 @@ const AuditModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ rec
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in">
       <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200">
         <div className={`p-8 ${isSafe ? 'bg-emerald-600' : 'bg-red-600'} text-white flex justify-between items-start`}>
-          <div><h3 className="text-2xl font-black uppercase tracking-tight flex items-center"><i className={`fas ${isSafe ? 'fa-shield-check' : 'fa-triangle-exclamation'} mr-3`}></i>Security Audit Report</h3><p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Initial Sign: {record.createdBy} | Confirmation: {record.confirmedBy || 'Pending'}</p></div>
+          <div><h3 className="text-2xl font-black uppercase tracking-tight flex items-center"><i className={`fas ${isSafe ? 'fa-check-circle' : 'fa-triangle-exclamation'} mr-3`}></i>Security Audit Report</h3><p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Initial Sign: {record.createdBy} | Confirmation: {record.confirmedBy || 'Pending'}</p></div>
           <button onClick={onClose} className="bg-black/20 hover:bg-black/40 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
         <div className="p-8 space-y-6">
@@ -314,8 +314,9 @@ const App: React.FC = () => {
     } : { totalSales: 0, finalizedProfit: 0, totalUnits: 0, countValidated: vCount, avgUnitPrice: 0 };
 
     // 3. Decide which to return based on active tab
-    const isDashboardContext = activeTab === 'sales' || activeTab === 'finance';
-    return isDashboardContext ? recent : global;
+    // Summary at the top in the finance desk should show average unit price (global stats)
+    const isRecentViewContext = activeTab === 'sales';
+    return isRecentViewContext ? recent : global;
   }, [records, activeTab]);
 
   const chartData = useMemo(() => {
@@ -373,7 +374,7 @@ const App: React.FC = () => {
 
   const roleLabel = userName === 'CD Otieno' ? 'Senior Director' : userName === 'Barack James' ? 'System Developer' : userName === 'Fred Dola' ? 'Data Analyst' : userRole === 'accounts' ? 'Accounts Office' : userRole === 'analyst' ? 'Data Analyst' : userRole === 'management' ? 'Coop Director' : userRole === 'developer' ? 'System Developer' : 'Field Agent';
 
-  const isRecentView = activeTab === 'sales' || activeTab === 'finance';
+  const isSalesTab = activeTab === 'sales';
 
   const getLogStatusLabel = (status: RecordStatus) => {
     switch (status) {
@@ -424,10 +425,10 @@ const App: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <StatCard label={isRecentView ? "Recent Revenue" : "Total Revenue"} value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
-          <StatCard label={isRecentView ? "Pending Commission" : "Finalized Commission"} value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
-          <StatCard label={isRecentView ? "Recent Units" : "Total Units"} value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
-          <StatCard label={isRecentView ? "Unit Price" : "Avg Unit Price"} value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
+          <StatCard label={isSalesTab ? "Recent Revenue" : "Total Revenue"} value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
+          <StatCard label={isSalesTab ? "Pending Commission" : "Finalized Commission"} value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
+          <StatCard label={isSalesTab ? "Recent Units" : "Total Units"} value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
+          <StatCard label={isSalesTab ? "Unit Price" : "Avg Unit Price"} value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
         </div>
 
         {activeTab === 'sales' && canAccessSales && (
@@ -487,7 +488,16 @@ const App: React.FC = () => {
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {records.filter(r => r.status === RecordStatus.DRAFT).map(r => (
                     <div key={r.id} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 flex flex-col justify-between shadow-sm">
-                      <div className="mb-6"><div className="flex justify-between items-start mb-4"><span className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-500 uppercase">{r.cropType}</span><p className="text-lg font-black text-blue-600">KSh {r.coopProfit.toLocaleString()}</p></div><div className="space-y-2 text-[11px] font-bold"><p>Farmer: {r.farmerName}</p><p>Agent: {r.createdBy}</p></div></div>
+                      <div className="mb-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex flex-col">
+                            <span className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-500 uppercase w-fit">{r.cropType}</span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase mt-2 tracking-tighter">{r.date}</span>
+                          </div>
+                          <p className="text-lg font-black text-blue-600">KSh {r.coopProfit.toLocaleString()}</p>
+                        </div>
+                        <div className="space-y-2 text-[11px] font-bold"><p>Farmer: {r.farmerName}</p><p>Agent: {r.createdBy}</p></div>
+                      </div>
                       <button onClick={() => handleConfirmPayment(r.id)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all">Confirm Payment</button>
                     </div>
                   ))}
