@@ -24,44 +24,35 @@
         if (loader) {
           loader.style.opacity = '0';
           loader.style.pointerEvents = 'none';
-          setTimeout(() => { if (loader.parentNode) loader.parentNode.removeChild(loader); }, 500);
+          setTimeout(() => { 
+            if (loader.parentNode) loader.parentNode.removeChild(loader); 
+          }, 500);
         }
       };
 
-      // 3. Global Error Capture
-      window.addEventListener('error', function(e) {
-        window.logToHub(`Fatal: ${e.message}`);
-        const errorDiv = document.createElement('div');
-        errorDiv.style = "position:fixed; bottom:10px; left:10px; right:10px; background:#fef2f2; border:1px solid #ef4444; color:#991b1b; padding:12px; font-family:monospace; font-size:11px; z-index:10001; border-radius:8px;";
-        errorDiv.innerHTML = `<strong>Runtime Error:</strong><br>${e.message}<br><small>${e.filename}:${e.lineno}</small>`;
-        document.body.appendChild(errorDiv);
-        window.hideHubLoader();
-      });
-
-      window.addEventListener('unhandledrejection', function(e) {
-        window.logToHub(`Async Error: ${e.reason}`);
-      });
-
-      // 4. Emergency Failsafe (If app fails to mount in 7 seconds)
+      // 3. Rescue System: If app doesn't boot in 5s, show debug info
       setTimeout(() => {
         const root = document.getElementById('root');
+        const loaderMsg = document.getElementById('loader-msg');
         if (root && root.children.length === 0) {
-          window.logToHub("Timeout: Mounting failed.");
-          window.hideHubLoader();
-          root.innerHTML = `
-            <div style="padding:40px; text-align:center; font-family:sans-serif;">
-              <h1 style="color:#ef4444; font-size:20px;">System Connection Lost</h1>
-              <p style="color:#64748b; font-size:14px; margin-bottom:20px;">The application failed to initialize. This may be due to a blocked script or a network error.</p>
-              <div style="background:#f1f5f9; padding:15px; border-radius:8px; text-align:left; font-family:monospace; font-size:11px; max-width:500px; margin:0 auto 20px;">
-                <strong>Diagnostic Log:</strong><br>${window.HUB_LOG.join('<br>')}
+          window.logToHub("System Boot Timeout - Displaying Diagnostic Panel");
+          if (loaderMsg) {
+            loaderMsg.innerHTML = `
+              <div style="margin-top:20px; text-align:center;">
+                <p style="color:#ef4444; font-size:11px; font-weight:900; margin-bottom:10px;">BOOT FAILURE DETECTED</p>
+                <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; font-family:monospace; font-size:9px; color:#fff; text-align:left; max-width:250px; margin:0 auto 15px;">
+                  ${window.HUB_LOG.join('<br>')}
+                </div>
+                <button onclick="location.reload()" style="background:#10b981; color:white; border:none; padding:8px 16px; border-radius:6px; font-size:10px; font-weight:bold; cursor:pointer;">RETRY CONNECTION</button>
               </div>
-              <button onclick="location.reload()" style="background:#022c22; color:white; padding:12px 24px; border-radius:8px; border:none; cursor:pointer; font-weight:bold;">RETRY BOOT</button>
-            </div>
-          `;
+            `;
+          }
         }
-      }, 7000);
+      }, 5000);
 
-      window.logToHub("Engine: Standby...");
+      window.addEventListener('error', function(e) {
+        window.logToHub(`Critical: ${e.message}`);
+      });
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -90,7 +81,7 @@
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
+    "recharts": "https://esm.sh/recharts@2.15.0?bundle&external=react,react-dom",
     "react/": "https://esm.sh/react@19.0.0/",
     "react-dom/": "https://esm.sh/react-dom@19.0.0/"
   }
@@ -100,11 +91,13 @@
 <body>
     <div id="loading-screen">
         <div class="spinner"></div>
-        <p style="margin-top: 1.2rem; font-weight: 800; letter-spacing: 0.2em; font-size: 9px; text-transform: uppercase; color: #10b981;">Hub Initializing</p>
+        <div id="loader-msg" style="text-align: center;">
+          <p style="margin-top: 1.2rem; font-weight: 800; letter-spacing: 0.2em; font-size: 9px; text-transform: uppercase; color: #10b981;">Hub Initializing</p>
+        </div>
     </div>
 
     <div id="root"></div>
 
-    <script type="module" src="./index.tsx"></script>
+    <script type="module" src="index.tsx"></script>
 </body>
 </html>
