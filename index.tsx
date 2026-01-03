@@ -1,50 +1,63 @@
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
 
-console.log("System: Hub Engine Booting...");
-
-const RootComponent = () => {
-  React.useEffect(() => {
-    // Explicitly notify the system we are running
-    if ((window as any).hideHubLoader) {
-      setTimeout((window as any).hideHubLoader, 300);
-    }
-  }, []);
-
-  return <App />;
-};
-
-const mount = () => {
+// Defensive Bootstrapper: Using dynamic import to catch syntax/path errors
+// which are the primary cause of the "blank white page" in static environments.
+const boot = async () => {
   const rootElement = document.getElementById('root');
-  
-  if (!rootElement) {
-    console.error("System Failure: #root missing.");
-    return;
-  }
+  if (!rootElement) return;
 
   try {
+    console.log("System: Resolving App Module...");
+    // Dynamic import allows us to catch errors that static imports cannot
+    const { default: App } = await import('./App.tsx');
+    
     const root = createRoot(rootElement);
-    root.render(<RootComponent />);
-    console.log("System: React reconciliation started.");
+    
+    const RootWrapper = () => {
+      React.useEffect(() => {
+        console.log("System: Hub UI Active.");
+        if ((window as any).hideHubLoader) {
+          setTimeout((window as any).hideHubLoader, 200);
+        }
+      }, []);
+      return <App />;
+    };
+
+    root.render(<RootWrapper />);
+    
   } catch (err) {
-    console.error("System Failure: Mount failed", err);
-    // Visual error report for the user if hosting fails to run modules correctly
+    console.error("System Failure:", err);
+    
+    // Fallback UI to explain why the white page is appearing
     rootElement.innerHTML = `
-      <div style="padding: 40px; text-align: center; font-family: sans-serif;">
-        <h2 style="color: #ef4444;">Initialization Error</h2>
-        <p style="color: #64748b;">${err instanceof Error ? err.message : 'Unknown bootstrap error'}</p>
-        <button onclick="location.reload()" style="background:#022c22; color:white; padding:10px 20px; border-radius:8px; border:none; cursor:pointer;">Retry</button>
+      <div style="padding: 40px; max-width: 600px; margin: 40px auto; font-family: sans-serif; background: white; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+        <h2 style="color: #e11d48; font-weight: 900; text-transform: uppercase; letter-spacing: -0.025em;">Bootstrap Failure</h2>
+        <p style="color: #475569; line-height: 1.6;">The application encountered a module loading error. This usually happens when the browser cannot find the component files or fails to parse the TypeScript code.</p>
+        <div style="background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 12px; color: #1e293b; margin: 20px 0; overflow-x: auto;">
+          ${err instanceof Error ? err.message : 'Unknown error during import'}
+        </div>
+        <button onclick="location.reload()" style="background: #022c22; color: white; padding: 12px 24px; border-radius: 12px; border: none; font-weight: 800; cursor: pointer; width: 100%;">RETRY CONNECTION</button>
       </div>
     `;
+    
     if ((window as any).hideHubLoader) (window as any).hideHubLoader();
   }
 };
 
-// Handle ready state correctly
+// Start the engine
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', mount);
+  document.addEventListener('DOMContentLoaded', boot);
 } else {
-  mount();
+  boot();
 }
+
+// Emergency Failsafe for the Loader
+setTimeout(() => {
+  const loader = document.getElementById('loading-screen');
+  if (loader && loader.style.opacity !== '0') {
+    console.warn("System: Boot taking longer than expected. Unmasking.");
+    if ((window as any).hideHubLoader) (window as any).hideHubLoader();
+  }
+}, 6000);
