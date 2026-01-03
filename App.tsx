@@ -307,11 +307,11 @@ const App: React.FC = () => {
     const latest = records[0];
     const recent = latest ? {
       totalSales: latest.totalSale,
-      finalizedProfit: latest.coopProfit,
+      finalizedProfit: tFinalizedProfit, // Commission card ALWAYS shows global finalized total
       totalUnits: latest.unitsSold,
-      countValidated: 1,
+      countValidated: vCount,
       avgUnitPrice: latest.unitPrice
-    } : { totalSales: 0, finalizedProfit: 0, totalUnits: 0, countValidated: 0, avgUnitPrice: 0 };
+    } : { totalSales: 0, finalizedProfit: tFinalizedProfit, totalUnits: 0, countValidated: vCount, avgUnitPrice: 0 };
 
     // 3. Decide which to return based on active tab
     const isDashboardContext = activeTab === 'sales' || activeTab === 'finance';
@@ -412,7 +412,7 @@ const App: React.FC = () => {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           <StatCard label={isRecentView ? "Recent Revenue" : "Total Revenue"} value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
-          <StatCard label={isRecentView ? "Recent Commission" : "Finalized Commission"} value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
+          <StatCard label="Finalized Commission" value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
           <StatCard label={isRecentView ? "Recent Units" : "Total Units"} value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
           <StatCard label={isRecentView ? "Unit Price" : "Avg Unit Price"} value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
         </div>
