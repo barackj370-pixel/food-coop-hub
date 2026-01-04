@@ -444,14 +444,15 @@ const App: React.FC = () => {
                 <div className="overflow-x-auto">
                    <table className="w-full text-left">
                       <thead className="bg-white border-b text-[10px] text-slate-400 font-black uppercase">
-                        <tr><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty</th><th className="px-8 py-5">Unit Price</th><th className="px-8 py-5">Total Sales</th><th className="px-8 py-5">Coop Comm(10%)</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
+                        <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty</th><th className="px-8 py-5">Unit Price</th><th className="px-8 py-5">Total Sales</th><th className="px-8 py-5">Coop Comm(10%)</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {records.length === 0 ? (
-                          <tr><td colSpan={8} className="px-8 py-10 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">No records available</td></tr>
+                          <tr><td colSpan={9} className="px-8 py-10 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">No records available</td></tr>
                         ) : (
                           records.map(r => (
                             <tr key={r.id} className="hover:bg-slate-50/50 transition">
+                              <td className="px-8 py-5 text-xs font-black text-slate-600">{r.date}</td>
                               <td className="px-8 py-5">
                                 <div className="flex flex-col space-y-2">
                                   <div>
