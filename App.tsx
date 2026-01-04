@@ -64,6 +64,53 @@ const generateUUID = (): string => {
   return 'uuid-' + Math.random().toString(36).substring(2, 10);
 };
 
+const CloudSetupModal: React.FC<{ onClose: () => void; url: string; onSave: (url: string) => void }> = ({ onClose, url, onSave }) => {
+  const [localUrl, setLocalUrl] = useState(url);
+  const scriptTemplate = `// 1. Create a Google Sheet
+// 2. Go to Extensions > Apps Script
+// 3. Paste this code:
+function doPost(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const data = JSON.parse(e.postData.contents);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["ID", "Date", "Commodity", "Farmer", "Units", "Total Sale", "Commission", "Status", "Agent"]);
+  }
+  data.records.forEach(r => {
+    sheet.appendRow([r.id, r.date, r.cropType, r.farmerName, r.unitsSold, r.totalSale, r.coopProfit, r.status, r.createdBy]);
+  });
+  return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+}
+// 4. Click 'Deploy' > 'New Deployment' > 'Web App'
+// 5. Access: 'Anyone' (Required for this client sync)`;
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
+      <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
+        <div className="p-8 bg-indigo-900 text-white flex justify-between items-center">
+          <div><h3 className="text-xl font-black uppercase tracking-widest">Cloud Sync Setup</h3><p className="text-[10px] text-indigo-300 font-bold uppercase mt-1">Google Sheets Integration</p></div>
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+        </div>
+        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Deployment URL (Webhook)</label>
+            <input type="text" value={localUrl} onChange={(e) => setLocalUrl(e.target.value)} placeholder="https://script.google.com/macros/s/..." className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-xs font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10 outline-none" />
+          </div>
+          <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+            <p className="text-[10px] font-black text-indigo-600 uppercase mb-3">Setup Instructions:</p>
+            <pre className="text-[9px] font-mono bg-white p-4 rounded-xl border border-indigo-100 overflow-x-auto leading-relaxed text-indigo-900">
+              {scriptTemplate}
+            </pre>
+          </div>
+          <div className="pt-4 flex gap-4">
+             <button onClick={onClose} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">Cancel</button>
+             <button onClick={() => { onSave(localUrl); onClose(); }} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-600/20 active:scale-95">Connect Sheet</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ record, onClose }) => {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
@@ -200,12 +247,15 @@ const App: React.FC = () => {
   const [auditRecord, setAuditRecord] = useState<SaleRecord | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<SaleRecord | null>(null);
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [showValidatedLedger, setShowValidatedLedger] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   
   const [userName, setUserName] = useState<string>(() => persistence.get('coop_user_name') || 'Field Agent');
   const [userPhone, setUserPhone] = useState<string>(() => persistence.get('coop_user_phone') || '0700000000');
   const [userRole, setUserRole] = useState<string>(() => persistence.get('coop_user_role') || 'agent');
+  const [sheetWebhook, setSheetWebhook] = useState<string>(() => persistence.get('coop_sheet_webhook') || '');
   
   const isPrivilegedUser = AUTHORIZED_USERS.includes(userName);
   const isDeveloper = userRole === 'developer' || isPrivilegedUser;
@@ -236,9 +286,10 @@ const App: React.FC = () => {
     persistence.set('coop_user_name', userName);
     persistence.set('coop_user_phone', userPhone);
     persistence.set('coop_user_role', userRole);
+    persistence.set('coop_sheet_webhook', sheetWebhook);
     const timer = setTimeout(() => setIsSyncing(false), 800);
     return () => clearTimeout(timer);
-  }, [records, userName, userPhone, userRole]);
+  }, [records, userName, userPhone, userRole, sheetWebhook]);
 
   const handleSaveIdentity = (newName: string, newPhone: string, newRole: string) => {
     setUserName(newName);
@@ -283,6 +334,29 @@ const App: React.FC = () => {
       return r;
     }));
     setRecords(updated);
+  };
+
+  const syncToCloudSheet = async () => {
+    if (!sheetWebhook) { setIsCloudModalOpen(true); return; }
+    const validated = records.filter(r => r.status === RecordStatus.VALIDATED);
+    if (validated.length === 0) { alert("No validated records to sync."); return; }
+
+    setIsCloudSyncing(true);
+    try {
+      // Using no-cors because Apps Script redirect might block standard fetch, 
+      // but standard is better if the server is configured.
+      const response = await fetch(sheetWebhook, {
+        method: 'POST',
+        mode: 'no-cors', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: validated })
+      });
+      alert("Ledger transmitted to Cloud Sheet.");
+    } catch (e) {
+      alert("Sync Failed: Check your Webhook URL.");
+    } finally {
+      setIsCloudSyncing(false);
+    }
   };
 
   // --- Context-Aware Stats Logic ---
@@ -395,6 +469,7 @@ const App: React.FC = () => {
       {auditRecord && <AuditModal record={auditRecord} onClose={() => setAuditRecord(null)} />}
       {selectedReceipt && <ReceiptModal record={selectedReceipt} onClose={() => setSelectedReceipt(null)} />}
       {isIdentityModalOpen && <IdentityModal currentName={userName} currentPhone={userPhone} currentRole={userRole} onSave={handleSaveIdentity} onClose={() => setIsIdentityModalOpen(false)} />}
+      {isCloudModalOpen && <CloudSetupModal url={sheetWebhook} onSave={setSheetWebhook} onClose={() => setIsCloudModalOpen(false)} />}
       
       <header className="bg-emerald-950 text-white py-6 shadow-2xl sticky top-0 z-50 border-b border-white/10 backdrop-blur-md">
         <div className="container mx-auto px-6 flex flex-col lg:flex-row justify-between items-center gap-6">
@@ -525,6 +600,20 @@ const App: React.FC = () => {
                     <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100"><i className="fas fa-download mr-2"></i> Export Master CSV</button>
                   </div>
                </div>
+               <div className="md:border-l pl-8 flex flex-col items-center md:items-start gap-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${sheetWebhook ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Google Sheet Sync</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={syncToCloudSheet} disabled={isCloudSyncing} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 active:scale-95 transition-all disabled:opacity-50">
+                      {isCloudSyncing ? <><i className="fas fa-spinner fa-spin mr-2"></i>Syncing...</> : <><i className="fas fa-cloud-upload mr-2"></i>Sync Now</>}
+                    </button>
+                    <button onClick={() => setIsCloudModalOpen(true)} className="bg-slate-100 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-all">
+                      <i className="fas fa-cog"></i>
+                    </button>
+                  </div>
+               </div>
             </div>
             {showValidatedLedger && (
               <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
@@ -552,12 +641,20 @@ const App: React.FC = () => {
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Real-time performance metrics</p>
                   </div>
                </div>
-               <button 
-                  onClick={exportToExcel} 
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 flex items-center"
-               >
-                  <i className="fas fa-download mr-2"></i> Download Audit Report
-               </button>
+               <div className="flex gap-3">
+                 <button 
+                    onClick={syncToCloudSheet}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-100 flex items-center"
+                 >
+                    <i className="fas fa-cloud mr-2"></i> Update Shared Sheet
+                 </button>
+                 <button 
+                    onClick={exportToExcel} 
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 flex items-center"
+                 >
+                    <i className="fas fa-download mr-2"></i> Download Audit Report
+                 </button>
+               </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl min-h-[400px]">
