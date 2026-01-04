@@ -88,7 +88,7 @@ function doPost(e) {
       <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
         <div className="p-8 bg-indigo-900 text-white flex justify-between items-center">
           <div><h3 className="text-xl font-black uppercase tracking-widest">Cloud Sync Setup</h3><p className="text-[10px] text-indigo-300 font-bold uppercase mt-1">Google Sheets Integration</p></div>
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+          <button onClose={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
           <div className="space-y-2">
@@ -600,20 +600,22 @@ const App: React.FC = () => {
                     <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100"><i className="fas fa-download mr-2"></i> Export Master CSV</button>
                   </div>
                </div>
-               <div className="md:border-l pl-8 flex flex-col items-center md:items-start gap-3">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${sheetWebhook ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Google Sheet Sync</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={syncToCloudSheet} disabled={isCloudSyncing} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 active:scale-95 transition-all disabled:opacity-50">
-                      {isCloudSyncing ? <><i className="fas fa-spinner fa-spin mr-2"></i>Syncing...</> : <><i className="fas fa-cloud-upload mr-2"></i>Sync Now</>}
-                    </button>
-                    <button onClick={() => setIsCloudModalOpen(true)} className="bg-slate-100 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-all">
-                      <i className="fas fa-cog"></i>
-                    </button>
-                  </div>
-               </div>
+               {isDeveloper && (
+                 <div className="md:border-l pl-8 flex flex-col items-center md:items-start gap-3">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${sheetWebhook ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Google Sheet Sync</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={syncToCloudSheet} disabled={isCloudSyncing} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 active:scale-95 transition-all disabled:opacity-50">
+                        {isCloudSyncing ? <><i className="fas fa-spinner fa-spin mr-2"></i>Syncing...</> : <><i className="fas fa-cloud-upload mr-2"></i>Sync Now</>}
+                      </button>
+                      <button onClick={() => setIsCloudModalOpen(true)} className="bg-slate-100 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-all">
+                        <i className="fas fa-cog"></i>
+                      </button>
+                    </div>
+                 </div>
+               )}
             </div>
             {showValidatedLedger && (
               <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
@@ -642,12 +644,14 @@ const App: React.FC = () => {
                   </div>
                </div>
                <div className="flex gap-3">
-                 <button 
-                    onClick={syncToCloudSheet}
-                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-100 flex items-center"
-                 >
-                    <i className="fas fa-cloud mr-2"></i> Update Shared Sheet
-                 </button>
+                 {isDeveloper && (
+                   <button 
+                      onClick={syncToCloudSheet}
+                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-100 flex items-center"
+                   >
+                      <i className="fas fa-cloud mr-2"></i> Update Shared Sheet
+                   </button>
+                 )}
                  <button 
                     onClick={exportToExcel} 
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 flex items-center"
