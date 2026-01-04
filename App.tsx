@@ -3,11 +3,14 @@ import { SaleRecord, RecordStatus, CoopStats, UserRole } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { analyzeSalesData } from './services/geminiService.ts';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { PROFIT_MARGIN } from './constants.ts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PROFIT_MARGIN, CROP_TYPES } from './constants.ts';
 
 // Pre-authorized Users
 const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];
+
+// Chart color palette for commodities
+const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#f43f5e'];
 
 // Hardened Persistence - handles blocked cookies/storage in private mode
 const persistence = {
@@ -320,13 +323,21 @@ const App: React.FC = () => {
   }, [records, activeTab]);
 
   const chartData = useMemo(() => {
-    const daily: Record<string, number> = {};
+    const daily: Record<string, any> = {};
     records.forEach(r => { 
-      daily[r.date] = (daily[r.date] || 0) + r.totalSale; 
+      if (!daily[r.date]) daily[r.date] = { name: r.date };
+      // Map revenue per commodity (cropType)
+      daily[r.date][r.cropType] = (daily[r.date][r.cropType] || 0) + r.totalSale; 
     });
-    return Object.entries(daily)
-      .map(([name, value]) => ({ name, value }))
+    return Object.values(daily)
       .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime());
+  }, [records]);
+
+  // Determine which commodities are present in the current dataset
+  const activeCommodities = useMemo(() => {
+    const crops = new Set<string>();
+    records.forEach(r => crops.add(r.cropType));
+    return Array.from(crops);
   }, [records]);
 
   const exportToExcel = () => {
@@ -562,8 +573,19 @@ const App: React.FC = () => {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} dy={10} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} />
-                        <Tooltip cursor={{ fill: '#f8fafc' }} />
-                        <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
+                        <Tooltip 
+                          cursor={{ fill: '#f8fafc' }} 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
+                        />
+                        <Legend verticalAlign="top" height={36} wrapperStyle={{ textTransform: 'uppercase', fontSize: '9px', fontWeight: '900', letterSpacing: '0.1em' }} />
+                        {activeCommodities.map((commodity, idx) => (
+                           <Bar 
+                              key={commodity} 
+                              dataKey={commodity} 
+                              stackId="a" 
+                              fill={CHART_COLORS[idx % CHART_COLORS.length]} 
+                           />
+                        ))}
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
