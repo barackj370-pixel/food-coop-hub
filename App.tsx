@@ -3,7 +3,7 @@ import { SaleRecord, RecordStatus, CoopStats, UserRole } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { analyzeSalesData } from './services/geminiService.ts';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 import { PROFIT_MARGIN, CROP_TYPES } from './constants.ts';
 
 // Pre-authorized Users
@@ -322,22 +322,16 @@ const App: React.FC = () => {
     return isRecentViewContext ? recent : global;
   }, [records, activeTab]);
 
-  const chartData = useMemo(() => {
-    const daily: Record<string, any> = {};
+  const commodityChartData = useMemo(() => {
+    const totals: Record<string, { name: string; value: number }> = {};
     records.forEach(r => { 
-      if (!daily[r.date]) daily[r.date] = { name: r.date };
-      // Map revenue per commodity (cropType)
-      daily[r.date][r.cropType] = (daily[r.date][r.cropType] || 0) + r.totalSale; 
+      if (!totals[r.cropType]) {
+        totals[r.cropType] = { name: r.cropType, value: 0 };
+      }
+      totals[r.cropType].value += r.totalSale; 
     });
-    return Object.values(daily)
-      .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime());
-  }, [records]);
-
-  // Determine which commodities are present in the current dataset
-  const activeCommodities = useMemo(() => {
-    const crops = new Set<string>();
-    records.forEach(r => crops.add(r.cropType));
-    return Array.from(crops);
+    return Object.values(totals)
+      .sort((a, b) => b.value - a.value); // Sort descending for better vertical comparison
   }, [records]);
 
   const exportToExcel = () => {
@@ -566,26 +560,32 @@ const App: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl min-h-[400px]">
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-8">Revenue Flow</h3>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-8 text-center">Revenue by Commodity</h3>
                   <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
+                      <BarChart data={commodityChartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} dy={10} />
+                        <XAxis 
+                           dataKey="name" 
+                           axisLine={false} 
+                           tickLine={false} 
+                           tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} 
+                           interval={0}
+                           angle={-45}
+                           textAnchor="end"
+                           height={60}
+                        />
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} />
                         <Tooltip 
                           cursor={{ fill: '#f8fafc' }} 
                           contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
+                          formatter={(value: number) => [`KSh ${value.toLocaleString()}`, 'Total Revenue']}
                         />
-                        <Legend verticalAlign="top" height={36} wrapperStyle={{ textTransform: 'uppercase', fontSize: '9px', fontWeight: '900', letterSpacing: '0.1em' }} />
-                        {activeCommodities.map((commodity, idx) => (
-                           <Bar 
-                              key={commodity} 
-                              dataKey={commodity} 
-                              stackId="a" 
-                              fill={CHART_COLORS[idx % CHART_COLORS.length]} 
-                           />
-                        ))}
+                        <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                           {commodityChartData.map((entry, index) => (
+                             <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                           ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
