@@ -88,7 +88,7 @@ function doPost(e) {
       <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
         <div className="p-8 bg-indigo-900 text-white flex justify-between items-center">
           <div><h3 className="text-xl font-black uppercase tracking-widest">Cloud Sync Setup</h3><p className="text-[10px] text-indigo-300 font-bold uppercase mt-1">Google Sheets Integration</p></div>
-          <button onClose={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
           <div className="space-y-2">
@@ -600,7 +600,7 @@ const App: React.FC = () => {
                     <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100"><i className="fas fa-download mr-2"></i> Export Master CSV</button>
                   </div>
                </div>
-               {isDeveloper && (
+               {userName === 'Barack James' && (
                  <div className="md:border-l pl-8 flex flex-col items-center md:items-start gap-3">
                     <div className="flex items-center space-x-2">
                       <div className={`w-2 h-2 rounded-full ${sheetWebhook ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
@@ -644,7 +644,7 @@ const App: React.FC = () => {
                   </div>
                </div>
                <div className="flex gap-3">
-                 {isDeveloper && (
+                 {userName === 'Barack James' && (
                    <button 
                       onClick={syncToCloudSheet}
                       className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-100 flex items-center"
