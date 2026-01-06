@@ -7,7 +7,7 @@ import { analyzeSalesData } from './services/geminiService.ts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 import { PROFIT_MARGIN, CROP_TYPES } from './constants.ts';
 
-// Pre-authorized Users - These names are protected
+// Pre-authorized Staff - These names are whitelisted for specific roles
 const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];
 
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#f43f5e'];
@@ -18,6 +18,9 @@ const persistence = {
   },
   set: (key: string, val: string) => {
     try { localStorage.setItem(key, val); } catch (e) { }
+  },
+  remove: (key: string) => {
+    try { localStorage.removeItem(key); } catch (e) { }
   }
 };
 
@@ -52,7 +55,6 @@ const generateUUID = (): string => {
   return 'uuid-' + Math.random().toString(36).substring(2, 10);
 };
 
-// Fix: Implementation of the missing ReceiptModal component
 const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ record, onClose }) => {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
@@ -75,42 +77,20 @@ const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ r
               <p className="text-xs font-bold text-slate-800">{record.date}</p>
             </div>
           </div>
-          
           <div className="space-y-4">
-            <div className="flex justify-between">
-              <span className="text-xs font-bold text-slate-500">Commodity</span>
-              <span className="text-xs font-black text-slate-900 uppercase">{record.cropType}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-xs font-bold text-slate-500">Quantity</span>
-              <span className="text-xs font-black text-slate-900">{record.unitsSold} {record.unitType}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-xs font-bold text-slate-500">Unit Price</span>
-              <span className="text-xs font-black text-slate-900">KSh {record.unitPrice.toLocaleString()}</span>
-            </div>
+            <div className="flex justify-between"><span className="text-xs font-bold text-slate-500">Commodity</span><span className="text-xs font-black text-slate-900 uppercase">{record.cropType}</span></div>
+            <div className="flex justify-between"><span className="text-xs font-bold text-slate-500">Quantity</span><span className="text-xs font-black text-slate-900">{record.unitsSold} {record.unitType}</span></div>
+            <div className="flex justify-between"><span className="text-xs font-bold text-slate-500">Unit Price</span><span className="text-xs font-black text-slate-900">KSh {record.unitPrice.toLocaleString()}</span></div>
             <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
               <span className="text-sm font-black text-slate-400 uppercase">Total Sale</span>
               <span className="text-2xl font-black text-emerald-600 tracking-tighter">KSh {record.totalSale.toLocaleString()}</span>
             </div>
           </div>
-
           <div className="bg-slate-50 p-4 rounded-2xl space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase">Farmer</span>
-              <span className="text-[10px] font-bold text-slate-800">{record.farmerName}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase">Buyer</span>
-              <span className="text-[10px] font-bold text-slate-800">{record.customerName}</span>
-            </div>
+            <div className="flex justify-between items-center"><span className="text-[9px] font-black text-slate-400 uppercase">Farmer</span><span className="text-[10px] font-bold text-slate-800">{record.farmerName}</span></div>
+            <div className="flex justify-between items-center"><span className="text-[9px] font-black text-slate-400 uppercase">Buyer</span><span className="text-[10px] font-bold text-slate-800">{record.customerName}</span></div>
           </div>
-
-          <div className="pt-2 text-center">
-             <button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-all">
-                Print Digital Receipt
-             </button>
-          </div>
+          <div className="pt-2"><button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-all">Print Digital Receipt</button></div>
         </div>
       </div>
     </div>
@@ -119,7 +99,6 @@ const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ r
 
 const CloudSetupModal: React.FC<{ onClose: () => void; url: string; onSave: (url: string) => void }> = ({ onClose, url, onSave }) => {
   const [localUrl, setLocalUrl] = useState(url);
-  const scriptTemplate = `// Apps Script Deployment logic...`;
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
       <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
@@ -128,7 +107,7 @@ const CloudSetupModal: React.FC<{ onClose: () => void; url: string; onSave: (url
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
         <div className="p-8 space-y-6">
-          <input type="text" value={localUrl} onChange={(e) => setLocalUrl(e.target.value)} placeholder="Webhook URL" className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-xs font-bold" />
+          <input type="text" value={localUrl} onChange={(e) => setLocalUrl(e.target.value)} placeholder="Webhook URL" className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-xs font-bold outline-none" />
           <div className="pt-4 flex gap-4">
              <button onClick={onClose} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Cancel</button>
              <button onClick={() => { onSave(localUrl); onClose(); }} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase">Connect Sheet</button>
@@ -141,9 +120,8 @@ const CloudSetupModal: React.FC<{ onClose: () => void; url: string; onSave: (url
 
 const IdentityModal: React.FC<{ 
   onAuthorize: (user: UserProfile) => void; 
-  onClose: () => void;
   registry: UserProfile[];
-}> = ({ onAuthorize, onClose, registry }) => {
+}> = ({ onAuthorize, registry }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -153,34 +131,37 @@ const IdentityModal: React.FC<{
 
   const handleAction = () => {
     setError('');
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedName || !trimmedPhone || pin.length < 4) {
+      setError("Please fill in all fields (Name, Phone, and 4-digit PIN).");
+      return;
+    }
     
     if (mode === 'register') {
-      const existing = registry.find(u => u.name === name || u.phone === phone);
+      const existing = registry.find(u => u.name.toLowerCase() === trimmedName.toLowerCase() || u.phone === trimmedPhone);
       if (existing) {
-        setError("Warning: This identity (Name or Phone) is already registered on this system.");
-        return;
-      }
-      if (pin.length < 4) {
-        setError("Security: Passcode must be at least 4 digits.");
+        setError(`Warning: The identity "${trimmedName}" or this phone number is already registered. Please Login.`);
         return;
       }
       
       let finalRole = role;
-      if (AUTHORIZED_USERS.includes(name)) {
-        if (name === 'CD Otieno') finalRole = 'management';
-        else if (name === 'Barack James') finalRole = 'developer';
-        else if (name === 'Fred Dola') finalRole = 'analyst';
+      if (AUTHORIZED_USERS.includes(trimmedName)) {
+        if (trimmedName === 'CD Otieno') finalRole = 'management';
+        else if (trimmedName === 'Barack James') finalRole = 'developer';
+        else if (trimmedName === 'Fred Dola') finalRole = 'analyst';
       }
 
-      onAuthorize({ name, phone, role: finalRole, pin });
+      onAuthorize({ name: trimmedName, phone: trimmedPhone, role: finalRole, pin });
     } else {
-      const user = registry.find(u => u.name === name && u.phone === phone);
+      const user = registry.find(u => u.name.toLowerCase() === trimmedName.toLowerCase() && u.phone === trimmedPhone);
       if (!user) {
-        setError("Identity Not Found: Please register if this is your first time.");
+        setError("Identity Not Found: Please register your account first.");
         return;
       }
       if (user.pin !== pin) {
-        setError("Access Denied: Incorrect passcode for this identity.");
+        setError("ACCESS DENIED: Incorrect passcode for this identity.");
         return;
       }
       onAuthorize(user);
@@ -188,53 +169,55 @@ const IdentityModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900 backdrop-blur-md animate-fade-in">
       <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
-        <div className="p-8 bg-emerald-950 text-white flex justify-between items-center">
-          <div><h3 className="text-xl font-black uppercase tracking-widest">{mode === 'login' ? 'System Access' : 'Create Account'}</h3><p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Security Terminal</p></div>
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+        <div className="p-8 bg-emerald-950 text-white text-center">
+          <i className="fas fa-shield-halved text-4xl mb-4 text-emerald-400"></i>
+          <h3 className="text-xl font-black uppercase tracking-widest">Coop Trust Protocol</h3>
+          <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Identity Management Terminal</p>
         </div>
         
         <div className="flex border-b">
-           <button onClick={() => setMode('login')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 bg-slate-50'}`}>Log In</button>
-           <button onClick={() => setMode('register')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'register' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 bg-slate-50'}`}>Register</button>
+           <button onClick={() => { setMode('login'); setError(''); }} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 bg-slate-50'}`}>Log In</button>
+           <button onClick={() => { setMode('register'); setError(''); }} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'register' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 bg-slate-50'}`}>Register Account</button>
         </div>
 
         <div className="p-8 space-y-5">
           {error && (
-            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-[10px] font-black uppercase text-red-600 flex items-start">
-              <i className="fas fa-exclamation-triangle mt-0.5 mr-3"></i>
+            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-[10px] font-black uppercase text-red-600 flex items-start animate-pulse">
+              <i className="fas fa-triangle-exclamation mt-0.5 mr-3"></i>
               <span>{error}</span>
             </div>
           )}
 
           <div className="space-y-1">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold focus:ring-4 focus:ring-emerald-500/10 outline-none" />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Barack James" className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold focus:ring-4 focus:ring-emerald-500/10 outline-none" />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold focus:ring-4 focus:ring-emerald-500/10 outline-none" />
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07..." className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold focus:ring-4 focus:ring-emerald-500/10 outline-none" />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Passcode (PIN)</label>
-            <input type="password" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-black tracking-widest focus:ring-4 focus:ring-emerald-500/10 outline-none" />
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">4-Digit PIN</label>
+            <input type="password" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value)} placeholder="****" className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-xl font-black tracking-[1em] text-center focus:ring-4 focus:ring-emerald-500/10 outline-none" />
           </div>
 
           {mode === 'register' && (
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Requested Role</label>
-              <select value={role} onChange={(e) => setRole(e.target.value as UserRole)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold appearance-none">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">System Role</label>
+              <select value={role} onChange={(e) => setRole(e.target.value as UserRole)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold appearance-none outline-none">
                 <option value="agent">Field Agent</option>
                 <option value="accounts">Accounts Office</option>
                 <option value="analyst">Data Analyst</option>
                 <option value="management">Board Director</option>
+                <option value="developer">System Developer</option>
               </select>
             </div>
           )}
 
           <div className="pt-4">
-            <button onClick={handleAction} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+            <button onClick={handleAction} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
               {mode === 'login' ? 'Authenticate Access' : 'Create Secured Profile'}
             </button>
           </div>
@@ -252,11 +235,11 @@ const AuditModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ rec
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in">
       <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200">
         <div className={`p-8 ${isSafe ? 'bg-emerald-600' : 'bg-red-600'} text-white flex justify-between items-start`}>
-          <div><h3 className="text-2xl font-black uppercase tracking-tight flex items-center"><i className={`fas ${isSafe ? 'fa-check-circle' : 'fa-triangle-exclamation'} mr-3`}></i>Security Audit Report</h3><p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Initial Sign: {record.createdBy} | Confirmation: {record.confirmedBy || 'Pending'}</p></div>
-          <button onClick={onClose} className="bg-black/20 hover:bg-black/40 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+          <div><h3 className="text-2xl font-black uppercase tracking-tight flex items-center"><i className={`fas ${isSafe ? 'fa-check-circle' : 'fa-triangle-exclamation'} mr-3`}></i>Audit Check</h3></div>
+          <button onClick={onClose} className="bg-black/20 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
         <div className="p-8">
-           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-mono text-[10px] text-slate-600 break-all">{record.signature}</div>
+           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 font-mono text-[10px] break-all text-slate-500">{record.signature}</div>
         </div>
       </div>
     </div>
@@ -272,7 +255,7 @@ const SecurityCheckBadge: React.FC<{ record: SaleRecord; onClick?: () => void }>
   useEffect(() => { verify(); }, [record]);
   if (isSafe === null) return <i className="fas fa-circle-notch fa-spin text-slate-300 text-[10px]"></i>;
   return (
-    <button onClick={onClick} className={`flex items-center space-x-1.5 px-2 py-1 rounded-md border transition-all duration-500 ${isSafe ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-red-50 border-red-200 text-red-600 animate-pulse'}`}>
+    <button onClick={onClick} className={`flex items-center space-x-1.5 px-2 py-1 rounded-md border transition-all ${isSafe ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-red-50 border-red-200 text-red-600 animate-pulse'}`}>
       <i className={`fas ${isSafe ? 'fa-check-circle' : 'fa-shield-virus'} text-[10px]`}></i>
       <span className="text-[9px] font-black uppercase tracking-tighter">{isSafe ? 'Secure' : 'Tampered'}</span>
     </button>
@@ -294,23 +277,19 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'sales' | 'finance' | 'analyst' | 'management'>('sales');
   const [auditRecord, setAuditRecord] = useState<SaleRecord | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<SaleRecord | null>(null);
-  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(!currentUser);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [showValidatedLedger, setShowValidatedLedger] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [sheetWebhook, setSheetWebhook] = useState<string>(() => persistence.get('coop_sheet_webhook') || '');
-
-  // State for AI Analysis Results
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const userName = currentUser?.name || 'Guest';
   const userPhone = currentUser?.phone || '';
   const userRole = currentUser?.role || 'agent';
-  
   const isDeveloper = userRole === 'developer' || userName === 'Barack James';
-  
+
   const canAccessSales = isDeveloper || userRole === 'agent' || userRole === 'analyst' || userRole === 'management';
   const canAccessFinance = isDeveloper || userRole === 'accounts' || userRole === 'analyst' || userRole === 'management';
   const canAccessIntegrity = isDeveloper || userRole === 'analyst' || userRole === 'management';
@@ -333,15 +312,15 @@ const App: React.FC = () => {
 
   const handleAuthorizeUser = (profile: UserProfile) => {
     const exists = registry.find(u => u.name === profile.name && u.phone === profile.phone);
-    if (!exists) {
-      setRegistry([...registry, profile]);
-    }
+    if (!exists) { setRegistry([...registry, profile]); }
     setCurrentUser(profile);
-    setIsIdentityModalOpen(false);
-    
-    // Auto-routing based on role
     if (profile.role === 'accounts' && !isDeveloper) setActiveTab('finance');
     else if (profile.role === 'agent' && !isDeveloper) setActiveTab('sales');
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    persistence.remove('coop_active_session');
   };
 
   const handleAddRecord = async (data: any) => {
@@ -378,7 +357,6 @@ const App: React.FC = () => {
     setRecords(updated);
   };
 
-  // Integration: Function to trigger AI Audit
   const handleRunAiAudit = async () => {
     if (records.length === 0) return alert("No sales data available for audit.");
     setIsAnalyzing(true);
@@ -386,7 +364,7 @@ const App: React.FC = () => {
       const report = await analyzeSalesData(records);
       setAiAnalysis(report);
     } catch (err) {
-      setAiAnalysis("Analysis failed to generate.");
+      setAiAnalysis("Analysis failed.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -398,54 +376,36 @@ const App: React.FC = () => {
     if (validated.length === 0) { alert("No validated records to sync."); return; }
     setIsCloudSyncing(true);
     try {
-      await fetch(sheetWebhook, {
-        method: 'POST',
-        mode: 'no-cors', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ records: validated })
-      });
+      await fetch(sheetWebhook, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ records: validated }) });
       alert("Ledger transmitted to Cloud Sheet.");
     } catch (e) {
-      alert("Sync Failed: Check your Webhook URL.");
-    } finally {
-      setIsCloudSyncing(false);
-    }
+      alert("Sync Failed.");
+    } finally { setIsCloudSyncing(false); }
   };
 
   const stats = useMemo(() => {
-    let tSales = 0, tFinalizedProfit = 0, tUnits = 0, vCount = 0;
+    let tSales = 0, tFinalizedProfit = 0, tUnits = 0;
     records.forEach(r => {
       tSales += r.totalSale;
       tUnits += r.unitsSold;
-      if (r.status === RecordStatus.VALIDATED) {
-        tFinalizedProfit += r.coopProfit;
-        vCount += 1;
-      }
+      if (r.status === RecordStatus.VALIDATED) tFinalizedProfit += r.coopProfit;
     });
-    return {
-      totalSales: tSales,
-      finalizedProfit: tFinalizedProfit,
-      totalUnits: tUnits,
-      avgUnitPrice: tUnits > 0 ? tSales / tUnits : 0
-    };
+    return { totalSales: tSales, finalizedProfit: tFinalizedProfit, totalUnits: tUnits, avgUnitPrice: tUnits > 0 ? tSales / tUnits : 0 };
   }, [records]);
 
   const commodityChartData = useMemo(() => {
     const totals: Record<string, { name: string; value: number }> = {};
-    records.forEach(r => { 
-      if (!totals[r.cropType]) totals[r.cropType] = { name: r.cropType, value: 0 };
-      totals[r.cropType].value += r.totalSale; 
-    });
+    records.forEach(r => { if (!totals[r.cropType]) totals[r.cropType] = { name: r.cropType, value: 0 }; totals[r.cropType].value += r.totalSale; });
     return Object.values(totals).sort((a, b) => b.value - a.value);
   }, [records]);
 
   const exportToExcel = () => {
     const validated = records.filter(r => r.status === RecordStatus.VALIDATED);
-    if (validated.length === 0) { alert("No records to export."); return; }
+    if (validated.length === 0) { alert("No records."); return; }
     const csvContent = validated.map(r => `${r.date},${r.cropType},${r.unitsSold},${r.totalSale}`).join("\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv' }));
-    link.download = `Ledger_Export.csv`;
+    link.download = `Ledger.csv`;
     link.click();
   };
 
@@ -453,8 +413,8 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-12 bg-[#F8FAFC]">
+      {!currentUser && <IdentityModal registry={registry} onAuthorize={handleAuthorizeUser} />}
       {auditRecord && <AuditModal record={auditRecord} onClose={() => setAuditRecord(null)} />}
-      {isIdentityModalOpen && <IdentityModal registry={registry} onAuthorize={handleAuthorizeUser} onClose={() => currentUser && setIsIdentityModalOpen(false)} />}
       {selectedReceipt && <ReceiptModal record={selectedReceipt} onClose={() => setSelectedReceipt(null)} />}
       {isCloudModalOpen && <CloudSetupModal url={sheetWebhook} onSave={setSheetWebhook} onClose={() => setIsCloudModalOpen(false)} />}
       
@@ -486,9 +446,9 @@ const App: React.FC = () => {
         <div className="mb-10 p-5 rounded-3xl border bg-white border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${isDeveloper ? 'bg-slate-900' : 'bg-emerald-600'}`}><i className={`fas ${isDeveloper ? 'fa-shield-halved' : 'fa-user'} text-xl`}></i></div>
-            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Secured Session</p><p className="text-sm font-black text-slate-800 uppercase tracking-tight">{userName} • {userPhone}</p></div>
+            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Authenticated Session</p><p className="text-sm font-black text-slate-800 uppercase tracking-tight">{userName} • {userPhone}</p></div>
           </div>
-          <button onClick={() => setIsIdentityModalOpen(true)} className="w-full sm:w-auto px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-600 hover:bg-white transition-all shadow-sm">Switch Identity</button>
+          <button onClick={handleLogout} className="w-full sm:w-auto px-5 py-2.5 bg-red-50 border border-red-100 rounded-xl text-[10px] font-black uppercase text-red-600 hover:bg-white transition-all shadow-sm">Logout / Switch User</button>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
@@ -512,10 +472,7 @@ const App: React.FC = () => {
                         {records.map(r => (
                           <tr key={r.id} className="hover:bg-slate-50/50 transition">
                             <td className="px-8 py-5 text-xs font-black text-slate-600">{r.date}</td>
-                            <td className="px-8 py-5">
-                              <p className="text-xs font-black text-slate-800">{r.farmerName} → {r.customerName}</p>
-                              <p className="text-[10px] text-slate-400">Total: KSh {r.totalSale.toLocaleString()}</p>
-                            </td>
+                            <td className="px-8 py-5"><p className="text-xs font-black text-slate-800">{r.farmerName} → {r.customerName}</p></td>
                             <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase">{r.cropType}</span></td>
                             <td className="px-8 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td>
                             <td className="px-8 py-5 text-right text-[10px] font-black uppercase text-slate-400">{r.status}</td>
@@ -531,12 +488,12 @@ const App: React.FC = () => {
         {activeTab === 'finance' && canAccessFinance && (
           <div className="animate-fade-in space-y-12">
              <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
-                <div className="p-8 bg-blue-900 text-white flex justify-between items-center"><div><h3 className="text-xl font-black uppercase tracking-widest">Finance Console</h3></div><i className="fas fa-hand-holding-dollar text-2xl"></i></div>
+                <div className="p-8 bg-blue-900 text-white flex justify-between items-center"><div><h3 className="text-xl font-black uppercase tracking-widest">Commission Vault</h3></div><i className="fas fa-hand-holding-dollar text-2xl"></i></div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {records.filter(r => r.status === RecordStatus.DRAFT).map(r => (
                     <div key={r.id} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200">
                       <p className="text-lg font-black text-blue-600 mb-4">KSh {r.coopProfit.toLocaleString()}</p>
-                      <button onClick={() => handleConfirmPayment(r.id)} className="w-full bg-blue-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase">Confirm Payment</button>
+                      <button onClick={() => handleConfirmPayment(r.id)} className="w-full bg-blue-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase">Confirm</button>
                     </div>
                   ))}
                 </div>
@@ -547,19 +504,13 @@ const App: React.FC = () => {
         {activeTab === 'analyst' && canAccessIntegrity && (
           <div className="animate-fade-in space-y-10">
             <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-200 flex flex-col md:flex-row gap-8 items-center">
-               <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-inner shrink-0"><i className="fas fa-file-excel"></i></div>
+               <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-inner shrink-0"><i className="fas fa-microchip"></i></div>
                <div className="flex-1 space-y-2 text-center md:text-left">
-                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Master Ledger</h3>
+                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Audit Console</h3>
                   <div className="pt-4 flex flex-wrap gap-4 justify-center md:justify-start">
-                    <button onClick={() => setShowValidatedLedger(!showValidatedLedger)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all">Audit List</button>
-                    <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100">Export CSV</button>
-                    <button 
-                      onClick={handleRunAiAudit} 
-                      disabled={isAnalyzing}
-                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2"
-                    >
-                      {isAnalyzing ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-microchip"></i>}
-                      AI Sales Audit
+                    <button onClick={() => setShowValidatedLedger(!showValidatedLedger)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Audit List</button>
+                    <button onClick={handleRunAiAudit} disabled={isAnalyzing} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center gap-2">
+                      {isAnalyzing ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-sparkles"></i>} AI Sales Audit
                     </button>
                   </div>
                </div>
@@ -570,28 +521,17 @@ const App: React.FC = () => {
                  </div>
                )}
             </div>
-
             {aiAnalysis && (
               <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-200 animate-fade-in">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                    <i className="fas fa-sparkles text-indigo-500"></i>
-                    AI Audit Findings
-                  </h3>
-                  <button onClick={() => setAiAnalysis(null)} className="text-slate-400 hover:text-slate-600"><i className="fas fa-times"></i></button>
-                </div>
-                <div className="prose prose-slate max-w-none text-sm text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
-                  {aiAnalysis}
-                </div>
+                <div className="prose prose-slate max-w-none text-sm text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">{aiAnalysis}</div>
               </div>
             )}
-
             {showValidatedLedger && (
               <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
                 <table className="w-full text-left">
                   <tbody className="divide-y divide-slate-100">
                   {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
-                    <tr key={r.id} className="hover:bg-slate-50 transition"><td className="px-6 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td><td className="px-6 py-5"><p className="text-xs font-black text-slate-800">KSh {r.coopProfit.toLocaleString()} Comm</p></td><td className="px-6 py-5 text-right">{r.status === RecordStatus.VALIDATED ? <span className="text-emerald-600 font-black uppercase text-[10px] bg-emerald-50 px-4 py-2 rounded-lg">Validated</span> : <button onClick={() => handleFinalVerify(r.id)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Stamp & Verify</button>}</td></tr>
+                    <tr key={r.id} className="hover:bg-slate-50 transition"><td className="px-6 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td><td className="px-6 py-5"><p className="text-xs font-black text-slate-800">KSh {r.coopProfit.toLocaleString()} Comm</p></td><td className="px-6 py-5 text-right">{r.status === RecordStatus.VALIDATED ? <span className="text-emerald-600 font-black uppercase text-[10px] bg-emerald-50 px-4 py-2 rounded-lg">Validated</span> : <button onClick={() => handleFinalVerify(r.id)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Verify</button>}</td></tr>
                   ))}
                   </tbody>
                 </table>
@@ -603,39 +543,19 @@ const App: React.FC = () => {
         {activeTab === 'management' && canAccessBoard && (
           <div className="animate-fade-in space-y-10">
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-               <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Executive View</h3>
+               <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Executive Intelligence</h3>
                <div className="flex gap-3">
-                 <button 
-                   onClick={handleRunAiAudit} 
-                   disabled={isAnalyzing}
-                   className="bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase border border-indigo-100 flex items-center gap-2"
-                 >
-                   {isAnalyzing ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
-                   AI Strategic Report
-                 </button>
-                 {userName === 'Barack James' && (
-                   <button onClick={syncToCloudSheet} className="bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase">Cloud Update</button>
-                 )}
-                 <button onClick={exportToExcel} className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase">Download Report</button>
+                 <button onClick={handleRunAiAudit} disabled={isAnalyzing} className="bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase flex items-center gap-2">{isAnalyzing ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>} Strategic Report</button>
+                 <button onClick={exportToExcel} className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20">Audit CSV</button>
                </div>
             </div>
-
             {aiAnalysis && (
-              <div className="bg-indigo-900 rounded-[2.5rem] p-10 shadow-2xl border border-indigo-800 animate-fade-in relative text-white/90">
-                <button onClick={() => setAiAnalysis(null)} className="absolute top-6 right-6 text-indigo-300 hover:text-white transition-colors"><i className="fas fa-times"></i></button>
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-indigo-800 text-white rounded-xl flex items-center justify-center text-xl shadow-inner"><i className="fas fa-robot"></i></div>
-                  <h3 className="text-sm font-black text-indigo-200 uppercase tracking-widest">Executive AI Intelligence</h3>
-                </div>
-                <div className="prose prose-invert max-w-none text-sm whitespace-pre-wrap font-medium leading-relaxed">
-                  {aiAnalysis}
-                </div>
+              <div className="bg-indigo-900 rounded-[2.5rem] p-10 shadow-2xl border border-indigo-800 animate-fade-in text-white/90">
+                <div className="prose prose-invert max-w-none text-sm whitespace-pre-wrap">{aiAnalysis}</div>
               </div>
             )}
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl min-h-[400px]">
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-8 text-center">Commodity Split</h3>
                   <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={commodityChartData}>
@@ -652,10 +572,10 @@ const App: React.FC = () => {
                </div>
                <div className="bg-indigo-950 p-8 rounded-[2.5rem] text-white flex flex-col justify-between shadow-2xl">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Finalized Commission</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Validated Commission</p>
                     <p className="text-5xl font-black tracking-tighter">KSh {stats.finalizedProfit.toLocaleString()}</p>
                   </div>
-                  <p className="text-[9px] italic text-indigo-300">"Local ledger verified and secured."</p>
+                  <p className="text-[9px] italic text-indigo-300">"Verified under Excel Trust Protocol."</p>
                </div>
             </div>
           </div>
@@ -665,7 +585,7 @@ const App: React.FC = () => {
       <footer className="mt-24 text-center pb-12">
         <div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm">
           <i className="fas fa-shield-check text-emerald-600 text-sm"></i>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.4.0</span>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.5.0</span>
         </div>
       </footer>
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }`}</style>
