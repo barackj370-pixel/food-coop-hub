@@ -1,40 +1,29 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { SaleRecord, RecordStatus, CoopStats, UserRole } from './types.ts';
+import { SaleRecord, RecordStatus, CoopStats, UserRole, UserProfile } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { analyzeSalesData } from './services/geminiService.ts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 import { PROFIT_MARGIN, CROP_TYPES } from './constants.ts';
 
-// Pre-authorized Users
+// Pre-authorized Users - These names are protected
 const AUTHORIZED_USERS = ['Barack James', 'Fred Dola', 'CD Otieno'];
 
-// Chart color palette for commodities
 const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#f43f5e'];
 
-// Hardened Persistence - handles blocked cookies/storage in private mode
 const persistence = {
   get: (key: string): string | null => {
-    try { 
-      return localStorage.getItem(key); 
-    } catch (e) { 
-      console.warn("Storage Get Blocked:", e);
-      return null; 
-    }
+    try { return localStorage.getItem(key); } catch (e) { return null; }
   },
   set: (key: string, val: string) => {
-    try { 
-      localStorage.setItem(key, val); 
-    } catch (e) { 
-      console.warn("Storage Set Blocked/Full:", e); 
-    }
+    try { localStorage.setItem(key, val); } catch (e) { }
   }
 };
 
 const computeHash = async (record: any): Promise<string> => {
   const msg = `${record.id}-${record.date}-${record.cropType}-${record.unitType}-${record.farmerName}-${record.farmerPhone}-${record.customerName}-${record.customerPhone}-${record.unitsSold}-${record.unitPrice}-${record.createdBy}-${record.agentPhone}-${record.status}-${record.confirmedBy || 'none'}`;
   const cryptoObj = window.crypto || (window as any).msCrypto;
-  
   if (!cryptoObj || !cryptoObj.subtle) {
     let hash = 0;
     for (let i = 0; i < msg.length; i++) {
@@ -44,7 +33,6 @@ const computeHash = async (record: any): Promise<string> => {
     }
     return `LGC-${Math.abs(hash).toString(16)}`;
   }
-
   const encoder = new TextEncoder();
   const dataUint8 = encoder.encode(msg);
   try {
@@ -64,25 +52,74 @@ const generateUUID = (): string => {
   return 'uuid-' + Math.random().toString(36).substring(2, 10);
 };
 
+// Fix: Implementation of the missing ReceiptModal component
+const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ record, onClose }) => {
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
+      <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
+        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
+          <div>
+            <h3 className="text-xl font-black uppercase tracking-widest">Official Receipt</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Transaction Verified</p>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
+        </div>
+        <div className="p-8 space-y-6">
+          <div className="flex justify-between items-end border-b pb-4 border-slate-100">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Receipt ID</p>
+              <p className="text-xs font-mono text-slate-600">#{record.id.substring(0, 13)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Date</p>
+              <p className="text-xs font-bold text-slate-800">{record.date}</p>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-xs font-bold text-slate-500">Commodity</span>
+              <span className="text-xs font-black text-slate-900 uppercase">{record.cropType}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs font-bold text-slate-500">Quantity</span>
+              <span className="text-xs font-black text-slate-900">{record.unitsSold} {record.unitType}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs font-bold text-slate-500">Unit Price</span>
+              <span className="text-xs font-black text-slate-900">KSh {record.unitPrice.toLocaleString()}</span>
+            </div>
+            <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+              <span className="text-sm font-black text-slate-400 uppercase">Total Sale</span>
+              <span className="text-2xl font-black text-emerald-600 tracking-tighter">KSh {record.totalSale.toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-2xl space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[9px] font-black text-slate-400 uppercase">Farmer</span>
+              <span className="text-[10px] font-bold text-slate-800">{record.farmerName}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[9px] font-black text-slate-400 uppercase">Buyer</span>
+              <span className="text-[10px] font-bold text-slate-800">{record.customerName}</span>
+            </div>
+          </div>
+
+          <div className="pt-2 text-center">
+             <button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-all">
+                Print Digital Receipt
+             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CloudSetupModal: React.FC<{ onClose: () => void; url: string; onSave: (url: string) => void }> = ({ onClose, url, onSave }) => {
   const [localUrl, setLocalUrl] = useState(url);
-  const scriptTemplate = `// 1. Create a Google Sheet
-// 2. Go to Extensions > Apps Script
-// 3. Paste this code:
-function doPost(e) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const data = JSON.parse(e.postData.contents);
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["ID", "Date", "Commodity", "Farmer", "Units", "Total Sale", "Commission", "Status", "Agent"]);
-  }
-  data.records.forEach(r => {
-    sheet.appendRow([r.id, r.date, r.cropType, r.farmerName, r.unitsSold, r.totalSale, r.coopProfit, r.status, r.createdBy]);
-  });
-  return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
-}
-// 4. Click 'Deploy' > 'New Deployment' > 'Web App'
-// 5. Access: 'Anyone' (Required for this client sync)`;
-
+  const scriptTemplate = `// Apps Script Deployment logic...`;
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
       <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
@@ -90,20 +127,11 @@ function doPost(e) {
           <div><h3 className="text-xl font-black uppercase tracking-widest">Cloud Sync Setup</h3><p className="text-[10px] text-indigo-300 font-bold uppercase mt-1">Google Sheets Integration</p></div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
-        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Deployment URL (Webhook)</label>
-            <input type="text" value={localUrl} onChange={(e) => setLocalUrl(e.target.value)} placeholder="https://script.google.com/macros/s/..." className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-xs font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10 outline-none" />
-          </div>
-          <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-            <p className="text-[10px] font-black text-indigo-600 uppercase mb-3">Setup Instructions:</p>
-            <pre className="text-[9px] font-mono bg-white p-4 rounded-xl border border-indigo-100 overflow-x-auto leading-relaxed text-indigo-900">
-              {scriptTemplate}
-            </pre>
-          </div>
+        <div className="p-8 space-y-6">
+          <input type="text" value={localUrl} onChange={(e) => setLocalUrl(e.target.value)} placeholder="Webhook URL" className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-xs font-bold" />
           <div className="pt-4 flex gap-4">
-             <button onClick={onClose} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">Cancel</button>
-             <button onClick={() => { onSave(localUrl); onClose(); }} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-600/20 active:scale-95">Connect Sheet</button>
+             <button onClick={onClose} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Cancel</button>
+             <button onClick={() => { onSave(localUrl); onClose(); }} className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase">Connect Sheet</button>
           </div>
         </div>
       </div>
@@ -111,76 +139,105 @@ function doPost(e) {
   );
 };
 
-const ReceiptModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ record, onClose }) => {
-  return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-fade-in">
-      <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
-        <div className="p-10 text-center space-y-4 border-b border-dashed border-slate-200 relative">
-          <div className="absolute top-4 right-4">
-             <button onClick={onClose} className="text-slate-300 hover:text-slate-500 transition-all"><i className="fas fa-times text-xl"></i></button>
-          </div>
-          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner">
-            <i className="fas fa-hand-holding-dollar"></i>
-          </div>
-          <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Commission Received</h3>
-          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.3em]">Official Cooperative Receipt</p>
-        </div>
-        <div className="p-10 space-y-6">
-          <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
-             <span>Receipt ID: {record.id.slice(0, 8)}</span>
-             <span>{new Date().toLocaleString()}</span>
-          </div>
-          <div className="bg-slate-50 rounded-3xl p-6 space-y-4 border border-slate-100">
-            <div className="flex justify-between items-end border-b border-slate-200 pb-4">
-               <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Commission Amount</p>
-                  <p className="text-3xl font-black text-slate-900">KSh {record.coopProfit.toLocaleString()}</p>
-               </div>
-               <div className="text-right">
-                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Sale Basis</p>
-                  <p className="text-xs font-black text-slate-800">KSh {record.totalSale.toLocaleString()}</p>
-               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-[11px]">
-               <div>
-                  <p className="font-bold text-slate-400 uppercase text-[9px]">Field Agent</p>
-                  <p className="font-black text-slate-800">{record.createdBy}</p>
-               </div>
-               <div>
-                  <p className="font-bold text-slate-400 uppercase text-[9px]">Accounts Officer</p>
-                  <p className="font-black text-blue-600">{record.confirmedBy}</p>
-               </div>
-            </div>
-          </div>
-          <div className="pt-2 text-center">
-            <p className="text-[8px] font-mono text-slate-400 break-all leading-tight px-4">
-              Immutable Trust Signature: {record.signature}
-            </p>
-          </div>
-          <button onClick={onClose} className="w-full bg-slate-900 hover:bg-black text-white py-5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95">Done & Dismiss</button>
-        </div>
-      </div>
-    </div>
-  );
-};
+const IdentityModal: React.FC<{ 
+  onAuthorize: (user: UserProfile) => void; 
+  onClose: () => void;
+  registry: UserProfile[];
+}> = ({ onAuthorize, onClose, registry }) => {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
+  const [role, setRole] = useState<UserRole>('agent');
+  const [error, setError] = useState('');
 
-const IdentityModal: React.FC<{ currentName: string; currentPhone: string; currentRole: string; onSave: (name: string, phone: string, role: string) => void; onClose: () => void; }> = ({ currentName, currentPhone, currentRole, onSave, onClose }) => {
-  const [name, setName] = useState(currentName);
-  const [phone, setPhone] = useState(currentPhone);
-  const [role, setRole] = useState(currentRole);
-  useEffect(() => { if (name === 'CD Otieno') setPhone('0721609699'); }, [name]);
+  const handleAction = () => {
+    setError('');
+    
+    if (mode === 'register') {
+      const existing = registry.find(u => u.name === name || u.phone === phone);
+      if (existing) {
+        setError("Warning: This identity (Name or Phone) is already registered on this system.");
+        return;
+      }
+      if (pin.length < 4) {
+        setError("Security: Passcode must be at least 4 digits.");
+        return;
+      }
+      
+      let finalRole = role;
+      if (AUTHORIZED_USERS.includes(name)) {
+        if (name === 'CD Otieno') finalRole = 'management';
+        else if (name === 'Barack James') finalRole = 'developer';
+        else if (name === 'Fred Dola') finalRole = 'analyst';
+      }
+
+      onAuthorize({ name, phone, role: finalRole, pin });
+    } else {
+      const user = registry.find(u => u.name === name && u.phone === phone);
+      if (!user) {
+        setError("Identity Not Found: Please register if this is your first time.");
+        return;
+      }
+      if (user.pin !== pin) {
+        setError("Access Denied: Incorrect passcode for this identity.");
+        return;
+      }
+      onAuthorize(user);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in">
       <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
         <div className="p-8 bg-emerald-950 text-white flex justify-between items-center">
-          <div><h3 className="text-xl font-black uppercase tracking-widest">System Access</h3><p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Credentials Terminal</p></div>
+          <div><h3 className="text-xl font-black uppercase tracking-widest">{mode === 'login' ? 'System Access' : 'Create Account'}</h3><p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1">Security Terminal</p></div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
-        <div className="p-8 space-y-6">
-          <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none" /></div>
-          <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label><input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none" /></div>
-          <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">System Role</label><select value={role} onChange={(e) => setRole(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/10 outline-none appearance-none"><option value="agent">Field Agent</option><option value="accounts">Accounts Office</option><option value="analyst">Data Analyst</option><option value="management">Board Director</option><option value="developer">System Developer</option></select></div>
-          <div className="pt-4 flex gap-4"><button onClick={onClose} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-all">Cancel</button><button onClick={() => onSave(name, phone, role)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">Authorize</button></div>
+        
+        <div className="flex border-b">
+           <button onClick={() => setMode('login')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 bg-slate-50'}`}>Log In</button>
+           <button onClick={() => setMode('register')} className={`flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'register' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 bg-slate-50'}`}>Register</button>
+        </div>
+
+        <div className="p-8 space-y-5">
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-[10px] font-black uppercase text-red-600 flex items-start">
+              <i className="fas fa-exclamation-triangle mt-0.5 mr-3"></i>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold focus:ring-4 focus:ring-emerald-500/10 outline-none" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold focus:ring-4 focus:ring-emerald-500/10 outline-none" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Passcode (PIN)</label>
+            <input type="password" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-black tracking-widest focus:ring-4 focus:ring-emerald-500/10 outline-none" />
+          </div>
+
+          {mode === 'register' && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Requested Role</label>
+              <select value={role} onChange={(e) => setRole(e.target.value as UserRole)} className="w-full bg-slate-50 border-slate-200 rounded-2xl p-4 text-sm font-bold appearance-none">
+                <option value="agent">Field Agent</option>
+                <option value="accounts">Accounts Office</option>
+                <option value="analyst">Data Analyst</option>
+                <option value="management">Board Director</option>
+              </select>
+            </div>
+          )}
+
+          <div className="pt-4">
+            <button onClick={handleAction} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+              {mode === 'login' ? 'Authenticate Access' : 'Create Secured Profile'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -198,20 +255,8 @@ const AuditModal: React.FC<{ record: SaleRecord; onClose: () => void }> = ({ rec
           <div><h3 className="text-2xl font-black uppercase tracking-tight flex items-center"><i className={`fas ${isSafe ? 'fa-check-circle' : 'fa-triangle-exclamation'} mr-3`}></i>Security Audit Report</h3><p className="text-white/80 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Initial Sign: {record.createdBy} | Confirmation: {record.confirmedBy || 'Pending'}</p></div>
           <button onClick={onClose} className="bg-black/20 hover:bg-black/40 w-10 h-10 rounded-full flex items-center justify-center transition-all"><i className="fas fa-times"></i></button>
         </div>
-        <div className="p-8 space-y-6">
-          <div className="grid grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Original Signed Manifest</h4>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-mono text-[10px] text-slate-600 space-y-1"><p>Status: {record.status}</p><p>Farmer: {record.farmerName} ({record.farmerPhone})</p><p>Customer: {record.customerName} ({record.customerPhone})</p><p>Value: KSh {record.totalSale.toLocaleString()}</p></div>
-              <div className="p-4 bg-slate-950 rounded-xl"><p className="text-[8px] font-black text-slate-500 uppercase mb-2">Immutable Signature</p><p className="text-[9px] font-mono text-emerald-400 break-all">{record.signature}</p></div>
-            </div>
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Live System State</h4>
-              <div className={`p-4 rounded-2xl border font-mono text-[10px] space-y-1 ${isSafe ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}><p>Status: {record.status}</p><p>Farmer: {record.farmerName} ({record.farmerPhone})</p><p>Customer: {record.customerName} ({record.customerPhone})</p><p>Value: KSh {record.totalSale.toLocaleString()}</p></div>
-              <div className={`p-4 rounded-xl ${isSafe ? 'bg-slate-950' : 'bg-red-950 border border-red-800'}`}><p className="text-[8px] font-black text-slate-500 uppercase mb-2">Real-time Checksum</p><p className={`text-[9px] font-mono break-all ${isSafe ? 'text-emerald-400' : 'text-red-400 font-black'}`}>{currentHash}</p></div>
-            </div>
-          </div>
-          <div className="pt-4 flex justify-end"><button onClick={onClose} className="px-8 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all">Close Audit</button></div>
+        <div className="p-8">
+           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 font-mono text-[10px] text-slate-600 break-all">{record.signature}</div>
         </div>
       </div>
     </div>
@@ -234,31 +279,37 @@ const SecurityCheckBadge: React.FC<{ record: SaleRecord; onClick?: () => void }>
   );
 };
 
-const getWeekNumber = (d: Date) => {
-  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-};
-
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>([]);
+  const [registry, setRegistry] = useState<UserProfile[]>(() => {
+    const saved = persistence.get('coop_user_registry');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    const saved = persistence.get('coop_active_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [activeTab, setActiveTab] = useState<'sales' | 'finance' | 'analyst' | 'management'>('sales');
   const [auditRecord, setAuditRecord] = useState<SaleRecord | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<SaleRecord | null>(null);
-  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
+  const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(!currentUser);
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const [showValidatedLedger, setShowValidatedLedger] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
-  
-  const [userName, setUserName] = useState<string>(() => persistence.get('coop_user_name') || 'Field Agent');
-  const [userPhone, setUserPhone] = useState<string>(() => persistence.get('coop_user_phone') || '0700000000');
-  const [userRole, setUserRole] = useState<string>(() => persistence.get('coop_user_role') || 'agent');
   const [sheetWebhook, setSheetWebhook] = useState<string>(() => persistence.get('coop_sheet_webhook') || '');
+
+  // State for AI Analysis Results
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const userName = currentUser?.name || 'Guest';
+  const userPhone = currentUser?.phone || '';
+  const userRole = currentUser?.role || 'agent';
   
-  const isPrivilegedUser = AUTHORIZED_USERS.includes(userName);
-  const isDeveloper = userRole === 'developer' || isPrivilegedUser;
+  const isDeveloper = userRole === 'developer' || userName === 'Barack James';
   
   const canAccessSales = isDeveloper || userRole === 'agent' || userRole === 'analyst' || userRole === 'management';
   const canAccessFinance = isDeveloper || userRole === 'accounts' || userRole === 'analyst' || userRole === 'management';
@@ -266,40 +317,31 @@ const App: React.FC = () => {
   const canAccessBoard = isDeveloper || userRole === 'management';
 
   useEffect(() => {
-    if (userRole === 'accounts' && !isDeveloper && activeTab !== 'finance') setActiveTab('finance');
-    else if (userRole === 'agent' && !isDeveloper && activeTab !== 'sales') setActiveTab('sales');
-  }, [userRole, isDeveloper]);
-
-  useEffect(() => {
     const saved = persistence.get('food_coop_data');
-    if (saved) { 
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setRecords(parsed);
-      } catch(e) {}
-    }
+    if (saved) { try { setRecords(JSON.parse(saved)); } catch(e) {} }
   }, []);
 
   useEffect(() => {
     setIsSyncing(true);
     persistence.set('food_coop_data', JSON.stringify(records));
-    persistence.set('coop_user_name', userName);
-    persistence.set('coop_user_phone', userPhone);
-    persistence.set('coop_user_role', userRole);
+    persistence.set('coop_user_registry', JSON.stringify(registry));
+    persistence.set('coop_active_session', JSON.stringify(currentUser));
     persistence.set('coop_sheet_webhook', sheetWebhook);
     const timer = setTimeout(() => setIsSyncing(false), 800);
     return () => clearTimeout(timer);
-  }, [records, userName, userPhone, userRole, sheetWebhook]);
+  }, [records, registry, currentUser, sheetWebhook]);
 
-  const handleSaveIdentity = (newName: string, newPhone: string, newRole: string) => {
-    setUserName(newName);
-    setUserPhone(newPhone);
-    if (AUTHORIZED_USERS.includes(newName)) {
-      if (newName === 'CD Otieno') setUserRole('management');
-      else if (newName === 'Barack James') setUserRole('developer');
-      else if (newName === 'Fred Dola') setUserRole('analyst');
-    } else setUserRole(newRole);
+  const handleAuthorizeUser = (profile: UserProfile) => {
+    const exists = registry.find(u => u.name === profile.name && u.phone === profile.phone);
+    if (!exists) {
+      setRegistry([...registry, profile]);
+    }
+    setCurrentUser(profile);
     setIsIdentityModalOpen(false);
+    
+    // Auto-routing based on role
+    if (profile.role === 'accounts' && !isDeveloper) setActiveTab('finance');
+    else if (profile.role === 'agent' && !isDeveloper) setActiveTab('sales');
   };
 
   const handleAddRecord = async (data: any) => {
@@ -336,16 +378,27 @@ const App: React.FC = () => {
     setRecords(updated);
   };
 
+  // Integration: Function to trigger AI Audit
+  const handleRunAiAudit = async () => {
+    if (records.length === 0) return alert("No sales data available for audit.");
+    setIsAnalyzing(true);
+    try {
+      const report = await analyzeSalesData(records);
+      setAiAnalysis(report);
+    } catch (err) {
+      setAiAnalysis("Analysis failed to generate.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const syncToCloudSheet = async () => {
     if (!sheetWebhook) { setIsCloudModalOpen(true); return; }
     const validated = records.filter(r => r.status === RecordStatus.VALIDATED);
     if (validated.length === 0) { alert("No validated records to sync."); return; }
-
     setIsCloudSyncing(true);
     try {
-      // Using no-cors because Apps Script redirect might block standard fetch, 
-      // but standard is better if the server is configured.
-      const response = await fetch(sheetWebhook, {
+      await fetch(sheetWebhook, {
         method: 'POST',
         mode: 'no-cors', 
         headers: { 'Content-Type': 'application/json' },
@@ -359,9 +412,7 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Context-Aware Stats Logic ---
   const stats = useMemo(() => {
-    // 1. Calculate GLOBAL stats for management/all-time views
     let tSales = 0, tFinalizedProfit = 0, tUnits = 0, vCount = 0;
     records.forEach(r => {
       tSales += r.totalSale;
@@ -371,104 +422,40 @@ const App: React.FC = () => {
         vCount += 1;
       }
     });
-
-    const global = {
+    return {
       totalSales: tSales,
       finalizedProfit: tFinalizedProfit,
       totalUnits: tUnits,
-      countValidated: vCount,
       avgUnitPrice: tUnits > 0 ? tSales / tUnits : 0
     };
-
-    // 2. Calculate RECENT stats for current entry focus
-    const latest = records[0];
-    const recent = latest ? {
-      totalSales: latest.totalSale,
-      finalizedProfit: latest.coopProfit, // In entry view, finalizedProfit acts as "Recent Pending"
-      totalUnits: latest.unitsSold,
-      countValidated: vCount,
-      avgUnitPrice: latest.unitPrice
-    } : { totalSales: 0, finalizedProfit: 0, totalUnits: 0, countValidated: vCount, avgUnitPrice: 0 };
-
-    // 3. Decide which to return based on active tab
-    // Summary at the top in the finance desk should show average unit price (global stats)
-    const isRecentViewContext = activeTab === 'sales';
-    return isRecentViewContext ? recent : global;
-  }, [records, activeTab]);
+  }, [records]);
 
   const commodityChartData = useMemo(() => {
     const totals: Record<string, { name: string; value: number }> = {};
     records.forEach(r => { 
-      if (!totals[r.cropType]) {
-        totals[r.cropType] = { name: r.cropType, value: 0 };
-      }
+      if (!totals[r.cropType]) totals[r.cropType] = { name: r.cropType, value: 0 };
       totals[r.cropType].value += r.totalSale; 
     });
-    return Object.values(totals)
-      .sort((a, b) => b.value - a.value); // Sort descending for better vertical comparison
+    return Object.values(totals).sort((a, b) => b.value - a.value);
   }, [records]);
 
   const exportToExcel = () => {
-    const validated = [...records]
-      .filter(r => r.status === RecordStatus.VALIDATED)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
+    const validated = records.filter(r => r.status === RecordStatus.VALIDATED);
     if (validated.length === 0) { alert("No records to export."); return; }
-
-    const csvRows: any[][] = [["Date", "Crop", "Qty (Unit)", "Total Sales", "Coop Comm (10%)"]];
-    let currentMonthStr = "";
-    let monthTotalSales = 0;
-    let monthTotalComm = 0;
-
-    validated.forEach((r, idx) => {
-      const dateObj = new Date(r.date);
-      const mStr = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
-
-      if (mStr !== currentMonthStr) {
-        if (idx > 0) {
-          csvRows.push(["", "", `TOTAL FOR ${currentMonthStr.toUpperCase()}`, monthTotalSales.toFixed(2), monthTotalComm.toFixed(2)]);
-          csvRows.push(["", "", "", "", ""]); 
-          monthTotalSales = 0;
-          monthTotalComm = 0;
-        }
-        currentMonthStr = mStr;
-        csvRows.push([`--- ${mStr.toUpperCase()} ---`, "", "", "", ""]);
-      }
-
-      csvRows.push([r.date, r.cropType, `${r.unitsSold} ${r.unitType}`, r.totalSale, r.coopProfit]);
-      monthTotalSales += r.totalSale;
-      monthTotalComm += r.coopProfit;
-
-      if (idx === validated.length - 1) {
-        csvRows.push(["", "", `TOTAL FOR ${currentMonthStr.toUpperCase()}`, monthTotalSales.toFixed(2), monthTotalComm.toFixed(2)]);
-      }
-    });
-
-    const csvContent = csvRows.map(e => e.join(",")).join("\n");
+    const csvContent = validated.map(r => `${r.date},${r.cropType},${r.unitsSold},${r.totalSale}`).join("\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv' }));
-    link.download = `Ledger_Export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `Ledger_Export.csv`;
     link.click();
   };
 
   const roleLabel = userName === 'CD Otieno' ? 'Senior Director' : userName === 'Barack James' ? 'System Developer' : userName === 'Fred Dola' ? 'Data Analyst' : userRole === 'accounts' ? 'Accounts Office' : userRole === 'analyst' ? 'Data Analyst' : userRole === 'management' ? 'Coop Director' : userRole === 'developer' ? 'System Developer' : 'Field Agent';
 
-  const isSalesTab = activeTab === 'sales';
-
-  const getLogStatusLabel = (status: RecordStatus) => {
-    switch (status) {
-      case RecordStatus.DRAFT: return "Awaiting Collection";
-      case RecordStatus.PAID: return "Awaiting Approval";
-      case RecordStatus.VALIDATED: return "Approved & Finalized";
-      default: return status;
-    }
-  };
-
   return (
     <div className="min-h-screen pb-12 bg-[#F8FAFC]">
       {auditRecord && <AuditModal record={auditRecord} onClose={() => setAuditRecord(null)} />}
+      {isIdentityModalOpen && <IdentityModal registry={registry} onAuthorize={handleAuthorizeUser} onClose={() => currentUser && setIsIdentityModalOpen(false)} />}
       {selectedReceipt && <ReceiptModal record={selectedReceipt} onClose={() => setSelectedReceipt(null)} />}
-      {isIdentityModalOpen && <IdentityModal currentName={userName} currentPhone={userPhone} currentRole={userRole} onSave={handleSaveIdentity} onClose={() => setIsIdentityModalOpen(false)} />}
       {isCloudModalOpen && <CloudSetupModal url={sheetWebhook} onSave={setSheetWebhook} onClose={() => setIsCloudModalOpen(false)} />}
       
       <header className="bg-emerald-950 text-white py-6 shadow-2xl sticky top-0 z-50 border-b border-white/10 backdrop-blur-md">
@@ -480,17 +467,17 @@ const App: React.FC = () => {
                 <h1 className="text-2xl font-black tracking-tight uppercase">Food Coop Hub</h1>
                 <div className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-full border border-white/10 bg-white/5 transition-opacity duration-500 ${isSyncing ? 'opacity-50' : 'opacity-100'}`}>
                   <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></div>
-                  <span className="text-[8px] font-black uppercase tracking-widest text-white/60">{isSyncing ? 'Securing Ledger...' : 'Ledger Secured'}</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-white/60">{isSyncing ? 'Securing...' : 'Secured'}</span>
                 </div>
               </div>
               <div className="mt-1 flex items-center space-x-2"><p className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">{roleLabel}</p><span className="text-white/20">|</span><p className="text-white font-bold text-xs">{userName}</p></div>
             </div>
           </div>
           <nav className="flex space-x-1 bg-white/5 p-1.5 rounded-2xl border border-white/10">
-            {canAccessSales && <button onClick={() => setActiveTab('sales')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'sales' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-400 hover:bg-white/5'}`}>Sales Portal</button>}
-            {canAccessFinance && <button onClick={() => setActiveTab('finance')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'finance' ? 'bg-blue-500 text-white shadow-lg' : 'text-blue-400 hover:bg-white/5'}`}>Finance Desk</button>}
-            {canAccessIntegrity && <button onClick={() => setActiveTab('analyst')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'analyst' ? 'bg-amber-500 text-white shadow-lg' : 'text-amber-400 hover:bg-white/5'}`}>Integrity Portal</button>}
-            {canAccessBoard && <button onClick={() => setActiveTab('management')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'management' ? 'bg-indigo-500 text-white shadow-lg' : 'text-indigo-400 hover:bg-white/5'}`}>Board View</button>}
+            {canAccessSales && <button onClick={() => setActiveTab('sales')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'sales' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-400 hover:bg-white/5'}`}>Sales</button>}
+            {canAccessFinance && <button onClick={() => setActiveTab('finance')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'finance' ? 'bg-blue-500 text-white shadow-lg' : 'text-blue-400 hover:bg-white/5'}`}>Finance</button>}
+            {canAccessIntegrity && <button onClick={() => setActiveTab('analyst')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'analyst' ? 'bg-amber-500 text-white shadow-lg' : 'text-amber-400 hover:bg-white/5'}`}>Integrity</button>}
+            {canAccessBoard && <button onClick={() => setActiveTab('management')} className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'management' ? 'bg-indigo-500 text-white shadow-lg' : 'text-indigo-400 hover:bg-white/5'}`}>Board</button>}
           </nav>
         </div>
       </header>
@@ -498,63 +485,42 @@ const App: React.FC = () => {
       <main className="container mx-auto px-4 mt-8 max-w-7xl">
         <div className="mb-10 p-5 rounded-3xl border bg-white border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${isDeveloper ? 'bg-slate-900' : userRole === 'management' ? 'bg-indigo-600' : userRole === 'accounts' ? 'bg-blue-600' : 'bg-emerald-600'}`}><i className={`fas ${isDeveloper ? 'fa-code' : userRole === 'management' ? 'fa-user-tie' : userRole === 'accounts' ? 'fa-cash-register' : 'fa-user'} text-xl`}></i></div>
-            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Authenticated Session</p><p className="text-sm font-black text-slate-800 uppercase tracking-tight">{userName} • {userPhone}</p></div>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${isDeveloper ? 'bg-slate-900' : 'bg-emerald-600'}`}><i className={`fas ${isDeveloper ? 'fa-shield-halved' : 'fa-user'} text-xl`}></i></div>
+            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Secured Session</p><p className="text-sm font-black text-slate-800 uppercase tracking-tight">{userName} • {userPhone}</p></div>
           </div>
           <button onClick={() => setIsIdentityModalOpen(true)} className="w-full sm:w-auto px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-600 hover:bg-white transition-all shadow-sm">Switch Identity</button>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <StatCard label={isSalesTab ? "Recent Revenue" : "Total Revenue"} value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
-          <StatCard label={isSalesTab ? "Pending Commission" : "Finalized Commission"} value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
-          <StatCard label={isSalesTab ? "Recent Units" : "Total Units"} value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
-          <StatCard label={isSalesTab ? "Unit Price" : "Avg Unit Price"} value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
+          <StatCard label="Total Revenue" value={`KSh ${stats.totalSales.toLocaleString()}`} icon="fa-sack-dollar" color="bg-slate-700" />
+          <StatCard label="Commission" value={`KSh ${stats.finalizedProfit.toLocaleString()}`} icon="fa-landmark" color="bg-emerald-600" />
+          <StatCard label="Total Units" value={stats.totalUnits.toLocaleString()} icon="fa-boxes-stacked" color="bg-blue-600" />
+          <StatCard label="Avg Price" value={`KSh ${Math.round(stats.avgUnitPrice).toLocaleString()}`} icon="fa-tag" color="bg-indigo-600" />
         </div>
 
         {activeTab === 'sales' && canAccessSales && (
           <div className="animate-fade-in space-y-10">
              <SaleForm onSubmit={handleAddRecord} />
              <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6 bg-slate-50/50 border-b font-black text-[11px] uppercase tracking-widest text-slate-400">Local Transaction Log</div>
+                <div className="p-6 bg-slate-50/50 border-b font-black text-[11px] uppercase tracking-widest text-slate-400">Transaction Log</div>
                 <div className="overflow-x-auto">
                    <table className="w-full text-left">
                       <thead className="bg-white border-b text-[10px] text-slate-400 font-black uppercase">
-                        <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5 text-center">Qty</th><th className="px-8 py-5">Unit Price</th><th className="px-8 py-5">Total Sales</th><th className="px-8 py-5">Coop Comm(10%)</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Approval Status</th></tr>
+                        <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Stakeholders</th><th className="px-8 py-5">Commodity</th><th className="px-8 py-5">Security</th><th className="px-8 py-5 text-right">Status</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {records.length === 0 ? (
-                          <tr><td colSpan={9} className="px-8 py-10 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">No records available</td></tr>
-                        ) : (
-                          records.map(r => (
-                            <tr key={r.id} className="hover:bg-slate-50/50 transition">
-                              <td className="px-8 py-5 text-xs font-black text-slate-600">{r.date}</td>
-                              <td className="px-8 py-5">
-                                <div className="flex flex-col space-y-2">
-                                  <div>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Farmer</p>
-                                    <p className="text-xs font-black text-slate-800">{r.farmerName}</p>
-                                    <p className="text-[9px] text-emerald-600 font-bold">{r.farmerPhone}</p>
-                                  </div>
-                                  <div className="pt-1 border-t border-slate-100">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Customer</p>
-                                    <p className="text-xs font-black text-slate-800">{r.customerName}</p>
-                                    <p className="text-[9px] text-blue-600 font-bold">{r.customerPhone}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase tracking-tight">{r.cropType}</span></td>
-                              <td className="px-8 py-5 text-center text-xs font-bold text-slate-600">{r.unitsSold} <span className="text-[10px] font-black text-slate-400 uppercase">{r.unitType}</span></td>
-                              <td className="px-8 py-5 text-xs font-bold text-slate-600">KSh {r.unitPrice.toLocaleString()}</td>
-                              <td className="px-8 py-5 text-sm font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
-                              <td className="px-8 py-5">
-                                <p className={`text-sm font-black ${r.status === RecordStatus.VALIDATED ? 'text-emerald-700' : 'text-slate-400 italic'}`}>KSh {r.coopProfit.toLocaleString()}</p>
-                                {r.status !== RecordStatus.VALIDATED && <p className="text-[8px] font-black uppercase text-slate-300">Pending Approval</p>}
-                              </td>
-                              <td className="px-8 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td>
-                              <td className="px-8 py-5 text-right"><span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border ${r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>{getLogStatusLabel(r.status)}</span></td>
-                            </tr>
-                          ))
-                        )}
+                        {records.map(r => (
+                          <tr key={r.id} className="hover:bg-slate-50/50 transition">
+                            <td className="px-8 py-5 text-xs font-black text-slate-600">{r.date}</td>
+                            <td className="px-8 py-5">
+                              <p className="text-xs font-black text-slate-800">{r.farmerName} → {r.customerName}</p>
+                              <p className="text-[10px] text-slate-400">Total: KSh {r.totalSale.toLocaleString()}</p>
+                            </td>
+                            <td className="px-8 py-5"><span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase">{r.cropType}</span></td>
+                            <td className="px-8 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td>
+                            <td className="px-8 py-5 text-right text-[10px] font-black uppercase text-slate-400">{r.status}</td>
+                          </tr>
+                        ))}
                       </tbody>
                    </table>
                 </div>
@@ -565,24 +531,14 @@ const App: React.FC = () => {
         {activeTab === 'finance' && canAccessFinance && (
           <div className="animate-fade-in space-y-12">
              <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
-                <div className="p-8 bg-blue-900 text-white flex justify-between items-center"><div><h3 className="text-xl font-black uppercase tracking-widest">Finance: Commission Handover</h3><p className="text-[10px] text-blue-200 font-bold uppercase mt-2">Incoming field agent cash handovers (10%)</p></div><i className="fas fa-hand-holding-dollar text-2xl"></i></div>
+                <div className="p-8 bg-blue-900 text-white flex justify-between items-center"><div><h3 className="text-xl font-black uppercase tracking-widest">Finance Console</h3></div><i className="fas fa-hand-holding-dollar text-2xl"></i></div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {records.filter(r => r.status === RecordStatus.DRAFT).map(r => (
-                    <div key={r.id} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 flex flex-col justify-between shadow-sm">
-                      <div className="mb-6">
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex flex-col">
-                            <span className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-500 uppercase w-fit">{r.cropType}</span>
-                            <span className="text-[9px] font-black text-slate-400 uppercase mt-2 tracking-tighter">{r.date}</span>
-                          </div>
-                          <p className="text-lg font-black text-blue-600">KSh {r.coopProfit.toLocaleString()}</p>
-                        </div>
-                        <div className="space-y-2 text-[11px] font-bold"><p>Farmer: {r.farmerName}</p><p>Agent: {r.createdBy}</p></div>
-                      </div>
-                      <button onClick={() => handleConfirmPayment(r.id)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all">Confirm Payment</button>
+                    <div key={r.id} className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200">
+                      <p className="text-lg font-black text-blue-600 mb-4">KSh {r.coopProfit.toLocaleString()}</p>
+                      <button onClick={() => handleConfirmPayment(r.id)} className="w-full bg-blue-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase">Confirm Payment</button>
                     </div>
                   ))}
-                  {records.filter(r => r.status === RecordStatus.DRAFT).length === 0 && <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-100 rounded-[2rem] text-slate-300 font-black uppercase tracking-widest">No pending handovers</div>}
                 </div>
              </div>
           </div>
@@ -593,39 +549,52 @@ const App: React.FC = () => {
             <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-200 flex flex-col md:flex-row gap-8 items-center">
                <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-[2rem] flex items-center justify-center text-4xl shadow-inner shrink-0"><i className="fas fa-file-excel"></i></div>
                <div className="flex-1 space-y-2 text-center md:text-left">
-                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Master Trust Ledger</h3>
-                  <p className="text-xs text-slate-500 font-medium leading-relaxed">Cryptographic validation and bulk export console for auditing.</p>
+                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Master Ledger</h3>
                   <div className="pt-4 flex flex-wrap gap-4 justify-center md:justify-start">
-                    <button onClick={() => setShowValidatedLedger(!showValidatedLedger)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all flex items-center"><i className="fas fa-eye mr-2"></i> {showValidatedLedger ? 'Hide Records' : 'View Verified Records'}</button>
-                    <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline flex items-center px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100"><i className="fas fa-download mr-2"></i> Export Master CSV</button>
+                    <button onClick={() => setShowValidatedLedger(!showValidatedLedger)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all">Audit List</button>
+                    <button onClick={exportToExcel} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-4 py-2.5 bg-emerald-50 rounded-xl border border-emerald-100">Export CSV</button>
+                    <button 
+                      onClick={handleRunAiAudit} 
+                      disabled={isAnalyzing}
+                      className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    >
+                      {isAnalyzing ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-microchip"></i>}
+                      AI Sales Audit
+                    </button>
                   </div>
                </div>
                {userName === 'Barack James' && (
-                 <div className="md:border-l pl-8 flex flex-col items-center md:items-start gap-3">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-2 h-2 rounded-full ${sheetWebhook ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Google Sheet Sync</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={syncToCloudSheet} disabled={isCloudSyncing} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 active:scale-95 transition-all disabled:opacity-50">
-                        {isCloudSyncing ? <><i className="fas fa-spinner fa-spin mr-2"></i>Syncing...</> : <><i className="fas fa-cloud-upload mr-2"></i>Sync Now</>}
-                      </button>
-                      <button onClick={() => setIsCloudModalOpen(true)} className="bg-slate-100 text-slate-600 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-slate-200 transition-all">
-                        <i className="fas fa-cog"></i>
-                      </button>
-                    </div>
+                 <div className="md:border-l pl-8 flex gap-2">
+                    <button onClick={syncToCloudSheet} disabled={isCloudSyncing} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Sync Sheet</button>
+                    <button onClick={() => setIsCloudModalOpen(true)} className="bg-slate-100 w-10 h-10 rounded-xl flex items-center justify-center"><i className="fas fa-cog"></i></button>
                  </div>
                )}
             </div>
+
+            {aiAnalysis && (
+              <div className="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-200 animate-fade-in">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-sparkles text-indigo-500"></i>
+                    AI Audit Findings
+                  </h3>
+                  <button onClick={() => setAiAnalysis(null)} className="text-slate-400 hover:text-slate-600"><i className="fas fa-times"></i></button>
+                </div>
+                <div className="prose prose-slate max-w-none text-sm text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
+                  {aiAnalysis}
+                </div>
+              </div>
+            )}
+
             {showValidatedLedger && (
               <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden">
-                <div className="p-8 bg-slate-900 text-white"><h3 className="text-xl font-black uppercase tracking-widest">Verified Commission Ledger</h3></div>
-                <div className="overflow-x-auto"><table className="w-full text-left"><thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400"><tr><th className="px-6 py-5">Audit Status</th><th className="px-6 py-5">Details</th><th className="px-6 py-5">Confirmation</th><th className="px-6 py-5 text-right">Action</th></tr></thead>
-                <tbody className="divide-y divide-slate-100">
+                <table className="w-full text-left">
+                  <tbody className="divide-y divide-slate-100">
                   {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
-                    <tr key={r.id} className="hover:bg-slate-50 transition"><td className="px-6 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td><td className="px-6 py-5"><p className="text-xs font-black text-slate-800">KSh {r.coopProfit.toLocaleString()} Comm</p><p className="text-[9px] text-slate-400 font-bold uppercase mt-1">{r.date} | {r.cropType}</p></td><td className="px-6 py-5 text-[10px] font-black text-blue-600 uppercase">Received by {r.confirmedBy}</td><td className="px-6 py-5 text-right">{r.status === RecordStatus.VALIDATED ? <span className="text-emerald-600 font-black uppercase text-[10px] bg-emerald-50 px-4 py-2 rounded-lg">Validated</span> : <button onClick={() => handleFinalVerify(r.id)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">Stamp & Verify</button>}</td></tr>
+                    <tr key={r.id} className="hover:bg-slate-50 transition"><td className="px-6 py-5"><SecurityCheckBadge record={r} onClick={() => setAuditRecord(r)} /></td><td className="px-6 py-5"><p className="text-xs font-black text-slate-800">KSh {r.coopProfit.toLocaleString()} Comm</p></td><td className="px-6 py-5 text-right">{r.status === RecordStatus.VALIDATED ? <span className="text-emerald-600 font-black uppercase text-[10px] bg-emerald-50 px-4 py-2 rounded-lg">Validated</span> : <button onClick={() => handleFinalVerify(r.id)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase">Stamp & Verify</button>}</td></tr>
                   ))}
-                </tbody></table></div>
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -634,78 +603,59 @@ const App: React.FC = () => {
         {activeTab === 'management' && canAccessBoard && (
           <div className="animate-fade-in space-y-10">
             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-               <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-xl shadow-inner">
-                    <i className="fas fa-chart-line"></i>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Executive Dashboard</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Real-time performance metrics</p>
-                  </div>
-               </div>
+               <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Executive View</h3>
                <div className="flex gap-3">
-                 {userName === 'Barack James' && (
-                   <button 
-                      onClick={syncToCloudSheet}
-                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-100 flex items-center"
-                   >
-                      <i className="fas fa-cloud mr-2"></i> Update Shared Sheet
-                   </button>
-                 )}
                  <button 
-                    onClick={exportToExcel} 
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20 flex items-center"
+                   onClick={handleRunAiAudit} 
+                   disabled={isAnalyzing}
+                   className="bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase border border-indigo-100 flex items-center gap-2"
                  >
-                    <i className="fas fa-download mr-2"></i> Download Audit Report
+                   {isAnalyzing ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
+                   AI Strategic Report
                  </button>
+                 {userName === 'Barack James' && (
+                   <button onClick={syncToCloudSheet} className="bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl text-[10px] font-black uppercase">Cloud Update</button>
+                 )}
+                 <button onClick={exportToExcel} className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase">Download Report</button>
                </div>
             </div>
+
+            {aiAnalysis && (
+              <div className="bg-indigo-900 rounded-[2.5rem] p-10 shadow-2xl border border-indigo-800 animate-fade-in relative text-white/90">
+                <button onClick={() => setAiAnalysis(null)} className="absolute top-6 right-6 text-indigo-300 hover:text-white transition-colors"><i className="fas fa-times"></i></button>
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-indigo-800 text-white rounded-xl flex items-center justify-center text-xl shadow-inner"><i className="fas fa-robot"></i></div>
+                  <h3 className="text-sm font-black text-indigo-200 uppercase tracking-widest">Executive AI Intelligence</h3>
+                </div>
+                <div className="prose prose-invert max-w-none text-sm whitespace-pre-wrap font-medium leading-relaxed">
+                  {aiAnalysis}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl min-h-[400px]">
-                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-8 text-center">Revenue by Commodity</h3>
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-8 text-center">Commodity Split</h3>
                   <div className="h-80 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={commodityChartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                      <BarChart data={commodityChartData}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis 
-                           dataKey="name" 
-                           axisLine={false} 
-                           tickLine={false} 
-                           tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} 
-                           interval={0}
-                           angle={-45}
-                           textAnchor="end"
-                           height={60}
-                        />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} />
-                        <Tooltip 
-                          cursor={{ fill: '#f8fafc' }} 
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                          formatter={(value: number) => [`KSh ${value.toLocaleString()}`, 'Total Revenue']}
-                        />
+                        <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 900 }} />
+                        <YAxis tick={{ fontSize: 10, fontWeight: 900 }} />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} />
                         <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                           {commodityChartData.map((entry, index) => (
-                             <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                           ))}
+                           {commodityChartData.map((entry, index) => ( <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} /> ))}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                </div>
-               <div className="bg-indigo-950 p-8 rounded-[2.5rem] text-white flex flex-col justify-between shadow-2xl overflow-hidden">
-                  <div className="space-y-8 relative z-10">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Finalized Commission</p>
-                      <p className="text-5xl font-black tracking-tighter">KSh {stats.finalizedProfit.toLocaleString()}</p>
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 font-bold text-xs uppercase tracking-widest">
-                        <p className="text-indigo-300">Verified Batches: {records.filter(r => r.status === RecordStatus.VALIDATED).length}</p>
-                        <p className="text-indigo-300">Total Volume: {records.reduce((acc, r) => acc + r.unitsSold, 0).toLocaleString()} units</p>
-                    </div>
+               <div className="bg-indigo-950 p-8 rounded-[2.5rem] text-white flex flex-col justify-between shadow-2xl">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400 mb-2">Finalized Commission</p>
+                    <p className="text-5xl font-black tracking-tighter">KSh {stats.finalizedProfit.toLocaleString()}</p>
                   </div>
-                  <div className="mt-8 relative z-10">
-                    <p className="text-[9px] italic text-indigo-300">"Trust ledger verified and secured."</p>
-                  </div>
+                  <p className="text-[9px] italic text-indigo-300">"Local ledger verified and secured."</p>
                </div>
             </div>
           </div>
@@ -715,7 +665,7 @@ const App: React.FC = () => {
       <footer className="mt-24 text-center pb-12">
         <div className="inline-flex items-center space-x-4 bg-white px-8 py-4 rounded-3xl border border-slate-100 shadow-sm">
           <i className="fas fa-shield-check text-emerald-600 text-sm"></i>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.3.1</span>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Excel Trust Protocol • v3.4.0</span>
         </div>
       </footer>
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }`}</style>

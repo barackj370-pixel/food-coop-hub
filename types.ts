@@ -8,6 +8,13 @@ export enum RecordStatus {
 
 export type UserRole = 'agent' | 'analyst' | 'management' | 'developer' | 'accounts';
 
+export interface UserProfile {
+  name: string;
+  phone: string;
+  role: UserRole;
+  pin: string;
+}
+
 export interface SaleRecord {
   id: string;
   date: string;
