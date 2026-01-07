@@ -197,7 +197,8 @@ const App: React.FC = () => {
       status: RecordStatus.DRAFT,
       signature,
       createdAt: new Date().toISOString(),
-      agentPhone: agentIdentity?.phone
+      agentPhone: agentIdentity?.phone,
+      agentName: agentIdentity?.name
     };
     
     setRecords([newRecord, ...records]);
@@ -604,6 +605,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Global Transaction Audit Log - Visible for everyone across all portals */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
            <div className="p-8 border-b border-slate-50">
              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
@@ -638,7 +640,7 @@ const Table: React.FC<{
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
         <tr>
           <th className="px-8 py-6">Timestamp</th>
-          <th className="px-8 py-6">Farmer & Customer</th>
+          <th className="px-8 py-6">Participants</th>
           <th className="px-8 py-6">Commodity</th>
           <th className="px-8 py-6">Quantity</th>
           <th className="px-8 py-6">Unit Price</th>
@@ -663,9 +665,22 @@ const Table: React.FC<{
               </div>
             </td>
             <td className="px-8 py-6">
-              <div className="flex flex-col space-y-1">
-                <span className="text-[12px] font-black text-slate-800">{r.farmerName}</span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">To: {r.customerName}</span>
+              <div className="flex flex-col space-y-3 py-2">
+                <div>
+                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p>
+                  <p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p>
+                  <p className="text-[9px] font-bold text-slate-400">{r.farmerPhone}</p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p>
+                  <p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p>
+                  <p className="text-[9px] font-bold text-slate-400">{r.customerPhone}</p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p>
+                  <p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System Record'}</p>
+                  <p className="text-[9px] font-bold text-emerald-600/60">{r.agentPhone}</p>
+                </div>
               </div>
             </td>
             <td className="px-8 py-6">

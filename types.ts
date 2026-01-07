@@ -39,4 +39,5 @@ export interface SaleRecord {
   createdBy?: string;
   confirmedBy?: string;
   agentPhone?: string;
+  agentName?: string;
 }
