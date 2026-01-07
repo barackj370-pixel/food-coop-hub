@@ -78,6 +78,13 @@ const App: React.FC = () => {
            agentIdentity?.role === SystemRole.ADMIN;
   }, [agentIdentity]);
 
+  // Ensure non-privileged users are always on the Sales Portal
+  useEffect(() => {
+    if (!isPrivileged && currentPortal !== 'SALES') {
+      setCurrentPortal('SALES');
+    }
+  }, [isPrivileged, currentPortal]);
+
   const availablePortals = useMemo(() => {
     if (isPrivileged) return ['SALES', 'FINANCE', 'INTEGRITY', 'BOARD'] as PortalType[];
     return ['SALES'] as PortalType[];
@@ -163,16 +170,17 @@ const App: React.FC = () => {
   };
 
   const stats = useMemo(() => {
-    const latest = records[0];
-    const totalRev = records.reduce((a, b) => a + b.totalSale, 0);
-    const pending = records.filter(r => r.status !== RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
+    const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
+    const latest = relevantRecords[0];
+    const totalRev = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
+    const pending = relevantRecords.filter(r => r.status !== RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
     return {
       revenue: totalRev || 0,
       commission: pending,
-      units: records.reduce((a, b) => a + b.unitsSold, 0) || 0,
+      units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0,
       price: latest?.unitPrice || 0
     };
-  }, [records]);
+  }, [records, isPrivileged, agentIdentity]);
 
   const filteredRecords = useMemo(() => {
     let base = records;
@@ -316,26 +324,28 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="mb-10 flex flex-wrap gap-2">
-            {availablePortals.map(portal => (
-              <button
-                key={portal}
-                onClick={() => setCurrentPortal(portal)}
-                className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
-                  currentPortal === portal 
-                    ? 'bg-emerald-500 text-emerald-950 border-emerald-400 shadow-lg shadow-emerald-500/20' 
-                    : 'bg-white/5 text-emerald-400/60 border-white/5 hover:bg-white/10'
-                }`}
-              >
-                <i className={`fas ${
-                  portal === 'SALES' ? 'fa-cart-shopping' : 
-                  portal === 'FINANCE' ? 'fa-chart-line' : 
-                  portal === 'INTEGRITY' ? 'fa-shield-halved' : 'fa-users'
-                } mr-3`}></i>
-                {portal.replace('_', ' ')} Portal
-              </button>
-            ))}
-          </div>
+          {isPrivileged && (
+            <div className="mb-10 flex flex-wrap gap-2 animate-fade-in">
+              {availablePortals.map(portal => (
+                <button
+                  key={portal}
+                  onClick={() => setCurrentPortal(portal)}
+                  className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+                    currentPortal === portal 
+                      ? 'bg-emerald-500 text-emerald-950 border-emerald-400 shadow-lg shadow-emerald-500/20' 
+                      : 'bg-white/5 text-emerald-400/60 border-white/5 hover:bg-white/10'
+                  }`}
+                >
+                  <i className={`fas ${
+                    portal === 'SALES' ? 'fa-cart-shopping' : 
+                    portal === 'FINANCE' ? 'fa-chart-line' : 
+                    portal === 'INTEGRITY' ? 'fa-shield-halved' : 'fa-users'
+                  } mr-3`}></i>
+                  {portal.replace('_', ' ')} Portal
+                </button>
+              ))}
+            </div>
+          )}
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Total Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
@@ -361,7 +371,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {currentPortal === 'FINANCE' && (
+        {isPrivileged && currentPortal === 'FINANCE' && (
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
@@ -393,7 +403,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {currentPortal === 'INTEGRITY' && (
+        {isPrivileged && currentPortal === 'INTEGRITY' && (
           <div className="space-y-10 animate-fade-in">
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div>
@@ -429,7 +439,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {currentPortal === 'BOARD' && (
+        {isPrivileged && currentPortal === 'BOARD' && (
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
