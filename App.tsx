@@ -659,36 +659,53 @@ const App: React.FC = () => {
                     </button>
                   </div>
                   
-                  {/* Performance Chart - Commission per Commodity & Date */}
-                  <div className="flex-1 min-h-[450px] flex items-end justify-between px-6 pb-20 pt-8 border-b border-slate-100 relative">
+                  {/* Performance Chart - Commission per Commodity & Date with Y-Axis Values */}
+                  <div className="flex-1 min-h-[450px] flex items-end justify-between pl-16 pr-6 pb-20 pt-8 border-b border-slate-100 relative">
                     {boardMetrics.performanceData.length === 0 ? (
                       <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
                         No commission data points found
                       </div>
                     ) : (
-                      boardMetrics.performanceData.map(([label, value]) => {
-                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
-                        const heightPercent = (value / maxVal) * 100;
-                        return (
-                          <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1">
+                      <>
+                        {/* Vertical Y-Axis Numerical Labels */}
+                        {(() => {
+                          const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
+                          const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
+                          return intervals.map((val, idx) => (
                             <div 
-                              className="w-full max-w-[40px] bg-blue-500 rounded-t-xl transition-all duration-700 group-hover:bg-blue-600 relative" 
-                              style={{ height: `${heightPercent}%` }}
+                              key={idx} 
+                              className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap"
+                              style={{ bottom: `calc(80px + ${idx === 4 ? 0 : (100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}
                             >
-                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-2xl whitespace-nowrap">
-                                KSh {value.toLocaleString()} Commission
-                              </div>
+                              {Math.round(val).toLocaleString()}
                             </div>
-                            <span className="absolute -bottom-16 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">
-                              {label}
-                            </span>
-                          </div>
-                        );
-                      })
+                          ));
+                        })()}
+
+                        {boardMetrics.performanceData.map(([label, value]) => {
+                          const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
+                          const heightPercent = (value / maxVal) * 100;
+                          return (
+                            <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1">
+                              <div 
+                                className="w-full max-w-[40px] bg-blue-500 rounded-t-xl transition-all duration-700 group-hover:bg-blue-600 relative" 
+                                style={{ height: `${heightPercent}%` }}
+                              >
+                                <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-2xl whitespace-nowrap">
+                                  KSh {value.toLocaleString()} Commission
+                                </div>
+                              </div>
+                              <span className="absolute -bottom-16 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">
+                                {label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </>
                     )}
-                    {/* Vertical axis legend hint */}
-                    <div className="absolute -left-4 top-1/2 -rotate-90 text-[8px] font-black text-slate-300 uppercase tracking-widest pointer-events-none">
-                      Commission Amount (KSh)
+                    {/* Vertical axis legend label */}
+                    <div className="absolute -left-10 top-1/2 -rotate-90 text-[8px] font-black text-slate-300 uppercase tracking-widest pointer-events-none">
+                      Commission (KSh)
                     </div>
                   </div>
                 </div>
@@ -704,7 +721,7 @@ const App: React.FC = () => {
                   <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100">
                      <p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-2">Strategic Insight</p>
                      <p className="text-[12px] font-bold text-emerald-900 leading-relaxed italic">
-                       "Commodity commission tracking shows specific dates with high yields. Suggest optimizing logistics for these verified high-performance cycles."
+                       "Commission data visualization indicates cycle performance. Higher peaks represent optimized trade windows within the cooperative ledger."
                      </p>
                   </div>
                   
