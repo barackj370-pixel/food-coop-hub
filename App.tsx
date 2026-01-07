@@ -181,11 +181,20 @@ const App: React.FC = () => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
 
-    // If in Sales Portal, show Recent Entry Stats
+    // If in Sales Portal, show Recent Entry Stats + Dual Commission Status
     if (currentPortal === 'SALES') {
+      const due = relevantRecords
+        .filter(r => r.status === RecordStatus.DRAFT)
+        .reduce((a, b) => a + b.coopProfit, 0);
+      
+      const approved = relevantRecords
+        .filter(r => r.status === RecordStatus.VALIDATED)
+        .reduce((a, b) => a + b.coopProfit, 0);
+
       return {
         revenue: latest?.totalSale || 0,
-        commission: latest?.coopProfit || 0,
+        // formatted dual-state commission display for Sales Portal
+        commission: `Due: ${due.toLocaleString()} | Appr: ${approved.toLocaleString()}`, 
         units: latest?.unitsSold || 0,
         unitType: latest?.unitType || '',
         price: latest?.unitPrice || 0
@@ -194,7 +203,10 @@ const App: React.FC = () => {
 
     // Otherwise show Totals for Finance/Board/Integrity
     const totalRev = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
-    const pending = relevantRecords.filter(r => r.status !== RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
+    const pending = relevantRecords
+      .filter(r => r.status !== RecordStatus.VALIDATED)
+      .reduce((a, b) => a + b.coopProfit, 0);
+      
     return {
       revenue: totalRev || 0,
       commission: pending,
@@ -283,7 +295,7 @@ const App: React.FC = () => {
                   required
                   placeholder="••••"
                   value={authForm.passcode}
-                  onChange={(e) => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})}
+                  onChange={(e) => setAgentIdentity ? setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')}) : null}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white tracking-[1.2em] text-center focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-white/10"
                 />
               </div>
@@ -381,8 +393,8 @@ const App: React.FC = () => {
               color="bg-white/5" 
             />
             <StatCard 
-              label={currentPortal === 'SALES' ? "Recent Commission" : "Commission Pool"} 
-              value={`KSh ${stats.commission.toLocaleString()}`} 
+              label={currentPortal === 'SALES' ? "Commission Ledger" : "Commission Pool"} 
+              value={typeof stats.commission === 'string' ? stats.commission : `KSh ${stats.commission.toLocaleString()}`} 
               icon="fa-clock-rotate-left" 
               color="bg-white/5" 
             />
