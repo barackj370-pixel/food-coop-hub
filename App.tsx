@@ -303,32 +303,24 @@ const App: React.FC = () => {
     const approvedVerified = records.filter(r => 
       r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED
     );
-    const totalCommission = approvedVerified.reduce((acc, r) => acc + r.coopProfit, 0);
+    const totalCommissionValue = approvedVerified.reduce((acc, r) => acc + r.coopProfit, 0);
     
-    // Grouping by Date for trend chart
-    const dateSalesMap = records.reduce((acc, r) => {
-      acc[r.date] = (acc[r.date] || 0) + r.totalSale;
+    // Aggregate Commission by Commodity + Date
+    const performanceMap = records.reduce((acc, r) => {
+      const label = `${r.cropType} (${r.date})`;
+      acc[label] = (acc[label] || 0) + r.coopProfit;
       return acc;
     }, {} as Record<string, number>);
 
-    const dailyTrend = Object.entries(dateSalesMap)
-      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
-      .slice(-10);
+    const performanceData = Object.entries(performanceMap)
+      .sort((a, b) => {
+        const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
+        const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
+        return new Date(dateA).getTime() - new Date(dateB).getTime();
+      })
+      .slice(-15); // Show latest 15 combined data points
 
-    // Grouping by Commodity for distribution chart
-    const commoditySales = CROP_TYPES.reduce((acc, crop) => {
-      const cropTotal = records
-        .filter(r => r.cropType === crop)
-        .reduce((sum, r) => sum + r.totalSale, 0);
-      acc[crop] = cropTotal;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const sortedCommodities = Object.entries(commoditySales)
-      .filter(([_, val]) => val > 0)
-      .sort((a, b) => b[1] - a[1]);
-
-    return { totalCommission, dailyTrend, sortedCommodities };
+    return { totalCommission: totalCommissionValue, performanceData };
   }, [records]);
 
   if (!agentIdentity) {
@@ -654,65 +646,49 @@ const App: React.FC = () => {
         {currentPortal === 'BOARD' && (
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-10">
-                  {/* Chart 1: Transaction Volume Trend (Date & Amount) */}
-                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-                    <div className="flex justify-between items-center mb-8">
-                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Sales Trend (Daily)</h3>
-                      <button 
-                        onClick={() => exportToCSV(records)}
-                        disabled={records.length === 0}
-                        className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"
-                      >
-                        <i className="fas fa-file-export mr-3"></i>
-                        Export Audit
-                      </button>
-                    </div>
-                    
-                    <div className="h-[300px] flex items-end justify-between px-6 pb-12 pt-8 border-b border-slate-100 relative">
-                      {boardMetrics.dailyTrend.length === 0 ? (
-                        <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
-                          No history detected
-                        </div>
-                      ) : boardMetrics.dailyTrend.map(([date, value]) => {
-                        const maxVal = Math.max(...boardMetrics.dailyTrend.map(d => d[1]), 1);
-                        const heightPercent = (value / maxVal) * 100;
-                        return (
-                          <div key={date} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-                            <div className="w-8 bg-emerald-500 rounded-t-lg transition-all duration-700 group-hover:bg-emerald-600 relative" style={{ height: `${heightPercent}%` }}>
-                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-xl">
-                                KSh {value.toLocaleString()}
-                              </div>
-                            </div>
-                            <span className="absolute -bottom-10 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">{date}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
+                  <div className="flex justify-between items-center mb-10">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Performance (Commission)</h3>
+                    <button 
+                      onClick={() => exportToCSV(records)}
+                      disabled={records.length === 0}
+                      className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"
+                    >
+                      <i className="fas fa-file-export mr-3"></i>
+                      Export Audit Report
+                    </button>
                   </div>
-
-                  {/* Chart 2: Commodity Performance (Crop Name & Amount) */}
-                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-8">Commodity Performance</h3>
-                    <div className="h-[300px] flex items-end justify-between px-6 pb-12 pt-8 border-b border-slate-100 relative">
-                      {boardMetrics.sortedCommodities.length === 0 ? (
-                        <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
-                          No commodity data
-                        </div>
-                      ) : boardMetrics.sortedCommodities.map(([crop, value]) => {
-                        const maxVal = Math.max(...boardMetrics.sortedCommodities.map(c => c[1]), 1);
+                  
+                  {/* Performance Chart - Commission per Commodity & Date */}
+                  <div className="flex-1 min-h-[450px] flex items-end justify-between px-6 pb-20 pt-8 border-b border-slate-100 relative">
+                    {boardMetrics.performanceData.length === 0 ? (
+                      <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
+                        No commission data points found
+                      </div>
+                    ) : (
+                      boardMetrics.performanceData.map(([label, value]) => {
+                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
                         const heightPercent = (value / maxVal) * 100;
                         return (
-                          <div key={crop} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-                            <div className="w-10 bg-blue-500 rounded-t-lg transition-all duration-700 group-hover:bg-blue-600 relative" style={{ height: `${heightPercent}%` }}>
-                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-xl">
-                                KSh {value.toLocaleString()}
+                          <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1">
+                            <div 
+                              className="w-full max-w-[40px] bg-blue-500 rounded-t-xl transition-all duration-700 group-hover:bg-blue-600 relative" 
+                              style={{ height: `${heightPercent}%` }}
+                            >
+                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-2xl whitespace-nowrap">
+                                KSh {value.toLocaleString()} Commission
                               </div>
                             </div>
-                            <span className="absolute -bottom-10 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">{crop}</span>
+                            <span className="absolute -bottom-16 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">
+                              {label}
+                            </span>
                           </div>
                         );
-                      })}
+                      })
+                    )}
+                    {/* Vertical axis legend hint */}
+                    <div className="absolute -left-4 top-1/2 -rotate-90 text-[8px] font-black text-slate-300 uppercase tracking-widest pointer-events-none">
+                      Commission Amount (KSh)
                     </div>
                   </div>
                 </div>
@@ -728,7 +704,7 @@ const App: React.FC = () => {
                   <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100">
                      <p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-2">Strategic Insight</p>
                      <p className="text-[12px] font-bold text-emerald-900 leading-relaxed italic">
-                       "Sales trends show positive momentum across Maize and Coffee. Consider consolidating logistics for the highest volume periods detected in the daily trend."
+                       "Commodity commission tracking shows specific dates with high yields. Suggest optimizing logistics for these verified high-performance cycles."
                      </p>
                   </div>
                   
