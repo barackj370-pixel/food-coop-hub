@@ -76,7 +76,8 @@ const App: React.FC = () => {
     if (!agentIdentity) return false;
     return agentIdentity.role === SystemRole.SYSTEM_DEVELOPER || 
            agentIdentity.role === SystemRole.MANAGER || 
-           agentIdentity.role === SystemRole.FINANCE_OFFICER;
+           agentIdentity.role === SystemRole.FINANCE_OFFICER ||
+           agentIdentity.role === SystemRole.AUDITOR;
   }, [agentIdentity]);
 
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;

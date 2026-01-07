@@ -7,6 +7,7 @@ export enum RecordStatus {
 export enum SystemRole {
   FIELD_AGENT = 'Field Agent',
   FINANCE_OFFICER = 'Finance Officer',
+  AUDITOR = 'Auditor(integrity Portal)',
   MANAGER = 'Coop Manager',
   SYSTEM_DEVELOPER = 'System Developer'
 }
