@@ -380,7 +380,7 @@ const App: React.FC = () => {
               <i className="fas fa-leaf text-xl"></i>
            </div>
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
-           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2">Identity & Ledger Portal</p>
+           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Trust. Growth. Harvest.</p>
         </div>
 
         <div className="w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
@@ -467,7 +467,7 @@ const App: React.FC = () => {
           </div>
         </div>
         
-        <p className="mt-8 text-[9px] font-black text-white/20 uppercase tracking-[0.5em] z-10">Secure Multi-Role Distributed Ledger</p>
+        <p className="mt-8 text-[9px] font-black text-white/20 uppercase tracking-[0.5em] z-10">Verified Agricultural Trust</p>
       </div>
     );
   }
@@ -794,8 +794,8 @@ const App: React.FC = () => {
 
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
            <div className="p-8 border-b border-slate-50">
-             <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
-             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Distributed Ledger Monitoring</p>
+             <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Audit & Integrity Log</h3>
+             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Integrity Audit</p>
            </div>
            <Table records={filteredRecords} portal={currentPortal} role={agentIdentity.role} onStatusUpdate={handleUpdateStatus} />
         </div>
