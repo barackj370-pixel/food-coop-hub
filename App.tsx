@@ -305,18 +305,30 @@ const App: React.FC = () => {
     );
     const totalCommission = approvedVerified.reduce((acc, r) => acc + r.coopProfit, 0);
     
-    // Grouping by Date for the chart
+    // Grouping by Date for trend chart
     const dateSalesMap = records.reduce((acc, r) => {
       acc[r.date] = (acc[r.date] || 0) + r.totalSale;
       return acc;
     }, {} as Record<string, number>);
 
-    // Sort dates chronologically
     const dailyTrend = Object.entries(dateSalesMap)
       .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
-      .slice(-10); // Display the latest 10 data points
+      .slice(-10);
 
-    return { totalCommission, dailyTrend };
+    // Grouping by Commodity for distribution chart
+    const commoditySales = CROP_TYPES.reduce((acc, crop) => {
+      const cropTotal = records
+        .filter(r => r.cropType === crop)
+        .reduce((sum, r) => sum + r.totalSale, 0);
+      acc[crop] = cropTotal;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const sortedCommodities = Object.entries(commoditySales)
+      .filter(([_, val]) => val > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    return { totalCommission, dailyTrend, sortedCommodities };
   }, [records]);
 
   if (!agentIdentity) {
@@ -642,46 +654,66 @@ const App: React.FC = () => {
         {currentPortal === 'BOARD' && (
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-                  <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Transaction Volume Trend</h3>
-                    <button 
-                      onClick={() => exportToCSV(records)}
-                      disabled={records.length === 0}
-                      className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"
-                    >
-                      <i className="fas fa-file-export mr-3"></i>
-                      Export Audit Report
-                    </button>
-                  </div>
-                  
-                  {/* Vertical Bar Chart - Date and Amount */}
-                  <div className="h-[400px] flex items-end justify-between px-6 pb-12 pt-8 border-b border-slate-100 relative">
-                    {boardMetrics.dailyTrend.length === 0 ? (
-                      <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
-                        No historical data available
-                      </div>
-                    ) : boardMetrics.dailyTrend.map(([date, value]) => {
-                      const maxVal = Math.max(...boardMetrics.dailyTrend.map(d => d[1]), 1);
-                      const heightPercent = (value / maxVal) * 100;
-                      
-                      return (
-                        <div key={date} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-                          <div 
-                            className="w-10 bg-emerald-500 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-emerald-600 relative"
-                            style={{ height: `${heightPercent}%` }}
-                          >
-                            {/* Value tooltip on hover */}
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none font-black shadow-xl">
-                              KSh {value.toLocaleString()}
-                            </div>
-                          </div>
-                          <span className="absolute -bottom-10 text-[9px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">
-                            {date}
-                          </span>
+                <div className="lg:col-span-2 space-y-10">
+                  {/* Chart 1: Transaction Volume Trend (Date & Amount) */}
+                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                    <div className="flex justify-between items-center mb-8">
+                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Sales Trend (Daily)</h3>
+                      <button 
+                        onClick={() => exportToCSV(records)}
+                        disabled={records.length === 0}
+                        className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"
+                      >
+                        <i className="fas fa-file-export mr-3"></i>
+                        Export Audit
+                      </button>
+                    </div>
+                    
+                    <div className="h-[300px] flex items-end justify-between px-6 pb-12 pt-8 border-b border-slate-100 relative">
+                      {boardMetrics.dailyTrend.length === 0 ? (
+                        <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
+                          No history detected
                         </div>
-                      );
-                    })}
+                      ) : boardMetrics.dailyTrend.map(([date, value]) => {
+                        const maxVal = Math.max(...boardMetrics.dailyTrend.map(d => d[1]), 1);
+                        const heightPercent = (value / maxVal) * 100;
+                        return (
+                          <div key={date} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                            <div className="w-8 bg-emerald-500 rounded-t-lg transition-all duration-700 group-hover:bg-emerald-600 relative" style={{ height: `${heightPercent}%` }}>
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-xl">
+                                KSh {value.toLocaleString()}
+                              </div>
+                            </div>
+                            <span className="absolute -bottom-10 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">{date}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Chart 2: Commodity Performance (Crop Name & Amount) */}
+                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-8">Commodity Performance</h3>
+                    <div className="h-[300px] flex items-end justify-between px-6 pb-12 pt-8 border-b border-slate-100 relative">
+                      {boardMetrics.sortedCommodities.length === 0 ? (
+                        <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
+                          No commodity data
+                        </div>
+                      ) : boardMetrics.sortedCommodities.map(([crop, value]) => {
+                        const maxVal = Math.max(...boardMetrics.sortedCommodities.map(c => c[1]), 1);
+                        const heightPercent = (value / maxVal) * 100;
+                        return (
+                          <div key={crop} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                            <div className="w-10 bg-blue-500 rounded-t-lg transition-all duration-700 group-hover:bg-blue-600 relative" style={{ height: `${heightPercent}%` }}>
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-xl">
+                                KSh {value.toLocaleString()}
+                              </div>
+                            </div>
+                            <span className="absolute -bottom-10 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">{crop}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -690,22 +722,22 @@ const App: React.FC = () => {
                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
                      <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-3">Verified Commissions</p>
                      <h2 className="text-4xl font-black tracking-tight mb-2">KSh {boardMetrics.totalCommission.toLocaleString()}</h2>
-                     <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Approved & Auditor Verified</p>
+                     <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Auditor Verified Total</p>
                   </div>
 
                   <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100">
                      <p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-2">Strategic Insight</p>
-                     <p className="text-[13px] font-bold text-emerald-900 leading-relaxed italic">
-                       "Historical trends show peak activity during month-end cycles. Suggesting increased hub staff during these periods for faster verification."
+                     <p className="text-[12px] font-bold text-emerald-900 leading-relaxed italic">
+                       "Sales trends show positive momentum across Maize and Coffee. Consider consolidating logistics for the highest volume periods detected in the daily trend."
                      </p>
                   </div>
                   
                   <div className="bg-slate-900 p-8 rounded-[2rem] text-white">
                      <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] mb-4">Board Directives</p>
                      <ul className="space-y-3 text-[11px] font-bold">
-                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Review Payout Cycles</li>
-                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Optimize Data Ledger</li>
-                       <li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> Q3 Expansion Strategy</li>
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Approve Q2 Dividend</li>
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Scale Mobile Agent App</li>
+                       <li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> New Hub Acquisition</li>
                      </ul>
                   </div>
                 </div>
@@ -713,7 +745,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Global Transaction Audit Log - Visible for everyone across all portals */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
            <div className="p-8 border-b border-slate-50">
              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
