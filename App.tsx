@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN } from './constants.ts';
+import { PROFIT_MARGIN, CROP_TYPES } from './constants.ts';
 import { analyzeSalesData } from './services/geminiService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'IDENTITY';
@@ -298,6 +298,24 @@ const App: React.FC = () => {
   const financeRecords = useMemo(() => {
     return filteredRecords.filter(r => r.status === RecordStatus.PAID);
   }, [filteredRecords]);
+
+  const boardMetrics = useMemo(() => {
+    const approvedVerified = records.filter(r => 
+      r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED
+    );
+    const totalCommission = approvedVerified.reduce((acc, r) => acc + r.coopProfit, 0);
+    
+    // Aggregate by commodity
+    const commoditySales = CROP_TYPES.reduce((acc, crop) => {
+      const cropTotal = records
+        .filter(r => r.cropType === crop)
+        .reduce((sum, r) => sum + r.totalSale, 0);
+      acc[crop] = cropTotal;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return { totalCommission, commoditySales };
+  }, [records]);
 
   if (!agentIdentity) {
     return (
@@ -624,7 +642,7 @@ const App: React.FC = () => {
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Performance Outlook</h3>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Gross Value</h3>
                     <button 
                       onClick={() => exportToCSV(records)}
                       disabled={records.length === 0}
@@ -634,23 +652,55 @@ const App: React.FC = () => {
                       Export Audit Report
                     </button>
                   </div>
-                  <div className="h-64 bg-slate-50 rounded-[2rem] flex items-center justify-center border-2 border-dashed border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Visual Data Stream Pending</p>
+                  
+                  {/* Vertical Bar Chart */}
+                  <div className="h-[400px] flex items-end justify-between px-6 pb-12 pt-8 border-b border-slate-100 relative">
+                    {CROP_TYPES.map(crop => {
+                      const value = boardMetrics.commoditySales[crop] || 0;
+                      const maxVal = Math.max(...Object.values(boardMetrics.commoditySales), 1);
+                      const heightPercent = (value / maxVal) * 100;
+                      
+                      return (
+                        <div key={crop} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                          <div 
+                            className="w-10 bg-emerald-500 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-emerald-600 relative"
+                            style={{ height: `${heightPercent}%` }}
+                          >
+                            {/* Value tooltip on hover */}
+                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none font-black">
+                              KSh {value.toLocaleString()}
+                            </div>
+                          </div>
+                          <span className="absolute -bottom-10 text-[9px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">
+                            {crop}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+
                 <div className="space-y-8">
+                  <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
+                     <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-3">Verified Commissions</p>
+                     <h2 className="text-4xl font-black tracking-tight mb-2">KSh {boardMetrics.totalCommission.toLocaleString()}</h2>
+                     <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Approved & Auditor Verified</p>
+                  </div>
+
                   <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100">
                      <p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-2">Strategic Insight</p>
                      <p className="text-[13px] font-bold text-emerald-900 leading-relaxed italic">
-                       "Current volume indicates a 12% rise in Maize trading. Suggest optimizing transport routes for the next cycle."
+                       "Commodity trends suggest stabilizing coffee margins. Volume optimization required for Sorghum logistics in the next quarter."
                      </p>
                   </div>
+                  
                   <div className="bg-slate-900 p-8 rounded-[2rem] text-white">
                      <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] mb-4">Board Directives</p>
                      <ul className="space-y-3 text-[11px] font-bold">
-                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Validate Q1 Margins</li>
-                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Expansion to Tea Hubs</li>
-                       <li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> Q2 Agent Recruitment</li>
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Finalize Q1 Dividends</li>
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Audit Digital Vault</li>
+                       <li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> New Hub Acquisition</li>
                      </ul>
                   </div>
                 </div>
@@ -658,6 +708,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* Global Transaction Audit Log - Visible for everyone across all portals */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
            <div className="p-8 border-b border-slate-50">
              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
