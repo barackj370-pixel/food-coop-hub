@@ -453,7 +453,7 @@ const App: React.FC = () => {
                 className="text-[9px] font-black uppercase text-emerald-400 hover:text-white mt-1.5 flex items-center justify-end w-full group"
               >
                 <i className="fas fa-user-gear mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>
-                Switch User
+                End Session
               </button>
             </div>
           </div>
