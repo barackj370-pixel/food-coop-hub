@@ -127,17 +127,16 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(users));
         setAgentIdentity(newUser);
       } else {
+        // Updated Login Logic: Only require phone and passcode
         const user = users.find(u => 
           u.phone === authForm.phone && 
-          u.passcode === authForm.passcode && 
-          u.name.toLowerCase() === authForm.name.toLowerCase() &&
-          u.role === authForm.role
+          u.passcode === authForm.passcode
         );
         
         if (user) {
           setAgentIdentity(user);
         } else {
-          alert("Authentication failed. Please verify your Full Name, Phone, Passcode, and Role selection.");
+          alert("Authentication failed. Please check your Phone Number and Passcode.");
         }
       }
       setIsAuthLoading(false);
@@ -236,17 +235,19 @@ const App: React.FC = () => {
             </div>
 
             <form onSubmit={handleAuth} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Full Name</label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="e.g. Barack James"
-                  value={authForm.name}
-                  onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-white/10"
-                />
-              </div>
+              {isRegisterMode && (
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Full Name</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. Barack James"
+                    value={authForm.name}
+                    onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-white/10"
+                  />
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Phone Number</label>
@@ -273,18 +274,20 @@ const App: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">System Role</label>
-                <select 
-                  value={authForm.role}
-                  onChange={(e) => setAuthForm({...authForm, role: e.target.value as SystemRole})}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none"
-                >
-                  {Object.values(SystemRole).map(role => (
-                    <option key={role} value={role} className="bg-slate-900">{role}</option>
-                  ))}
-                </select>
-              </div>
+              {isRegisterMode && (
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">System Role</label>
+                  <select 
+                    value={authForm.role}
+                    onChange={(e) => setAuthForm({...authForm, role: e.target.value as SystemRole})}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none"
+                  >
+                    {Object.values(SystemRole).map(role => (
+                      <option key={role} value={role} className="bg-slate-900">{role}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <button 
                 disabled={isAuthLoading}
