@@ -75,7 +75,7 @@ const App: React.FC = () => {
   const isPrivileged = useMemo(() => {
     return agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || 
            agentIdentity?.role === SystemRole.MANAGER || 
-           agentIdentity?.role === SystemRole.ADMIN;
+           agentIdentity?.role === SystemRole.FINANCE_OFFICER;
   }, [agentIdentity]);
 
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
