@@ -78,6 +78,14 @@ const App: React.FC = () => {
            agentIdentity?.role === SystemRole.ADMIN;
   }, [agentIdentity]);
 
+  const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
+
+  const registeredUsers = useMemo(() => {
+    if (!isSystemDev) return [];
+    const usersData = persistence.get('coop_users');
+    return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
+  }, [isSystemDev, agentIdentity, isAuthLoading]);
+
   // Ensure non-privileged users are always on the Sales Portal
   useEffect(() => {
     if (!isPrivileged && currentPortal !== 'SALES') {
@@ -405,6 +413,37 @@ const App: React.FC = () => {
 
         {isPrivileged && currentPortal === 'INTEGRITY' && (
           <div className="space-y-10 animate-fade-in">
+             {isSystemDev && (
+               <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                 <div className="p-8 border-b border-slate-50 bg-slate-50/10">
+                   <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authenticated system accounts (System Developer View)</p>
+                 </div>
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                        <tr>
+                          <th className="px-8 py-4">Full Name</th>
+                          <th className="px-8 py-4">Role</th>
+                          <th className="px-8 py-4">Phone Number</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {registeredUsers.map((user, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                            <td className="px-8 py-4">
+                              <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span>
+                            </td>
+                            <td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                 </div>
+               </div>
+             )}
+
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div>
                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Security Audit</h3>
