@@ -40,4 +40,5 @@ export interface SaleRecord {
   confirmedBy?: string;
   agentPhone?: string;
   agentName?: string;
+  synced?: boolean; // Track if record is in Google Sheets
 }

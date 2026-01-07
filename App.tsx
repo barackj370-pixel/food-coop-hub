@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, CROP_TYPES } from './constants.ts';
+import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL } from './constants.ts';
 import { analyzeSalesData } from './services/geminiService.ts';
+import { syncToGoogleSheets } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'IDENTITY';
 
@@ -58,6 +59,13 @@ const exportToCSV = (records: SaleRecord[]) => {
   document.body.removeChild(link);
 };
 
+const CloudSyncBadge: React.FC<{ synced?: boolean }> = ({ synced }) => (
+  <div className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${synced ? 'bg-blue-50 text-blue-500' : 'bg-slate-100 text-slate-400'}`}>
+    <i className={`fas ${synced ? 'fa-cloud-check' : 'fa-cloud-arrow-up'}`}></i>
+    <span>{synced ? 'Synced' : 'Local Only'}</span>
+  </div>
+);
+
 const SecurityBadge: React.FC<{ record: SaleRecord }> = ({ record }) => {
   const [isValid, setIsValid] = useState<boolean | null>(null);
   useEffect(() => {
@@ -77,7 +85,10 @@ const CommissionCard: React.FC<{ record: SaleRecord, onApprove: () => void }> = 
   <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl flex flex-col justify-between hover:shadow-2xl transition-all border-l-4 border-l-blue-500">
     <div>
       <div className="flex justify-between items-start mb-4">
-        <span className="text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">{record.id}</span>
+        <div className="flex flex-col">
+          <span className="text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 mb-1">{record.id}</span>
+          <CloudSyncBadge synced={record.synced} />
+        </div>
         <span className="text-[10px] font-bold text-slate-400">{record.date}</span>
       </div>
       <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-tight mb-1">{record.farmerName}</h4>
@@ -113,6 +124,7 @@ const App: React.FC = () => {
   const [currentPortal, setCurrentPortal] = useState<PortalType>('SALES');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -212,8 +224,17 @@ const App: React.FC = () => {
     }, 800);
   };
 
-  const handleUpdateStatus = (id: string, newStatus: RecordStatus) => {
+  const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+    
+    // Sync status update to cloud
+    const record = records.find(r => r.id === id);
+    if (record) {
+      const success = await syncToGoogleSheets({ ...record, status: newStatus });
+      if (success) {
+        setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, synced: true } : r));
+      }
+    }
   };
 
   const handleAddRecord = async (data: any) => {
@@ -231,11 +252,36 @@ const App: React.FC = () => {
       signature,
       createdAt: new Date().toISOString(),
       agentPhone: agentIdentity?.phone,
-      agentName: agentIdentity?.name
+      agentName: agentIdentity?.name,
+      synced: false
     };
     
     setRecords([newRecord, ...records]);
     setAiReport(null);
+
+    // Immediate Cloud Sync Attempt
+    const success = await syncToGoogleSheets(newRecord);
+    if (success) {
+      setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+    }
+  };
+
+  const handleBulkSync = async () => {
+    const unsynced = records.filter(r => !r.synced);
+    if (unsynced.length === 0) {
+      alert("All records are already synced to cloud.");
+      return;
+    }
+
+    setIsSyncing(true);
+    const success = await syncToGoogleSheets(unsynced);
+    if (success) {
+      setRecords(prev => prev.map(r => ({ ...r, synced: true })));
+      alert(`Success: ${unsynced.length} records pushed to Google Sheets.`);
+    } else {
+      alert("Sync failed. Check your Webhook URL or internet connection.");
+    }
+    setIsSyncing(false);
   };
 
   const handleGenerateReport = async () => {
@@ -579,6 +625,14 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap gap-4">
                   <button 
+                    onClick={handleBulkSync}
+                    disabled={isSyncing}
+                    className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-blue-100 flex items-center shadow-sm"
+                  >
+                    {isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}
+                    Force Cloud Sync
+                  </button>
+                  <button 
                     onClick={() => exportToCSV(records)}
                     disabled={records.length === 0}
                     className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"
@@ -778,6 +832,7 @@ const Table: React.FC<{
           <th className="px-8 py-6">Unit Price</th>
           <th className="px-8 py-6">Total Gross</th>
           <th className="px-8 py-6 text-emerald-600">Profit (10%)</th>
+          <th className="px-8 py-6">Backup</th>
           <th className="px-8 py-6">Security</th>
           <th className="px-8 py-6 text-center">Status</th>
           <th className="px-8 py-6 text-center">Action</th>
@@ -786,7 +841,7 @@ const Table: React.FC<{
       <tbody className="divide-y divide-slate-50">
         {records.length === 0 ? (
           <tr>
-            <td colSpan={10} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected in this node</td>
+            <td colSpan={11} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected in this node</td>
           </tr>
         ) : records.map(r => (
           <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
@@ -825,6 +880,7 @@ const Table: React.FC<{
             <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
             <td className="px-8 py-6 text-[13px] font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
             <td className="px-8 py-6 text-[13px] font-black text-emerald-600 bg-emerald-50/20">KSh {r.coopProfit.toLocaleString()}</td>
+            <td className="px-8 py-6"><CloudSyncBadge synced={r.synced} /></td>
             <td className="px-8 py-6"><SecurityBadge record={r} /></td>
             <td className="px-8 py-6 text-center">
               <span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${
