@@ -5,7 +5,7 @@ import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN } from './constants.ts';
 import { analyzeSalesData } from './services/geminiService.ts';
 
-type PortalType = 'SALES' | 'FINANCE' | 'INTEGRITY' | 'BOARD' | 'IDENTITY';
+type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'IDENTITY';
 
 const persistence = {
   get: (key: string): string | null => {
@@ -118,23 +118,23 @@ const App: React.FC = () => {
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
   }, [isSystemDev, agentIdentity, isAuthLoading]);
 
-  useEffect(() => {
-    const available = availablePortals;
-    if (!available.includes(currentPortal)) {
-      setCurrentPortal('SALES');
-    }
-  }, [agentIdentity]);
-
   const availablePortals = useMemo(() => {
     const base: PortalType[] = ['SALES'];
     if (isPrivileged) {
-      base.push('FINANCE', 'INTEGRITY', 'BOARD');
+      base.push('FINANCE', 'AUDIT', 'BOARD');
     }
     if (isSystemDev) {
       base.push('IDENTITY');
     }
     return base;
   }, [isPrivileged, isSystemDev]);
+
+  useEffect(() => {
+    const available = availablePortals;
+    if (!available.includes(currentPortal)) {
+      setCurrentPortal('SALES');
+    }
+  }, [agentIdentity, availablePortals]);
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -279,7 +279,7 @@ const App: React.FC = () => {
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2">Identity & Ledger Portal</p>
         </div>
 
-        <div className="w-full max-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
@@ -414,7 +414,7 @@ const App: React.FC = () => {
                 <i className={`fas ${
                   portal === 'SALES' ? 'fa-cart-shopping' : 
                   portal === 'FINANCE' ? 'fa-chart-line' : 
-                  portal === 'INTEGRITY' ? 'fa-shield-halved' : 
+                  portal === 'AUDIT' ? 'fa-shield-halved' : 
                   portal === 'BOARD' ? 'fa-users' : 'fa-id-card-clip'
                 } mr-3`}></i>
                 {portal.replace('_', ' ')} Portal
@@ -512,11 +512,11 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {currentPortal === 'INTEGRITY' && (
+        {currentPortal === 'AUDIT' && (
           <div className="space-y-10 animate-fade-in">
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div>
-                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Security Audit</h3>
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit</h3>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p>
                 </div>
                 <button 
@@ -604,7 +604,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Global Transaction Audit Log - Visible for everyone across all portals */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
            <div className="p-8 border-b border-slate-50">
              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
@@ -707,7 +706,7 @@ const Table: React.FC<{
                   Approve Receipt
                 </button>
               )}
-              {portal === 'INTEGRITY' && r.status === RecordStatus.VALIDATED && (
+              {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (
                 <button 
                   onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)}
                   className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
@@ -723,7 +722,7 @@ const Table: React.FC<{
               {r.status === RecordStatus.PAID && portal !== 'FINANCE' && (
                 <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest italic opacity-50">Pending Approval</span>
               )}
-              {r.status === RecordStatus.VALIDATED && portal !== 'INTEGRITY' && (
+              {r.status === RecordStatus.VALIDATED && portal !== 'AUDIT' && (
                 <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest italic opacity-50">Validated</span>
               )}
             </td>
