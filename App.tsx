@@ -25,6 +25,39 @@ const computeHash = async (record: any): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
 };
 
+const exportToCSV = (records: SaleRecord[]) => {
+  if (records.length === 0) return;
+
+  const headers = [
+    'Transaction ID', 'Date', 'Crop Type', 'Unit Type', 
+    'Farmer Name', 'Farmer Phone', 'Customer Name', 'Customer Phone', 
+    'Agent Name', 'Agent Phone', 'Units Sold', 'Unit Price', 
+    'Total Gross', 'Coop Commission', 'Status', 'Digital Signature'
+  ];
+
+  const rows = records.map(r => [
+    r.id, r.date, r.cropType, r.unitType,
+    `"${r.farmerName}"`, r.farmerPhone, `"${r.customerName}"`, r.customerPhone,
+    `"${r.agentName || 'System'}"`, r.agentPhone || '', r.unitsSold, r.unitPrice,
+    r.totalSale, r.coopProfit, r.status, r.signature
+  ]);
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `Audit_Report_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 const SecurityBadge: React.FC<{ record: SaleRecord }> = ({ record }) => {
   const [isValid, setIsValid] = useState<boolean | null>(null);
   useEffect(() => {
@@ -520,14 +553,24 @@ const App: React.FC = () => {
                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit</h3>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p>
                 </div>
-                <button 
-                  onClick={handleGenerateReport}
-                  disabled={isAnalyzing || records.length === 0}
-                  className="bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase px-10 py-5 rounded-2xl transition-all shadow-xl flex items-center"
-                >
-                  {isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}
-                  Run AI Integrity Scan
-                </button>
+                <div className="flex flex-wrap gap-4">
+                  <button 
+                    onClick={() => exportToCSV(records)}
+                    disabled={records.length === 0}
+                    className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"
+                  >
+                    <i className="fas fa-file-excel mr-3"></i>
+                    Download Excel Report
+                  </button>
+                  <button 
+                    onClick={handleGenerateReport}
+                    disabled={isAnalyzing || records.length === 0}
+                    className="bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase px-10 py-5 rounded-2xl transition-all shadow-xl flex items-center"
+                  >
+                    {isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}
+                    Run AI Integrity Scan
+                  </button>
+                </div>
              </div>
              
              {aiReport && (
@@ -580,7 +623,17 @@ const App: React.FC = () => {
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-8">Performance Outlook</h3>
+                  <div className="flex justify-between items-center mb-8">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Performance Outlook</h3>
+                    <button 
+                      onClick={() => exportToCSV(records)}
+                      disabled={records.length === 0}
+                      className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"
+                    >
+                      <i className="fas fa-file-export mr-3"></i>
+                      Export Audit Report
+                    </button>
+                  </div>
                   <div className="h-64 bg-slate-50 rounded-[2rem] flex items-center justify-center border-2 border-dashed border-slate-100">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Visual Data Stream Pending</p>
                   </div>
@@ -605,7 +658,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Global Transaction Audit Log - Visible for everyone across all portals */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
            <div className="p-8 border-b border-slate-50">
              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
