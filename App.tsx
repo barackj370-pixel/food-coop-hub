@@ -5,7 +5,7 @@ import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN } from './constants.ts';
 import { analyzeSalesData } from './services/geminiService.ts';
 
-type PortalType = 'SALES' | 'FINANCE' | 'INTEGRITY' | 'BOARD';
+type PortalType = 'SALES' | 'FINANCE' | 'INTEGRITY' | 'BOARD' | 'IDENTITY';
 
 const persistence = {
   get: (key: string): string | null => {
@@ -119,15 +119,22 @@ const App: React.FC = () => {
   }, [isSystemDev, agentIdentity, isAuthLoading]);
 
   useEffect(() => {
-    if (!isPrivileged && currentPortal !== 'SALES') {
+    const available = availablePortals;
+    if (!available.includes(currentPortal)) {
       setCurrentPortal('SALES');
     }
-  }, [isPrivileged, currentPortal]);
+  }, [agentIdentity]);
 
   const availablePortals = useMemo(() => {
-    if (isPrivileged) return ['SALES', 'FINANCE', 'INTEGRITY', 'BOARD'] as PortalType[];
-    return ['SALES'] as PortalType[];
-  }, [isPrivileged]);
+    const base: PortalType[] = ['SALES'];
+    if (isPrivileged) {
+      base.push('FINANCE', 'INTEGRITY', 'BOARD');
+    }
+    if (isSystemDev) {
+      base.push('IDENTITY');
+    }
+    return base;
+  }, [isPrivileged, isSystemDev]);
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,7 +279,7 @@ const App: React.FC = () => {
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2">Identity & Ledger Portal</p>
         </div>
 
-        <div className="w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
@@ -393,28 +400,27 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {isPrivileged && (
-            <div className="mb-10 flex flex-wrap gap-2 animate-fade-in">
-              {availablePortals.map(portal => (
-                <button
-                  key={portal}
-                  onClick={() => setCurrentPortal(portal)}
-                  className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
-                    currentPortal === portal 
-                      ? 'bg-emerald-500 text-emerald-950 border-emerald-400 shadow-lg shadow-emerald-500/20' 
-                      : 'bg-white/5 text-emerald-400/60 border-white/5 hover:bg-white/10'
-                  }`}
-                >
-                  <i className={`fas ${
-                    portal === 'SALES' ? 'fa-cart-shopping' : 
-                    portal === 'FINANCE' ? 'fa-chart-line' : 
-                    portal === 'INTEGRITY' ? 'fa-shield-halved' : 'fa-users'
-                  } mr-3`}></i>
-                  {portal.replace('_', ' ')} Portal
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="mb-10 flex flex-wrap gap-2 animate-fade-in">
+            {availablePortals.map(portal => (
+              <button
+                key={portal}
+                onClick={() => setCurrentPortal(portal)}
+                className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+                  currentPortal === portal 
+                    ? 'bg-emerald-500 text-emerald-950 border-emerald-400 shadow-lg shadow-emerald-500/20' 
+                    : 'bg-white/5 text-emerald-400/60 border-white/5 hover:bg-white/10'
+                }`}
+              >
+                <i className={`fas ${
+                  portal === 'SALES' ? 'fa-cart-shopping' : 
+                  portal === 'FINANCE' ? 'fa-chart-line' : 
+                  portal === 'INTEGRITY' ? 'fa-shield-halved' : 
+                  portal === 'BOARD' ? 'fa-users' : 'fa-id-card-clip'
+                } mr-3`}></i>
+                {portal.replace('_', ' ')} Portal
+              </button>
+            ))}
+          </div>
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard 
@@ -460,7 +466,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {isPrivileged && currentPortal === 'FINANCE' && (
+        {currentPortal === 'FINANCE' && (
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
@@ -511,39 +517,8 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {isPrivileged && currentPortal === 'INTEGRITY' && (
+        {currentPortal === 'INTEGRITY' && (
           <div className="space-y-10 animate-fade-in">
-             {isSystemDev && (
-               <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                 <div className="p-8 border-b border-slate-50 bg-slate-50/10">
-                   <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3>
-                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authenticated system accounts (System Developer View)</p>
-                 </div>
-                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
-                        <tr>
-                          <th className="px-8 py-4">Full Name</th>
-                          <th className="px-8 py-4">Role</th>
-                          <th className="px-8 py-4">Phone Number</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {registeredUsers.map((user, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
-                            <td className="px-8 py-4">
-                              <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span>
-                            </td>
-                            <td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                 </div>
-               </div>
-             )}
-
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div>
                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Security Audit</h3>
@@ -578,7 +553,42 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {isPrivileged && currentPortal === 'BOARD' && (
+        {isSystemDev && currentPortal === 'IDENTITY' && (
+          <div className="space-y-10 animate-fade-in">
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+               <div className="p-8 border-b border-slate-50 bg-slate-50/10">
+                 <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authenticated system accounts (System Developer Exclusive View)</p>
+               </div>
+               <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                      <tr>
+                        <th className="px-8 py-4">Full Name</th>
+                        <th className="px-8 py-4">Role</th>
+                        <th className="px-8 py-4">Phone Number</th>
+                        <th className="px-8 py-4">Passcode</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {registeredUsers.map((user, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                          <td className="px-8 py-4">
+                            <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span>
+                          </td>
+                          <td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td>
+                          <td className="px-8 py-4 text-[12px] font-mono font-bold text-slate-400">****</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+               </div>
+             </div>
+          </div>
+        )}
+
+        {currentPortal === 'BOARD' && (
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
