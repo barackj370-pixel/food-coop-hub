@@ -128,7 +128,6 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(users));
         setAgentIdentity(newUser);
       } else {
-        // Updated Login Logic: Only require phone and passcode
         const user = users.find(u => 
           u.phone === authForm.phone && 
           u.passcode === authForm.passcode
@@ -181,15 +180,29 @@ const App: React.FC = () => {
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
+
+    // If in Sales Portal, show Recent Entry Stats
+    if (currentPortal === 'SALES') {
+      return {
+        revenue: latest?.totalSale || 0,
+        commission: latest?.coopProfit || 0,
+        units: latest?.unitsSold || 0,
+        unitType: latest?.unitType || '',
+        price: latest?.unitPrice || 0
+      };
+    }
+
+    // Otherwise show Totals for Finance/Board/Integrity
     const totalRev = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
     const pending = relevantRecords.filter(r => r.status !== RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
     return {
       revenue: totalRev || 0,
       commission: pending,
       units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0,
+      unitType: '',
       price: latest?.unitPrice || 0
     };
-  }, [records, isPrivileged, agentIdentity]);
+  }, [records, isPrivileged, agentIdentity, currentPortal]);
 
   const filteredRecords = useMemo(() => {
     let base = records;
@@ -361,10 +374,30 @@ const App: React.FC = () => {
           )}
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Total Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
-            <StatCard label="Commission Pool" value={`KSh ${stats.commission.toLocaleString()}`} icon="fa-clock-rotate-left" color="bg-white/5" />
-            <StatCard label="Total Volume" value={stats.units.toLocaleString()} icon="fa-boxes-stacked" color="bg-white/5" />
-            <StatCard label="Latest Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
+            <StatCard 
+              label={currentPortal === 'SALES' ? "Recent Revenue" : "Total Revenue"} 
+              value={`KSh ${stats.revenue.toLocaleString()}`} 
+              icon="fa-sack-dollar" 
+              color="bg-white/5" 
+            />
+            <StatCard 
+              label={currentPortal === 'SALES' ? "Recent Commission" : "Commission Pool"} 
+              value={`KSh ${stats.commission.toLocaleString()}`} 
+              icon="fa-clock-rotate-left" 
+              color="bg-white/5" 
+            />
+            <StatCard 
+              label={currentPortal === 'SALES' ? "Recent Volume" : "Total Volume"} 
+              value={currentPortal === 'SALES' && stats.units > 0 ? `${stats.units} ${stats.unitType}` : stats.units.toLocaleString()} 
+              icon="fa-boxes-stacked" 
+              color="bg-white/5" 
+            />
+            <StatCard 
+              label={currentPortal === 'SALES' ? "Unit Price" : "Latest Price"} 
+              value={`KSh ${stats.price.toLocaleString()}`} 
+              icon="fa-tag" 
+              color="bg-white/5" 
+            />
           </div>
         </div>
       </header>
