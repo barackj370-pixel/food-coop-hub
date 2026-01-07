@@ -1,18 +1,21 @@
-
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
-  VALIDATED = 'VALIDATED',
-  FLAGGED = 'FLAGGED'
+  VALIDATED = 'VALIDATED'
 }
 
-export type UserRole = 'agent' | 'analyst' | 'management' | 'developer' | 'accounts';
+export enum SystemRole {
+  FIELD_AGENT = 'Field Agent',
+  ADMIN = 'Administrator',
+  MANAGER = 'Coop Manager',
+  SYSTEM_DEVELOPER = 'System Developer'
+}
 
-export interface UserProfile {
+export interface AgentIdentity {
   name: string;
   phone: string;
-  role: UserRole;
-  pin: string;
+  role: SystemRole;
+  passcode: string;
 }
 
 export interface SaleRecord {
@@ -30,15 +33,8 @@ export interface SaleRecord {
   coopProfit: number;
   status: RecordStatus;
   signature: string;
-  createdBy: string;
-  agentPhone: string;
-  confirmedBy?: string; // Name of accounts officer
   createdAt: string;
-}
-
-export interface CoopStats {
-  totalSales: number;
-  totalProfit: number;
-  totalUnits: number;
-  recordCount: number;
+  createdBy?: string;
+  confirmedBy?: string;
+  agentPhone?: string;
 }

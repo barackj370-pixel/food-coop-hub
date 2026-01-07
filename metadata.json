@@ -1,5 +1,5 @@
 {
-  "name": "Food Coop Trust Hub",
-  "description": "A secure, role-based platform for agricultural cooperatives to manage sales records, verify financial integrity with cryptographic signatures, and leverage AI for auditing and market insights.",
+  "name": "Food Coop Hub",
+  "description": "A simple and efficient platform for agricultural cooperatives to manage sales records and leverage AI for market insights.",
   "requestFramePermissions": []
 }

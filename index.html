@@ -12,21 +12,13 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
     
     <script>
-      // 1. Improved Environment Shims (Defensive)
+      // Environment Shims
       window.global = window;
       if (typeof window.process === 'undefined') {
         window.process = { env: { API_KEY: "" } };
       } else if (!window.process.env) {
         window.process.env = { API_KEY: "" };
       }
-
-      // 2. Global Diagnostic System
-      window.HUB_LOG = [];
-      window.logToHub = (msg) => {
-        const timestamp = new Date().toLocaleTimeString();
-        console.log(`[Hub] ${msg}`);
-        window.HUB_LOG.push(`${timestamp}: ${msg}`);
-      };
 
       window.hideHubLoader = function() {
         const loader = document.getElementById('loading-screen');
@@ -38,39 +30,6 @@
           }, 500);
         }
       };
-
-      // 3. Rescue System: 15s timeout for slower ESM resolution
-      setTimeout(() => {
-        const root = document.getElementById('root');
-        const loaderMsg = document.getElementById('loader-msg');
-        if (root && root.children.length === 0) {
-          window.logToHub("System Boot Timeout - Displaying Diagnostic Panel");
-          if (loaderMsg) {
-            loaderMsg.innerHTML = `
-              <div style="margin-top:20px; text-align:center; padding: 20px;">
-                <p style="color:#ef4444; font-size:11px; font-weight:900; margin-bottom:10px; letter-spacing: 0.1em;">BOOT SEQUENCE STALLED</p>
-                <div style="background:rgba(0,0,0,0.4); padding:12px; border-radius:12px; font-family:monospace; font-size:9px; color:#10b981; text-align:left; max-width:300px; margin:0 auto 20px; border: 1px solid rgba(16,185,129,0.2); max-height: 150px; overflow-y: auto;">
-                  ${window.HUB_LOG.map(l => `> ${l}`).join('<br>')}
-                </div>
-                <div style="display: flex; gap: 10px; justify-content: center;">
-                  <button onclick="location.reload()" style="background:#10b981; color:white; border:none; padding:10px 20px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer; text-transform: uppercase;">Retry Boot</button>
-                  <button onclick="localStorage.clear(); location.reload();" style="background:rgba(255,255,255,0.1); color:white; border:none; padding:10px 20px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer; text-transform: uppercase;">Clear Cache</button>
-                </div>
-              </div>
-            `;
-          }
-        }
-      }, 15000);
-
-      window.addEventListener('error', function(e) {
-        window.logToHub(`Critical Error: ${e.message}`);
-      });
-
-      window.addEventListener('unhandledrejection', function(event) {
-        window.logToHub(`Promise Rejection: ${event.reason}`);
-      });
-      
-      window.logToHub("System sequence initiated.");
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -99,7 +58,6 @@
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-    "recharts": "https://esm.sh/recharts@2.15.0?bundle&external=react,react-dom",
     "react/": "https://esm.sh/react@19.0.0/",
     "react-dom/": "https://esm.sh/react-dom@19.0.0/"
   }

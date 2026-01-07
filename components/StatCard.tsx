@@ -10,13 +10,15 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ label, value, icon, color }) => {
   return (
-    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
-      <div className={`${color} p-3 rounded-xl text-white`}>
-        <i className={`fas ${icon} text-lg`}></i>
+    <div className={`${color} p-6 rounded-[1.5rem] border border-white/10 flex flex-col justify-between hover:bg-white/10 transition-all group cursor-default`}>
+      <div className="flex justify-between items-start mb-4">
+        <div className="w-10 h-10 rounded-xl bg-white/5 text-emerald-300 flex items-center justify-center transition-transform group-hover:scale-110 shadow-inner">
+          <i className={`fas ${icon} text-lg`}></i>
+        </div>
       </div>
       <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
-        <p className="text-xl font-black text-slate-800 tracking-tight">{value}</p>
+        <p className="text-[9px] font-black text-emerald-300/40 uppercase tracking-[0.3em] mb-1.5">{label}</p>
+        <p className="text-xl font-black text-white tracking-tight leading-none">{value}</p>
       </div>
     </div>
   );
