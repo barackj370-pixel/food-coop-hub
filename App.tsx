@@ -456,13 +456,6 @@ const App: React.FC = () => {
         {currentPortal === 'SALES' && (
           <div className="space-y-10 animate-fade-in">
             <SaleForm onSubmit={handleAddRecord} />
-            <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-               <div className="p-8 border-b border-slate-50">
-                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time ledger entries</p>
-               </div>
-               <Table records={filteredRecords} onStatusUpdate={handleUpdateStatus} portal={currentPortal} role={agentIdentity.role} />
-            </div>
           </div>
         )}
 
@@ -542,14 +535,6 @@ const App: React.FC = () => {
                  </div>
                </div>
              )}
-
-             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-               <div className="p-8 border-b border-slate-50">
-                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Full Identity Ledger</h3>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Cross-referencing all node signatures</p>
-               </div>
-               <Table records={filteredRecords} portal={currentPortal} role={agentIdentity.role} onStatusUpdate={handleUpdateStatus} />
-            </div>
           </div>
         )}
 
@@ -614,15 +599,17 @@ const App: React.FC = () => {
                   </div>
                 </div>
              </div>
-             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-               <div className="p-8 border-b border-slate-50">
-                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Strategic Audit Trail</h3>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">High-level activity monitoring</p>
-               </div>
-               <Table records={filteredRecords} portal={currentPortal} role={agentIdentity.role} />
-            </div>
           </div>
         )}
+
+        {/* Global Transaction Audit Log - Visible for everyone across all portals */}
+        <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
+           <div className="p-8 border-b border-slate-50">
+             <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
+             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Distributed Ledger Monitoring</p>
+           </div>
+           <Table records={filteredRecords} portal={currentPortal} role={agentIdentity.role} onStatusUpdate={handleUpdateStatus} />
+        </div>
 
       </main>
 
@@ -708,6 +695,14 @@ const Table: React.FC<{
                   className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
                 >
                   Forward to Finance
+                </button>
+              )}
+              {portal === 'FINANCE' && r.status === RecordStatus.PAID && (
+                <button 
+                  onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
+                >
+                  Approve Receipt
                 </button>
               )}
               {portal === 'INTEGRITY' && r.status === RecordStatus.VALIDATED && (
