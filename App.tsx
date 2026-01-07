@@ -157,6 +157,10 @@ const App: React.FC = () => {
 
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
 
+  const isConfigured = useMemo(() => {
+    return !GOOGLE_SHEET_VIEW_URL.includes('your-sheet-id-here');
+  }, []);
+
   const registeredUsers = useMemo(() => {
     if (!isSystemDev) return [];
     const usersData = persistence.get('coop_users');
@@ -484,17 +488,48 @@ const App: React.FC = () => {
                    </div>
                 </div>
                 <div className="space-y-8">
-                   <div className="bg-emerald-900 p-10 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[300px]">
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-400/10 rounded-full blur-[60px] translate-x-1/2 -translate-y-1/2"></div>
+                   <div className={`p-10 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[350px] transition-all ${isConfigured ? 'bg-emerald-900' : 'bg-slate-900'}`}>
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-[60px] translate-x-1/2 -translate-y-1/2"></div>
                       <div>
-                        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 mb-6"><i className="fas fa-database text-emerald-400"></i></div>
-                        <h4 className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-2">Cloud Infrastructure</h4>
-                        <p className="text-xl font-black tracking-tight leading-tight">Central Cooperative Google Ledger</p>
-                        <p className="text-[10px] font-bold text-white/40 mt-4 uppercase leading-relaxed">Direct browser access to the master spreadsheet synchronized with this hub.</p>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border mb-6 ${isConfigured ? 'bg-white/10 border-white/10' : 'bg-red-500/20 border-red-500/20'}`}>
+                           <i className={`fas ${isConfigured ? 'fa-database text-emerald-400' : 'fa-triangle-exclamation text-red-400 animate-pulse'}`}></i>
+                        </div>
+                        <h4 className="text-[11px] font-black uppercase tracking-[0.4em] mb-2 text-white/60">Infrastructure Status</h4>
+                        <p className="text-xl font-black tracking-tight leading-tight">
+                          {isConfigured ? 'Central Cooperative Ledger' : 'Configuration Required'}
+                        </p>
+                        
+                        {!isConfigured ? (
+                          <div className="mt-4 space-y-4">
+                            <p className="text-[10px] font-bold text-white/40 uppercase leading-relaxed">To fix "File Not Found":</p>
+                            <ul className="text-[9px] font-black text-white/60 uppercase space-y-2">
+                              <li>1. Open Google Sheet browser URL</li>
+                              <li>2. Copy ID (e.g. 1A2B...3C)</li>
+                              <li>3. Paste into constants.ts</li>
+                            </ul>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] font-bold text-white/40 mt-4 uppercase leading-relaxed">Direct browser access to the master spreadsheet synchronized with this hub.</p>
+                        )}
                       </div>
-                      <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="mt-10 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center shadow-xl shadow-emerald-500/20 transition-all active:scale-95"><i className="fas fa-table-list mr-2"></i>Open Cloud Sheet</a>
+                      
+                      {isConfigured ? (
+                        <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="mt-10 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center shadow-xl shadow-emerald-500/20 transition-all active:scale-95">
+                          <i className="fas fa-table-list mr-2"></i>Open Cloud Sheet
+                        </a>
+                      ) : (
+                        <div className="mt-10 bg-white/5 text-white/30 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center border border-white/10 italic">
+                          Update constants.ts to unlock
+                        </div>
+                      )}
                    </div>
-                   <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg"><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">API Configuration</p><div className="space-y-4"><div className="flex justify-between items-center"><span className="text-[10px] font-bold text-slate-500 uppercase">Gemini AI</span><span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full font-black uppercase">Active</span></div><div className="flex justify-between items-center"><span className="text-[10px] font-bold text-slate-500 uppercase">Sync Webhook</span><span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full font-black uppercase">Live</span></div></div></div>
+                   <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">API Readiness</p>
+                      <div className="space-y-4">
+                         <div className="flex justify-between items-center"><span className="text-[10px] font-bold text-slate-500 uppercase">Gemini AI</span><span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full font-black uppercase tracking-widest">Active</span></div>
+                         <div className="flex justify-between items-center"><span className="text-[10px] font-bold text-slate-500 uppercase">Sync Endpoint</span><span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${GOOGLE_SHEETS_WEBHOOK_URL ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{GOOGLE_SHEETS_WEBHOOK_URL ? 'Linked' : 'Missing'}</span></div>
+                      </div>
+                   </div>
                 </div>
              </div>
           </div>

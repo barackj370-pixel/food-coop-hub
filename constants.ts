@@ -15,8 +15,19 @@ export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
 export const PROFIT_MARGIN = 0.10; // 10% coop margin
 
-// Replace this with your Google Apps Script Web App URL (for background syncing)
-export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyDB29T3IhoDlvjXTZUUrhb_6FkhLKoI8uzTrJ4rKUhk1iu_1CwA55AegSe2kMo-Tu0dA/exec";
+/**
+ * CONFIGURATION GUIDE:
+ * 1. GOOGLE_SHEETS_WEBHOOK_URL: 
+ *    - In Apps Script, click "Deploy" -> "New Deployment" -> "Web App".
+ *    - Set "Who has access" to "Anyone".
+ *    - Use the URL ending in /exec.
+ * 
+ * 2. GOOGLE_SHEET_VIEW_URL:
+ *    - Open your spreadsheet in the browser.
+ *    - Copy the URL from the address bar.
+ */
 
-// Replace this with your actual Google Sheet URL (for viewing the raw data)
-export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/your-sheet-id-here/edit";
+export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbww5fug0G1f6cBGh3LhjPDsw3N-2wsx8Yr95dAbK2Jy8XlhRmwmrQP2iCK7bcVNyHJIqg/exec";
+
+// REPLACE 'your-sheet-id-here' WITH YOUR ACTUAL SHEET ID OR FULL URL
+export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1SjMrFDNOd3zY-IInRcSgUIlSAeZV8AKIkOoQbPeWvoY/edit";
