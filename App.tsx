@@ -40,6 +40,36 @@ const SecurityBadge: React.FC<{ record: SaleRecord }> = ({ record }) => {
   );
 };
 
+const CommissionCard: React.FC<{ record: SaleRecord, onApprove: () => void }> = ({ record, onApprove }) => (
+  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl flex flex-col justify-between hover:shadow-2xl transition-all border-l-4 border-l-blue-500">
+    <div>
+      <div className="flex justify-between items-start mb-4">
+        <span className="text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">{record.id}</span>
+        <span className="text-[10px] font-bold text-slate-400">{record.date}</span>
+      </div>
+      <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-tight mb-1">{record.farmerName}</h4>
+      <p className="text-[10px] text-slate-400 font-bold uppercase mb-4">{record.cropType} • {record.unitsSold} {record.unitType}</p>
+      
+      <div className="flex items-end justify-between border-t border-slate-50 pt-4 mt-2">
+        <div>
+          <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Commission Amount</p>
+          <p className="text-[16px] font-black text-slate-900">KSh {record.coopProfit.toLocaleString()}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Sale</p>
+          <p className="text-[11px] font-bold text-slate-500">KSh {record.totalSale.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+    <button 
+      onClick={onApprove}
+      className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase py-4 rounded-xl shadow-lg shadow-blue-500/10 active:scale-95 transition-all"
+    >
+      Approve Receipt
+    </button>
+  </div>
+);
+
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
@@ -88,7 +118,6 @@ const App: React.FC = () => {
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
   }, [isSystemDev, agentIdentity, isAuthLoading]);
 
-  // Ensure non-privileged users are always on the Sales Portal
   useEffect(() => {
     if (!isPrivileged && currentPortal !== 'SALES') {
       setCurrentPortal('SALES');
@@ -191,7 +220,7 @@ const App: React.FC = () => {
         .reduce((a, b) => a + b.coopProfit, 0);
       
       const approved = relevantRecords
-        .filter(r => r.status === RecordStatus.VALIDATED)
+        .filter(r => r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED)
         .reduce((a, b) => a + b.coopProfit, 0);
 
       return {
@@ -205,7 +234,7 @@ const App: React.FC = () => {
 
     const totalRev = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
     const pending = relevantRecords
-      .filter(r => r.status !== RecordStatus.VALIDATED)
+      .filter(r => r.status !== RecordStatus.VALIDATED && r.status !== RecordStatus.VERIFIED)
       .reduce((a, b) => a + b.coopProfit, 0);
       
     return {
@@ -222,11 +251,12 @@ const App: React.FC = () => {
     if (!isPrivileged) {
       base = base.filter(r => r.agentPhone === agentIdentity?.phone);
     }
-
-    if (currentPortal === 'FINANCE') return base.filter(r => r.status !== RecordStatus.DRAFT);
-    if (currentPortal === 'INTEGRITY') return base; 
     return base;
-  }, [records, currentPortal, isPrivileged, agentIdentity]);
+  }, [records, isPrivileged, agentIdentity]);
+
+  const financeRecords = useMemo(() => {
+    return filteredRecords.filter(r => r.status === RecordStatus.PAID);
+  }, [filteredRecords]);
 
   if (!agentIdentity) {
     return (
@@ -452,13 +482,32 @@ const App: React.FC = () => {
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
                 </div>
              </div>
-             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-               <div className="p-8 border-b border-slate-50">
-                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Finance Portal Audit Log</h3>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Receipt Approval & Confirmation Ledger</p>
+
+             <div className="space-y-6">
+               <div className="flex items-center justify-between">
+                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Forwarded Commissions</h3>
+                 <span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">{financeRecords.length} Awaiting Receipt</span>
                </div>
-               <Table records={filteredRecords} onStatusUpdate={handleUpdateStatus} portal={currentPortal} role={agentIdentity.role} />
-            </div>
+               
+               {financeRecords.length === 0 ? (
+                 <div className="bg-white p-16 rounded-[2.5rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-center">
+                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-200">
+                     <i className="fas fa-inbox text-2xl"></i>
+                   </div>
+                   <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">No pending commissions found</p>
+                 </div>
+               ) : (
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                   {financeRecords.map(r => (
+                     <CommissionCard 
+                       key={r.id} 
+                       record={r} 
+                       onApprove={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} 
+                     />
+                   ))}
+                 </div>
+               )}
+             </div>
           </div>
         )}
 
@@ -524,7 +573,7 @@ const App: React.FC = () => {
                  <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Full Identity Ledger</h3>
                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Cross-referencing all node signatures</p>
                </div>
-               <Table records={filteredRecords} portal={currentPortal} role={agentIdentity.role} />
+               <Table records={filteredRecords} portal={currentPortal} role={agentIdentity.role} onStatusUpdate={handleUpdateStatus} />
             </div>
           </div>
         )}
@@ -634,6 +683,7 @@ const Table: React.FC<{
             <td className="px-8 py-6"><SecurityBadge record={r} /></td>
             <td className="px-8 py-6 text-center">
               <span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${
+                r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' :
                 r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
                 r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' :
                 'bg-amber-50 text-amber-600 border-amber-100'
@@ -650,16 +700,24 @@ const Table: React.FC<{
                   Forward to Finance
                 </button>
               )}
-              {portal === 'FINANCE' && r.status === RecordStatus.PAID && (
+              {portal === 'INTEGRITY' && r.status === RecordStatus.VALIDATED && (
                 <button 
-                  onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
+                  onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)}
+                  className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
                 >
-                  Approve Receipt
+                  Stap & Verify
                 </button>
               )}
-              {r.status === RecordStatus.VALIDATED && (
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic opacity-50">Cleared</span>
+              {r.status === RecordStatus.VERIFIED && (
+                <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-widest italic opacity-80">
+                  <i className="fas fa-check-double mr-2"></i>Fully Verified
+                </span>
+              )}
+              {r.status === RecordStatus.PAID && portal !== 'FINANCE' && (
+                <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest italic opacity-50">Pending Approval</span>
+              )}
+              {r.status === RecordStatus.VALIDATED && portal !== 'INTEGRITY' && (
+                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest italic opacity-50">Validated</span>
               )}
             </td>
           </tr>

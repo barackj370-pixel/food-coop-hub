@@ -1,7 +1,8 @@
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
-  VALIDATED = 'VALIDATED'
+  VALIDATED = 'VALIDATED',
+  VERIFIED = 'VERIFIED'
 }
 
 export enum SystemRole {
