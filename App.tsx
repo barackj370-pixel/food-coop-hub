@@ -422,32 +422,34 @@ const App: React.FC = () => {
             ))}
           </div>
           
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard 
-              label={currentPortal === 'SALES' ? "Recent Revenue" : "Total Revenue"} 
-              value={`KSh ${stats.revenue.toLocaleString()}`} 
-              icon="fa-sack-dollar" 
-              color="bg-white/5" 
-            />
-            <StatCard 
-              label={currentPortal === 'SALES' ? "Commission Ledger" : "Commission Pool"} 
-              value={typeof stats.commission === 'string' ? stats.commission : `KSh ${stats.commission.toLocaleString()}`} 
-              icon="fa-clock-rotate-left" 
-              color="bg-white/5" 
-            />
-            <StatCard 
-              label={currentPortal === 'SALES' ? "Recent Volume" : "Total Volume"} 
-              value={currentPortal === 'SALES' && stats.units > 0 ? `${stats.units} ${stats.unitType}` : stats.units.toLocaleString()} 
-              icon="fa-boxes-stacked" 
-              color="bg-white/5" 
-            />
-            <StatCard 
-              label={currentPortal === 'SALES' ? "Unit Price" : "Latest Price"} 
-              value={`KSh ${stats.price.toLocaleString()}`} 
-              icon="fa-tag" 
-              color="bg-white/5" 
-            />
-          </div>
+          {currentPortal === 'SALES' && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard 
+                label="Recent Revenue" 
+                value={`KSh ${stats.revenue.toLocaleString()}`} 
+                icon="fa-sack-dollar" 
+                color="bg-white/5" 
+              />
+              <StatCard 
+                label="Commission Ledger" 
+                value={typeof stats.commission === 'string' ? stats.commission : `KSh ${stats.commission.toLocaleString()}`} 
+                icon="fa-clock-rotate-left" 
+                color="bg-white/5" 
+              />
+              <StatCard 
+                label="Recent Volume" 
+                value={stats.units > 0 ? `${stats.units} ${stats.unitType}` : stats.units.toLocaleString()} 
+                icon="fa-boxes-stacked" 
+                color="bg-white/5" 
+              />
+              <StatCard 
+                label="Unit Price" 
+                value={`KSh ${stats.price.toLocaleString()}`} 
+                icon="fa-tag" 
+                color="bg-white/5" 
+              />
+            </div>
+          )}
         </div>
       </header>
 
