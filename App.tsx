@@ -305,16 +305,18 @@ const App: React.FC = () => {
     );
     const totalCommission = approvedVerified.reduce((acc, r) => acc + r.coopProfit, 0);
     
-    // Aggregate by commodity
-    const commoditySales = CROP_TYPES.reduce((acc, crop) => {
-      const cropTotal = records
-        .filter(r => r.cropType === crop)
-        .reduce((sum, r) => sum + r.totalSale, 0);
-      acc[crop] = cropTotal;
+    // Grouping by Date for the chart
+    const dateSalesMap = records.reduce((acc, r) => {
+      acc[r.date] = (acc[r.date] || 0) + r.totalSale;
       return acc;
     }, {} as Record<string, number>);
 
-    return { totalCommission, commoditySales };
+    // Sort dates chronologically
+    const dailyTrend = Object.entries(dateSalesMap)
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .slice(-10); // Display the latest 10 data points
+
+    return { totalCommission, dailyTrend };
   }, [records]);
 
   if (!agentIdentity) {
@@ -642,7 +644,7 @@ const App: React.FC = () => {
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Gross Value</h3>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Transaction Volume Trend</h3>
                     <button 
                       onClick={() => exportToCSV(records)}
                       disabled={records.length === 0}
@@ -653,26 +655,29 @@ const App: React.FC = () => {
                     </button>
                   </div>
                   
-                  {/* Vertical Bar Chart */}
+                  {/* Vertical Bar Chart - Date and Amount */}
                   <div className="h-[400px] flex items-end justify-between px-6 pb-12 pt-8 border-b border-slate-100 relative">
-                    {CROP_TYPES.map(crop => {
-                      const value = boardMetrics.commoditySales[crop] || 0;
-                      const maxVal = Math.max(...Object.values(boardMetrics.commoditySales), 1);
+                    {boardMetrics.dailyTrend.length === 0 ? (
+                      <div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
+                        No historical data available
+                      </div>
+                    ) : boardMetrics.dailyTrend.map(([date, value]) => {
+                      const maxVal = Math.max(...boardMetrics.dailyTrend.map(d => d[1]), 1);
                       const heightPercent = (value / maxVal) * 100;
                       
                       return (
-                        <div key={crop} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                        <div key={date} className="flex-1 flex flex-col items-center group relative h-full justify-end">
                           <div 
                             className="w-10 bg-emerald-500 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-emerald-600 relative"
                             style={{ height: `${heightPercent}%` }}
                           >
                             {/* Value tooltip on hover */}
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none font-black">
+                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none font-black shadow-xl">
                               KSh {value.toLocaleString()}
                             </div>
                           </div>
                           <span className="absolute -bottom-10 text-[9px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">
-                            {crop}
+                            {date}
                           </span>
                         </div>
                       );
@@ -691,16 +696,16 @@ const App: React.FC = () => {
                   <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100">
                      <p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-2">Strategic Insight</p>
                      <p className="text-[13px] font-bold text-emerald-900 leading-relaxed italic">
-                       "Commodity trends suggest stabilizing coffee margins. Volume optimization required for Sorghum logistics in the next quarter."
+                       "Historical trends show peak activity during month-end cycles. Suggesting increased hub staff during these periods for faster verification."
                      </p>
                   </div>
                   
                   <div className="bg-slate-900 p-8 rounded-[2rem] text-white">
                      <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] mb-4">Board Directives</p>
                      <ul className="space-y-3 text-[11px] font-bold">
-                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Finalize Q1 Dividends</li>
-                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Audit Digital Vault</li>
-                       <li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> New Hub Acquisition</li>
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Review Payout Cycles</li>
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Optimize Data Ledger</li>
+                       <li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> Q3 Expansion Strategy</li>
                      </ul>
                   </div>
                 </div>
