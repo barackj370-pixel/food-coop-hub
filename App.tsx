@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL } from './constants.ts';
+import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
 import { analyzeSalesData } from './services/geminiService.ts';
 import { syncToGoogleSheets } from './services/googleSheetsService.ts';
 
@@ -664,35 +664,79 @@ const App: React.FC = () => {
 
         {isSystemDev && currentPortal === 'IDENTITY' && (
           <div className="space-y-10 animate-fade-in">
-             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-               <div className="p-8 border-b border-slate-50 bg-slate-50/10">
-                 <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authenticated system accounts (System Developer Exclusive View)</p>
-               </div>
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
-                      <tr>
-                        <th className="px-8 py-4">Full Name</th>
-                        <th className="px-8 py-4">Role</th>
-                        <th className="px-8 py-4">Phone Number</th>
-                        <th className="px-8 py-4">Passcode</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {registeredUsers.map((user, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
-                          <td className="px-8 py-4">
-                            <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span>
-                          </td>
-                          <td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td>
-                          <td className="px-8 py-4 text-[12px] font-mono font-bold text-slate-400">****</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-               </div>
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                   <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden h-full">
+                     <div className="p-8 border-b border-slate-50 bg-slate-50/10">
+                       <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3>
+                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authenticated system accounts (System Developer Exclusive View)</p>
+                     </div>
+                     <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                            <tr>
+                              <th className="px-8 py-4">Full Name</th>
+                              <th className="px-8 py-4">Role</th>
+                              <th className="px-8 py-4">Phone Number</th>
+                              <th className="px-8 py-4">Passcode</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {registeredUsers.map((user, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                                <td className="px-8 py-4">
+                                  <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span>
+                                </td>
+                                <td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td>
+                                <td className="px-8 py-4 text-[12px] font-mono font-bold text-slate-400">****</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                     </div>
+                   </div>
+                </div>
+
+                <div className="space-y-8">
+                   <div className="bg-emerald-900 p-10 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[300px]">
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-400/10 rounded-full blur-[60px] translate-x-1/2 -translate-y-1/2"></div>
+                      <div>
+                        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 mb-6">
+                           <i className="fas fa-database text-emerald-400"></i>
+                        </div>
+                        <h4 className="text-[11px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-2">Cloud Infrastructure</h4>
+                        <p className="text-xl font-black tracking-tight leading-tight">Central Cooperative Google Ledger</p>
+                        <p className="text-[10px] font-bold text-white/40 mt-4 uppercase leading-relaxed">
+                          Direct browser access to the master spreadsheet synchronized with this hub.
+                        </p>
+                      </div>
+                      
+                      <a 
+                        href={GOOGLE_SHEET_VIEW_URL} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="mt-10 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center shadow-xl shadow-emerald-500/20 transition-all active:scale-95"
+                      >
+                        <i className="fas fa-table-list mr-2"></i>
+                        Open Cloud Sheet
+                      </a>
+                   </div>
+
+                   <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">API Configuration</p>
+                      <div className="space-y-4">
+                         <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Gemini AI</span>
+                            <span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full font-black uppercase">Active</span>
+                         </div>
+                         <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Sync Webhook</span>
+                            <span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full font-black uppercase">Live</span>
+                         </div>
+                      </div>
+                   </div>
+                </div>
              </div>
           </div>
         )}

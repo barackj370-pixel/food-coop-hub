@@ -15,5 +15,8 @@ export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
 export const PROFIT_MARGIN = 0.10; // 10% coop margin
 
-// Replace this with your Google Apps Script Web App URL
-export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyDB29T3IhoDlvjXTZUUrhb_6FkhLKoI8uzTrJ4rKUhk1iu_1CwA55AegSe2kMo-Tu0dA/exec"; 
+// Replace this with your Google Apps Script Web App URL (for syncing)
+export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyDB29T3IhoDlvjXTZUUrhb_6FkhLKoI8uzTrJ4rKUhk1iu_1CwA55AegSe2kMo-Tu0dA/exec";
+
+// Replace this with your actual Google Sheet browser URL (for viewing)
+export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/your-sheet-id-here/edit";
