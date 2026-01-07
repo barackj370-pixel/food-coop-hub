@@ -5,6 +5,8 @@ import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN } from './constants.ts';
 import { analyzeSalesData } from './services/geminiService.ts';
 
+type PortalType = 'SALES' | 'FINANCE' | 'INTEGRITY' | 'BOARD';
+
 const persistence = {
   get: (key: string): string | null => {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -45,6 +47,7 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : null;
   });
   
+  const [currentPortal, setCurrentPortal] = useState<PortalType>('SALES');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   
@@ -68,6 +71,17 @@ const App: React.FC = () => {
     if (agentIdentity) persistence.set('agent_session', JSON.stringify(agentIdentity));
     else localStorage.removeItem('agent_session');
   }, [records, agentIdentity]);
+
+  const isPrivileged = useMemo(() => {
+    return agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || 
+           agentIdentity?.role === SystemRole.MANAGER || 
+           agentIdentity?.role === SystemRole.ADMIN;
+  }, [agentIdentity]);
+
+  const availablePortals = useMemo(() => {
+    if (isPrivileged) return ['SALES', 'FINANCE', 'INTEGRITY', 'BOARD'] as PortalType[];
+    return ['SALES'] as PortalType[];
+  }, [isPrivileged]);
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +111,6 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(users));
         setAgentIdentity(newUser);
       } else {
-        // Login requires matching all 4 fields for total identity verification
         const user = users.find(u => 
           u.phone === authForm.phone && 
           u.passcode === authForm.passcode && 
@@ -151,14 +164,26 @@ const App: React.FC = () => {
 
   const stats = useMemo(() => {
     const latest = records[0];
+    const totalRev = records.reduce((a, b) => a + b.totalSale, 0);
     const pending = records.filter(r => r.status !== RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
     return {
-      revenue: latest?.totalSale || 0,
+      revenue: totalRev || 0,
       commission: pending,
-      units: latest?.unitsSold || 0,
+      units: records.reduce((a, b) => a + b.unitsSold, 0) || 0,
       price: latest?.unitPrice || 0
     };
   }, [records]);
+
+  const filteredRecords = useMemo(() => {
+    let base = records;
+    if (!isPrivileged) {
+      base = base.filter(r => r.agentPhone === agentIdentity?.phone);
+    }
+
+    if (currentPortal === 'FINANCE') return base.filter(r => r.status !== RecordStatus.DRAFT);
+    if (currentPortal === 'INTEGRITY') return base; 
+    return base;
+  }, [records, currentPortal, isPrivileged, agentIdentity]);
 
   if (!agentIdentity) {
     return (
@@ -261,7 +286,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
-      <header className="bg-[#022c22] text-white pt-10 pb-16 shadow-2xl relative overflow-hidden">
+      <header className="bg-[#022c22] text-white pt-10 pb-12 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/5 rounded-full blur-[100px] translate-x-1/2 -translate-y-1/2"></div>
         
         <div className="container mx-auto px-6 relative z-10">
@@ -285,94 +310,161 @@ const App: React.FC = () => {
                 onClick={() => setAgentIdentity(null)}
                 className="text-[9px] font-black uppercase text-emerald-400 hover:text-white mt-1.5 flex items-center justify-end w-full group"
               >
-                <i className="fas fa-power-off mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>
-                Terminate Session
+                <i className="fas fa-user-gear mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>
+                Switch User
               </button>
             </div>
           </div>
+
+          <div className="mb-10 flex flex-wrap gap-2">
+            {availablePortals.map(portal => (
+              <button
+                key={portal}
+                onClick={() => setCurrentPortal(portal)}
+                className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+                  currentPortal === portal 
+                    ? 'bg-emerald-500 text-emerald-950 border-emerald-400 shadow-lg shadow-emerald-500/20' 
+                    : 'bg-white/5 text-emerald-400/60 border-white/5 hover:bg-white/10'
+                }`}
+              >
+                <i className={`fas ${
+                  portal === 'SALES' ? 'fa-cart-shopping' : 
+                  portal === 'FINANCE' ? 'fa-chart-line' : 
+                  portal === 'INTEGRITY' ? 'fa-shield-halved' : 'fa-users'
+                } mr-3`}></i>
+                {portal.replace('_', ' ')} Portal
+              </button>
+            ))}
+          </div>
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Recent Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
-            <StatCard label="Commission Due" value={`KSh ${stats.commission.toLocaleString()}`} icon="fa-clock-rotate-left" color="bg-white/5" />
-            <StatCard label="Volume" value={stats.units.toLocaleString()} icon="fa-boxes-stacked" color="bg-white/5" />
-            <StatCard label="Unit Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
+            <StatCard label="Total Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
+            <StatCard label="Commission Pool" value={`KSh ${stats.commission.toLocaleString()}`} icon="fa-clock-rotate-left" color="bg-white/5" />
+            <StatCard label="Total Volume" value={stats.units.toLocaleString()} icon="fa-boxes-stacked" color="bg-white/5" />
+            <StatCard label="Latest Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 -mt-10 space-y-10 relative z-20">
-        <SaleForm onSubmit={handleAddRecord} />
-
-        <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-          <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center bg-slate-50/10 gap-4">
-            <div>
-              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time ledger entries</p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button 
-                onClick={handleGenerateReport}
-                disabled={isAnalyzing || records.length === 0}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase px-6 py-3 rounded-2xl transition-all shadow-xl active:scale-95 disabled:opacity-50 flex items-center"
-              >
-                {isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}
-                AI Audit Report
-              </button>
+      <main className="container mx-auto px-6 -mt-8 space-y-10 relative z-20">
+        
+        {currentPortal === 'SALES' && (
+          <div className="space-y-10 animate-fade-in">
+            <SaleForm onSubmit={handleAddRecord} />
+            <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+               <div className="p-8 border-b border-slate-50">
+                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Transaction Audit Log</h3>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time ledger entries</p>
+               </div>
+               <Table records={filteredRecords} />
             </div>
           </div>
+        )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[1200px]">
-              <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
-                <tr>
-                  <th className="px-8 py-6">Timestamp</th>
-                  <th className="px-8 py-6">Farmer & Customer</th>
-                  <th className="px-8 py-6">Commodity</th>
-                  <th className="px-8 py-6">Quantity</th>
-                  <th className="px-8 py-6">Unit Price</th>
-                  <th className="px-8 py-6">Total Gross</th>
-                  <th className="px-8 py-6 text-emerald-600">Profit (10%)</th>
-                  <th className="px-8 py-6">Security</th>
-                  <th className="px-8 py-6 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {records.map(r => (
-                  <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
-                    <td className="px-8 py-6">
-                      <div className="flex flex-col">
-                        <span className="text-[12px] font-black text-slate-900">{r.date}</span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{new Date(r.createdAt).toLocaleTimeString()}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex flex-col space-y-1">
-                        <span className="text-[12px] font-black text-slate-800">{r.farmerName}</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">To: {r.customerName}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-wider">{r.cropType}</span>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className="text-[13px] font-black text-slate-900">{r.unitsSold}</span>
-                      <span className="text-[10px] text-slate-400 ml-2 uppercase font-bold">{r.unitType}</span>
-                    </td>
-                    <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
-                    <td className="px-8 py-6 text-[13px] font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
-                    <td className="px-8 py-6 text-[13px] font-black text-emerald-600 bg-emerald-50/20">KSh {r.coopProfit.toLocaleString()}</td>
-                    <td className="px-8 py-6"><SecurityBadge record={r} /></td>
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-[9px] font-black uppercase px-4 py-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-100/50 shadow-sm">
-                        {r.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {currentPortal === 'FINANCE' && (
+          <div className="space-y-10 animate-fade-in">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
+                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Financial Summary</h4>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
+                      <span className="text-[11px] font-bold text-slate-600">Total Net Revenue</span>
+                      <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
+                      <span className="text-[11px] font-bold text-slate-600">Coop Commission (10%)</span>
+                      <span className="text-[14px] font-black text-emerald-600">KSh {(stats.revenue * 0.1).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
+                   <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Payout Availability</p>
+                   <h2 className="text-3xl font-black tracking-tight">KSh {stats.commission.toLocaleString()}</h2>
+                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
+                </div>
+             </div>
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+               <div className="p-8 border-b border-slate-50">
+                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Finance Ledger</h3>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Paid & Validated Transactions Only</p>
+               </div>
+               <Table records={filteredRecords} />
+            </div>
           </div>
-        </div>
+        )}
+
+        {currentPortal === 'INTEGRITY' && (
+          <div className="space-y-10 animate-fade-in">
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Security Audit</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p>
+                </div>
+                <button 
+                  onClick={handleGenerateReport}
+                  disabled={isAnalyzing || records.length === 0}
+                  className="bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase px-10 py-5 rounded-2xl transition-all shadow-xl flex items-center"
+                >
+                  {isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}
+                  Run AI Integrity Scan
+                </button>
+             </div>
+             
+             {aiReport && (
+               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-2xl prose prose-slate max-w-none prose-headings:uppercase prose-headings:tracking-tighter prose-headings:font-black">
+                 <h2 className="text-xl mb-6">AI Audit Findings</h2>
+                 <div className="whitespace-pre-wrap font-medium text-slate-600 text-[13px] leading-relaxed">
+                   {aiReport}
+                 </div>
+               </div>
+             )}
+
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+               <div className="p-8 border-b border-slate-50">
+                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Full Identity Ledger</h3>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Cross-referencing all node signatures</p>
+               </div>
+               <Table records={filteredRecords} />
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'BOARD' && (
+          <div className="space-y-10 animate-fade-in">
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-8">Performance Outlook</h3>
+                  <div className="h-64 bg-slate-50 rounded-[2rem] flex items-center justify-center border-2 border-dashed border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Visual Data Stream Pending</p>
+                  </div>
+                </div>
+                <div className="space-y-8">
+                  <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100">
+                     <p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-2">Strategic Insight</p>
+                     <p className="text-[13px] font-bold text-emerald-900 leading-relaxed italic">
+                       "Current volume indicates a 12% rise in Maize trading. Suggest optimizing transport routes for the next cycle."
+                     </p>
+                  </div>
+                  <div className="bg-slate-900 p-8 rounded-[2rem] text-white">
+                     <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] mb-4">Board Directives</p>
+                     <ul className="space-y-3 text-[11px] font-bold">
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Validate Q1 Margins</li>
+                       <li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Expansion to Tea Hubs</li>
+                       <li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> Q2 Agent Recruitment</li>
+                     </ul>
+                  </div>
+                </div>
+             </div>
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+               <div className="p-8 border-b border-slate-50">
+                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Strategic Audit Trail</h3>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">High-level activity monitoring</p>
+               </div>
+               <Table records={filteredRecords} />
+            </div>
+          </div>
+        )}
+
       </main>
 
       <footer className="mt-20 text-center pb-12">
@@ -387,5 +479,63 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const Table: React.FC<{ records: SaleRecord[] }> = ({ records }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-left min-w-[1200px]">
+      <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
+        <tr>
+          <th className="px-8 py-6">Timestamp</th>
+          <th className="px-8 py-6">Farmer & Customer</th>
+          <th className="px-8 py-6">Commodity</th>
+          <th className="px-8 py-6">Quantity</th>
+          <th className="px-8 py-6">Unit Price</th>
+          <th className="px-8 py-6">Total Gross</th>
+          <th className="px-8 py-6 text-emerald-600">Profit (10%)</th>
+          <th className="px-8 py-6">Security</th>
+          <th className="px-8 py-6 text-center">Status</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-50">
+        {records.length === 0 ? (
+          <tr>
+            <td colSpan={9} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected in this node</td>
+          </tr>
+        ) : records.map(r => (
+          <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
+            <td className="px-8 py-6">
+              <div className="flex flex-col">
+                <span className="text-[12px] font-black text-slate-900">{r.date}</span>
+                <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{new Date(r.createdAt).toLocaleTimeString()}</span>
+              </div>
+            </td>
+            <td className="px-8 py-6">
+              <div className="flex flex-col space-y-1">
+                <span className="text-[12px] font-black text-slate-800">{r.farmerName}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">To: {r.customerName}</span>
+              </div>
+            </td>
+            <td className="px-8 py-6">
+              <span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-wider">{r.cropType}</span>
+            </td>
+            <td className="px-8 py-6">
+              <span className="text-[13px] font-black text-slate-900">{r.unitsSold}</span>
+              <span className="text-[10px] text-slate-400 ml-2 uppercase font-bold">{r.unitType}</span>
+            </td>
+            <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
+            <td className="px-8 py-6 text-[13px] font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
+            <td className="px-8 py-6 text-[13px] font-black text-emerald-600 bg-emerald-50/20">KSh {r.coopProfit.toLocaleString()}</td>
+            <td className="px-8 py-6"><SecurityBadge record={r} /></td>
+            <td className="px-8 py-6 text-center">
+              <span className="text-[9px] font-black uppercase px-4 py-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-100/50 shadow-sm">
+                {r.status}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
 export default App;
