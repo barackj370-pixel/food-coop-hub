@@ -4,7 +4,7 @@ import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
 import { analyzeSalesData } from './services/geminiService.ts';
-import { syncToGoogleSheets } from './services/googleSheetsService.ts';
+import { syncToGoogleSheets, fetchFromGoogleSheets } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
@@ -125,6 +125,7 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -281,6 +282,37 @@ const App: React.FC = () => {
       alert("Sync failed. Check your Webhook URL or internet connection.");
     }
     setIsSyncing(false);
+  };
+
+  const handlePullData = async () => {
+    setIsPulling(true);
+    try {
+      const cloudRecords = await fetchFromGoogleSheets();
+      if (cloudRecords && Array.isArray(cloudRecords)) {
+        setRecords(prev => {
+          // Merge local and cloud records by unique ID
+          const merged = [...prev];
+          cloudRecords.forEach(cr => {
+            const exists = merged.find(m => m.id === cr.id);
+            if (!exists) {
+              merged.push({ ...cr, synced: true });
+            } else if (cr.status !== exists.status) {
+              // Update status if cloud version is more recent
+              const idx = merged.findIndex(m => m.id === cr.id);
+              merged[idx] = { ...exists, status: cr.status, synced: true };
+            }
+          });
+          return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        });
+        alert(`Downloaded ${cloudRecords.length} records from cloud ledger.`);
+      } else {
+        alert("Pull failed: Could not retrieve records. Ensure your Apps Script supports 'get_records' action.");
+      }
+    } catch (e) {
+      alert("Synchronization Error: " + (e instanceof Error ? e.message : "Unknown error"));
+    } finally {
+      setIsPulling(false);
+    }
   };
 
   const handleGenerateReport = async () => {
@@ -499,6 +531,7 @@ const App: React.FC = () => {
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p></div>
                 <div className="flex flex-wrap gap-4">
+                  <button onClick={handlePullData} disabled={isPulling} className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isPulling ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-down mr-3"></i>}Fetch Latest Cloud Data</button>
                   <button onClick={handleBulkSync} disabled={isSyncing} className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-blue-100 flex items-center shadow-sm">{isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}Force Cloud Sync</button>
                   <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-excel mr-3"></i>Download Excel Report</button>
                   <button onClick={handleGenerateReport} disabled={isAnalyzing || records.length === 0} className="bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase px-10 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}Run AI Integrity Scan</button>

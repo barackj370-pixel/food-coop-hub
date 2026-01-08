@@ -12,7 +12,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
-      mode: 'no-cors', // Standard for Google Apps Script web apps
+      mode: 'no-cors', 
       headers: {
         'Content-Type': 'application/json',
       },
@@ -22,12 +22,30 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
         payload: data
       }),
     });
-
-    // Since 'no-cors' doesn't allow reading the response body, 
-    // we assume success if no error was thrown during fetch.
     return true;
   } catch (error) {
     console.error("Google Sheets Sync Error:", error);
     return false;
+  }
+};
+
+export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
+
+  try {
+    // Note: To fetch data, the Apps Script must handle the redirect and return JSON.
+    // We use POST with a 'get_records' action to bypass some CORS issues with simple GETs on GAS.
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'get_records' })
+    });
+    
+    // Some browser environments might still block the body on no-cors POST.
+    // If the script is deployed as 'Anyone', a standard fetch without no-cors usually works.
+    const text = await response.text();
+    return JSON.parse(text) as SaleRecord[];
+  } catch (error) {
+    console.error("Fetch Error:", error);
+    return null;
   }
 };
