@@ -299,20 +299,34 @@ const App: React.FC = () => {
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
+    
+    // Portal specific calculations
+    const approvedComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
+    const pendingComm = relevantRecords.filter(r => r.status !== RecordStatus.VALIDATED && r.status !== RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
+
     if (currentPortal === 'SALES') {
       const due = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + b.coopProfit, 0);
-      const approved = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
+      const approved = approvedComm;
       return {
         revenue: latest?.totalSale || 0,
         commission: `Due: ${due.toLocaleString()} | Appr: ${approved.toLocaleString()}`, 
         units: latest?.unitsSold || 0,
         unitType: latest?.unitType || '',
-        price: latest?.unitPrice || 0
+        price: latest?.unitPrice || 0,
+        approvedComm
       };
     }
-    const totalRev = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
-    const pending = relevantRecords.filter(r => r.status !== RecordStatus.VALIDATED && r.status !== RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
-    return { revenue: totalRev || 0, commission: pending, units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0, unitType: '', price: latest?.unitPrice || 0 };
+    
+    const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
+    
+    return { 
+      revenue: totalSales || 0, 
+      commission: pendingComm, 
+      units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0, 
+      unitType: '', 
+      price: latest?.unitPrice || 0,
+      approvedComm
+    };
   }, [records, isPrivileged, agentIdentity, currentPortal]);
 
   const filteredRecords = useMemo(() => {
@@ -438,12 +452,18 @@ const App: React.FC = () => {
                 <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
                   <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Financial Summary</h4>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center py-4 border-b border-slate-50"><span className="text-[11px] font-bold text-slate-600">Total Net Revenue</span><span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span></div>
-                    <div className="flex justify-between items-center py-4 border-b border-slate-50"><span className="text-[11px] font-bold text-slate-600">Coop Commission (10%)</span><span className="text-[14px] font-black text-emerald-600">KSh {(stats.revenue * 0.1).toLocaleString()}</span></div>
+                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
+                      <span className="text-[11px] font-bold text-slate-600">Total Sales</span>
+                      <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
+                      <span className="text-[11px] font-bold text-slate-600">Total Commissions Approved and Verified only</span>
+                      <span className="text-[14px] font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Payout Availability</p>
+                   <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Verification only</p>
                    <h2 className="text-3xl font-black tracking-tight">KSh {stats.commission.toLocaleString()}</h2>
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
                 </div>
