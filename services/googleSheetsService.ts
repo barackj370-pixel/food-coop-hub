@@ -3,24 +3,28 @@ import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) {
-    console.warn("Google Sheets Webhook URL not configured. Skipping cloud sync.");
+    console.warn("Google Sheets Webhook URL not configured.");
     return false;
   }
 
-  // Ensure we always send an array under the 'records' key
   const data = Array.isArray(records) ? records : [records];
   
+  // Map fields to match exactly what your Apps Script expects:
+  // r.id, r.date, r.cropType, r.farmerName, r.unitsSold, r.totalSale, r.coopProfit, r.status, r.createdBy
+  const payload = data.map(r => ({
+    ...r,
+    createdBy: r.agentName || "System" // Mapping agentName to createdBy for your script
+  }));
+
   try {
+    // Using a 'simple' request format to ensure it passes through no-cors correctly
     await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       mode: 'no-cors', 
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      cache: 'no-cache',
       body: JSON.stringify({
-        timestamp: new Date().toISOString(),
         action: 'sync_records',
-        records: data // Changed from 'payload' to 'records' to match your script
+        records: payload
       }),
     });
     return true;
@@ -36,14 +40,10 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain', // GAS handles text/plain better for JSON parsing in some contexts
-      },
       body: JSON.stringify({ action: 'get_records' })
     });
     
     const text = await response.text();
-    // Validate if the response is actually JSON
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
       return JSON.parse(text) as SaleRecord[];
     }
