@@ -480,6 +480,22 @@ const App: React.FC = () => {
         )}
         {currentPortal === 'AUDIT' && (
           <div className="space-y-10 animate-fade-in">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
+                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Audit Summary</h4>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
+                      <span className="text-[11px] font-bold text-slate-600">Total Sales</span>
+                      <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
+                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.4em] mb-2">Total Commissions Awaiting Verification</p>
+                   <h2 className="text-3xl font-black tracking-tight text-emerald-400">KSh {stats.commission.toLocaleString()}</h2>
+                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Verification Required</p>
+                </div>
+             </div>
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p></div>
                 <div className="flex flex-wrap gap-4">
