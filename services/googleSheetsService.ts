@@ -7,10 +7,11 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     return false;
   }
 
+  // Ensure we always send an array under the 'records' key
   const data = Array.isArray(records) ? records : [records];
   
   try {
-    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+    await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       mode: 'no-cors', 
       headers: {
@@ -19,7 +20,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       body: JSON.stringify({
         timestamp: new Date().toISOString(),
         action: 'sync_records',
-        payload: data
+        records: data // Changed from 'payload' to 'records' to match your script
       }),
     });
     return true;
@@ -33,17 +34,20 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
 
   try {
-    // Note: To fetch data, the Apps Script must handle the redirect and return JSON.
-    // We use POST with a 'get_records' action to bypass some CORS issues with simple GETs on GAS.
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain', // GAS handles text/plain better for JSON parsing in some contexts
+      },
       body: JSON.stringify({ action: 'get_records' })
     });
     
-    // Some browser environments might still block the body on no-cors POST.
-    // If the script is deployed as 'Anyone', a standard fetch without no-cors usually works.
     const text = await response.text();
-    return JSON.parse(text) as SaleRecord[];
+    // Validate if the response is actually JSON
+    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+      return JSON.parse(text) as SaleRecord[];
+    }
+    return null;
   } catch (error) {
     console.error("Fetch Error:", error);
     return null;
