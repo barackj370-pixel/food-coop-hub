@@ -457,13 +457,13 @@ const App: React.FC = () => {
                       <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center py-4 border-b border-slate-50">
-                      <span className="text-[11px] font-bold text-slate-600">Total Commissions Approved and Verified only</span>
+                      <span className="text-[11px] font-bold text-slate-600">Total Commissions Approved and Verified</span>
                       <span className="text-[14px] font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Verification only</p>
+                   <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Verification</p>
                    <h2 className="text-3xl font-black tracking-tight">KSh {stats.commission.toLocaleString()}</h2>
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
                 </div>
