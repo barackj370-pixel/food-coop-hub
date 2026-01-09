@@ -316,13 +316,25 @@ const App: React.FC = () => {
     setIsSyncing(false);
   };
 
-  const weeklyTotals = useMemo(() => {
+  const periodicMetrics = useMemo(() => {
     const now = new Date();
-    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const weekly = records.filter(r => new Date(r.date) >= last7Days);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const weekly = records.filter(r => new Date(r.date) >= sevenDaysAgo);
+    const monthly = records.filter(r => new Date(r.date) >= thirtyDaysAgo);
+
     return {
-      sales: weekly.reduce((sum, r) => sum + r.totalSale, 0),
-      commissions: weekly.reduce((sum, r) => sum + r.coopProfit, 0)
+      weekly: {
+        sales: weekly.reduce((s, r) => s + r.totalSale, 0),
+        comm: weekly.reduce((s, r) => s + r.coopProfit, 0),
+        verifiedComm: weekly.filter(r => r.status === RecordStatus.VERIFIED).reduce((s, r) => s + r.coopProfit, 0)
+      },
+      monthly: {
+        sales: monthly.reduce((s, r) => s + r.totalSale, 0),
+        comm: monthly.reduce((s, r) => s + r.coopProfit, 0),
+        verifiedComm: monthly.filter(r => r.status === RecordStatus.VERIFIED).reduce((s, r) => s + r.coopProfit, 0)
+      }
     };
   }, [records]);
 
@@ -503,20 +515,20 @@ const App: React.FC = () => {
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-lg">
-                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Sales</p>
-                   <p className="text-xl font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</p>
+                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Monthly Sales</p>
+                   <p className="text-xl font-black text-slate-900">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
                 </div>
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-lg">
-                   <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mb-1">Verified Comm.</p>
-                   <p className="text-xl font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</p>
+                   <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mb-1">Monthly Verified Comm.</p>
+                   <p className="text-xl font-black text-emerald-600">KSh {periodicMetrics.monthly.verifiedComm.toLocaleString()}</p>
                 </div>
                 <div className="bg-indigo-900 p-6 rounded-[2rem] text-white shadow-xl">
                    <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest mb-1">Weekly Sales (7 Days)</p>
-                   <p className="text-xl font-black">KSh {weeklyTotals.sales.toLocaleString()}</p>
+                   <p className="text-xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
                 </div>
                 <div className="bg-blue-900 p-6 rounded-[2rem] text-white shadow-xl">
                    <p className="text-[9px] font-black uppercase text-blue-300 tracking-widest mb-1">Weekly Comm. (7 Days)</p>
-                   <p className="text-xl font-black">KSh {weeklyTotals.commissions.toLocaleString()}</p>
+                   <p className="text-xl font-black">KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
                 </div>
              </div>
              <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
@@ -538,26 +550,26 @@ const App: React.FC = () => {
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Total Integrity Audit</h4>
+                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Integrity Metrics (30 Days)</h4>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center py-4 border-b border-slate-50">
-                      <span className="text-[11px] font-bold text-slate-600">Total Sales</span>
-                      <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
+                      <span className="text-[11px] font-bold text-slate-600">Monthly Sales</span>
+                      <span className="text-[14px] font-black text-slate-900">KSh {periodicMetrics.monthly.sales.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center py-4">
-                      <span className="text-[11px] font-bold text-emerald-600">Verified Commission</span>
-                      <span className="text-[14px] font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</span>
+                      <span className="text-[11px] font-bold text-emerald-600">Monthly Verified Commission</span>
+                      <span className="text-[14px] font-black text-emerald-600">KSh {periodicMetrics.monthly.verifiedComm.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="bg-indigo-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Rolling 7 Days Performance (Sales)</p>
-                   <h2 className="text-3xl font-black tracking-tight">KSh {weeklyTotals.sales.toLocaleString()}</h2>
+                   <h2 className="text-3xl font-black tracking-tight">KSh {periodicMetrics.weekly.sales.toLocaleString()}</h2>
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Gross Revenue</p>
                 </div>
                 <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
                    <p className="text-[9px] font-black uppercase text-blue-400 tracking-[0.4em] mb-2">Rolling 7 Days Commission Intake</p>
-                   <h2 className="text-3xl font-black tracking-tight text-blue-400">KSh {weeklyTotals.commissions.toLocaleString()}</h2>
+                   <h2 className="text-3xl font-black tracking-tight text-blue-400">KSh {periodicMetrics.weekly.comm.toLocaleString()}</h2>
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Coop Profit</p>
                 </div>
              </div>
@@ -632,12 +644,33 @@ const App: React.FC = () => {
                     )}<div className="absolute -left-10 top-1/2 -rotate-90 text-[8px] font-black text-slate-300 uppercase tracking-widest pointer-events-none">Commission (KSh)</div>
                   </div>
                 </div>
-                <div className="space-y-8">
-                  <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div><p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-3">Verified Commissions</p><h2 className="text-4xl font-black tracking-tight mb-2">KSh {boardMetrics.totalCommission.toLocaleString()}</h2><p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Auditor Verified Total</p></div>
-                  <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col justify-center">
-                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Weekly Goal Progress (7 Days Sales)</p>
-                    <h2 className="text-3xl font-black tracking-tight">KSh {weeklyTotals.sales.toLocaleString()}</h2>
-                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Gross Performance</p>
+                <div className="space-y-4">
+                  <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
+                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-4">Integrity Snapshots</p>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Gross Sales</p>
+                        <p className="text-xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Gross Sales</p>
+                        <p className="text-xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-4">Commission Insights</p>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[8px] font-black text-indigo-400/40 uppercase tracking-widest">Monthly Total Commission</p>
+                        <p className="text-xl font-black text-indigo-200">KSh {periodicMetrics.monthly.comm.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-black text-indigo-400/40 uppercase tracking-widest">Weekly Total Commission</p>
+                        <p className="text-xl font-black text-indigo-200">KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
              </div>
