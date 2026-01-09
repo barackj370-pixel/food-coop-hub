@@ -329,19 +329,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleGenerateReport = async () => {
-    if (records.length === 0) return;
-    setIsAnalyzing(true);
-    try {
-      const report = await analyzeSalesData(records);
-      setAiReport(report);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   const weeklyTotals = useMemo(() => {
     const now = new Date();
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -371,7 +358,7 @@ const App: React.FC = () => {
         units: latest?.unitsSold || 0,
         unitType: latest?.unitType || '',
         price: latest?.unitPrice || 0,
-        approvedComm: verifiedComm, // This is labeled "Verified" in the UI
+        approvedComm: verifiedComm, 
         awaitingAuditComm,
         awaitingFinanceComm
       };
@@ -579,9 +566,6 @@ const App: React.FC = () => {
                   <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-excel mr-3"></i>CSV Report</button>
                 </div>
              </div>
-             {aiReport && (
-               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-2xl prose prose-slate max-w-none prose-headings:uppercase prose-headings:tracking-tighter prose-headings:font-black"><h2 className="text-xl mb-6">AI Audit Findings</h2><div className="whitespace-pre-wrap font-medium text-slate-600 text-[13px] leading-relaxed">{aiReport}</div></div>
-             )}
           </div>
         )}
         {isSystemDev && currentPortal === 'SYSTEM' && (
