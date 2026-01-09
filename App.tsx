@@ -196,7 +196,6 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsAuthLoading(true);
 
-    // Normalize phone and passcode by removing non-digits to prevent formatting mismatches
     const targetPhone = authForm.phone.replace(/\D/g, '');
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     const targetName = authForm.name.trim();
@@ -213,7 +212,6 @@ const App: React.FC = () => {
           return;
         }
         
-        // Use normalized phone for lookup
         const exists = users.find(u => u.phone.replace(/\D/g, '') === targetPhone);
         if (exists) {
           alert("Account already exists with this phone number. Please Log In.");
@@ -224,7 +222,7 @@ const App: React.FC = () => {
 
         const newUser: AgentIdentity = { 
           name: targetName, 
-          phone: targetPhone, // Store normalized phone
+          phone: targetPhone, 
           passcode: targetPasscode, 
           role: targetRole 
         };
@@ -232,7 +230,6 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(users));
         setAgentIdentity(newUser);
       } else {
-        // Use normalized phone and passcode for authentication matching
         const user = users.find(u => 
           u.phone.replace(/\D/g, '') === targetPhone && 
           u.passcode.replace(/\D/g, '') === targetPasscode
@@ -358,29 +355,37 @@ const App: React.FC = () => {
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
-    const approvedComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
-    const pendingComm = relevantRecords.filter(r => r.status !== RecordStatus.VALIDATED && r.status !== RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
+    
+    // Explicit calculations for Auditor and Finance visibility
+    const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
+    const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
+    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + b.coopProfit, 0);
+    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + b.coopProfit, 0);
+
+    const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
 
     if (currentPortal === 'SALES') {
-      const due = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + b.coopProfit, 0);
       return {
         revenue: latest?.totalSale || 0,
-        commission: `Due: ${due.toLocaleString()} | Appr: ${approvedComm.toLocaleString()}`, 
+        commission: `Due: ${dueComm.toLocaleString()} | Appr: ${verifiedComm.toLocaleString()}`, 
         units: latest?.unitsSold || 0,
         unitType: latest?.unitType || '',
         price: latest?.unitPrice || 0,
-        approvedComm
+        approvedComm: verifiedComm, // This is labeled "Verified" in the UI
+        awaitingAuditComm,
+        awaitingFinanceComm
       };
     }
     
-    const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
     return { 
       revenue: totalSales || 0, 
-      commission: pendingComm, 
+      commission: awaitingFinanceComm, 
       units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0, 
       unitType: '', 
       price: latest?.unitPrice || 0,
-      approvedComm
+      approvedComm: verifiedComm,
+      awaitingAuditComm,
+      awaitingFinanceComm
     };
   }, [records, isPrivileged, agentIdentity, currentPortal]);
 
@@ -508,7 +513,7 @@ const App: React.FC = () => {
                    <p className="text-xl font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</p>
                 </div>
                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-lg">
-                   <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mb-1">Approved Comm.</p>
+                   <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mb-1">Verified Comm.</p>
                    <p className="text-xl font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</p>
                 </div>
                 <div className="bg-indigo-900 p-6 rounded-[2rem] text-white shadow-xl">
@@ -522,7 +527,7 @@ const App: React.FC = () => {
              </div>
              <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
                 <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Verification</p>
-                <h2 className="text-3xl font-black tracking-tight">KSh {stats.commission.toLocaleString()}</h2>
+                <h2 className="text-3xl font-black tracking-tight">KSh {stats.awaitingFinanceComm.toLocaleString()}</h2>
                 <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
              </div>
              <div className="space-y-6">
@@ -562,13 +567,16 @@ const App: React.FC = () => {
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Coop Profit</p>
                 </div>
              </div>
+             <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
+                <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Audit Stamp</p>
+                <h2 className="text-3xl font-black tracking-tight">KSh {stats.awaitingAuditComm.toLocaleString()}</h2>
+                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Yet to be stamped and verified by auditor</p>
+             </div>
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p></div>
                 <div className="flex flex-wrap gap-4">
-                  <button onClick={handlePullData} disabled={isPulling} className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isPulling ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-down mr-3"></i>}Fetch Cloud</button>
                   <button onClick={handleBulkSync} disabled={isSyncing} className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-blue-100 flex items-center shadow-sm">{isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}Force Sync</button>
                   <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-excel mr-3"></i>CSV Report</button>
-                  <button onClick={handleGenerateReport} disabled={isAnalyzing || records.length === 0} className="bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase px-10 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}Run AI Scan</button>
                 </div>
              </div>
              {aiReport && (
