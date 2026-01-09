@@ -14,6 +14,9 @@ const persistence = {
   },
   set: (key: string, val: string) => {
     try { localStorage.setItem(key, val); } catch (e) { }
+  },
+  remove: (key: string) => {
+    try { localStorage.removeItem(key); } catch (e) { }
   }
 };
 
@@ -144,8 +147,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     persistence.set('food_coop_data', JSON.stringify(records));
-    if (agentIdentity) persistence.set('agent_session', JSON.stringify(agentIdentity));
-    else localStorage.removeItem('agent_session');
+    if (agentIdentity) {
+      persistence.set('agent_session', JSON.stringify(agentIdentity));
+    } else {
+      persistence.remove('agent_session');
+    }
   }, [records, agentIdentity]);
 
   const isPrivileged = useMemo(() => {
@@ -163,10 +169,9 @@ const App: React.FC = () => {
   }, []);
 
   const registeredUsers = useMemo(() => {
-    if (!isSystemDev) return [];
     const usersData = persistence.get('coop_users');
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
-  }, [isSystemDev, agentIdentity, isAuthLoading]);
+  }, [isAuthLoading, agentIdentity]); // Added agentIdentity to dependency for better refresh
 
   const availablePortals = useMemo(() => {
     const base: PortalType[] = ['SALES'];
@@ -190,18 +195,23 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsAuthLoading(true);
 
+    const targetPhone = authForm.phone.trim();
+    const targetPasscode = authForm.passcode.trim();
+    const targetName = authForm.name.trim();
+    const targetRole = authForm.role;
+
     setTimeout(() => {
       const usersData = persistence.get('coop_users');
       let users: AgentIdentity[] = usersData ? JSON.parse(usersData) : [];
 
       if (isRegisterMode) {
-        if (!authForm.name || authForm.phone.length < 10 || authForm.passcode.length !== 4) {
-          alert("Validation failed: All fields required including Full Name and 4-digit passcode.");
+        if (!targetName || targetPhone.length < 10 || targetPasscode.length !== 4) {
+          alert("Validation failed: All fields required including Full Name, 10-digit Phone, and 4-digit passcode.");
           setIsAuthLoading(false);
           return;
         }
         
-        const exists = users.find(u => u.phone === authForm.phone);
+        const exists = users.find(u => u.phone.trim() === targetPhone);
         if (exists) {
           alert("Account already exists with this phone number. Please Log In.");
           setIsRegisterMode(false);
@@ -209,14 +219,19 @@ const App: React.FC = () => {
           return;
         }
 
-        const newUser: AgentIdentity = { ...authForm };
+        const newUser: AgentIdentity = { 
+          name: targetName, 
+          phone: targetPhone, 
+          passcode: targetPasscode, 
+          role: targetRole 
+        };
         users.push(newUser);
         persistence.set('coop_users', JSON.stringify(users));
         setAgentIdentity(newUser);
       } else {
         const user = users.find(u => 
-          u.phone === authForm.phone && 
-          u.passcode === authForm.passcode
+          u.phone.trim() === targetPhone && 
+          u.passcode.trim() === targetPasscode
         );
         
         if (user) {
@@ -406,7 +421,7 @@ const App: React.FC = () => {
                 <h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2>
                 <p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Verified Identity Required</p>
               </div>
-              <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400 transition-colors">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
+              <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: ''})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400 transition-colors">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
             </div>
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && (
