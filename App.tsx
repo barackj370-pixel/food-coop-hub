@@ -8,6 +8,8 @@ import { syncToGoogleSheets, fetchFromGoogleSheets } from './services/googleShee
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
+const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi'];
+
 const persistence = {
   get: (key: string): string | null => {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -35,14 +37,14 @@ const exportToCSV = (records: SaleRecord[]) => {
   const headers = [
     'Transaction ID', 'Date', 'Crop Type', 'Unit Type', 
     'Farmer Name', 'Farmer Phone', 'Customer Name', 'Customer Phone', 
-    'Agent Name', 'Agent Phone', 'Units Sold', 'Unit Price', 
+    'Agent Name', 'Agent Phone', 'Cluster', 'Units Sold', 'Unit Price', 
     'Total Gross', 'Coop Commission', 'Status', 'Digital Signature'
   ];
 
   const rows = records.map(r => [
     r.id, r.date, r.cropType, r.unitType,
     `"${r.farmerName}"`, r.farmerPhone, `"${r.customerName}"`, r.customerPhone,
-    `"${r.agentName || 'System'}"`, r.agentPhone || '', r.unitsSold, r.unitPrice,
+    `"${r.agentName || 'System'}"`, r.agentPhone || '', r.cluster || '', r.unitsSold, r.unitPrice,
     r.totalSale, r.coopProfit, r.status, r.signature
   ]);
 
@@ -144,7 +146,8 @@ const App: React.FC = () => {
     name: '',
     phone: '',
     passcode: '',
-    role: SystemRole.FIELD_AGENT
+    role: SystemRole.FIELD_AGENT,
+    cluster: CLUSTERS[0]
   });
 
   useEffect(() => {
@@ -206,6 +209,7 @@ const App: React.FC = () => {
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     const targetName = authForm.name.trim();
     const targetRole = authForm.role;
+    const targetCluster = authForm.cluster;
 
     setTimeout(() => {
       const usersData = persistence.get('coop_users');
@@ -230,7 +234,8 @@ const App: React.FC = () => {
           name: targetName, 
           phone: targetPhone, 
           passcode: targetPasscode, 
-          role: targetRole 
+          role: targetRole,
+          cluster: targetCluster
         };
         users.push(newUser);
         persistence.set('coop_users', JSON.stringify(users));
@@ -289,6 +294,7 @@ const App: React.FC = () => {
       createdAt: new Date().toISOString(),
       agentPhone: agentIdentity?.phone,
       agentName: agentIdentity?.name,
+      cluster: agentIdentity?.cluster,
       synced: false
     };
     
@@ -393,6 +399,22 @@ const App: React.FC = () => {
     return base;
   }, [records, isPrivileged, agentIdentity]);
 
+  const groupedAndSortedRecords = useMemo(() => {
+    const grouped = filteredRecords.reduce((acc, r) => {
+      const cluster = r.cluster || 'Unassigned';
+      if (!acc[cluster]) acc[cluster] = [];
+      acc[cluster].push(r);
+      return acc;
+    }, {} as Record<string, SaleRecord[]>);
+
+    // Alphabetical sort by Field Agent Name (agentName)
+    Object.keys(grouped).forEach(cluster => {
+      grouped[cluster].sort((a, b) => (a.agentName || '').localeCompare(b.agentName || ''));
+    });
+
+    return grouped;
+  }, [filteredRecords]);
+
   const financeRecords = useMemo(() => filteredRecords.filter(r => r.status === RecordStatus.PAID), [filteredRecords]);
 
   const boardMetrics = useMemo(() => {
@@ -428,7 +450,7 @@ const App: React.FC = () => {
                 <h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2>
                 <p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Verified Identity Required</p>
               </div>
-              <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: ''})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400 transition-colors">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
+              <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400 transition-colors">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
             </div>
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && (
@@ -446,12 +468,20 @@ const App: React.FC = () => {
                 <input type="password" maxLength={4} required placeholder="••••" value={authForm.passcode} onChange={(e) => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white tracking-[1.2em] text-center focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-white/10" />
               </div>
               {isRegisterMode && (
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">System Role</label>
-                  <select value={authForm.role} onChange={(e) => setAuthForm({...authForm, role: e.target.value as SystemRole})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
-                    {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
-                  </select>
-                </div>
+                <>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">System Role</label>
+                    <select value={authForm.role} onChange={(e) => setAuthForm({...authForm, role: e.target.value as SystemRole})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
+                      {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
+                    <select value={authForm.cluster} onChange={(e) => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
+                      {CLUSTERS.map(c => (<option key={c} value={c} className="bg-slate-900">{c}</option>))}
+                    </select>
+                  </div>
+                </>
               )}
               <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-emerald-500/10 active:scale-95 transition-all mt-4">{isAuthLoading ? <i className="fas fa-circle-notch fa-spin"></i> : (isRegisterMode ? 'Create Identity' : 'Authenticate')}</button>
             </form>
@@ -472,7 +502,7 @@ const App: React.FC = () => {
               <div>
                 <h1 className="text-2xl font-black uppercase tracking-tight leading-none">Food Coop Hub</h1>
                 <div className="flex items-center space-x-2 mt-2">
-                  <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/20 tracking-widest">{agentIdentity.role}</span>
+                  <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/20 tracking-widest">{agentIdentity.role} ({agentIdentity.cluster})</span>
                   <span className="text-emerald-400/40 text-[10px] font-black uppercase tracking-[0.3em]">Session Verified</span>
                 </div>
               </div>
@@ -594,8 +624,8 @@ const App: React.FC = () => {
                      <div className="p-8 border-b border-slate-50 bg-slate-50/10"><h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authenticated system accounts (Developer Exclusive)</p></div>
                      <div className="overflow-x-auto">
                         <table className="w-full text-left">
-                          <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Full Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Phone Number</th><th className="px-8 py-4">Passcode</th></tr></thead>
-                          <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td><td className="px-8 py-4 text-[12px] font-mono font-bold text-slate-400">****</td></tr>))}</tbody>
+                          <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Full Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Cluster</th><th className="px-8 py-4">Phone Number</th><th className="px-8 py-4">Passcode</th></tr></thead>
+                          <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-400">{user.cluster}</td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td><td className="px-8 py-4 text-[12px] font-mono font-bold text-slate-400">****</td></tr>))}</tbody>
                         </table>
                      </div>
                    </div>
@@ -707,7 +737,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <Table 
-            records={filteredRecords} 
+            groupedRecords={groupedAndSortedRecords} 
             portal={currentPortal} 
             onStatusUpdate={handleUpdateStatus} 
             onForceSync={handleSingleSync}
@@ -720,39 +750,48 @@ const App: React.FC = () => {
 };
 
 const Table: React.FC<{ 
-  records: SaleRecord[], 
+  groupedRecords: Record<string, SaleRecord[]>, 
   onStatusUpdate?: (id: string, s: RecordStatus) => void, 
   onForceSync?: (id: string) => void,
   portal?: PortalType 
-}> = ({ records, onStatusUpdate, onForceSync, portal }) => (
+}> = ({ groupedRecords, onStatusUpdate, onForceSync, portal }) => (
   <div className="overflow-x-auto">
     <table className="w-full text-left min-w-[1200px]">
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]"><tr><th className="px-8 py-6">Timestamp</th><th className="px-8 py-6">Participants</th><th className="px-8 py-6">Commodity</th><th className="px-8 py-6">Quantity</th><th className="px-8 py-6">Unit Price</th><th className="px-8 py-6">Total Gross</th><th className="px-8 py-6 text-emerald-600">Profit (10%)</th><th className="px-8 py-6">Backup</th><th className="px-8 py-6">Security</th><th className="px-8 py-6 text-center">Status</th><th className="px-8 py-6 text-center">Action</th></tr></thead>
       <tbody className="divide-y divide-slate-50">
-        {records.length === 0 ? (<tr><td colSpan={11} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected</td></tr>) : records.map(r => (
-          <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
-            <td className="px-8 py-6"><div className="flex flex-col"><span className="text-[12px] font-black text-slate-900">{r.date}</span><span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{new Date(r.createdAt).toLocaleTimeString()}</span></div></td>
-            <td className="px-8 py-6"><div className="flex flex-col space-y-3 py-2"><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p><p className="text-[9px] font-bold text-slate-400">{r.farmerPhone}</p></div><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p><p className="text-[9px] font-bold text-slate-400">{r.customerPhone}</p></div><div><p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p><p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System'}</p><p className="text-[9px] font-bold text-emerald-600/60">{r.agentPhone}</p></div></div></td>
-            <td className="px-8 py-6"><span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-wider">{r.cropType}</span></td>
-            <td className="px-8 py-6"><span className="text-[13px] font-black text-slate-900">{r.unitsSold}</span><span className="text-[10px] text-slate-400 ml-2 uppercase font-bold">{r.unitType}</span></td>
-            <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
-            <td className="px-8 py-6 text-[13px] font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
-            <td className="px-8 py-6 text-[13px] font-black text-emerald-600 bg-emerald-50/20">KSh {r.coopProfit.toLocaleString()}</td>
-            <td className="px-8 py-6">
-              <CloudSyncBadge 
-                synced={r.synced} 
-                onSync={() => onForceSync?.(r.id)} 
-                showSyncBtn={portal === 'SALES'} 
-              />
-            </td>
-            <td className="px-8 py-6"><SecurityBadge record={r} /></td>
-            <td className="px-8 py-6 text-center"><span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{r.status}</span></td>
-            <td className="px-8 py-6 text-center">
-              {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Forward Finance</button>)}
-              {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Approve</button>)}
-              {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Verify</button>)}
-            </td>
-          </tr>
+        {Object.keys(groupedRecords).length === 0 ? (<tr><td colSpan={11} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected</td></tr>) : Object.keys(groupedRecords).map(cluster => (
+          <React.Fragment key={cluster}>
+            <tr className="bg-slate-50/50">
+              <td colSpan={11} className="px-8 py-3 text-[10px] font-black uppercase tracking-[0.4em] text-emerald-600 border-y border-slate-100">
+                {cluster} Cluster
+              </td>
+            </tr>
+            {groupedRecords[cluster].map(r => (
+              <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
+                <td className="px-8 py-6"><div className="flex flex-col"><span className="text-[12px] font-black text-slate-900">{r.date}</span><span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{new Date(r.createdAt).toLocaleTimeString()}</span></div></td>
+                <td className="px-8 py-6"><div className="flex flex-col space-y-3 py-2"><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p><p className="text-[9px] font-bold text-slate-400">{r.farmerPhone}</p></div><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p><p className="text-[9px] font-bold text-slate-400">{r.customerPhone}</p></div><div><p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p><p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System'}</p><p className="text-[9px] font-bold text-emerald-600/60">{r.agentPhone}</p></div></div></td>
+                <td className="px-8 py-6"><span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-wider">{r.cropType}</span></td>
+                <td className="px-8 py-6"><span className="text-[13px] font-black text-slate-900">{r.unitsSold}</span><span className="text-[10px] text-slate-400 ml-2 uppercase font-bold">{r.unitType}</span></td>
+                <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
+                <td className="px-8 py-6 text-[13px] font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
+                <td className="px-8 py-6 text-[13px] font-black text-emerald-600 bg-emerald-50/20">KSh {r.coopProfit.toLocaleString()}</td>
+                <td className="px-8 py-6">
+                  <CloudSyncBadge 
+                    synced={r.synced} 
+                    onSync={() => onForceSync?.(r.id)} 
+                    showSyncBtn={portal === 'SALES'} 
+                  />
+                </td>
+                <td className="px-8 py-6"><SecurityBadge record={r} /></td>
+                <td className="px-8 py-6 text-center"><span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{r.status}</span></td>
+                <td className="px-8 py-6 text-center">
+                  {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Forward Finance</button>)}
+                  {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Approve</button>)}
+                  {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Verify</button>)}
+                </td>
+              </tr>
+            ))}
+          </React.Fragment>
         ))}
       </tbody>
     </table>

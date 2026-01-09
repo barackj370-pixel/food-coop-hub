@@ -1,3 +1,4 @@
+
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
@@ -18,6 +19,7 @@ export interface AgentIdentity {
   phone: string;
   role: SystemRole;
   passcode: string;
+  cluster: string;
 }
 
 export interface SaleRecord {
@@ -40,5 +42,6 @@ export interface SaleRecord {
   confirmedBy?: string;
   agentPhone?: string;
   agentName?: string;
+  cluster?: string;
   synced?: boolean; // Track if record is in Google Sheets
 }
