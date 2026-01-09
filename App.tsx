@@ -129,7 +129,6 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isPulling, setIsPulling] = useState(false);
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -137,9 +136,6 @@ const App: React.FC = () => {
     passcode: '',
     role: SystemRole.FIELD_AGENT
   });
-
-  const [aiReport, setAiReport] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     const saved = persistence.get('food_coop_data');
@@ -276,7 +272,6 @@ const App: React.FC = () => {
     };
     
     setRecords([newRecord, ...records]);
-    setAiReport(null);
     const success = await syncToGoogleSheets(newRecord);
     if (success) {
       setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
@@ -292,41 +287,15 @@ const App: React.FC = () => {
     setIsSyncing(true);
     const success = await syncToGoogleSheets(unsynced);
     if (success) {
-      setRecords(prev => prev.map(r => ({ ...r, synced: true })));
+      setRecords(prev => prev.map(r => {
+        const matching = unsynced.find(u => u.id === r.id);
+        return matching ? { ...r, synced: true } : r;
+      }));
       alert(`Success: ${unsynced.length} records pushed to Google Sheets.`);
     } else {
       alert("Sync failed. Check your Webhook URL or internet connection.");
     }
     setIsSyncing(false);
-  };
-
-  const handlePullData = async () => {
-    setIsPulling(true);
-    try {
-      const cloudRecords = await fetchFromGoogleSheets();
-      if (cloudRecords && Array.isArray(cloudRecords)) {
-        setRecords(prev => {
-          const merged = [...prev];
-          cloudRecords.forEach(cr => {
-            const exists = merged.find(m => m.id === cr.id);
-            if (!exists) {
-              merged.push({ ...cr, synced: true });
-            } else if (cr.status !== exists.status) {
-              const idx = merged.findIndex(m => m.id === cr.id);
-              merged[idx] = { ...exists, status: cr.status, synced: true };
-            }
-          });
-          return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        });
-        alert(`Downloaded ${cloudRecords.length} records from cloud ledger.`);
-      } else {
-        alert("Pull failed: Could not retrieve records.");
-      }
-    } catch (e) {
-      alert("Synchronization Error: " + (e instanceof Error ? e.message : "Unknown error"));
-    } finally {
-      setIsPulling(false);
-    }
   };
 
   const weeklyTotals = useMemo(() => {
@@ -343,7 +312,6 @@ const App: React.FC = () => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
     
-    // Explicit calculations for Auditor and Finance visibility
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
     const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
     const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + b.coopProfit, 0);
@@ -351,30 +319,20 @@ const App: React.FC = () => {
 
     const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
 
-    if (currentPortal === 'SALES') {
-      return {
-        revenue: latest?.totalSale || 0,
-        commission: `Due: ${dueComm.toLocaleString()} | Appr: ${verifiedComm.toLocaleString()}`, 
-        units: latest?.unitsSold || 0,
-        unitType: latest?.unitType || '',
-        price: latest?.unitPrice || 0,
-        approvedComm: verifiedComm, 
-        awaitingAuditComm,
-        awaitingFinanceComm
-      };
-    }
-    
     return { 
       revenue: totalSales || 0, 
       commission: awaitingFinanceComm, 
       units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0, 
-      unitType: '', 
+      unitType: latest?.unitType || 'Units', 
       price: latest?.unitPrice || 0,
       approvedComm: verifiedComm,
       awaitingAuditComm,
-      awaitingFinanceComm
+      awaitingFinanceComm,
+      dueComm
     };
-  }, [records, isPrivileged, agentIdentity, currentPortal]);
+  }, [records, isPrivileged, agentIdentity]);
+
+  const unsyncedCount = useMemo(() => records.filter(r => !r.synced).length, [records]);
 
   const filteredRecords = useMemo(() => {
     let base = records;
@@ -480,11 +438,23 @@ const App: React.FC = () => {
             ))}
           </div>
           {currentPortal === 'SALES' && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Recent Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
-              <StatCard label="Commission Ledger" value={typeof stats.commission === 'string' ? stats.commission : `KSh ${stats.commission.toLocaleString()}`} icon="fa-clock-rotate-left" color="bg-white/5" />
-              <StatCard label="Recent Volume" value={stats.units > 0 ? `${stats.units} ${stats.unitType}` : stats.units.toLocaleString()} icon="fa-boxes-stacked" color="bg-white/5" />
-              <StatCard label="Unit Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
+            <div className="flex flex-col space-y-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard label="Total Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
+                <StatCard label="Auditor Verified" value={`KSh ${stats.approvedComm.toLocaleString()}`} icon="fa-check-double" color="bg-white/5" />
+                <StatCard label="Unsynced Records" value={unsyncedCount.toLocaleString()} icon="fa-cloud-arrow-up" color="bg-white/5" />
+                <StatCard label="Current Unit Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
+              </div>
+              {unsyncedCount > 0 && (
+                <button 
+                  onClick={handleBulkSync} 
+                  disabled={isSyncing} 
+                  className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 text-[10px] font-black uppercase py-4 rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-emerald-500/10 active:scale-95"
+                >
+                  {isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}
+                  Sync {unsyncedCount} Local Records to Cloud
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -513,9 +483,9 @@ const App: React.FC = () => {
                 </div>
              </div>
              <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Verification</p>
+                <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Finance Approval</p>
                 <h2 className="text-3xl font-black tracking-tight">KSh {stats.awaitingFinanceComm.toLocaleString()}</h2>
-                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
+                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification from Finance</p>
              </div>
              <div className="space-y-6">
                <div className="flex items-center justify-between"><h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Forwarded Commissions</h3><span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">{financeRecords.length} Awaiting Receipt</span></div>
@@ -537,8 +507,8 @@ const App: React.FC = () => {
                       <span className="text-[11px] font-bold text-slate-600">Total Sales</span>
                       <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
-                      <span className="text-[11px] font-bold text-emerald-600">Verified Comm.</span>
+                    <div className="flex justify-between items-center py-4">
+                      <span className="text-[11px] font-bold text-emerald-600">Verified Commission</span>
                       <span className="text-[14px] font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</span>
                     </div>
                   </div>
@@ -557,12 +527,11 @@ const App: React.FC = () => {
              <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
                 <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Audit Stamp</p>
                 <h2 className="text-3xl font-black tracking-tight">KSh {stats.awaitingAuditComm.toLocaleString()}</h2>
-                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Yet to be stamped and verified by auditor</p>
+                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase italic">Total commissions yet to be stamped and verified by auditor</p>
              </div>
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
-                <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p></div>
+                <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit Tools</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p></div>
                 <div className="flex flex-wrap gap-4">
-                  <button onClick={handleBulkSync} disabled={isSyncing} className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-blue-100 flex items-center shadow-sm">{isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}Force Sync</button>
                   <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-excel mr-3"></i>CSV Report</button>
                 </div>
              </div>
