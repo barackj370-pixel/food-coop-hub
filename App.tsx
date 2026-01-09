@@ -62,10 +62,20 @@ const exportToCSV = (records: SaleRecord[]) => {
   document.body.removeChild(link);
 };
 
-const CloudSyncBadge: React.FC<{ synced?: boolean }> = ({ synced }) => (
-  <div className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${synced ? 'bg-blue-50 text-blue-500' : 'bg-slate-100 text-slate-400'}`}>
-    <i className={`fas ${synced ? 'fa-cloud-check' : 'fa-cloud-arrow-up'}`}></i>
-    <span>{synced ? 'Synced' : 'Local Only'}</span>
+const CloudSyncBadge: React.FC<{ synced?: boolean; onSync?: () => void; showSyncBtn?: boolean }> = ({ synced, onSync, showSyncBtn }) => (
+  <div className="flex flex-col items-start space-y-1">
+    <div className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${synced ? 'bg-blue-50 text-blue-500' : 'bg-slate-100 text-slate-400'}`}>
+      <i className={`fas ${synced ? 'fa-cloud-check' : 'fa-cloud-arrow-up'}`}></i>
+      <span>{synced ? 'Synced' : 'Local Only'}</span>
+    </div>
+    {!synced && showSyncBtn && (
+      <button 
+        onClick={(e) => { e.stopPropagation(); onSync?.(); }}
+        className="text-[7px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-tighter bg-blue-50 px-2 py-0.5 rounded border border-blue-100 transition-colors"
+      >
+        <i className="fas fa-rotate mr-1"></i>Sync Now
+      </button>
+    )}
   </div>
 );
 
@@ -251,6 +261,17 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSingleSync = async (id: string) => {
+    const record = records.find(r => r.id === id);
+    if (!record) return;
+    const success = await syncToGoogleSheets(record);
+    if (success) {
+      setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+    } else {
+      alert("Individual sync failed. Check connectivity.");
+    }
+  };
+
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
     const totalSale = data.unitsSold * data.unitPrice;
@@ -304,6 +325,22 @@ const App: React.FC = () => {
     };
   }, [records]);
 
+  const logStats = useMemo(() => {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const weekly = records.filter(r => new Date(r.date) >= weekAgo);
+    const monthly = records.filter(r => new Date(r.date) >= monthAgo);
+
+    return {
+      weeklySales: weekly.reduce((sum, r) => sum + r.totalSale, 0),
+      monthlySales: monthly.reduce((sum, r) => sum + r.totalSale, 0),
+      weeklyComm: weekly.reduce((sum, r) => sum + r.coopProfit, 0),
+      monthlyComm: monthly.reduce((sum, r) => sum + r.coopProfit, 0),
+    };
+  }, [records]);
+
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
@@ -315,6 +352,7 @@ const App: React.FC = () => {
 
     const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
 
+    // Sales portal summary card restoration: latest entry mode
     if (currentPortal === 'SALES') {
       return {
         revenue: latest?.totalSale || 0,
@@ -456,7 +494,7 @@ const App: React.FC = () => {
               {unsyncedCount > 0 && (
                 <button onClick={handleBulkSync} disabled={isSyncing} className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 text-[10px] font-black uppercase py-4 rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-emerald-500/10 active:scale-95">
                   {isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}
-                  Sync {unsyncedCount} Local Records to Cloud
+                  Bulk Sync {unsyncedCount} Local Records
                 </button>
               )}
             </div>
@@ -610,14 +648,50 @@ const App: React.FC = () => {
              </div>
           </div>
         )}
-        <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in"><div className="p-8 border-b border-slate-50"><h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Audit & Integrity Log</h3><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Integrity Audit</p></div><Table records={filteredRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} /></div>
+        <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
+          <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Audit & Integrity Log</h3>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Integrity Audit</p>
+            </div>
+            <div className="flex flex-wrap gap-3 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
+               <div className="flex flex-col border-r border-slate-200 pr-4">
+                 <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Weekly (7D) Gross</span>
+                 <span className="text-[11px] font-black text-slate-900">KSh {logStats.weeklySales.toLocaleString()}</span>
+               </div>
+               <div className="flex flex-col border-r border-slate-200 pr-4">
+                 <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Monthly (30D) Gross</span>
+                 <span className="text-[11px] font-black text-slate-900">KSh {logStats.monthlySales.toLocaleString()}</span>
+               </div>
+               <div className="flex flex-col border-r border-slate-200 pr-4">
+                 <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">Weekly Comm.</span>
+                 <span className="text-[11px] font-black text-emerald-600">KSh {logStats.weeklyComm.toLocaleString()}</span>
+               </div>
+               <div className="flex flex-col">
+                 <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">Monthly Comm.</span>
+                 <span className="text-[11px] font-black text-emerald-600">KSh {logStats.monthlyComm.toLocaleString()}</span>
+               </div>
+            </div>
+          </div>
+          <Table 
+            records={filteredRecords} 
+            portal={currentPortal} 
+            onStatusUpdate={handleUpdateStatus} 
+            onForceSync={handleSingleSync}
+          />
+        </div>
       </main>
       <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.1.0</p></footer>
     </div>
   );
 };
 
-const Table: React.FC<{ records: SaleRecord[], onStatusUpdate?: (id: string, s: RecordStatus) => void, portal?: PortalType }> = ({ records, onStatusUpdate, portal }) => (
+const Table: React.FC<{ 
+  records: SaleRecord[], 
+  onStatusUpdate?: (id: string, s: RecordStatus) => void, 
+  onForceSync?: (id: string) => void,
+  portal?: PortalType 
+}> = ({ records, onStatusUpdate, onForceSync, portal }) => (
   <div className="overflow-x-auto">
     <table className="w-full text-left min-w-[1200px]">
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]"><tr><th className="px-8 py-6">Timestamp</th><th className="px-8 py-6">Participants</th><th className="px-8 py-6">Commodity</th><th className="px-8 py-6">Quantity</th><th className="px-8 py-6">Unit Price</th><th className="px-8 py-6">Total Gross</th><th className="px-8 py-6 text-emerald-600">Profit (10%)</th><th className="px-8 py-6">Backup</th><th className="px-8 py-6">Security</th><th className="px-8 py-6 text-center">Status</th><th className="px-8 py-6 text-center">Action</th></tr></thead>
@@ -631,7 +705,13 @@ const Table: React.FC<{ records: SaleRecord[], onStatusUpdate?: (id: string, s: 
             <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
             <td className="px-8 py-6 text-[13px] font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
             <td className="px-8 py-6 text-[13px] font-black text-emerald-600 bg-emerald-50/20">KSh {r.coopProfit.toLocaleString()}</td>
-            <td className="px-8 py-6"><CloudSyncBadge synced={r.synced} /></td>
+            <td className="px-8 py-6">
+              <CloudSyncBadge 
+                synced={r.synced} 
+                onSync={() => onForceSync?.(r.id)} 
+                showSyncBtn={portal === 'SALES'} 
+              />
+            </td>
             <td className="px-8 py-6"><SecurityBadge record={r} /></td>
             <td className="px-8 py-6 text-center"><span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{r.status}</span></td>
             <td className="px-8 py-6 text-center">
