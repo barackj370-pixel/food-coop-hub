@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -171,7 +172,7 @@ const App: React.FC = () => {
   const registeredUsers = useMemo(() => {
     const usersData = persistence.get('coop_users');
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
-  }, [isAuthLoading, agentIdentity]); // Added agentIdentity to dependency for better refresh
+  }, [isAuthLoading, agentIdentity]);
 
   const availablePortals = useMemo(() => {
     const base: PortalType[] = ['SALES'];
@@ -195,8 +196,9 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsAuthLoading(true);
 
-    const targetPhone = authForm.phone.trim();
-    const targetPasscode = authForm.passcode.trim();
+    // Normalize phone and passcode by removing non-digits to prevent formatting mismatches
+    const targetPhone = authForm.phone.replace(/\D/g, '');
+    const targetPasscode = authForm.passcode.replace(/\D/g, '');
     const targetName = authForm.name.trim();
     const targetRole = authForm.role;
 
@@ -211,7 +213,8 @@ const App: React.FC = () => {
           return;
         }
         
-        const exists = users.find(u => u.phone.trim() === targetPhone);
+        // Use normalized phone for lookup
+        const exists = users.find(u => u.phone.replace(/\D/g, '') === targetPhone);
         if (exists) {
           alert("Account already exists with this phone number. Please Log In.");
           setIsRegisterMode(false);
@@ -221,7 +224,7 @@ const App: React.FC = () => {
 
         const newUser: AgentIdentity = { 
           name: targetName, 
-          phone: targetPhone, 
+          phone: targetPhone, // Store normalized phone
           passcode: targetPasscode, 
           role: targetRole 
         };
@@ -229,9 +232,10 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(users));
         setAgentIdentity(newUser);
       } else {
+        // Use normalized phone and passcode for authentication matching
         const user = users.find(u => 
-          u.phone.trim() === targetPhone && 
-          u.passcode.trim() === targetPasscode
+          u.phone.replace(/\D/g, '') === targetPhone && 
+          u.passcode.replace(/\D/g, '') === targetPasscode
         );
         
         if (user) {
