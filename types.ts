@@ -8,8 +8,8 @@ export enum RecordStatus {
 export enum SystemRole {
   FIELD_AGENT = 'Field Agent',
   FINANCE_OFFICER = 'Finance Officer',
-  AUDITOR = 'Auditor(Audit Portal)',
-  MANAGER = 'Coop Manager',
+  AUDITOR = 'Audit Officer',
+  MANAGER = 'Director',
   SYSTEM_DEVELOPER = 'System Developer'
 }
 
