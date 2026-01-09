@@ -138,6 +138,7 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [logFilterDays, setLogFilterDays] = useState(7);
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -327,19 +328,14 @@ const App: React.FC = () => {
 
   const logStats = useMemo(() => {
     const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    const weekly = records.filter(r => new Date(r.date) >= weekAgo);
-    const monthly = records.filter(r => new Date(r.date) >= monthAgo);
+    const threshold = new Date(now.getTime() - logFilterDays * 24 * 60 * 60 * 1000);
+    const filtered = records.filter(r => new Date(r.date) >= threshold);
 
     return {
-      weeklySales: weekly.reduce((sum, r) => sum + r.totalSale, 0),
-      monthlySales: monthly.reduce((sum, r) => sum + r.totalSale, 0),
-      weeklyComm: weekly.reduce((sum, r) => sum + r.coopProfit, 0),
-      monthlyComm: monthly.reduce((sum, r) => sum + r.coopProfit, 0),
+      totalSales: filtered.reduce((sum, r) => sum + r.totalSale, 0),
+      totalComm: filtered.reduce((sum, r) => sum + r.coopProfit, 0),
     };
-  }, [records]);
+  }, [records, logFilterDays]);
 
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
@@ -649,27 +645,32 @@ const App: React.FC = () => {
           </div>
         )}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
-          <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
               <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Audit & Integrity Log</h3>
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Integrity Audit</p>
             </div>
-            <div className="flex flex-wrap gap-3 bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
-               <div className="flex flex-col border-r border-slate-200 pr-4">
-                 <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Weekly (7D) Gross</span>
-                 <span className="text-[11px] font-black text-slate-900">KSh {logStats.weeklySales.toLocaleString()}</span>
+            <div className="flex flex-wrap items-center gap-6 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100">
+               <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200/50">
+                 {[7, 14, 21, 30].map(d => (
+                   <button 
+                     key={d} 
+                     onClick={() => setLogFilterDays(d)}
+                     className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all duration-300 ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                   >
+                     {d}D
+                   </button>
+                 ))}
                </div>
-               <div className="flex flex-col border-r border-slate-200 pr-4">
-                 <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Monthly (30D) Gross</span>
-                 <span className="text-[11px] font-black text-slate-900">KSh {logStats.monthlySales.toLocaleString()}</span>
-               </div>
-               <div className="flex flex-col border-r border-slate-200 pr-4">
-                 <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">Weekly Comm.</span>
-                 <span className="text-[11px] font-black text-emerald-600">KSh {logStats.weeklyComm.toLocaleString()}</span>
-               </div>
-               <div className="flex flex-col">
-                 <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">Monthly Comm.</span>
-                 <span className="text-[11px] font-black text-emerald-600">KSh {logStats.monthlyComm.toLocaleString()}</span>
+               <div className="flex gap-6">
+                 <div className="flex flex-col">
+                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays}D Gross Revenue</span>
+                   <span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.totalSales.toLocaleString()}</span>
+                 </div>
+                 <div className="flex flex-col">
+                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays}D Total Comm.</span>
+                   <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span>
+                 </div>
                </div>
             </div>
           </div>
