@@ -348,7 +348,6 @@ const App: React.FC = () => {
 
     const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
 
-    // Sales portal summary card restoration: latest entry mode
     if (currentPortal === 'SALES') {
       return {
         revenue: latest?.totalSale || 0,
@@ -512,11 +511,11 @@ const App: React.FC = () => {
                    <p className="text-xl font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</p>
                 </div>
                 <div className="bg-indigo-900 p-6 rounded-[2rem] text-white shadow-xl">
-                   <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest mb-1">Weekly Sales (7D)</p>
+                   <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest mb-1">Weekly Sales (7 Days)</p>
                    <p className="text-xl font-black">KSh {weeklyTotals.sales.toLocaleString()}</p>
                 </div>
                 <div className="bg-blue-900 p-6 rounded-[2rem] text-white shadow-xl">
-                   <p className="text-[9px] font-black uppercase text-blue-300 tracking-widest mb-1">Weekly Comm. (7D)</p>
+                   <p className="text-[9px] font-black uppercase text-blue-300 tracking-widest mb-1">Weekly Comm. (7 Days)</p>
                    <p className="text-xl font-black">KSh {weeklyTotals.commissions.toLocaleString()}</p>
                 </div>
              </div>
@@ -552,12 +551,12 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-indigo-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Rolling 7D Performance (Sales)</p>
+                   <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Rolling 7 Days Performance (Sales)</p>
                    <h2 className="text-3xl font-black tracking-tight">KSh {weeklyTotals.sales.toLocaleString()}</h2>
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Gross Revenue</p>
                 </div>
                 <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-blue-400 tracking-[0.4em] mb-2">Rolling 7D Commission Intake</p>
+                   <p className="text-[9px] font-black uppercase text-blue-400 tracking-[0.4em] mb-2">Rolling 7 Days Commission Intake</p>
                    <h2 className="text-3xl font-black tracking-tight text-blue-400">KSh {weeklyTotals.commissions.toLocaleString()}</h2>
                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Coop Profit</p>
                 </div>
@@ -636,7 +635,7 @@ const App: React.FC = () => {
                 <div className="space-y-8">
                   <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div><p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-3">Verified Commissions</p><h2 className="text-4xl font-black tracking-tight mb-2">KSh {boardMetrics.totalCommission.toLocaleString()}</h2><p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Auditor Verified Total</p></div>
                   <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col justify-center">
-                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Weekly Goal Progress (7D Sales)</p>
+                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Weekly Goal Progress (7 Days Sales)</p>
                     <h2 className="text-3xl font-black tracking-tight">KSh {weeklyTotals.sales.toLocaleString()}</h2>
                     <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Gross Performance</p>
                   </div>
@@ -658,17 +657,17 @@ const App: React.FC = () => {
                      onClick={() => setLogFilterDays(d)}
                      className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all duration-300 ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm scale-105' : 'text-slate-400 hover:text-slate-600'}`}
                    >
-                     {d}D
+                     {d} Days
                    </button>
                  ))}
                </div>
                <div className="flex gap-6">
                  <div className="flex flex-col">
-                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays}D Gross Revenue</span>
+                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays} Days Gross Revenue</span>
                    <span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.totalSales.toLocaleString()}</span>
                  </div>
                  <div className="flex flex-col">
-                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays}D Total Comm.</span>
+                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Total Comm.</span>
                    <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span>
                  </div>
                </div>
