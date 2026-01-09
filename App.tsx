@@ -290,14 +290,12 @@ const App: React.FC = () => {
       const cloudRecords = await fetchFromGoogleSheets();
       if (cloudRecords && Array.isArray(cloudRecords)) {
         setRecords(prev => {
-          // Merge local and cloud records by unique ID
           const merged = [...prev];
           cloudRecords.forEach(cr => {
             const exists = merged.find(m => m.id === cr.id);
             if (!exists) {
               merged.push({ ...cr, synced: true });
             } else if (cr.status !== exists.status) {
-              // Update status if cloud version is more recent
               const idx = merged.findIndex(m => m.id === cr.id);
               merged[idx] = { ...exists, status: cr.status, synced: true };
             }
@@ -306,7 +304,7 @@ const App: React.FC = () => {
         });
         alert(`Downloaded ${cloudRecords.length} records from cloud ledger.`);
       } else {
-        alert("Pull failed: Could not retrieve records. Ensure your Apps Script supports 'get_records' action.");
+        alert("Pull failed: Could not retrieve records.");
       }
     } catch (e) {
       alert("Synchronization Error: " + (e instanceof Error ? e.message : "Unknown error"));
@@ -328,20 +326,27 @@ const App: React.FC = () => {
     }
   };
 
+  const weeklyTotals = useMemo(() => {
+    const now = new Date();
+    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const weekly = records.filter(r => new Date(r.date) >= last7Days);
+    return {
+      sales: weekly.reduce((sum, r) => sum + r.totalSale, 0),
+      commissions: weekly.reduce((sum, r) => sum + r.coopProfit, 0)
+    };
+  }, [records]);
+
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
-    
-    // Portal specific calculations
     const approvedComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
     const pendingComm = relevantRecords.filter(r => r.status !== RecordStatus.VALIDATED && r.status !== RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
 
     if (currentPortal === 'SALES') {
       const due = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + b.coopProfit, 0);
-      const approved = approvedComm;
       return {
         revenue: latest?.totalSale || 0,
-        commission: `Due: ${due.toLocaleString()} | Appr: ${approved.toLocaleString()}`, 
+        commission: `Due: ${due.toLocaleString()} | Appr: ${approvedComm.toLocaleString()}`, 
         units: latest?.unitsSold || 0,
         unitType: latest?.unitType || '',
         price: latest?.unitPrice || 0,
@@ -350,7 +355,6 @@ const App: React.FC = () => {
     }
     
     const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
-    
     return { 
       revenue: totalSales || 0, 
       commission: pendingComm, 
@@ -431,7 +435,6 @@ const App: React.FC = () => {
             </form>
           </div>
         </div>
-        <p className="mt-8 text-[9px] font-black text-white/20 uppercase tracking-[0.5em] z-10">Verified Agricultural Trust</p>
       </div>
     );
   }
@@ -480,25 +483,28 @@ const App: React.FC = () => {
         {currentPortal === 'SALES' && <div className="space-y-10 animate-fade-in"><SaleForm onSubmit={handleAddRecord} /></div>}
         {currentPortal === 'FINANCE' && (
           <div className="space-y-10 animate-fade-in">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Financial Summary</h4>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
-                      <span className="text-[11px] font-bold text-slate-600">Total Sales</span>
-                      <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
-                      <span className="text-[11px] font-bold text-slate-600">Total Commissions Approved and Verified</span>
-                      <span className="text-[14px] font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</span>
-                    </div>
-                  </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-lg">
+                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Sales</p>
+                   <p className="text-xl font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</p>
                 </div>
-                <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Verification</p>
-                   <h2 className="text-3xl font-black tracking-tight">KSh {stats.commission.toLocaleString()}</h2>
-                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-lg">
+                   <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mb-1">Approved Comm.</p>
+                   <p className="text-xl font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</p>
                 </div>
+                <div className="bg-indigo-900 p-6 rounded-[2rem] text-white shadow-xl">
+                   <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest mb-1">Weekly Sales (7D)</p>
+                   <p className="text-xl font-black">KSh {weeklyTotals.sales.toLocaleString()}</p>
+                </div>
+                <div className="bg-blue-900 p-6 rounded-[2rem] text-white shadow-xl">
+                   <p className="text-[9px] font-black uppercase text-blue-300 tracking-widest mb-1">Weekly Comm. (7D)</p>
+                   <p className="text-xl font-black">KSh {weeklyTotals.commissions.toLocaleString()}</p>
+                </div>
+             </div>
+             <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
+                <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Verification</p>
+                <h2 className="text-3xl font-black tracking-tight">KSh {stats.commission.toLocaleString()}</h2>
+                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification</p>
              </div>
              <div className="space-y-6">
                <div className="flex items-center justify-between"><h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Forwarded Commissions</h3><span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">{financeRecords.length} Awaiting Receipt</span></div>
@@ -512,29 +518,38 @@ const App: React.FC = () => {
         )}
         {currentPortal === 'AUDIT' && (
           <div className="space-y-10 animate-fade-in">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Audit Summary</h4>
+                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Total Integrity Audit</h4>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center py-4 border-b border-slate-50">
                       <span className="text-[11px] font-bold text-slate-600">Total Sales</span>
                       <span className="text-[14px] font-black text-slate-900">KSh {stats.revenue.toLocaleString()}</span>
                     </div>
+                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
+                      <span className="text-[11px] font-bold text-emerald-600">Verified Comm.</span>
+                      <span className="text-[14px] font-black text-emerald-600">KSh {stats.approvedComm.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
+                <div className="bg-indigo-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
+                   <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Rolling 7D Performance (Sales)</p>
+                   <h2 className="text-3xl font-black tracking-tight">KSh {weeklyTotals.sales.toLocaleString()}</h2>
+                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Gross Revenue</p>
+                </div>
                 <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.4em] mb-2">Total Commissions Awaiting Verification</p>
-                   <h2 className="text-3xl font-black tracking-tight text-emerald-400">KSh {stats.commission.toLocaleString()}</h2>
-                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Verification Required</p>
+                   <p className="text-[9px] font-black uppercase text-blue-400 tracking-[0.4em] mb-2">Rolling 7D Commission Intake</p>
+                   <h2 className="text-3xl font-black tracking-tight text-blue-400">KSh {weeklyTotals.commissions.toLocaleString()}</h2>
+                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Coop Profit</p>
                 </div>
              </div>
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p></div>
                 <div className="flex flex-wrap gap-4">
-                  <button onClick={handlePullData} disabled={isPulling} className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isPulling ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-down mr-3"></i>}Fetch Latest Cloud Data</button>
-                  <button onClick={handleBulkSync} disabled={isSyncing} className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-blue-100 flex items-center shadow-sm">{isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}Force Cloud Sync</button>
-                  <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-excel mr-3"></i>Download Excel Report</button>
-                  <button onClick={handleGenerateReport} disabled={isAnalyzing || records.length === 0} className="bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase px-10 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}Run AI Integrity Scan</button>
+                  <button onClick={handlePullData} disabled={isPulling} className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isPulling ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-down mr-3"></i>}Fetch Cloud</button>
+                  <button onClick={handleBulkSync} disabled={isSyncing} className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-blue-100 flex items-center shadow-sm">{isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}Force Sync</button>
+                  <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-excel mr-3"></i>CSV Report</button>
+                  <button onClick={handleGenerateReport} disabled={isAnalyzing || records.length === 0} className="bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase px-10 py-5 rounded-2xl transition-all shadow-xl flex items-center">{isAnalyzing ? <i className="fas fa-brain fa-spin mr-3"></i> : <i className="fas fa-bolt mr-3"></i>}Run AI Scan</button>
                 </div>
              </div>
              {aiReport && (
@@ -567,37 +582,15 @@ const App: React.FC = () => {
                         <p className="text-xl font-black tracking-tight leading-tight">
                           {isConfigured ? 'Central Cooperative Ledger' : 'Configuration Required'}
                         </p>
-                        
-                        {!isConfigured ? (
-                          <div className="mt-4 space-y-4">
-                            <p className="text-[10px] font-bold text-white/40 uppercase leading-relaxed">To fix "File Not Found":</p>
-                            <ul className="text-[9px] font-black text-white/60 uppercase space-y-2">
-                              <li>1. Open Google Sheet browser URL</li>
-                              <li>2. Copy ID (e.g. 1A2B...3C)</li>
-                              <li>3. Paste into constants.ts</li>
-                            </ul>
-                          </div>
-                        ) : (
-                          <p className="text-[10px] font-bold text-white/40 mt-4 uppercase leading-relaxed">Direct browser access to the master spreadsheet synchronized with this hub.</p>
-                        )}
+                        {isConfigured && <p className="text-[10px] font-bold text-white/40 mt-4 uppercase leading-relaxed">Direct browser access to the master spreadsheet synchronized with this hub.</p>}
                       </div>
-                      
                       {isConfigured ? (
                         <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="mt-10 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center shadow-xl shadow-emerald-500/20 transition-all active:scale-95">
                           <i className="fas fa-table-list mr-2"></i>Open Cloud Sheet
                         </a>
                       ) : (
-                        <div className="mt-10 bg-white/5 text-white/30 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center border border-white/10 italic">
-                          Update constants.ts to unlock
-                        </div>
+                        <div className="mt-10 bg-white/5 text-white/30 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center border border-white/10 italic">Update constants.ts</div>
                       )}
-                   </div>
-                   <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">API Readiness</p>
-                      <div className="space-y-4">
-                         <div className="flex justify-between items-center"><span className="text-[10px] font-bold text-slate-500 uppercase">Gemini AI</span><span className="text-[9px] px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full font-black uppercase tracking-widest">Active</span></div>
-                         <div className="flex justify-between items-center"><span className="text-[10px] font-bold text-slate-500 uppercase">Sync Endpoint</span><span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${GOOGLE_SHEETS_WEBHOOK_URL ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{GOOGLE_SHEETS_WEBHOOK_URL ? 'Linked' : 'Missing'}</span></div>
-                      </div>
                    </div>
                 </div>
              </div>
@@ -607,9 +600,9 @@ const App: React.FC = () => {
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
-                  <div className="flex justify-between items-center mb-10"><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Performance (Commission)</h3><button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-export mr-3"></i>Export Audit Report</button></div>
+                  <div className="flex justify-between items-center mb-10"><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Performance (Commission)</h3><button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-export mr-3"></i>Export Report</button></div>
                   <div className="flex-1 min-h-[450px] flex items-end justify-between pl-16 pr-6 pb-20 pt-8 border-b border-slate-100 relative">
-                    {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No commission data points found</div>) : (
+                    {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No commission data found</div>) : (
                       <>{(() => {
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
                         const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
@@ -624,16 +617,18 @@ const App: React.FC = () => {
                 </div>
                 <div className="space-y-8">
                   <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div><p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-3">Verified Commissions</p><h2 className="text-4xl font-black tracking-tight mb-2">KSh {boardMetrics.totalCommission.toLocaleString()}</h2><p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Auditor Verified Total</p></div>
-                  <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100"><p className="text-[9px] font-black text-emerald-600 uppercase tracking-[0.3em] mb-2">Strategic Insight</p><p className="text-[12px] font-bold text-emerald-900 leading-relaxed italic">"Commission data visualization indicates cycle performance. Higher peaks represent optimized trade windows within the cooperative ledger."</p></div>
-                  <div className="bg-slate-900 p-8 rounded-[2rem] text-white"><p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] mb-4">Board Directives</p><ul className="space-y-3 text-[11px] font-bold"><li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Approve Q2 Dividend</li><li className="flex items-center"><i className="fas fa-check-circle text-emerald-400 mr-3"></i> Scale Mobile Agent App</li><li className="flex items-center text-white/40"><i className="fas fa-circle mr-3"></i> New Hub Acquisition</li></ul></div>
+                  <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-xl flex flex-col justify-center">
+                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Weekly Goal Progress (7D Sales)</p>
+                    <h2 className="text-3xl font-black tracking-tight">KSh {weeklyTotals.sales.toLocaleString()}</h2>
+                    <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Gross Performance</p>
+                  </div>
                 </div>
              </div>
           </div>
         )}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in"><div className="p-8 border-b border-slate-50"><h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Audit & Integrity Log</h3><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Integrity Audit</p></div><Table records={filteredRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} /></div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.0.2</p></footer>
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; } select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1.5rem center; background-size: 1rem; }`}</style>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.1.0</p></footer>
     </div>
   );
 };
@@ -643,7 +638,7 @@ const Table: React.FC<{ records: SaleRecord[], onStatusUpdate?: (id: string, s: 
     <table className="w-full text-left min-w-[1200px]">
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]"><tr><th className="px-8 py-6">Timestamp</th><th className="px-8 py-6">Participants</th><th className="px-8 py-6">Commodity</th><th className="px-8 py-6">Quantity</th><th className="px-8 py-6">Unit Price</th><th className="px-8 py-6">Total Gross</th><th className="px-8 py-6 text-emerald-600">Profit (10%)</th><th className="px-8 py-6">Backup</th><th className="px-8 py-6">Security</th><th className="px-8 py-6 text-center">Status</th><th className="px-8 py-6 text-center">Action</th></tr></thead>
       <tbody className="divide-y divide-slate-50">
-        {records.length === 0 ? (<tr><td colSpan={11} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected in this node</td></tr>) : records.map(r => (
+        {records.length === 0 ? (<tr><td colSpan={11} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected</td></tr>) : records.map(r => (
           <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
             <td className="px-8 py-6"><div className="flex flex-col"><span className="text-[12px] font-black text-slate-900">{r.date}</span><span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{new Date(r.createdAt).toLocaleTimeString()}</span></div></td>
             <td className="px-8 py-6"><div className="flex flex-col space-y-3 py-2"><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p><p className="text-[9px] font-bold text-slate-400">{r.farmerPhone}</p></div><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p><p className="text-[9px] font-bold text-slate-400">{r.customerPhone}</p></div><div><p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p><p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System'}</p><p className="text-[9px] font-bold text-emerald-600/60">{r.agentPhone}</p></div></div></td>
@@ -656,10 +651,9 @@ const Table: React.FC<{ records: SaleRecord[], onStatusUpdate?: (id: string, s: 
             <td className="px-8 py-6"><SecurityBadge record={r} /></td>
             <td className="px-8 py-6 text-center"><span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{r.status}</span></td>
             <td className="px-8 py-6 text-center">
-              {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Forward to Finance</button>)}
-              {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Approve Receipt</button>)}
-              {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Stamp & Verify</button>)}
-              {r.status === RecordStatus.VERIFIED && (<span className="text-[10px] text-emerald-800 font-bold uppercase tracking-widest italic opacity-80"><i className="fas fa-check-double mr-2"></i>Fully Verified</span>)}
+              {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Forward Finance</button>)}
+              {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Approve</button>)}
+              {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Verify</button>)}
             </td>
           </tr>
         ))}
