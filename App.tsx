@@ -4,7 +4,6 @@ import { SaleRecord, RecordStatus, SystemRole, AgentIdentity } from './types.ts'
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
-import { analyzeSalesData } from './services/geminiService.ts';
 import { syncToGoogleSheets, fetchFromGoogleSheets } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
@@ -287,10 +286,7 @@ const App: React.FC = () => {
     setIsSyncing(true);
     const success = await syncToGoogleSheets(unsynced);
     if (success) {
-      setRecords(prev => prev.map(r => {
-        const matching = unsynced.find(u => u.id === r.id);
-        return matching ? { ...r, synced: true } : r;
-      }));
+      setRecords(prev => prev.map(r => ({ ...r, synced: true })));
       alert(`Success: ${unsynced.length} records pushed to Google Sheets.`);
     } else {
       alert("Sync failed. Check your Webhook URL or internet connection.");
@@ -319,18 +315,30 @@ const App: React.FC = () => {
 
     const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
 
+    if (currentPortal === 'SALES') {
+      return {
+        revenue: latest?.totalSale || 0,
+        commission: `Due: ${dueComm.toLocaleString()} | Appr: ${verifiedComm.toLocaleString()}`, 
+        units: latest?.unitsSold || 0,
+        unitType: latest?.unitType || '',
+        price: latest?.unitPrice || 0,
+        approvedComm: verifiedComm, 
+        awaitingAuditComm,
+        awaitingFinanceComm
+      };
+    }
+    
     return { 
       revenue: totalSales || 0, 
       commission: awaitingFinanceComm, 
       units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0, 
-      unitType: latest?.unitType || 'Units', 
+      unitType: '', 
       price: latest?.unitPrice || 0,
       approvedComm: verifiedComm,
       awaitingAuditComm,
-      awaitingFinanceComm,
-      dueComm
+      awaitingFinanceComm
     };
-  }, [records, isPrivileged, agentIdentity]);
+  }, [records, isPrivileged, agentIdentity, currentPortal]);
 
   const unsyncedCount = useMemo(() => records.filter(r => !r.synced).length, [records]);
 
@@ -440,17 +448,13 @@ const App: React.FC = () => {
           {currentPortal === 'SALES' && (
             <div className="flex flex-col space-y-4">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Total Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
-                <StatCard label="Auditor Verified" value={`KSh ${stats.approvedComm.toLocaleString()}`} icon="fa-check-double" color="bg-white/5" />
-                <StatCard label="Unsynced Records" value={unsyncedCount.toLocaleString()} icon="fa-cloud-arrow-up" color="bg-white/5" />
-                <StatCard label="Current Unit Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
+                <StatCard label="Recent Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
+                <StatCard label="Commission Ledger" value={typeof stats.commission === 'string' ? stats.commission : `KSh ${stats.commission.toLocaleString()}`} icon="fa-clock-rotate-left" color="bg-white/5" />
+                <StatCard label="Recent Volume" value={stats.units > 0 ? `${stats.units} ${stats.unitType}` : stats.units.toLocaleString()} icon="fa-boxes-stacked" color="bg-white/5" />
+                <StatCard label="Unit Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
               </div>
               {unsyncedCount > 0 && (
-                <button 
-                  onClick={handleBulkSync} 
-                  disabled={isSyncing} 
-                  className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 text-[10px] font-black uppercase py-4 rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-emerald-500/10 active:scale-95"
-                >
+                <button onClick={handleBulkSync} disabled={isSyncing} className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 text-[10px] font-black uppercase py-4 rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-emerald-500/10 active:scale-95">
                   {isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}
                   Sync {unsyncedCount} Local Records to Cloud
                 </button>
