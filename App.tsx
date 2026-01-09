@@ -183,23 +183,34 @@ const App: React.FC = () => {
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
   }, [isAuthLoading, agentIdentity]);
 
+  // Strict role-based portal visibility mapping
   const availablePortals = useMemo(() => {
-    const base: PortalType[] = ['SALES'];
-    if (isPrivileged) {
-      base.push('FINANCE', 'AUDIT', 'BOARD');
+    if (!agentIdentity) return ['SALES'] as PortalType[];
+    
+    if (agentIdentity.role === SystemRole.SYSTEM_DEVELOPER) {
+      return ['SALES', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'] as PortalType[];
     }
-    if (isSystemDev) {
-      base.push('SYSTEM');
+    
+    switch (agentIdentity.role) {
+      case SystemRole.FIELD_AGENT:
+        return ['SALES'] as PortalType[];
+      case SystemRole.FINANCE_OFFICER:
+        return ['FINANCE'] as PortalType[];
+      case SystemRole.AUDITOR:
+        return ['AUDIT'] as PortalType[];
+      case SystemRole.MANAGER: // 'Director' in UI
+        return ['BOARD'] as PortalType[];
+      default:
+        return ['SALES'] as PortalType[];
     }
-    return base;
-  }, [isPrivileged, isSystemDev]);
+  }, [agentIdentity]);
 
+  // Ensure user is on a portal they are authorized to view
   useEffect(() => {
-    const available = availablePortals;
-    if (!available.includes(currentPortal)) {
-      setCurrentPortal('SALES');
+    if (availablePortals.length > 0 && !availablePortals.includes(currentPortal)) {
+      setCurrentPortal(availablePortals[0]);
     }
-  }, [agentIdentity, availablePortals]);
+  }, [availablePortals, currentPortal]);
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
