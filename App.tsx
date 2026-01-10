@@ -406,7 +406,8 @@ const App: React.FC = () => {
 
   const logStats = useMemo(() => {
     const threshold = new Date(new Date().getTime() - logFilterDays * 24 * 60 * 60 * 1000);
-    const filtered = records.filter(r => new Date(r.date) >= threshold);
+    // Fix: Using .getTime() for date comparison to satisfy TypeScript arithmetic operation requirements
+    const filtered = records.filter(r => new Date(r.date).getTime() >= threshold.getTime());
     return {
       totalSales: filtered.reduce((sum, r) => sum + r.totalSale, 0),
       totalComm: filtered.reduce((sum, r) => sum + r.coopProfit, 0),
@@ -424,12 +425,14 @@ const App: React.FC = () => {
     return {
       monthly: {
         sales: records
-          .filter(r => new Date(r.date) >= startOfMonth)
+          // Fix: Using .getTime() for date comparison to satisfy TypeScript arithmetic operation requirements
+          .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
           .reduce((sum, r) => sum + r.totalSale, 0),
       },
       weekly: {
         sales: records
-          .filter(r => new Date(r.date) >= startOfWeek)
+          // Fix: Using .getTime() for date comparison to satisfy TypeScript arithmetic operation requirements
+          .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
           .reduce((sum, r) => sum + r.totalSale, 0),
       }
     };
@@ -477,7 +480,7 @@ const App: React.FC = () => {
   }, [filteredRecords]);
 
   const boardMetrics = useMemo(() => {
-    const approvedVerified = records.filter(r => r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED);
+    // Commodity Performance (Existing)
     const performanceMap = records.reduce((acc, r) => {
       const label = `${r.cropType} (${r.date})`;
       acc[label] = (acc[label] || 0) + r.coopProfit;
@@ -488,7 +491,26 @@ const App: React.FC = () => {
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
       return new Date(dateA).getTime() - new Date(dateB).getTime();
     }).slice(-15);
-    return { performanceData };
+
+    // Cluster Performance (New)
+    const clusterMap = records.reduce((acc, r) => {
+      const cluster = r.cluster || 'Unassigned';
+      acc[cluster] = (acc[cluster] || 0) + r.coopProfit;
+      return acc;
+    }, {} as Record<string, number>);
+    const clusterPerformance = Object.entries(clusterMap).sort((a, b) => b[1] - a[1]);
+
+    // Top 5 Field Agents (New)
+    const agentMap = records.reduce((acc, r) => {
+      const agent = r.agentName || 'Unknown Agent';
+      acc[agent] = (acc[agent] || 0) + r.coopProfit;
+      return acc;
+    }, {} as Record<string, number>);
+    const topAgents = Object.entries(agentMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    return { performanceData, clusterPerformance, topAgents };
   }, [records]);
 
   if (!agentIdentity) {
@@ -501,7 +523,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Trust. Growth. Harvest.</p>
         </div>
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
@@ -634,9 +656,9 @@ const App: React.FC = () => {
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Commission Yield Analysis</p>
                     </div>
                   </div>
-                  <div className="flex-1 min-h-[450px] flex items-end justify-between pl-24 pr-6 pb-32 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-visible">
+                  <div className="flex-1 min-h-[350px] flex items-end justify-between pl-24 pr-6 pb-20 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-visible">
                     {/* Background Grid Lines */}
-                    <div className="absolute inset-0 pl-24 pr-6 pb-32 pt-8 pointer-events-none flex flex-col justify-between">
+                    <div className="absolute inset-0 pl-24 pr-6 pb-20 pt-8 pointer-events-none flex flex-col justify-between">
                       {[1, 0.75, 0.5, 0.25, 0].map((_, i) => (
                         <div key={i} className="w-full border-t border-slate-200/60 h-0 first:border-t-0"></div>
                       ))}
@@ -647,7 +669,7 @@ const App: React.FC = () => {
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
                         const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
                         return intervals.map((val, idx) => (
-                          <div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(128px + ${(100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>
+                          <div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(80px + ${(100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>
                             KSh {Math.round(val).toLocaleString()}
                           </div>
                         ));
@@ -657,15 +679,14 @@ const App: React.FC = () => {
                         const [crop, datePart] = label.split(' (');
                         return (
                           <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1.5 z-10">
-                            <div className="w-full max-w-[48px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-emerald-500/20" style={{ height: `${heightPercent}%` }}>
+                            <div className="w-full max-w-[32px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-emerald-500/20" style={{ height: `${heightPercent}%` }}>
                               <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap transform translate-y-2 group-hover:translate-y-0">
                                 <p className="text-emerald-400 text-[8px] mb-1 uppercase tracking-widest">{crop}</p>
                                 KSh {value.toLocaleString()}
                               </div>
                             </div>
-                            <div className="absolute -bottom-24 flex flex-col items-center transform rotate-45 origin-left mt-4">
-                              <span className="text-[9px] font-black text-slate-800 uppercase whitespace-nowrap">{crop}</span>
-                              <span className="text-[7px] font-bold text-slate-400 whitespace-nowrap">{datePart?.replace(')', '')}</span>
+                            <div className="absolute -bottom-16 flex flex-col items-center transform rotate-45 origin-left mt-4">
+                              <span className="text-[7px] font-black text-slate-800 uppercase whitespace-nowrap">{crop}</span>
                             </div>
                           </div>
                         );
@@ -677,19 +698,94 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                  <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden h-full">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
                     <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-4">Integrity Snapshots</p>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div>
                         <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Gross Sales</p>
-                        <p className="text-xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
+                        <p className="text-2xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Gross Sales</p>
-                        <p className="text-xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
+                        <p className="text-2xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
+                      </div>
+                      <div className="pt-6 border-t border-white/5">
+                        <div className="flex items-center space-x-2">
+                           <i className="fas fa-circle-check text-emerald-400 text-[10px]"></i>
+                           <span className="text-[9px] font-black uppercase tracking-widest">Coop Status: Optimal</span>
+                        </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+             </div>
+
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Cluster Performance Chart */}
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
+                  <div className="flex justify-between items-center mb-10">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cluster Yield Analysis</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Regional Commission Contribution</p>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-[300px] flex items-end justify-around px-10 pb-16 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-visible">
+                    {boardMetrics.clusterPerformance.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : (
+                      boardMetrics.clusterPerformance.map(([cluster, value]) => {
+                        const maxVal = Math.max(...boardMetrics.clusterPerformance.map(d => d[1]), 1);
+                        const heightPercent = (value / maxVal) * 100;
+                        return (
+                          <div key={cluster} className="flex flex-col items-center group relative h-full justify-end px-4 w-full max-w-[100px] z-10">
+                            <div className="w-full bg-blue-600 rounded-t-xl transition-all duration-500 group-hover:bg-blue-700 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-blue-500/20" style={{ height: `${heightPercent}%` }}>
+                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap">
+                                KSh {value.toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="absolute -bottom-10 flex flex-col items-center">
+                              <span className="text-[9px] font-black text-slate-800 uppercase whitespace-nowrap">{cluster}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Top 5 Field Agents Leaderboard */}
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
+                  <div className="flex justify-between items-center mb-10">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Leaderboard</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Top 5 Performers by Commission</p>
+                    </div>
+                    <i className="fas fa-trophy text-amber-500 text-xl"></i>
+                  </div>
+                  <div className="space-y-6 flex-1 flex flex-col justify-center">
+                    {boardMetrics.topAgents.length === 0 ? (
+                      <div className="text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-10">No performance data</div>
+                    ) : (
+                      boardMetrics.topAgents.map(([name, value], idx) => {
+                        const maxVal = Math.max(...boardMetrics.topAgents.map(d => d[1]), 1);
+                        const widthPercent = (value / maxVal) * 100;
+                        return (
+                          <div key={name} className="space-y-2">
+                            <div className="flex justify-between items-end">
+                              <div className="flex items-center space-x-3">
+                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-slate-100 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                                  {idx + 1}
+                                </span>
+                                <span className="text-[12px] font-black text-slate-800 uppercase tracking-tight">{name}</span>
+                              </div>
+                              <span className="text-[11px] font-black text-slate-500">KSh {value.toLocaleString()}</span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]" style={{ width: `${widthPercent}%` }}></div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
              </div>
