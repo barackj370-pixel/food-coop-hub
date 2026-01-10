@@ -3,7 +3,7 @@ import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } fr
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
-import { syncToGoogleSheets, fetchFromGoogleSheets } from './services/googleSheetsService.ts';
+import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
@@ -131,6 +131,17 @@ const App: React.FC = () => {
     cluster: CLUSTERS[0]
   });
 
+  // Fetch users from cloud on startup to allow cross-device login
+  useEffect(() => {
+    const loadCloudUsers = async () => {
+      const cloudUsers = await fetchUsersFromCloud();
+      if (cloudUsers) {
+        persistence.set('coop_users', JSON.stringify(cloudUsers));
+      }
+    };
+    loadCloudUsers();
+  }, []);
+
   useEffect(() => {
     const saved = persistence.get('food_coop_data');
     if (saved) { try { setRecords(JSON.parse(saved)); } catch (e) { } }
@@ -237,7 +248,7 @@ const App: React.FC = () => {
     }
   }, [availablePortals, currentPortal]);
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
 
@@ -245,61 +256,62 @@ const App: React.FC = () => {
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     const targetName = authForm.name.trim();
     const targetRole = authForm.role;
-    const targetRoleCluster = authForm.cluster;
+    const targetCluster = authForm.cluster;
 
-    setTimeout(() => {
-      const usersData = persistence.get('coop_users');
-      let users: AgentIdentity[] = usersData ? JSON.parse(usersData) : [];
+    // Refresh cloud users before attempt
+    const latestCloudUsers = await fetchUsersFromCloud();
+    let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
 
-      if (isRegisterMode) {
-        if (!targetName || targetPhone.length < 10 || targetPasscode.length !== 4) {
-          alert("Validation failed: All fields required.");
-          setIsAuthLoading(false);
-          return;
-        }
-        
-        const exists = users.find(u => u.phone.replace(/\D/g, '') === targetPhone);
-        if (exists) {
-          alert("Account already exists.");
-          setIsAuthLoading(false);
-          return;
-        }
-
-        const newUser: AgentIdentity = { 
-          name: targetName, 
-          phone: targetPhone, 
-          passcode: targetPasscode, 
-          role: authForm.role,
-          cluster: targetRoleCluster,
-          status: 'ACTIVE',
-          ...(authForm.role === SystemRole.FIELD_AGENT && {
-            warnings: 0,
-            lastCheckWeek: getWeekKey(new Date())
-          })
-        };
-        users.push(newUser);
-        persistence.set('coop_users', JSON.stringify(users));
-        setAgentIdentity(newUser);
-      } else {
-        const user = users.find(u => 
-          u.phone.replace(/\D/g, '') === targetPhone && 
-          u.passcode.replace(/\D/g, '') === targetPasscode
-        );
-        
-        if (user) {
-          if (user.status === 'SUSPENDED') {
-            alert("This account is suspended due to target failures. Contact the Director for approval.");
-          } else if (user.status === 'AWAITING_ACTIVATION') {
-            alert("Director has approved your account. Waiting for System Developer to finalize reactivation.");
-          } else {
-            setAgentIdentity(user);
-          }
-        } else {
-          alert("Authentication failed.");
-        }
+    if (isRegisterMode) {
+      if (!targetName || targetPhone.length < 10 || targetPasscode.length !== 4) {
+        alert("Validation failed: All fields required.");
+        setIsAuthLoading(false);
+        return;
       }
-      setIsAuthLoading(false);
-    }, 800);
+      
+      const exists = users.find(u => u.phone.replace(/\D/g, '') === targetPhone);
+      if (exists) {
+        alert("Account already exists.");
+        setIsAuthLoading(false);
+        return;
+      }
+
+      const newUser: AgentIdentity = { 
+        name: targetName, 
+        phone: targetPhone, 
+        passcode: targetPasscode, 
+        role: targetRole,
+        cluster: targetCluster,
+        status: 'ACTIVE',
+        ...(targetRole === SystemRole.FIELD_AGENT && {
+          warnings: 0,
+          lastCheckWeek: getWeekKey(new Date())
+        })
+      };
+      
+      users.push(newUser);
+      persistence.set('coop_users', JSON.stringify(users));
+      await syncUserToCloud(newUser); // Sync new user to cloud for cross-device visibility
+      setAgentIdentity(newUser);
+    } else {
+      const user = users.find(u => 
+        u.phone.replace(/\D/g, '') === targetPhone && 
+        u.passcode.replace(/\D/g, '') === targetPasscode
+      );
+      
+      if (user) {
+        if (user.status === 'SUSPENDED') {
+          alert("This account is suspended due to target failures. Contact the Director for approval.");
+        } else if (user.status === 'AWAITING_ACTIVATION') {
+          alert("Director has approved your account. Waiting for System Developer to finalize reactivation.");
+        } else {
+          setAgentIdentity(user);
+        }
+      } else {
+        alert("Authentication failed. Check details or verify your cloud connection.");
+      }
+    }
+    setIsAuthLoading(false);
   };
 
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
@@ -499,7 +511,8 @@ const App: React.FC = () => {
                       {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
                     </select>
                   </div>
-                  {authForm.role === SystemRole.FIELD_AGENT && (
+                  {/* Updated: Cluster selection visible for System Developer registration as well */}
+                  {(authForm.role === SystemRole.FIELD_AGENT || authForm.role === SystemRole.SYSTEM_DEVELOPER) && (
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
                       <select value={authForm.cluster} onChange={(e) => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
@@ -528,7 +541,10 @@ const App: React.FC = () => {
               <div>
                 <h1 className="text-2xl font-black uppercase tracking-tight leading-none">Food Coop Hub</h1>
                 <div className="flex items-center space-x-2 mt-2">
-                  <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/20 tracking-widest">{agentIdentity.role} ({agentIdentity.cluster})</span>
+                  {/* Updated: Remove cluster display from header if System Developer */}
+                  <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/20 tracking-widest">
+                    {agentIdentity.role} {agentIdentity.role !== SystemRole.SYSTEM_DEVELOPER ? `(${agentIdentity.cluster})` : ''}
+                  </span>
                   {agentIdentity.role === SystemRole.FIELD_AGENT && agentIdentity.warnings && agentIdentity.warnings > 0 && (
                     <div className="flex items-center space-x-1 ml-2">
                       {[...Array(agentIdentity.warnings)].map((_, i) => (
