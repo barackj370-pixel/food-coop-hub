@@ -405,9 +405,9 @@ const App: React.FC = () => {
   };
 
   const logStats = useMemo(() => {
-    const threshold = new Date(new Date().getTime() - logFilterDays * 24 * 60 * 60 * 1000);
-    // Fix: Using .getTime() for date comparison to satisfy TypeScript arithmetic operation requirements
-    const filtered = records.filter(r => new Date(r.date).getTime() >= threshold.getTime());
+    const threshold = new Date(Date.now() - logFilterDays * 24 * 60 * 60 * 1000);
+    // Fix: Using unary plus for robust date comparison in TypeScript to avoid arithmetic operation errors
+    const filtered = records.filter(r => +new Date(r.date) >= +threshold);
     return {
       totalSales: filtered.reduce((sum, r) => sum + r.totalSale, 0),
       totalComm: filtered.reduce((sum, r) => sum + r.coopProfit, 0),
@@ -425,14 +425,14 @@ const App: React.FC = () => {
     return {
       monthly: {
         sales: records
-          // Fix: Using .getTime() for date comparison to satisfy TypeScript arithmetic operation requirements
-          .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
+          // Fix: Using unary plus for robust date comparison in TypeScript to satisfy arithmetic operation requirements
+          .filter(r => +new Date(r.date) >= +startOfMonth)
           .reduce((sum, r) => sum + r.totalSale, 0),
       },
       weekly: {
         sales: records
-          // Fix: Using .getTime() for date comparison to satisfy TypeScript arithmetic operation requirements
-          .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
+          // Fix: Using unary plus for robust date comparison in TypeScript to satisfy arithmetic operation requirements
+          .filter(r => +new Date(r.date) >= +startOfWeek)
           .reduce((sum, r) => sum + r.totalSale, 0),
       }
     };
@@ -489,7 +489,8 @@ const App: React.FC = () => {
     const performanceData = Object.entries(performanceMap).sort((a, b) => {
       const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
-      return new Date(dateA).getTime() - new Date(dateB).getTime();
+      // Fix: Using unary plus for robust date subtraction to satisfy TypeScript arithmetic operation requirements
+      return (+new Date(dateA)) - (+new Date(dateB));
     }).slice(-15);
 
     // Cluster Performance (New)
@@ -523,7 +524,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Trust. Growth. Harvest.</p>
         </div>
-        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
