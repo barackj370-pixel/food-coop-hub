@@ -412,6 +412,27 @@ const App: React.FC = () => {
     };
   }, [records, logFilterDays]);
 
+  // Fix: Defined periodicMetrics to resolve "Cannot find name 'periodicMetrics'" error on lines 663 and 667
+  const periodicMetrics = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - 7);
+
+    return {
+      monthly: {
+        sales: records
+          .filter(r => new Date(r.date) >= startOfMonth)
+          .reduce((sum, r) => sum + r.totalSale, 0),
+      },
+      weekly: {
+        sales: records
+          .filter(r => new Date(r.date) >= startOfWeek)
+          .reduce((sum, r) => sum + r.totalSale, 0),
+      }
+    };
+  }, [records]);
+
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
@@ -478,7 +499,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Trust. Growth. Harvest.</p>
         </div>
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
@@ -572,7 +593,6 @@ const App: React.FC = () => {
         
         {currentPortal === 'BOARD' && (
           <div className="space-y-10 animate-fade-in">
-             {/* Account Management section for Director */}
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
                <div className="flex items-center justify-between mb-8">
                  <div>
@@ -612,31 +632,62 @@ const App: React.FC = () => {
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Commission Yield Analysis</p>
                     </div>
                   </div>
-                  <div className="flex-1 min-h-[450px] flex items-end justify-between pl-16 pr-6 pb-24 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-hidden">
-                    <div className="absolute inset-0 pl-16 pr-6 pb-24 pt-8 pointer-events-none flex flex-col justify-between">
-                      {[1, 0.75, 0.5, 0.25, 0].map((_, i) => <div key={i} className="w-full border-t border-slate-200/60 h-0"></div>)}
+                  <div className="flex-1 min-h-[450px] flex items-end justify-between pl-24 pr-6 pb-32 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-visible">
+                    {/* Background Grid Lines */}
+                    <div className="absolute inset-0 pl-24 pr-6 pb-32 pt-8 pointer-events-none flex flex-col justify-between">
+                      {[1, 0.75, 0.5, 0.25, 0].map((_, i) => (
+                        <div key={i} className="w-full border-t border-slate-200/60 h-0 first:border-t-0"></div>
+                      ))}
                     </div>
+                    
                     {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : (
-                      boardMetrics.performanceData.map(([label, value]) => {
+                      <>{(() => {
+                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
+                        const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
+                        return intervals.map((val, idx) => (
+                          <div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(128px + ${(100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>
+                            KSh {Math.round(val).toLocaleString()}
+                          </div>
+                        ));
+                      })()}{boardMetrics.performanceData.map(([label, value]) => {
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
                         const heightPercent = (value / maxVal) * 100;
                         const [crop, datePart] = label.split(' (');
                         return (
                           <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1.5 z-10">
-                            <div className="w-full max-w-[48px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 relative shadow-lg" style={{ height: `${heightPercent}%` }}>
-                              <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all z-50 font-black shadow-2xl whitespace-nowrap">
-                                <p className="text-emerald-400 text-[8px] mb-1 uppercase">{crop}</p>
+                            <div className="w-full max-w-[48px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-emerald-500/20" style={{ height: `${heightPercent}%` }}>
+                              <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap transform translate-y-2 group-hover:translate-y-0">
+                                <p className="text-emerald-400 text-[8px] mb-1 uppercase tracking-widest">{crop}</p>
                                 KSh {value.toLocaleString()}
                               </div>
                             </div>
-                            <div className="absolute -bottom-20 flex flex-col items-center transform rotate-45 origin-left">
+                            <div className="absolute -bottom-24 flex flex-col items-center transform rotate-45 origin-left mt-4">
                               <span className="text-[9px] font-black text-slate-800 uppercase whitespace-nowrap">{crop}</span>
-                              <span className="text-[7px] font-bold text-slate-400 whitespace-nowrap">{datePart.replace(')', '')}</span>
+                              <span className="text-[7px] font-bold text-slate-400 whitespace-nowrap">{datePart?.replace(')', '')}</span>
                             </div>
                           </div>
                         );
-                      })
+                      })}</>
                     )}
+                    <div className="absolute -left-20 top-1/2 -rotate-90 text-[8px] font-black text-slate-400 uppercase tracking-[0.4em] pointer-events-none whitespace-nowrap">
+                      Revenue (KSh)
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
+                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-4">Integrity Snapshots</p>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Gross Sales</p>
+                        <p className="text-xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Gross Sales</p>
+                        <p className="text-xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
              </div>
@@ -708,6 +759,14 @@ const App: React.FC = () => {
                <div className="flex gap-6">
                  <div className="flex flex-col"><span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays} Days Gross</span><span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.totalSales.toLocaleString()}</span></div>
                  <div className="flex flex-col"><span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Comm.</span><span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span></div>
+                 <div className="flex flex-col border-l border-slate-200 pl-6">
+                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">All Time Gross</span>
+                   <span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.allTimeSales.toLocaleString()}</span>
+                 </div>
+                 <div className="flex flex-col">
+                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">All Time Total Comm.</span>
+                   <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.allTimeComm.toLocaleString()}</span>
+                 </div>
                </div>
             </div>
           </div>
