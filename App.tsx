@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -45,39 +44,6 @@ const computeHash = async (record: any): Promise<string> => {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
-};
-
-const exportToCSV = (records: SaleRecord[]) => {
-  if (records.length === 0) return;
-
-  const headers = [
-    'Transaction ID', 'Date', 'Crop Type', 'Unit Type', 
-    'Farmer Name', 'Farmer Phone', 'Customer Name', 'Customer Phone', 
-    'Agent Name', 'Agent Phone', 'Cluster', 'Units Sold', 'Unit Price', 
-    'Total Gross', 'Coop Commission', 'Status', 'Digital Signature'
-  ];
-
-  const rows = records.map(r => [
-    r.id, r.date, r.cropType, r.unitType,
-    `"${r.farmerName}"`, r.farmerPhone, `"${r.customerName}"`, r.customerPhone,
-    `"${r.agentName || 'System'}"`, r.agentPhone || '', r.cluster || '', r.unitsSold, r.unitPrice,
-    r.totalSale, r.coopProfit, r.status, r.signature
-  ]);
-
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.join(','))
-  ].join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', `Audit_Report_${new Date().toISOString().split('T')[0]}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
 };
 
 const CloudSyncBadge: React.FC<{ synced?: boolean; onSync?: () => void; showSyncBtn?: boolean }> = ({ synced, onSync, showSyncBtn }) => (
@@ -406,8 +372,8 @@ const App: React.FC = () => {
 
   const logStats = useMemo(() => {
     const threshold = new Date(Date.now() - logFilterDays * 24 * 60 * 60 * 1000);
-    // Fix: Using unary plus for robust date comparison in TypeScript to avoid arithmetic operation errors
-    const filtered = records.filter(r => +new Date(r.date) >= +threshold);
+    // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
+    const filtered = records.filter(r => new Date(r.date).getTime() >= threshold.getTime());
     return {
       totalSales: filtered.reduce((sum, r) => sum + r.totalSale, 0),
       totalComm: filtered.reduce((sum, r) => sum + r.coopProfit, 0),
@@ -425,14 +391,14 @@ const App: React.FC = () => {
     return {
       monthly: {
         sales: records
-          // Fix: Using unary plus for robust date comparison in TypeScript to satisfy arithmetic operation requirements
-          .filter(r => +new Date(r.date) >= +startOfMonth)
+          // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
+          .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
           .reduce((sum, r) => sum + r.totalSale, 0),
       },
       weekly: {
         sales: records
-          // Fix: Using unary plus for robust date comparison in TypeScript to satisfy arithmetic operation requirements
-          .filter(r => +new Date(r.date) >= +startOfWeek)
+          // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
+          .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
           .reduce((sum, r) => sum + r.totalSale, 0),
       }
     };
@@ -489,8 +455,8 @@ const App: React.FC = () => {
     const performanceData = Object.entries(performanceMap).sort((a, b) => {
       const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
-      // Fix: Using unary plus for robust date subtraction to satisfy TypeScript arithmetic operation requirements
-      return (+new Date(dateA)) - (+new Date(dateB));
+      // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
     }).slice(-15);
 
     // Cluster Performance (New)
@@ -767,6 +733,7 @@ const App: React.FC = () => {
                       <div className="text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-10">No performance data</div>
                     ) : (
                       boardMetrics.topAgents.map(([name, value], idx) => {
+                        // Fix: Using boardMetrics.topAgents instead of topAgents
                         const maxVal = Math.max(...boardMetrics.topAgents.map(d => d[1]), 1);
                         const widthPercent = (value / maxVal) * 100;
                         return (
