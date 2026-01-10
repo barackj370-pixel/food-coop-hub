@@ -171,7 +171,7 @@ const App: React.FC = () => {
     if (saved) { try { setRecords(JSON.parse(saved)); } catch (e) { } }
   }, []);
 
-  // Performance Monitoring Hook
+  // Performance Monitoring Hook - Strictly for FIELD_AGENT
   useEffect(() => {
     if (agentIdentity && agentIdentity.role === SystemRole.FIELD_AGENT) {
       const currentWeek = getWeekKey(new Date());
@@ -312,9 +312,12 @@ const App: React.FC = () => {
           passcode: targetPasscode, 
           role: targetRole,
           cluster: targetCluster,
-          warnings: 0,
           status: 'ACTIVE',
-          lastCheckWeek: getWeekKey(new Date())
+          // Performance tracking only for field agents
+          ...(targetRole === SystemRole.FIELD_AGENT && {
+            warnings: 0,
+            lastCheckWeek: getWeekKey(new Date())
+          })
         };
         users.push(newUser);
         persistence.set('coop_users', JSON.stringify(users));
@@ -733,7 +736,7 @@ const App: React.FC = () => {
                      <div className="overflow-x-auto">
                         <table className="w-full text-left">
                           <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Full Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Warnings</th><th className="px-8 py-4">Status</th><th className="px-8 py-4">Phone</th></tr></thead>
-                          <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-red-500">{user.warnings || 0}</td><td className="px-8 py-4"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${user.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{user.status}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td></tr>))}</tbody>
+                          <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-red-500">{user.role === SystemRole.FIELD_AGENT ? (user.warnings || 0) : '—'}</td><td className="px-8 py-4"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${user.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{user.status}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td></tr>))}</tbody>
                         </table>
                      </div>
                    </div>
