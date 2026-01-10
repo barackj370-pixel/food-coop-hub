@@ -7,10 +7,8 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     return false;
   }
 
-  // Ensure we have an array
   const rawData = Array.isArray(records) ? records : [records];
   
-  // Explicitly map fields to match the variables used in your Apps Script:
   const mappedRecords = rawData.map(r => ({
     id: r.id,
     date: r.date,
@@ -31,9 +29,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       method: 'POST',
       mode: 'no-cors', 
       cache: 'no-cache',
-      headers: {
-        'Content-Type': 'text/plain'
-      },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action: 'sync_records',
         records: mappedRecords
@@ -52,9 +48,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain'
-      },
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'get_records' })
     });
     
@@ -69,9 +63,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   }
 };
 
-/**
- * NEW: Sync a single user to the cloud for cross-device login.
- */
 export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
@@ -98,9 +89,6 @@ export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => 
   }
 };
 
-/**
- * NEW: Fetch all registered users from the cloud.
- */
 export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
   try {

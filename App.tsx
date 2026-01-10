@@ -131,7 +131,6 @@ const App: React.FC = () => {
     cluster: CLUSTERS[0]
   });
 
-  // Fetch users from cloud on startup to allow cross-device login
   useEffect(() => {
     const loadCloudUsers = async () => {
       const cloudUsers = await fetchUsersFromCloud();
@@ -258,7 +257,6 @@ const App: React.FC = () => {
     const targetRole = authForm.role;
     const targetCluster = authForm.cluster;
 
-    // Refresh cloud users before attempt
     const latestCloudUsers = await fetchUsersFromCloud();
     let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
 
@@ -291,7 +289,7 @@ const App: React.FC = () => {
       
       users.push(newUser);
       persistence.set('coop_users', JSON.stringify(users));
-      await syncUserToCloud(newUser); // Sync new user to cloud for cross-device visibility
+      await syncUserToCloud(newUser);
       setAgentIdentity(newUser);
     } else {
       const user = users.find(u => 
@@ -511,7 +509,6 @@ const App: React.FC = () => {
                       {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
                     </select>
                   </div>
-                  {/* Updated: Cluster selection visible for System Developer registration as well */}
                   {(authForm.role === SystemRole.FIELD_AGENT || authForm.role === SystemRole.SYSTEM_DEVELOPER) && (
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
@@ -541,7 +538,6 @@ const App: React.FC = () => {
               <div>
                 <h1 className="text-2xl font-black uppercase tracking-tight leading-none">Food Coop Hub</h1>
                 <div className="flex items-center space-x-2 mt-2">
-                  {/* Updated: Remove cluster display from header if System Developer */}
                   <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/20 tracking-widest">
                     {agentIdentity.role} {agentIdentity.role !== SystemRole.SYSTEM_DEVELOPER ? `(${agentIdentity.cluster})` : ''}
                   </span>
