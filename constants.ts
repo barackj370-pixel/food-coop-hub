@@ -19,7 +19,7 @@ export const PROFIT_MARGIN = 0.10; // 10% coop margin
  * CONFIGURATION: 
  * Your deployed Google Apps Script Web App URL.
  */
-export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxUpf51FjGuia1eRSH7B4axYYqK3ClBpHmAWvLxI1XIK9Pd312DCi4RLwgM0MNXlvOTAg/exec";
+export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbx2ELcTGAWx_iOfQJDye1sWjt2qsP4njpIkoHw8f349UMEbgdC786AQhLTDfLjALqy2Ow/exec";
 
 /**
  * VIEW URL:
