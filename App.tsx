@@ -399,6 +399,16 @@ const App: React.FC = () => {
     };
   }, [records]);
 
+  const stats = useMemo(() => {
+    const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
+    const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + Number(b.coopProfit), 0);
+    
+    return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
+  }, [records, isPrivileged, agentIdentity]);
+
   const filteredRecords = useMemo(() => {
     let base = records;
     if (!isPrivileged) base = base.filter(r => r.agentPhone === agentIdentity?.phone);
@@ -422,7 +432,6 @@ const App: React.FC = () => {
       acc[label] = (acc[label] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    // Fix: Cast Object.entries to [string, number][] to avoid 'unknown' type inference issues
     const performanceData: [string, number][] = (Object.entries(performanceMap) as [string, number][]).sort((a, b) => {
       const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
@@ -434,7 +443,6 @@ const App: React.FC = () => {
       acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    // Fix: Cast Object.entries to [string, number][] to avoid 'unknown' type inference and arithmetic operation issues
     const clusterPerformance: [string, number][] = (Object.entries(clusterMap) as [string, number][]).sort((a, b) => b[1] - a[1]);
 
     const agentMap = records.reduce((acc, r) => {
@@ -442,7 +450,6 @@ const App: React.FC = () => {
       acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    // Fix: Cast Object.entries to [string, number][] to avoid 'unknown' type inference and arithmetic operation issues
     const topAgents: [string, number][] = (Object.entries(agentMap) as [string, number][])
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
@@ -458,9 +465,9 @@ const App: React.FC = () => {
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl mb-4 border border-emerald-500/30"><i className="fas fa-leaf text-xl"></i></div>
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
-           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Trust. Growth. Harvest.</p>
+           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
         </div>
-        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
@@ -529,7 +536,7 @@ const App: React.FC = () => {
                       ))}
                     </div>
                   )}
-                  <span className="text-emerald-400/40 text-[10px] font-black uppercase tracking-[0.3em]">Session Verified</span>
+                  <span className="text-emerald-400/40 text-[10px] font-black uppercase tracking-[0.3em]">Digital Reporting Platform</span>
                 </div>
               </div>
             </div>
@@ -552,16 +559,44 @@ const App: React.FC = () => {
       <main className="container mx-auto px-6 -mt-8 space-y-10 relative z-20">
         {currentPortal === 'SALES' && <div className="space-y-10 animate-fade-in"><SaleForm onSubmit={handleAddRecord} /></div>}
         
+        {currentPortal === 'FINANCE' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+             <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden border border-blue-500">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
+                <p className="text-[10px] font-black text-blue-100 uppercase tracking-[0.4em] mb-4">Urgent Actions</p>
+                <p className="text-[8px] font-black text-blue-200 uppercase tracking-widest mb-1">Awaiting Finance Approval</p>
+                <p className="text-3xl font-black">KSh {stats.awaitingFinanceComm.toLocaleString()}</p>
+                <div className="mt-6 pt-6 border-t border-white/10">
+                  <span className="text-[9px] font-black uppercase tracking-widest bg-white/10 px-3 py-1 rounded-lg">High Visibility Queue</span>
+                </div>
+             </div>
+          </div>
+        )}
+
         {currentPortal === 'AUDIT' && (
-          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl animate-fade-in">
-             <div className="flex items-center justify-between mb-8">
-               <div>
-                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Audit Controls</h3>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal System Integrity Oversight</p>
+          <div className="space-y-10 animate-fade-in">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden border border-emerald-800">
+                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
+                   <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-4">Verification Desk</p>
+                   <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest mb-1">Awaiting Auditor's Stamp</p>
+                   <p className="text-3xl font-black">KSh {stats.awaitingAuditComm.toLocaleString()}</p>
+                   <div className="mt-6 pt-6 border-t border-white/5">
+                      <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-lg">Audit Verification Required</span>
+                   </div>
+                </div>
+             </div>
+
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <div className="flex items-center justify-between mb-8">
+                 <div>
+                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Audit Controls</h3>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal System Integrity Oversight</p>
+                 </div>
+                 <button onClick={() => exportToCSV(records)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-6 py-3 rounded-2xl shadow-xl active:scale-95 transition-all">
+                   <i className="fas fa-file-csv mr-2"></i>Download Audit Report
+                 </button>
                </div>
-               <button onClick={() => exportToCSV(records)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-6 py-3 rounded-2xl shadow-xl active:scale-95 transition-all">
-                 <i className="fas fa-file-csv mr-2"></i>Download Audit Report
-               </button>
              </div>
           </div>
         )}
@@ -848,7 +883,9 @@ const Table: React.FC<{
                 <td className="px-8 py-6 text-center"><span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{r.status}</span></td>
                 <td className="px-8 py-6 text-center">
                   {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Forward Finance</button>)}
+                  {/* Fixed undefined 'id' by using 'r.id' */}
                   {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Approve</button>)}
+                  {/* Fixed undefined 'id' by using 'r.id' */}
                   {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Verify</button>)}
                 </td>
               </tr>
