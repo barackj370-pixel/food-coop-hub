@@ -456,7 +456,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Trust. Growth. Harvest.</p>
         </div>
-        <div className="w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
@@ -674,19 +674,46 @@ const App: React.FC = () => {
           <div className="space-y-10 animate-fade-in">
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
-                  <div className="flex justify-between items-center mb-10"><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Performance (Commission)</h3><button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-export mr-3"></i>Export Report</button></div>
-                  <div className="flex-1 min-h-[450px] flex items-end justify-between pl-16 pr-6 pb-20 pt-8 border-b border-slate-100 relative">
+                  <div className="flex justify-between items-center mb-10">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Performance</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Commission Yield Analysis</p>
+                    </div>
+                    <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-export mr-3"></i>Export Report</button>
+                  </div>
+                  <div className="flex-1 min-h-[450px] flex items-end justify-between pl-16 pr-6 pb-24 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-hidden">
+                    {/* Background Grid Lines */}
+                    <div className="absolute inset-0 pl-16 pr-6 pb-24 pt-8 pointer-events-none flex flex-col justify-between">
+                      {[1, 0.75, 0.5, 0.25, 0].map((_, i) => (
+                        <div key={i} className="w-full border-t border-slate-200/60 h-0 first:border-t-0"></div>
+                      ))}
+                    </div>
+                    
                     {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No commission data found</div>) : (
                       <>{(() => {
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
                         const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
-                        return intervals.map((val, idx) => (<div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(80px + ${idx === 4 ? 0 : (100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>{Math.round(val).toLocaleString()}</div>));
+                        return intervals.map((val, idx) => (<div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(96px + ${(100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>KSh {Math.round(val).toLocaleString()}</div>));
                       })()}{boardMetrics.performanceData.map(([label, value]) => {
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
                         const heightPercent = (value / maxVal) * 100;
-                        return (<div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1"><div className="w-full max-w-[40px] bg-blue-500 rounded-t-xl transition-all duration-700 group-hover:bg-blue-600 relative" style={{ height: `${heightPercent}%` }}><div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 font-black shadow-2xl whitespace-nowrap">KSh {value.toLocaleString()}</div></div><span className="absolute -bottom-16 text-[8px] font-black text-slate-400 uppercase rotate-45 origin-left whitespace-nowrap">{label}</span></div>);
+                        const [crop, datePart] = label.split(' (');
+                        return (
+                          <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1.5 z-10">
+                            <div className="w-full max-w-[48px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-emerald-500/20" style={{ height: `${heightPercent}%` }}>
+                              <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap transform translate-y-2 group-hover:translate-y-0">
+                                <p className="text-emerald-400 text-[8px] mb-1 uppercase tracking-widest">{crop}</p>
+                                KSh {value.toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="absolute -bottom-20 flex flex-col items-center transform rotate-45 origin-left mt-4">
+                              <span className="text-[9px] font-black text-slate-800 uppercase whitespace-nowrap">{crop}</span>
+                              <span className="text-[7px] font-bold text-slate-400 whitespace-nowrap">{datePart.replace(')', '')}</span>
+                            </div>
+                          </div>
+                        );
                       })}</>
-                    )}<div className="absolute -left-10 top-1/2 -rotate-90 text-[8px] font-black text-slate-300 uppercase tracking-widest pointer-events-none">Commission (KSh)</div>
+                    )}<div className="absolute -left-12 top-1/2 -rotate-90 text-[8px] font-black text-slate-400 uppercase tracking-[0.4em] pointer-events-none">Revenue (KSh)</div>
                   </div>
                 </div>
                 <div className="space-y-4">
