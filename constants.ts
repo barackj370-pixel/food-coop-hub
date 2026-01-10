@@ -25,4 +25,4 @@ export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKf
  * VIEW URL:
  * Your Google Sheet browser URL.
  */
-export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1SjMrFDNOd3zY-IInRcSgUIlSAeZV8AKIkOoQbPeWvoY/edit";
+export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1SjMrFDNOd3zY-IInRcSgUIlSAeZV8AKIkOoQbPeWvoY/edit?gid=0#gid=0";
