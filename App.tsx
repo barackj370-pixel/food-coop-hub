@@ -486,12 +486,14 @@ const App: React.FC = () => {
                       {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
                     </select>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
-                    <select value={authForm.cluster} onChange={(e) => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
-                      {CLUSTERS.map(c => (<option key={c} value={c} className="bg-slate-900">{c}</option>))}
-                    </select>
-                  </div>
+                  {authForm.role === SystemRole.FIELD_AGENT && (
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
+                      <select value={authForm.cluster} onChange={(e) => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
+                        {CLUSTERS.map(c => (<option key={c} value={c} className="bg-slate-900">{c}</option>))}
+                      </select>
+                    </div>
+                  )}
                 </>
               )}
               <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-emerald-500/10 active:scale-95 transition-all mt-4">{isAuthLoading ? <i className="fas fa-circle-notch fa-spin"></i> : (isRegisterMode ? 'Create Identity' : 'Authenticate')}</button>
