@@ -15,7 +15,7 @@ export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
 export const PROFIT_MARGIN = 0.10; // 10% coop margin
 
-/**
+/**https://script.google.com/macros/s/AKfycbxUpf51FjGuia1eRSH7B4axYYqK3ClBpHmAWvLxI1XIK9Pd312DCi4RLwgM0MNXlvOTAg/exec
  * CONFIGURATION: 
  * Your deployed Google Apps Script Web App URL.
  */

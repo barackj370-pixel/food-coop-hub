@@ -1,6 +1,25 @@
 import { SaleRecord, AgentIdentity } from "../types.ts";
 import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
+const safeNum = (val: any): number => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  // Remove currency symbols, commas, and other non-numeric chars except decimal point
+  const clean = String(val).replace(/[^\d.-]/g, '');
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+};
+
+const formatDate = (dateVal: any): string => {
+  if (!dateVal) return "";
+  try {
+    const d = new Date(dateVal);
+    return d.toISOString().split('T')[0];
+  } catch (e) {
+    return String(dateVal).split('T')[0];
+  }
+};
+
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) {
     console.warn("Google Sheets Webhook URL not configured.");
@@ -21,7 +40,8 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     coopProfit: r.coopProfit,
     status: r.status,
     createdBy: r.agentName || "System Agent",
-    agentPhone: r.agentPhone || "" 
+    agentPhone: r.agentPhone || "",
+    signature: r.signature // Added for integrity verification
   }));
 
   try {
@@ -55,25 +75,24 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
       const rawData = JSON.parse(text) as any[];
-      // Map cloud headers back to application keys
       return rawData.map(r => ({
         id: String(r["ID"] || ""),
-        date: String(r["Date"] || ""),
+        date: formatDate(r["Date"]),
         cropType: String(r["Commodity"] || ""),
         farmerName: String(r["Farmer"] || ""),
         farmerPhone: String(r["Farmer Phone"] || ""),
-        unitsSold: Number(r["Units"] || 0),
-        unitPrice: Number(r["Unit Price"] || 0),
-        totalSale: Number(r["Total Gross"] || 0),
-        coopProfit: Number(r["Commission"] || 0),
+        unitsSold: safeNum(r["Units"]),
+        unitPrice: safeNum(r["Unit Price"]),
+        totalSale: safeNum(r["Total Gross"] || r["Total Sale"]),
+        coopProfit: safeNum(r["Commission"] || r["Commission 10%"]),
         status: String(r["Status"] || "DRAFT") as any,
         agentName: String(r["Agent"] || ""),
         agentPhone: String(r["Agent Phone"] || ""),
-        createdAt: String(r["Date"] || new Date().toISOString()), // Fallback
+        createdAt: formatDate(r["Date"]),
         synced: true,
-        signature: "", // Re-computation happens on client
-        unitType: "Kg", // Fallback for cloud data
-        customerName: "Cloud Customer",
+        signature: String(r["Signature"] || ""),
+        unitType: "Kg",
+        customerName: "Verified Cloud Record",
         customerPhone: ""
       })) as SaleRecord[];
     }
