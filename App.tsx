@@ -245,7 +245,7 @@ const App: React.FC = () => {
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     const targetName = authForm.name.trim();
     const targetRole = authForm.role;
-    const targetCluster = authForm.cluster;
+    const targetRoleCluster = authForm.cluster;
 
     setTimeout(() => {
       const usersData = persistence.get('coop_users');
@@ -269,10 +269,10 @@ const App: React.FC = () => {
           name: targetName, 
           phone: targetPhone, 
           passcode: targetPasscode, 
-          role: targetRole,
-          cluster: targetCluster,
+          role: authForm.role,
+          cluster: targetRoleCluster,
           status: 'ACTIVE',
-          ...(targetRole === SystemRole.FIELD_AGENT && {
+          ...(authForm.role === SystemRole.FIELD_AGENT && {
             warnings: 0,
             lastCheckWeek: getWeekKey(new Date())
           })
@@ -747,7 +747,6 @@ const App: React.FC = () => {
                   <div className="space-y-6 flex-1 flex flex-col justify-center">
                     {boardMetrics.topAgents.length === 0 ? (<div className="text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-10">No performance data</div>) : (
                       boardMetrics.topAgents.map(([name, value], idx) => {
-                        // FIX: Changed from undefined 'topAgents' to 'boardMetrics.topAgents'
                         const maxVal = Math.max(...boardMetrics.topAgents.map(d => Number(d[1])), 1);
                         const widthPercent = (Number(value) / maxVal) * 100;
                         return (
@@ -873,7 +872,25 @@ const Table: React.FC<{
             {groupedRecords[cluster].map(r => (
               <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
                 <td className="px-8 py-6"><div className="flex flex-col"><span className="text-[12px] font-black text-slate-900">{r.date}</span><span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{new Date(r.createdAt).toLocaleTimeString()}</span></div></td>
-                <td className="px-8 py-6"><div className="flex flex-col space-y-3 py-2"><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p></div><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p></div><div><p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p><p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System'}</p></div></div></td>
+                <td className="px-8 py-6">
+                  <div className="flex flex-col space-y-3 py-2">
+                    <div>
+                      <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p>
+                      <p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p>
+                      <p className="text-[9px] font-bold text-slate-400 mt-0.5">{r.farmerPhone}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p>
+                      <p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p>
+                      <p className="text-[9px] font-bold text-slate-400 mt-0.5">{r.customerPhone}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p>
+                      <p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System'}</p>
+                      <p className="text-[9px] font-bold text-emerald-500/60 mt-0.5">{r.agentPhone || 'No ID'}</p>
+                    </div>
+                  </div>
+                </td>
                 <td className="px-8 py-6"><span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase">{r.cropType}</span></td>
                 <td className="px-8 py-6"><span className="text-[13px] font-black text-slate-900">{r.unitsSold}</span><span className="text-[10px] text-slate-400 ml-2 uppercase font-bold">{r.unitType}</span></td>
                 <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
