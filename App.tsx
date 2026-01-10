@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { SaleRecord, RecordStatus, SystemRole, AgentIdentity } from './types.ts';
+import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
@@ -9,6 +9,7 @@ import { syncToGoogleSheets, fetchFromGoogleSheets } from './services/googleShee
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi'];
+const WEEKLY_TARGET = 2;
 
 const persistence = {
   get: (key: string): string | null => {
@@ -20,6 +21,21 @@ const persistence = {
   remove: (key: string) => {
     try { localStorage.removeItem(key); } catch (e) { }
   }
+};
+
+const getWeekKey = (date: Date): string => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${weekNo}`;
+};
+
+const getPreviousWeekKey = (date: Date): string => {
+  const prev = new Date(date);
+  prev.setDate(prev.getDate() - 7);
+  return getWeekKey(prev);
 };
 
 const computeHash = async (record: any): Promise<string> => {
@@ -155,6 +171,58 @@ const App: React.FC = () => {
     if (saved) { try { setRecords(JSON.parse(saved)); } catch (e) { } }
   }, []);
 
+  // Performance Monitoring Hook
+  useEffect(() => {
+    if (agentIdentity && agentIdentity.role === SystemRole.FIELD_AGENT) {
+      const currentWeek = getWeekKey(new Date());
+      const lastCheck = agentIdentity.lastCheckWeek || currentWeek;
+
+      if (currentWeek !== lastCheck) {
+        const prevWeek = getPreviousWeekKey(new Date());
+        const weekSales = records.filter(r => 
+          r.agentPhone === agentIdentity.phone && 
+          getWeekKey(new Date(r.createdAt)) === prevWeek
+        ).length;
+
+        let newWarnings = agentIdentity.warnings || 0;
+        let newStatus: AccountStatus = agentIdentity.status || 'ACTIVE';
+
+        if (weekSales < WEEKLY_TARGET) {
+          newWarnings += 1;
+        }
+
+        if (newWarnings >= 3) {
+          newStatus = 'SUSPENDED';
+        }
+
+        const updatedIdentity = { 
+          ...agentIdentity, 
+          warnings: newWarnings, 
+          lastCheckWeek: currentWeek, 
+          status: newStatus 
+        };
+
+        // Update Global Registry
+        const usersData = persistence.get('coop_users');
+        if (usersData) {
+          let users: AgentIdentity[] = JSON.parse(usersData);
+          const idx = users.findIndex(u => u.phone === agentIdentity.phone);
+          if (idx !== -1) {
+            users[idx] = updatedIdentity;
+            persistence.set('coop_users', JSON.stringify(users));
+          }
+        }
+
+        setAgentIdentity(updatedIdentity);
+
+        if (newStatus === 'SUSPENDED') {
+          alert("Account Suspended: You have received 3 warnings for not meeting weekly targets. Please contact the Director.");
+          setAgentIdentity(null);
+        }
+      }
+    }
+  }, [agentIdentity, records]);
+
   useEffect(() => {
     persistence.set('food_coop_data', JSON.stringify(records));
     if (agentIdentity) {
@@ -183,7 +251,6 @@ const App: React.FC = () => {
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
   }, [isAuthLoading, agentIdentity]);
 
-  // Strict role-based portal visibility mapping
   const availablePortals = useMemo(() => {
     if (!agentIdentity) return ['SALES'] as PortalType[];
     
@@ -198,14 +265,13 @@ const App: React.FC = () => {
         return ['FINANCE'] as PortalType[];
       case SystemRole.AUDITOR:
         return ['AUDIT'] as PortalType[];
-      case SystemRole.MANAGER: // 'Director' in UI
+      case SystemRole.MANAGER: 
         return ['BOARD'] as PortalType[];
       default:
         return ['SALES'] as PortalType[];
     }
   }, [agentIdentity]);
 
-  // Ensure user is on a portal they are authorized to view
   useEffect(() => {
     if (availablePortals.length > 0 && !availablePortals.includes(currentPortal)) {
       setCurrentPortal(availablePortals[0]);
@@ -228,15 +294,14 @@ const App: React.FC = () => {
 
       if (isRegisterMode) {
         if (!targetName || targetPhone.length < 10 || targetPasscode.length !== 4) {
-          alert("Validation failed: All fields required including Full Name, 10-digit Phone, and 4-digit passcode.");
+          alert("Validation failed: All fields required.");
           setIsAuthLoading(false);
           return;
         }
         
         const exists = users.find(u => u.phone.replace(/\D/g, '') === targetPhone);
         if (exists) {
-          alert("Account already exists with this phone number. Please Log In.");
-          setIsRegisterMode(false);
+          alert("Account already exists.");
           setIsAuthLoading(false);
           return;
         }
@@ -246,7 +311,10 @@ const App: React.FC = () => {
           phone: targetPhone, 
           passcode: targetPasscode, 
           role: targetRole,
-          cluster: targetCluster
+          cluster: targetCluster,
+          warnings: 0,
+          status: 'ACTIVE',
+          lastCheckWeek: getWeekKey(new Date())
         };
         users.push(newUser);
         persistence.set('coop_users', JSON.stringify(users));
@@ -258,9 +326,15 @@ const App: React.FC = () => {
         );
         
         if (user) {
-          setAgentIdentity(user);
+          if (user.status === 'SUSPENDED') {
+            alert("This account is suspended due to target failures. Contact the Director for approval.");
+          } else if (user.status === 'AWAITING_ACTIVATION') {
+            alert("Director has approved your account. Waiting for System Developer to finalize reactivation.");
+          } else {
+            setAgentIdentity(user);
+          }
         } else {
-          alert("Authentication failed. Please check your Phone Number and Passcode.");
+          alert("Authentication failed.");
         }
       }
       setIsAuthLoading(false);
@@ -284,8 +358,6 @@ const App: React.FC = () => {
     const success = await syncToGoogleSheets(record);
     if (success) {
       setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
-    } else {
-      alert("Individual sync failed. Check connectivity.");
     }
   };
 
@@ -316,50 +388,22 @@ const App: React.FC = () => {
     }
   };
 
-  const handleBulkSync = async () => {
-    const unsynced = records.filter(r => !r.synced);
-    if (unsynced.length === 0) {
-      alert("All records are already synced to cloud.");
-      return;
+  const updateUserStatus = (phone: string, status: AccountStatus, resetWarnings = false) => {
+    const usersData = persistence.get('coop_users');
+    if (!usersData) return;
+    let users: AgentIdentity[] = JSON.parse(usersData);
+    const idx = users.findIndex(u => u.phone === phone);
+    if (idx !== -1) {
+      users[idx].status = status;
+      if (resetWarnings) users[idx].warnings = 0;
+      persistence.set('coop_users', JSON.stringify(users));
+      setIsAuthLoading(!isAuthLoading); // Force re-render of registry
     }
-    setIsSyncing(true);
-    const success = await syncToGoogleSheets(unsynced);
-    if (success) {
-      setRecords(prev => prev.map(r => ({ ...r, synced: true })));
-      alert(`Success: ${unsynced.length} records pushed to Google Sheets.`);
-    } else {
-      alert("Sync failed. Check your Webhook URL or internet connection.");
-    }
-    setIsSyncing(false);
   };
 
-  const periodicMetrics = useMemo(() => {
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    const weekly = records.filter(r => new Date(r.date) >= sevenDaysAgo);
-    const monthly = records.filter(r => new Date(r.date) >= thirtyDaysAgo);
-
-    return {
-      weekly: {
-        sales: weekly.reduce((s, r) => s + r.totalSale, 0),
-        comm: weekly.reduce((s, r) => s + r.coopProfit, 0),
-        verifiedComm: weekly.filter(r => r.status === RecordStatus.VERIFIED).reduce((s, r) => s + r.coopProfit, 0)
-      },
-      monthly: {
-        sales: monthly.reduce((s, r) => s + r.totalSale, 0),
-        comm: monthly.reduce((s, r) => s + r.coopProfit, 0),
-        verifiedComm: monthly.filter(r => r.status === RecordStatus.VERIFIED).reduce((s, r) => s + r.coopProfit, 0)
-      }
-    };
-  }, [records]);
-
   const logStats = useMemo(() => {
-    const now = new Date();
-    const threshold = new Date(now.getTime() - logFilterDays * 24 * 60 * 60 * 1000);
+    const threshold = new Date(new Date().getTime() - logFilterDays * 24 * 60 * 60 * 1000);
     const filtered = records.filter(r => new Date(r.date) >= threshold);
-
     return {
       totalSales: filtered.reduce((sum, r) => sum + r.totalSale, 0),
       totalComm: filtered.reduce((sum, r) => sum + r.coopProfit, 0),
@@ -371,12 +415,10 @@ const App: React.FC = () => {
   const stats = useMemo(() => {
     const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
     const latest = relevantRecords[0];
-    
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
     const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
     const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + b.coopProfit, 0);
     const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + b.coopProfit, 0);
-
     const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
 
     if (currentPortal === 'SALES') {
@@ -391,20 +433,8 @@ const App: React.FC = () => {
         awaitingFinanceComm
       };
     }
-    
-    return { 
-      revenue: totalSales || 0, 
-      commission: awaitingFinanceComm, 
-      units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0) || 0, 
-      unitType: '', 
-      price: latest?.unitPrice || 0,
-      approvedComm: verifiedComm,
-      awaitingAuditComm,
-      awaitingFinanceComm
-    };
+    return { revenue: totalSales, commission: awaitingFinanceComm, units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0), unitType: '', price: latest?.unitPrice || 0, approvedComm: verifiedComm, awaitingAuditComm, awaitingFinanceComm };
   }, [records, isPrivileged, agentIdentity, currentPortal]);
-
-  const unsyncedCount = useMemo(() => records.filter(r => !r.synced).length, [records]);
 
   const filteredRecords = useMemo(() => {
     let base = records;
@@ -419,20 +449,12 @@ const App: React.FC = () => {
       acc[cluster].push(r);
       return acc;
     }, {} as Record<string, SaleRecord[]>);
-
-    // Alphabetical sort by Field Agent Name (agentName)
-    Object.keys(grouped).forEach(cluster => {
-      grouped[cluster].sort((a, b) => (a.agentName || '').localeCompare(b.agentName || ''));
-    });
-
+    Object.keys(grouped).forEach(cluster => grouped[cluster].sort((a, b) => (a.agentName || '').localeCompare(b.agentName || '')));
     return grouped;
   }, [filteredRecords]);
 
-  const financeRecords = useMemo(() => filteredRecords.filter(r => r.status === RecordStatus.PAID), [filteredRecords]);
-
   const boardMetrics = useMemo(() => {
     const approvedVerified = records.filter(r => r.status === RecordStatus.VALIDATED || r.status === RecordStatus.VERIFIED);
-    const totalCommissionValue = approvedVerified.reduce((acc, r) => acc + r.coopProfit, 0);
     const performanceMap = records.reduce((acc, r) => {
       const label = `${r.cropType} (${r.date})`;
       acc[label] = (acc[label] || 0) + r.coopProfit;
@@ -443,7 +465,7 @@ const App: React.FC = () => {
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
       return new Date(dateA).getTime() - new Date(dateB).getTime();
     }).slice(-15);
-    return { totalCommission: totalCommissionValue, performanceData };
+    return { performanceData };
   }, [records]);
 
   if (!agentIdentity) {
@@ -518,6 +540,13 @@ const App: React.FC = () => {
                 <h1 className="text-2xl font-black uppercase tracking-tight leading-none">Food Coop Hub</h1>
                 <div className="flex items-center space-x-2 mt-2">
                   <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase px-2 py-0.5 rounded border border-emerald-500/20 tracking-widest">{agentIdentity.role} ({agentIdentity.cluster})</span>
+                  {agentIdentity.role === SystemRole.FIELD_AGENT && agentIdentity.warnings && agentIdentity.warnings > 0 && (
+                    <div className="flex items-center space-x-1 ml-2">
+                      {[...Array(agentIdentity.warnings)].map((_, i) => (
+                        <div key={i} className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" title={`Warning ${i+1}`}></div>
+                      ))}
+                    </div>
+                  )}
                   <span className="text-emerald-400/40 text-[10px] font-black uppercase tracking-[0.3em]">Session Verified</span>
                 </div>
               </div>
@@ -535,143 +564,46 @@ const App: React.FC = () => {
               </button>
             ))}
           </div>
-          {currentPortal === 'SALES' && (
-            <div className="flex flex-col space-y-4">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Recent Revenue" value={`KSh ${stats.revenue.toLocaleString()}`} icon="fa-sack-dollar" color="bg-white/5" />
-                <StatCard label="Commission Ledger" value={typeof stats.commission === 'string' ? stats.commission : `KSh ${stats.commission.toLocaleString()}`} icon="fa-clock-rotate-left" color="bg-white/5" />
-                <StatCard label="Recent Volume" value={stats.units > 0 ? `${stats.units} ${stats.unitType}` : stats.units.toLocaleString()} icon="fa-boxes-stacked" color="bg-white/5" />
-                <StatCard label="Unit Price" value={`KSh ${stats.price.toLocaleString()}`} icon="fa-tag" color="bg-white/5" />
-              </div>
-              {unsyncedCount > 0 && (
-                <button onClick={handleBulkSync} disabled={isSyncing} className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 text-[10px] font-black uppercase py-4 rounded-2xl flex items-center justify-center transition-all shadow-xl shadow-emerald-500/10 active:scale-95">
-                  {isSyncing ? <i className="fas fa-circle-notch fa-spin mr-3"></i> : <i className="fas fa-cloud-arrow-up mr-3"></i>}
-                  Bulk Sync {unsyncedCount} Local Records
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </header>
 
       <main className="container mx-auto px-6 -mt-8 space-y-10 relative z-20">
         {currentPortal === 'SALES' && <div className="space-y-10 animate-fade-in"><SaleForm onSubmit={handleAddRecord} /></div>}
-        {currentPortal === 'FINANCE' && (
-          <div className="space-y-10 animate-fade-in">
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-lg">
-                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-1">Monthly Sales</p>
-                   <p className="text-xl font-black text-slate-900">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
-                </div>
-                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-lg">
-                   <p className="text-[9px] font-black uppercase text-emerald-600 tracking-widest mb-1">Monthly Verified Comm.</p>
-                   <p className="text-xl font-black text-emerald-600">KSh {periodicMetrics.monthly.verifiedComm.toLocaleString()}</p>
-                </div>
-                <div className="bg-indigo-900 p-6 rounded-[2rem] text-white shadow-xl">
-                   <p className="text-[9px] font-black uppercase text-indigo-300 tracking-widest mb-1">Weekly Sales (7 Days)</p>
-                   <p className="text-xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
-                </div>
-                <div className="bg-blue-900 p-6 rounded-[2rem] text-white shadow-xl">
-                   <p className="text-[9px] font-black uppercase text-blue-300 tracking-widest mb-1">Weekly Comm. (7 Days)</p>
-                   <p className="text-xl font-black">KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
-                </div>
-             </div>
-             <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Finance Approval</p>
-                <h2 className="text-3xl font-black tracking-tight">KSh {stats.awaitingFinanceComm.toLocaleString()}</h2>
-                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Funds awaiting verification from Finance</p>
-             </div>
-             <div className="space-y-6">
-               <div className="flex items-center justify-between"><h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Forwarded Commissions</h3><span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">{financeRecords.length} Awaiting Receipt</span></div>
-               {financeRecords.length === 0 ? (
-                 <div className="bg-white p-16 rounded-[2.5rem] border-2 border-dashed border-slate-100 flex flex-col items-center justify-center text-center"><div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-200"><i className="fas fa-inbox text-2xl"></i></div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">No pending commissions found</p></div>
-               ) : (
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{financeRecords.map(r => (<CommissionCard key={r.id} record={r} onApprove={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} />))}</div>
-               )}
-             </div>
-          </div>
-        )}
-        {currentPortal === 'AUDIT' && (
-          <div className="space-y-10 animate-fade-in">
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg">
-                  <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Integrity Metrics (30 Days)</h4>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center py-4 border-b border-slate-50">
-                      <span className="text-[11px] font-bold text-slate-600">Monthly Sales</span>
-                      <span className="text-[14px] font-black text-slate-900">KSh {periodicMetrics.monthly.sales.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-4">
-                      <span className="text-[11px] font-bold text-emerald-600">Monthly Verified Commission</span>
-                      <span className="text-[14px] font-black text-emerald-600">KSh {periodicMetrics.monthly.verifiedComm.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-indigo-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-2">Rolling 7 Days Performance (Sales)</p>
-                   <h2 className="text-3xl font-black tracking-tight">KSh {periodicMetrics.weekly.sales.toLocaleString()}</h2>
-                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Gross Revenue</p>
-                </div>
-                <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                   <p className="text-[9px] font-black uppercase text-blue-400 tracking-[0.4em] mb-2">Rolling 7 Days Commission Intake</p>
-                   <h2 className="text-3xl font-black tracking-tight text-blue-400">KSh {periodicMetrics.weekly.comm.toLocaleString()}</h2>
-                   <p className="text-[10px] font-bold text-white/40 mt-4 uppercase">Weekly Coop Profit</p>
-                </div>
-             </div>
-             <div className="bg-emerald-900 p-8 rounded-[2rem] text-white shadow-xl flex flex-col justify-center">
-                <p className="text-[9px] font-black uppercase text-emerald-400/60 tracking-[0.4em] mb-2">Commissions Awaiting Audit Stamp</p>
-                <h2 className="text-3xl font-black tracking-tight">KSh {stats.awaitingAuditComm.toLocaleString()}</h2>
-                <p className="text-[10px] font-bold text-white/40 mt-4 uppercase italic">Total commissions yet to be stamped and verified by auditor</p>
-             </div>
-             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
-                <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Audit Tools</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Distributed Ledger Verification Portal</p></div>
-                <div className="flex flex-wrap gap-4">
-                  <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-8 py-5 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-excel mr-3"></i>CSV Report</button>
-                </div>
-             </div>
-          </div>
-        )}
-        {isSystemDev && currentPortal === 'SYSTEM' && (
-          <div className="space-y-10 animate-fade-in">
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                   <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden h-full">
-                     <div className="p-8 border-b border-slate-50 bg-slate-50/10"><h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Authenticated system accounts (Developer Exclusive)</p></div>
-                     <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Full Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Cluster</th><th className="px-8 py-4">Phone Number</th><th className="px-8 py-4">Passcode</th></tr></thead>
-                          <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-400">{user.cluster}</td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td><td className="px-8 py-4 text-[12px] font-mono font-bold text-slate-400">****</td></tr>))}</tbody>
-                        </table>
-                     </div>
-                   </div>
-                </div>
-                <div className="space-y-8">
-                   <div className={`p-10 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[350px] transition-all ${isConfigured ? 'bg-emerald-900' : 'bg-slate-900'}`}>
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-[60px] translate-x-1/2 -translate-y-1/2"></div>
-                      <div>
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border mb-6 ${isConfigured ? 'bg-white/10 border-white/10' : 'bg-red-500/20 border-red-500/20'}`}>
-                           <i className={`fas ${isConfigured ? 'fa-database text-emerald-400' : 'fa-triangle-exclamation text-red-400 animate-pulse'}`}></i>
-                        </div>
-                        <h4 className="text-[11px] font-black uppercase tracking-[0.4em] mb-2 text-white/60">Infrastructure Status</h4>
-                        <p className="text-xl font-black tracking-tight leading-tight">
-                          {isConfigured ? 'Central Cooperative Ledger' : 'Configuration Required'}
-                        </p>
-                        {isConfigured && <p className="text-[10px] font-bold text-white/40 mt-4 uppercase leading-relaxed">Direct browser access to the master spreadsheet synchronized with this hub.</p>}
-                      </div>
-                      {isConfigured ? (
-                        <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="mt-10 bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center shadow-xl shadow-emerald-500/20 transition-all active:scale-95">
-                          <i className="fas fa-table-list mr-2"></i>Open Cloud Sheet
-                        </a>
-                      ) : (
-                        <div className="mt-10 bg-white/5 text-white/30 font-black uppercase text-[10px] tracking-[0.2em] py-5 rounded-2xl text-center border border-white/10 italic">Update constants.ts</div>
-                      )}
-                   </div>
-                </div>
-             </div>
-          </div>
-        )}
+        
         {currentPortal === 'BOARD' && (
           <div className="space-y-10 animate-fade-in">
+             {/* Account Management section for Director */}
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <div className="flex items-center justify-between mb-8">
+                 <div>
+                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Re-instatement</h3>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Approve suspended agents for activation</p>
+                 </div>
+                 <i className="fas fa-user-shield text-slate-200 text-2xl"></i>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                   <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                     <tr><th className="px-6 py-4">Agent Name</th><th className="px-6 py-4">Cluster</th><th className="px-6 py-4">Status</th><th className="px-6 py-4 text-center">Action</th></tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-50">
+                     {registeredUsers.filter(u => u.status === 'SUSPENDED').length === 0 ? (
+                       <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No suspended agents found</td></tr>
+                     ) : registeredUsers.filter(u => u.status === 'SUSPENDED').map(user => (
+                       <tr key={user.phone}>
+                         <td className="px-6 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                         <td className="px-6 py-4 text-[11px] font-bold text-slate-400">{user.cluster}</td>
+                         <td className="px-6 py-4"><span className="px-3 py-1 bg-red-50 text-red-500 rounded-lg text-[9px] font-black uppercase">Suspended</span></td>
+                         <td className="px-6 py-4 text-center">
+                           <button onClick={() => updateUserStatus(user.phone, 'AWAITING_ACTIVATION')} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md">Approve Activation</button>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
                   <div className="flex justify-between items-center mb-10">
@@ -679,75 +611,88 @@ const App: React.FC = () => {
                       <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Commodity Performance</h3>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Commission Yield Analysis</p>
                     </div>
-                    <button onClick={() => exportToCSV(records)} disabled={records.length === 0} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[10px] font-black uppercase px-6 py-4 rounded-2xl transition-all border border-emerald-100 flex items-center shadow-sm"><i className="fas fa-file-export mr-3"></i>Export Report</button>
                   </div>
                   <div className="flex-1 min-h-[450px] flex items-end justify-between pl-16 pr-6 pb-24 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-hidden">
-                    {/* Background Grid Lines */}
                     <div className="absolute inset-0 pl-16 pr-6 pb-24 pt-8 pointer-events-none flex flex-col justify-between">
-                      {[1, 0.75, 0.5, 0.25, 0].map((_, i) => (
-                        <div key={i} className="w-full border-t border-slate-200/60 h-0 first:border-t-0"></div>
-                      ))}
+                      {[1, 0.75, 0.5, 0.25, 0].map((_, i) => <div key={i} className="w-full border-t border-slate-200/60 h-0"></div>)}
                     </div>
-                    
-                    {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No commission data found</div>) : (
-                      <>{(() => {
-                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
-                        const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
-                        return intervals.map((val, idx) => (<div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(96px + ${(100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>KSh {Math.round(val).toLocaleString()}</div>));
-                      })()}{boardMetrics.performanceData.map(([label, value]) => {
+                    {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : (
+                      boardMetrics.performanceData.map(([label, value]) => {
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
                         const heightPercent = (value / maxVal) * 100;
                         const [crop, datePart] = label.split(' (');
                         return (
                           <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1.5 z-10">
-                            <div className="w-full max-w-[48px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-emerald-500/20" style={{ height: `${heightPercent}%` }}>
-                              <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap transform translate-y-2 group-hover:translate-y-0">
-                                <p className="text-emerald-400 text-[8px] mb-1 uppercase tracking-widest">{crop}</p>
+                            <div className="w-full max-w-[48px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 relative shadow-lg" style={{ height: `${heightPercent}%` }}>
+                              <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all z-50 font-black shadow-2xl whitespace-nowrap">
+                                <p className="text-emerald-400 text-[8px] mb-1 uppercase">{crop}</p>
                                 KSh {value.toLocaleString()}
                               </div>
                             </div>
-                            <div className="absolute -bottom-20 flex flex-col items-center transform rotate-45 origin-left mt-4">
+                            <div className="absolute -bottom-20 flex flex-col items-center transform rotate-45 origin-left">
                               <span className="text-[9px] font-black text-slate-800 uppercase whitespace-nowrap">{crop}</span>
                               <span className="text-[7px] font-bold text-slate-400 whitespace-nowrap">{datePart.replace(')', '')}</span>
                             </div>
                           </div>
                         );
-                      })}</>
-                    )}<div className="absolute -left-12 top-1/2 -rotate-90 text-[8px] font-black text-slate-400 uppercase tracking-[0.4em] pointer-events-none">Revenue (KSh)</div>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
-                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-4">Integrity Snapshots</p>
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Gross Sales</p>
-                        <p className="text-xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Gross Sales</p>
-                        <p className="text-xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
-                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-4">Commission Insights</p>
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-[8px] font-black text-indigo-400/40 uppercase tracking-widest">Monthly Total Commission</p>
-                        <p className="text-xl font-black text-indigo-200">KSh {periodicMetrics.monthly.comm.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-black text-indigo-400/40 uppercase tracking-widest">Weekly Total Commission</p>
-                        <p className="text-xl font-black text-indigo-200">KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
-                      </div>
-                    </div>
+                      })
+                    )}
                   </div>
                 </div>
              </div>
           </div>
         )}
+
+        {isSystemDev && currentPortal === 'SYSTEM' && (
+          <div className="space-y-10 animate-fade-in">
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <div className="flex items-center justify-between mb-8">
+                 <div>
+                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Security & Activation</h3>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Final reactivation of approved agents</p>
+                 </div>
+                 <i className="fas fa-terminal text-slate-200 text-2xl"></i>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                   <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                     <tr><th className="px-6 py-4">Agent Name</th><th className="px-6 py-4">Phone</th><th className="px-6 py-4">Status</th><th className="px-6 py-4 text-center">Action</th></tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-50">
+                     {registeredUsers.filter(u => u.status === 'AWAITING_ACTIVATION').length === 0 ? (
+                       <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No pending reactivations</td></tr>
+                     ) : registeredUsers.filter(u => u.status === 'AWAITING_ACTIVATION').map(user => (
+                       <tr key={user.phone}>
+                         <td className="px-6 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                         <td className="px-6 py-4 text-[11px] font-bold text-slate-500">{user.phone}</td>
+                         <td className="px-6 py-4"><span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black uppercase">Awaiting Activation</span></td>
+                         <td className="px-6 py-4 text-center">
+                           <button onClick={() => updateUserStatus(user.phone, 'ACTIVE', true)} className="bg-slate-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md">Final Reactivate</button>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                   <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden h-full">
+                     <div className="p-8 border-b border-slate-50 bg-slate-50/10"><h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3><p className="text-[9px] font-bold text-slate-400 uppercase mt-1">All Authenticated System Accounts</p></div>
+                     <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Full Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Warnings</th><th className="px-8 py-4">Status</th><th className="px-8 py-4">Phone</th></tr></thead>
+                          <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50 transition-colors"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-red-500">{user.warnings || 0}</td><td className="px-8 py-4"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${user.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{user.status}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td></tr>))}</tbody>
+                        </table>
+                     </div>
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
+
+        {/* Existing Log & Table */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
           <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
@@ -755,46 +700,21 @@ const App: React.FC = () => {
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Integrity Audit</p>
             </div>
             <div className="flex flex-wrap items-center gap-6 bg-slate-50 px-6 py-4 rounded-2xl border border-slate-100">
-               <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200/50">
+               <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/50">
                  {[7, 14, 21, 30].map(d => (
-                   <button 
-                     key={d} 
-                     onClick={() => setLogFilterDays(d)}
-                     className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all duration-300 ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm scale-105' : 'text-slate-400 hover:text-slate-600'}`}
-                   >
-                     {d} Days
-                   </button>
+                   <button key={d} onClick={() => setLogFilterDays(d)} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d} Days</button>
                  ))}
                </div>
                <div className="flex gap-6">
-                 <div className="flex flex-col">
-                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays} Days Gross Revenue</span>
-                   <span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.totalSales.toLocaleString()}</span>
-                 </div>
-                 <div className="flex flex-col">
-                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Total Comm.</span>
-                   <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span>
-                 </div>
-                 <div className="flex flex-col border-l border-slate-200 pl-6">
-                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">All Time Gross</span>
-                   <span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.allTimeSales.toLocaleString()}</span>
-                 </div>
-                 <div className="flex flex-col">
-                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">All Time Total Comm.</span>
-                   <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.allTimeComm.toLocaleString()}</span>
-                 </div>
+                 <div className="flex flex-col"><span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays} Days Gross</span><span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.totalSales.toLocaleString()}</span></div>
+                 <div className="flex flex-col"><span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Comm.</span><span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span></div>
                </div>
             </div>
           </div>
-          <Table 
-            groupedRecords={groupedAndSortedRecords} 
-            portal={currentPortal} 
-            onStatusUpdate={handleUpdateStatus} 
-            onForceSync={handleSingleSync}
-          />
+          <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} />
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.1.0</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.0</p></footer>
     </div>
   );
 };
@@ -809,35 +729,25 @@ const Table: React.FC<{
     <table className="w-full text-left min-w-[1200px]">
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]"><tr><th className="px-8 py-6">Timestamp</th><th className="px-8 py-6">Participants</th><th className="px-8 py-6">Commodity</th><th className="px-8 py-6">Quantity</th><th className="px-8 py-6">Unit Price</th><th className="px-8 py-6">Total Gross</th><th className="px-8 py-6 text-emerald-600">Profit (10%)</th><th className="px-8 py-6">Backup</th><th className="px-8 py-6">Security</th><th className="px-8 py-6 text-center">Status</th><th className="px-8 py-6 text-center">Action</th></tr></thead>
       <tbody className="divide-y divide-slate-50">
-        {Object.keys(groupedRecords).length === 0 ? (<tr><td colSpan={11} className="px-8 py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px]">No records detected</td></tr>) : Object.keys(groupedRecords).map(cluster => (
+        {Object.keys(groupedRecords).length === 0 ? (<tr><td colSpan={11} className="px-8 py-20 text-center text-slate-300 font-black uppercase text-[10px]">No records detected</td></tr>) : Object.keys(groupedRecords).map(cluster => (
           <React.Fragment key={cluster}>
-            <tr className="bg-slate-50/50">
-              <td colSpan={11} className="px-8 py-3 text-[10px] font-black uppercase tracking-[0.4em] text-emerald-600 border-y border-slate-100">
-                {cluster} Cluster
-              </td>
-            </tr>
+            <tr className="bg-slate-50/50"><td colSpan={11} className="px-8 py-3 text-[10px] font-black uppercase tracking-[0.4em] text-emerald-600 border-y border-slate-100">{cluster} Cluster</td></tr>
             {groupedRecords[cluster].map(r => (
               <tr key={r.id} className="hover:bg-slate-50/30 transition-colors group">
                 <td className="px-8 py-6"><div className="flex flex-col"><span className="text-[12px] font-black text-slate-900">{r.date}</span><span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{new Date(r.createdAt).toLocaleTimeString()}</span></div></td>
-                <td className="px-8 py-6"><div className="flex flex-col space-y-3 py-2"><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p><p className="text-[9px] font-bold text-slate-400">{r.farmerPhone}</p></div><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p><p className="text-[9px] font-bold text-slate-400">{r.customerPhone}</p></div><div><p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p><p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System'}</p><p className="text-[9px] font-bold text-emerald-600/60">{r.agentPhone}</p></div></div></td>
-                <td className="px-8 py-6"><span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-wider">{r.cropType}</span></td>
+                <td className="px-8 py-6"><div className="flex flex-col space-y-3 py-2"><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Farmer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.farmerName}</p></div><div><p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Customer</p><p className="text-[11px] font-black text-slate-800 leading-none">{r.customerName}</p></div><div><p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Field Agent</p><p className="text-[11px] font-black text-emerald-800 leading-none">{r.agentName || 'System'}</p></div></div></td>
+                <td className="px-8 py-6"><span className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase">{r.cropType}</span></td>
                 <td className="px-8 py-6"><span className="text-[13px] font-black text-slate-900">{r.unitsSold}</span><span className="text-[10px] text-slate-400 ml-2 uppercase font-bold">{r.unitType}</span></td>
                 <td className="px-8 py-6 text-[12px] font-bold text-slate-500">KSh {r.unitPrice.toLocaleString()}</td>
                 <td className="px-8 py-6 text-[13px] font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
                 <td className="px-8 py-6 text-[13px] font-black text-emerald-600 bg-emerald-50/20">KSh {r.coopProfit.toLocaleString()}</td>
-                <td className="px-8 py-6">
-                  <CloudSyncBadge 
-                    synced={r.synced} 
-                    onSync={() => onForceSync?.(r.id)} 
-                    showSyncBtn={portal === 'SALES'} 
-                  />
-                </td>
+                <td className="px-8 py-6"><CloudSyncBadge synced={r.synced} onSync={() => onForceSync?.(r.id)} showSyncBtn={portal === 'SALES'} /></td>
                 <td className="px-8 py-6"><SecurityBadge record={r} /></td>
                 <td className="px-8 py-6 text-center"><span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{r.status}</span></td>
                 <td className="px-8 py-6 text-center">
-                  {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Forward Finance</button>)}
-                  {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Approve</button>)}
-                  {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md active:scale-95">Verify</button>)}
+                  {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Forward Finance</button>)}
+                  {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Approve</button>)}
+                  {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Verify</button>)}
                 </td>
               </tr>
             ))}

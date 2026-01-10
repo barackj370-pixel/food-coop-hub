@@ -14,12 +14,17 @@ export enum SystemRole {
   SYSTEM_DEVELOPER = 'System Developer'
 }
 
+export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
+
 export interface AgentIdentity {
   name: string;
   phone: string;
   role: SystemRole;
   passcode: string;
   cluster: string;
+  warnings?: number;
+  lastCheckWeek?: string;
+  status?: AccountStatus;
 }
 
 export interface SaleRecord {
