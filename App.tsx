@@ -367,9 +367,9 @@ const App: React.FC = () => {
     const filtered = records.filter(r => new Date(r.date).getTime() >= threshold.getTime());
     return {
       totalSales: filtered.reduce((sum, r) => sum + Number(r.totalSale), 0),
-      totalComm: filtered.reduce((sum, r) => sum + Number(r.coopProfit), 0),
+      totalComm: filtered.filter(r => r.status === RecordStatus.VERIFIED).reduce((sum, r) => sum + Number(r.coopProfit), 0),
       allTimeSales: records.reduce((sum, r) => sum + Number(r.totalSale), 0),
-      allTimeComm: records.reduce((sum, r) => sum + Number(r.coopProfit), 0),
+      allTimeComm: records.filter(r => r.status === RecordStatus.VERIFIED).reduce((sum, r) => sum + Number(r.coopProfit), 0),
     };
   }, [records, logFilterDays]);
 
@@ -385,7 +385,7 @@ const App: React.FC = () => {
           .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
           .reduce((sum, r) => sum + Number(r.totalSale), 0),
         comm: records
-          .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
+          .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime() && r.status === RecordStatus.VERIFIED)
           .reduce((sum, r) => sum + Number(r.coopProfit), 0),
       },
       weekly: {
@@ -393,7 +393,7 @@ const App: React.FC = () => {
           .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
           .reduce((sum, r) => sum + Number(r.totalSale), 0),
         comm: records
-          .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
+          .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime() && r.status === RecordStatus.VERIFIED)
           .reduce((sum, r) => sum + Number(r.coopProfit), 0),
       }
     };
@@ -692,12 +692,12 @@ const App: React.FC = () => {
                       <div>
                         <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Performance</p>
                         <p className="text-2xl font-black leading-none">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
-                        <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest">Comm: KSh {periodicMetrics.monthly.comm.toLocaleString()}</p>
+                        <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest">Verified Comm: KSh {periodicMetrics.monthly.comm.toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Performance</p>
                         <p className="text-2xl font-black leading-none">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
-                        <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest">Comm: KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
+                        <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest">Verified Comm: KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
                       </div>
                       <div className="pt-6 border-t border-white/5">
                         <div className="flex items-center space-x-2">
@@ -747,6 +747,7 @@ const App: React.FC = () => {
                   <div className="space-y-6 flex-1 flex flex-col justify-center">
                     {boardMetrics.topAgents.length === 0 ? (<div className="text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-10">No performance data</div>) : (
                       boardMetrics.topAgents.map(([name, value], idx) => {
+                        // FIX: Changed from undefined 'topAgents' to 'boardMetrics.topAgents'
                         const maxVal = Math.max(...boardMetrics.topAgents.map(d => Number(d[1])), 1);
                         const widthPercent = (Number(value) / maxVal) * 100;
                         return (
@@ -844,7 +845,7 @@ const App: React.FC = () => {
                </div>
                <div className="flex gap-6">
                  <div className="flex flex-col"><span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays} Days Gross</span><span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.totalSales.toLocaleString()}</span></div>
-                 <div className="flex flex-col"><span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Comm.</span><span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span></div>
+                 <div className="flex flex-col"><span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Verified Comm.</span><span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span></div>
                </div>
             </div>
           </div>
@@ -883,9 +884,7 @@ const Table: React.FC<{
                 <td className="px-8 py-6 text-center"><span className={`text-[9px] font-black uppercase px-4 py-2 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : r.status === RecordStatus.VALIDATED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : r.status === RecordStatus.PAID ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{r.status}</span></td>
                 <td className="px-8 py-6 text-center">
                   {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Forward Finance</button>)}
-                  {/* Fixed undefined 'id' by using 'r.id' */}
                   {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Approve</button>)}
-                  {/* Fixed undefined 'id' by using 'r.id' */}
                   {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl transition-all shadow-md">Verify</button>)}
                 </td>
               </tr>
