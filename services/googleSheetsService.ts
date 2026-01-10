@@ -14,10 +14,8 @@ const formatDate = (dateVal: any): string => {
   if (!dateVal) return "";
   try {
     const d = new Date(dateVal);
-    // Return YYYY-MM-DD
     return d.toISOString().split('T')[0];
   } catch (e) {
-    // Attempt to handle string dates if they are already in a recognizable format
     return String(dateVal).split('T')[0];
   }
 };
@@ -34,8 +32,11 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     id: r.id,
     date: r.date,
     cropType: r.cropType,
+    unitType: r.unitType,
     farmerName: r.farmerName,
     farmerPhone: r.farmerPhone || "", 
+    customerName: r.customerName || "",
+    customerPhone: r.customerPhone || "",
     unitsSold: r.unitsSold,
     unitPrice: r.unitPrice, 
     totalSale: r.totalSale,
@@ -83,8 +84,9 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
         cropType: String(r["Commodity"] || r["Crop Type"] || ""),
         farmerName: String(r["Farmer"] || r["Farmer Name"] || ""),
         farmerPhone: String(r["Farmer Phone"] || ""),
+        customerName: String(r["Customer"] || r["Customer Name"] || ""),
+        customerPhone: String(r["Customer Phone"] || ""),
         unitsSold: safeNum(r["Units"] || r["Units Sold"]),
-        // Map common variations for Unit Price to ensure balances are restored
         unitPrice: safeNum(r["Unit Price"] || r["Price per Unit"] || r["Price"]),
         totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["Total"]),
         coopProfit: safeNum(r["Commission"] || r["Commission 10%"] || r["Coop Profit"]),
@@ -94,9 +96,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
         createdAt: formatDate(r["Date"]),
         synced: true,
         signature: String(r["Signature"] || ""),
-        unitType: "Kg", // Standard default for cloud records
-        customerName: "Verified Cloud Record",
-        customerPhone: ""
+        unitType: String(r["Unit"] || r["Unit Type"] || "Kg"),
       })) as SaleRecord[];
     }
     return null;
