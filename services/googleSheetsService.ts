@@ -4,7 +4,7 @@ import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 const safeNum = (val: any): number => {
   if (typeof val === 'number') return val;
   if (!val) return 0;
-  // Remove currency symbols, commas, and other non-numeric chars except decimal point
+  // Remove currency symbols, commas, and other non-numeric chars except decimal point and minus
   const clean = String(val).replace(/[^\d.-]/g, '');
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
@@ -14,8 +14,10 @@ const formatDate = (dateVal: any): string => {
   if (!dateVal) return "";
   try {
     const d = new Date(dateVal);
+    // Return YYYY-MM-DD
     return d.toISOString().split('T')[0];
   } catch (e) {
+    // Attempt to handle string dates if they are already in a recognizable format
     return String(dateVal).split('T')[0];
   }
 };
@@ -41,7 +43,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     status: r.status,
     createdBy: r.agentName || "System Agent",
     agentPhone: r.agentPhone || "",
-    signature: r.signature // Added for integrity verification
+    signature: r.signature
   }));
 
   try {
@@ -78,20 +80,21 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       return rawData.map(r => ({
         id: String(r["ID"] || ""),
         date: formatDate(r["Date"]),
-        cropType: String(r["Commodity"] || ""),
-        farmerName: String(r["Farmer"] || ""),
+        cropType: String(r["Commodity"] || r["Crop Type"] || ""),
+        farmerName: String(r["Farmer"] || r["Farmer Name"] || ""),
         farmerPhone: String(r["Farmer Phone"] || ""),
-        unitsSold: safeNum(r["Units"]),
-        unitPrice: safeNum(r["Unit Price"]),
-        totalSale: safeNum(r["Total Gross"] || r["Total Sale"]),
-        coopProfit: safeNum(r["Commission"] || r["Commission 10%"]),
+        unitsSold: safeNum(r["Units"] || r["Units Sold"]),
+        // Map common variations for Unit Price to ensure balances are restored
+        unitPrice: safeNum(r["Unit Price"] || r["Price per Unit"] || r["Price"]),
+        totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["Total"]),
+        coopProfit: safeNum(r["Commission"] || r["Commission 10%"] || r["Coop Profit"]),
         status: String(r["Status"] || "DRAFT") as any,
-        agentName: String(r["Agent"] || ""),
+        agentName: String(r["Agent"] || r["Agent Name"] || ""),
         agentPhone: String(r["Agent Phone"] || ""),
         createdAt: formatDate(r["Date"]),
         synced: true,
         signature: String(r["Signature"] || ""),
-        unitType: "Kg",
+        unitType: "Kg", // Standard default for cloud records
         customerName: "Verified Cloud Record",
         customerPhone: ""
       })) as SaleRecord[];
