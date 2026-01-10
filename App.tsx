@@ -363,6 +363,8 @@ const App: React.FC = () => {
     return {
       totalSales: filtered.reduce((sum, r) => sum + r.totalSale, 0),
       totalComm: filtered.reduce((sum, r) => sum + r.coopProfit, 0),
+      allTimeSales: records.reduce((sum, r) => sum + r.totalSale, 0),
+      allTimeComm: records.reduce((sum, r) => sum + r.coopProfit, 0),
     };
   }, [records, logFilterDays]);
 
@@ -745,6 +747,14 @@ const App: React.FC = () => {
                  <div className="flex flex-col">
                    <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Total Comm.</span>
                    <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span>
+                 </div>
+                 <div className="flex flex-col border-l border-slate-200 pl-6">
+                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">All Time Gross</span>
+                   <span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.allTimeSales.toLocaleString()}</span>
+                 </div>
+                 <div className="flex flex-col">
+                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">All Time Total Comm.</span>
+                   <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.allTimeComm.toLocaleString()}</span>
                  </div>
                </div>
             </div>
