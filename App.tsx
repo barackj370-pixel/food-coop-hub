@@ -131,15 +131,21 @@ const App: React.FC = () => {
     cluster: CLUSTERS[0]
   });
 
+  // Fetch all cloud data on startup for cross-device support
   useEffect(() => {
-    const loadCloudUsers = async () => {
+    const loadCloudData = async () => {
       const cloudUsers = await fetchUsersFromCloud();
       if (cloudUsers) {
         persistence.set('coop_users', JSON.stringify(cloudUsers));
       }
+      
+      const cloudRecords = await fetchFromGoogleSheets();
+      if (cloudRecords && cloudRecords.length > 0) {
+        setRecords(cloudRecords);
+      }
     };
-    loadCloudUsers();
-  }, []);
+    loadCloudData();
+  }, [agentIdentity]); // Reload if identity changes to refresh portal context
 
   useEffect(() => {
     const saved = persistence.get('food_coop_data');
@@ -255,7 +261,8 @@ const App: React.FC = () => {
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     const targetName = authForm.name.trim();
     const targetRole = authForm.role;
-    const targetCluster = authForm.cluster;
+    // System Developer has no cluster
+    const targetCluster = targetRole === SystemRole.SYSTEM_DEVELOPER ? 'System' : authForm.cluster;
 
     const latestCloudUsers = await fetchUsersFromCloud();
     let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
@@ -509,7 +516,8 @@ const App: React.FC = () => {
                       {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
                     </select>
                   </div>
-                  {(authForm.role === SystemRole.FIELD_AGENT || authForm.role === SystemRole.SYSTEM_DEVELOPER) && (
+                  {/* Updated: Cluster selection visible for Agents. System Devs are cluster-neutral */}
+                  {authForm.role === SystemRole.FIELD_AGENT && (
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
                       <select value={authForm.cluster} onChange={(e) => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">

@@ -54,7 +54,28 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      return JSON.parse(text) as SaleRecord[];
+      const rawData = JSON.parse(text) as any[];
+      // Map cloud headers back to application keys
+      return rawData.map(r => ({
+        id: String(r["ID"] || ""),
+        date: String(r["Date"] || ""),
+        cropType: String(r["Commodity"] || ""),
+        farmerName: String(r["Farmer"] || ""),
+        farmerPhone: String(r["Farmer Phone"] || ""),
+        unitsSold: Number(r["Units"] || 0),
+        unitPrice: Number(r["Unit Price"] || 0),
+        totalSale: Number(r["Total Gross"] || 0),
+        coopProfit: Number(r["Commission"] || 0),
+        status: String(r["Status"] || "DRAFT") as any,
+        agentName: String(r["Agent"] || ""),
+        agentPhone: String(r["Agent Phone"] || ""),
+        createdAt: String(r["Date"] || new Date().toISOString()), // Fallback
+        synced: true,
+        signature: "", // Re-computation happens on client
+        unitType: "Kg", // Fallback for cloud data
+        customerName: "Cloud Customer",
+        customerPhone: ""
+      })) as SaleRecord[];
     }
     return null;
   } catch (error) {
@@ -99,7 +120,15 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
     });
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      return JSON.parse(text) as AgentIdentity[];
+      const rawUsers = JSON.parse(text) as any[];
+      return rawUsers.map(u => ({
+        name: String(u["Name"] || ""),
+        phone: String(u["Phone"] || ""),
+        role: String(u["Role"] || "") as any,
+        passcode: String(u["Passcode"] || ""),
+        cluster: String(u["Cluster"] || ""),
+        status: String(u["Status"] || "ACTIVE") as any
+      }));
     }
     return null;
   } catch (e) {
