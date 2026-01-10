@@ -324,7 +324,6 @@ const App: React.FC = () => {
 
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
-    // Fix: Explicitly cast to Number to ensure correct arithmetic operation
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
@@ -385,11 +384,17 @@ const App: React.FC = () => {
         sales: records
           .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
           .reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: records
+          .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
+          .reduce((sum, r) => sum + Number(r.coopProfit), 0),
       },
       weekly: {
         sales: records
           .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
           .reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: records
+          .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
+          .reduce((sum, r) => sum + Number(r.coopProfit), 0),
       }
     };
   }, [records]);
@@ -414,12 +419,11 @@ const App: React.FC = () => {
   const boardMetrics = useMemo(() => {
     const performanceMap = records.reduce((acc, r) => {
       const label = `${r.cropType} (${r.date})`;
-      // Fix: Ensure value is treated as Number
       acc[label] = (acc[label] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    // Fix: Explicitly type performanceData as tuple array to prevent arithmetic errors
-    const performanceData: [string, number][] = Object.entries(performanceMap).sort((a, b) => {
+    // Fix: Cast Object.entries to [string, number][] to avoid 'unknown' type inference issues
+    const performanceData: [string, number][] = (Object.entries(performanceMap) as [string, number][]).sort((a, b) => {
       const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
       return new Date(dateA).getTime() - new Date(dateB).getTime();
@@ -430,14 +434,16 @@ const App: React.FC = () => {
       acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const clusterPerformance: [string, number][] = Object.entries(clusterMap).sort((a, b) => b[1] - a[1]);
+    // Fix: Cast Object.entries to [string, number][] to avoid 'unknown' type inference and arithmetic operation issues
+    const clusterPerformance: [string, number][] = (Object.entries(clusterMap) as [string, number][]).sort((a, b) => b[1] - a[1]);
 
     const agentMap = records.reduce((acc, r) => {
       const agent = r.agentName || 'Unknown Agent';
       acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const topAgents: [string, number][] = Object.entries(agentMap)
+    // Fix: Cast Object.entries to [string, number][] to avoid 'unknown' type inference and arithmetic operation issues
+    const topAgents: [string, number][] = (Object.entries(agentMap) as [string, number][])
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
@@ -454,7 +460,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Trust. Growth. Harvest.</p>
         </div>
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
+        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
           <div className="p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div>
@@ -614,7 +620,6 @@ const App: React.FC = () => {
                     </div>
                     {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : (
                       <>{(() => {
-                        // Fix: Explicitly cast to Number for arithmetic operations
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => Number(d[1])), 1);
                         const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
                         return intervals.map((val, idx) => (
@@ -623,7 +628,6 @@ const App: React.FC = () => {
                           </div>
                         ));
                       })()}{boardMetrics.performanceData.map(([label, value]) => {
-                        // Fix: Explicitly cast to Number for arithmetic operations
                         const maxVal = Math.max(...boardMetrics.performanceData.map(d => Number(d[1])), 1);
                         const heightPercent = (Number(value) / maxVal) * 100;
                         const [crop] = label.split(' (');
@@ -651,12 +655,14 @@ const App: React.FC = () => {
                     <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-4">Integrity Snapshots</p>
                     <div className="space-y-6">
                       <div>
-                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Gross Sales</p>
-                        <p className="text-2xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Performance</p>
+                        <p className="text-2xl font-black leading-none">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
+                        <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest">Comm: KSh {periodicMetrics.monthly.comm.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Gross Sales</p>
-                        <p className="text-2xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Performance</p>
+                        <p className="text-2xl font-black leading-none">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p>
+                        <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest">Comm: KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
                       </div>
                       <div className="pt-6 border-t border-white/5">
                         <div className="flex items-center space-x-2">
@@ -680,7 +686,6 @@ const App: React.FC = () => {
                   <div className="flex-1 min-h-[300px] flex items-end justify-around px-10 pb-16 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-visible">
                     {boardMetrics.clusterPerformance.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : (
                       boardMetrics.clusterPerformance.map(([cluster, value]) => {
-                        // Fix: Explicitly cast to Number for arithmetic operations
                         const maxVal = Math.max(...boardMetrics.clusterPerformance.map(d => Number(d[1])), 1);
                         const heightPercent = (Number(value) / maxVal) * 100;
                         return (
@@ -707,7 +712,6 @@ const App: React.FC = () => {
                   <div className="space-y-6 flex-1 flex flex-col justify-center">
                     {boardMetrics.topAgents.length === 0 ? (<div className="text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-10">No performance data</div>) : (
                       boardMetrics.topAgents.map(([name, value], idx) => {
-                        // Fix: Explicitly cast to Number for arithmetic operations
                         const maxVal = Math.max(...boardMetrics.topAgents.map(d => Number(d[1])), 1);
                         const widthPercent = (Number(value) / maxVal) * 100;
                         return (
