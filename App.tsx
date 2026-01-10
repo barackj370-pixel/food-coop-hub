@@ -46,6 +46,39 @@ const computeHash = async (record: any): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
 };
 
+const exportToCSV = (records: SaleRecord[]) => {
+  if (records.length === 0) return;
+
+  const headers = [
+    'Transaction ID', 'Date', 'Crop Type', 'Unit Type', 
+    'Farmer Name', 'Farmer Phone', 'Customer Name', 'Customer Phone', 
+    'Agent Name', 'Agent Phone', 'Cluster', 'Units Sold', 'Unit Price', 
+    'Total Gross', 'Coop Commission', 'Status', 'Digital Signature'
+  ];
+
+  const rows = records.map(r => [
+    r.id, r.date, r.cropType, r.unitType,
+    `"${r.farmerName}"`, r.farmerPhone, `"${r.customerName}"`, r.customerPhone,
+    `"${r.agentName || 'System'}"`, r.agentPhone || '', r.cluster || '', r.unitsSold, r.unitPrice,
+    r.totalSale, r.coopProfit, r.status, r.signature
+  ]);
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `Audit_Report_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 const CloudSyncBadge: React.FC<{ synced?: boolean; onSync?: () => void; showSyncBtn?: boolean }> = ({ synced, onSync, showSyncBtn }) => (
   <div className="flex flex-col items-start space-y-1">
     <div className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${synced ? 'bg-blue-50 text-blue-500' : 'bg-slate-100 text-slate-400'}`}>
@@ -78,39 +111,6 @@ const SecurityBadge: React.FC<{ record: SaleRecord }> = ({ record }) => {
   );
 };
 
-const CommissionCard: React.FC<{ record: SaleRecord, onApprove: () => void }> = ({ record, onApprove }) => (
-  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl flex flex-col justify-between hover:shadow-2xl transition-all border-l-4 border-l-blue-500">
-    <div>
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 mb-1">{record.id}</span>
-          <CloudSyncBadge synced={record.synced} />
-        </div>
-        <span className="text-[10px] font-bold text-slate-400">{record.date}</span>
-      </div>
-      <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-tight mb-1">{record.farmerName}</h4>
-      <p className="text-[10px] text-slate-400 font-bold uppercase mb-4">{record.cropType} • {record.unitsSold} {record.unitType}</p>
-      
-      <div className="flex items-end justify-between border-t border-slate-50 pt-4 mt-2">
-        <div>
-          <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Commission Amount</p>
-          <p className="text-[16px] font-black text-slate-900">KSh {record.coopProfit.toLocaleString()}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Sale</p>
-          <p className="text-[11px] font-bold text-slate-500">KSh {record.totalSale.toLocaleString()}</p>
-        </div>
-      </div>
-    </div>
-    <button 
-      onClick={onApprove}
-      className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase py-4 rounded-xl shadow-lg shadow-blue-500/10 active:scale-95 transition-all"
-    >
-      Approve Receipt
-    </button>
-  </div>
-);
-
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
@@ -121,7 +121,6 @@ const App: React.FC = () => {
   const [currentPortal, setCurrentPortal] = useState<PortalType>('SALES');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [logFilterDays, setLogFilterDays] = useState(7);
   
   const [authForm, setAuthForm] = useState({
@@ -137,7 +136,6 @@ const App: React.FC = () => {
     if (saved) { try { setRecords(JSON.parse(saved)); } catch (e) { } }
   }, []);
 
-  // Performance Monitoring Hook - Strictly for FIELD_AGENT
   useEffect(() => {
     if (agentIdentity && agentIdentity.role === SystemRole.FIELD_AGENT) {
       const currentWeek = getWeekKey(new Date());
@@ -168,7 +166,6 @@ const App: React.FC = () => {
           status: newStatus 
         };
 
-        // Update Global Registry
         const usersData = persistence.get('coop_users');
         if (usersData) {
           let users: AgentIdentity[] = JSON.parse(usersData);
@@ -207,10 +204,6 @@ const App: React.FC = () => {
   }, [agentIdentity]);
 
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
-
-  const isConfigured = useMemo(() => {
-    return !GOOGLE_SHEET_VIEW_URL.includes('your-sheet-id-here');
-  }, []);
 
   const registeredUsers = useMemo(() => {
     const usersData = persistence.get('coop_users');
@@ -279,7 +272,6 @@ const App: React.FC = () => {
           role: targetRole,
           cluster: targetCluster,
           status: 'ACTIVE',
-          // Performance tracking only for field agents
           ...(targetRole === SystemRole.FIELD_AGENT && {
             warnings: 0,
             lastCheckWeek: getWeekKey(new Date())
@@ -332,7 +324,8 @@ const App: React.FC = () => {
 
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const totalSale = data.unitsSold * data.unitPrice;
+    // Fix: Explicitly cast to Number to ensure correct arithmetic operation
+    const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
     
@@ -366,19 +359,18 @@ const App: React.FC = () => {
       users[idx].status = status;
       if (resetWarnings) users[idx].warnings = 0;
       persistence.set('coop_users', JSON.stringify(users));
-      setIsAuthLoading(!isAuthLoading); // Force re-render of registry
+      setIsAuthLoading(!isAuthLoading);
     }
   };
 
   const logStats = useMemo(() => {
     const threshold = new Date(Date.now() - logFilterDays * 24 * 60 * 60 * 1000);
-    // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
     const filtered = records.filter(r => new Date(r.date).getTime() >= threshold.getTime());
     return {
-      totalSales: filtered.reduce((sum, r) => sum + r.totalSale, 0),
-      totalComm: filtered.reduce((sum, r) => sum + r.coopProfit, 0),
-      allTimeSales: records.reduce((sum, r) => sum + r.totalSale, 0),
-      allTimeComm: records.reduce((sum, r) => sum + r.coopProfit, 0),
+      totalSales: filtered.reduce((sum, r) => sum + Number(r.totalSale), 0),
+      totalComm: filtered.reduce((sum, r) => sum + Number(r.coopProfit), 0),
+      allTimeSales: records.reduce((sum, r) => sum + Number(r.totalSale), 0),
+      allTimeComm: records.reduce((sum, r) => sum + Number(r.coopProfit), 0),
     };
   }, [records, logFilterDays]);
 
@@ -391,42 +383,16 @@ const App: React.FC = () => {
     return {
       monthly: {
         sales: records
-          // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
           .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
-          .reduce((sum, r) => sum + r.totalSale, 0),
+          .reduce((sum, r) => sum + Number(r.totalSale), 0),
       },
       weekly: {
         sales: records
-          // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
           .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
-          .reduce((sum, r) => sum + r.totalSale, 0),
+          .reduce((sum, r) => sum + Number(r.totalSale), 0),
       }
     };
   }, [records]);
-
-  const stats = useMemo(() => {
-    const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
-    const latest = relevantRecords[0];
-    const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + b.coopProfit, 0);
-    const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + b.coopProfit, 0);
-    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + b.coopProfit, 0);
-    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + b.coopProfit, 0);
-    const totalSales = relevantRecords.reduce((a, b) => a + b.totalSale, 0);
-
-    if (currentPortal === 'SALES') {
-      return {
-        revenue: latest?.totalSale || 0,
-        commission: `Due: ${dueComm.toLocaleString()} | Appr: ${verifiedComm.toLocaleString()}`, 
-        units: latest?.unitsSold || 0,
-        unitType: latest?.unitType || '',
-        price: latest?.unitPrice || 0,
-        approvedComm: verifiedComm, 
-        awaitingAuditComm,
-        awaitingFinanceComm
-      };
-    }
-    return { revenue: totalSales, commission: awaitingFinanceComm, units: relevantRecords.reduce((a, b) => a + b.unitsSold, 0), unitType: '', price: latest?.unitPrice || 0, approvedComm: verifiedComm, awaitingAuditComm, awaitingFinanceComm };
-  }, [records, isPrivileged, agentIdentity, currentPortal]);
 
   const filteredRecords = useMemo(() => {
     let base = records;
@@ -446,34 +412,32 @@ const App: React.FC = () => {
   }, [filteredRecords]);
 
   const boardMetrics = useMemo(() => {
-    // Commodity Performance (Existing)
     const performanceMap = records.reduce((acc, r) => {
       const label = `${r.cropType} (${r.date})`;
-      acc[label] = (acc[label] || 0) + r.coopProfit;
+      // Fix: Ensure value is treated as Number
+      acc[label] = (acc[label] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const performanceData = Object.entries(performanceMap).sort((a, b) => {
+    // Fix: Explicitly type performanceData as tuple array to prevent arithmetic errors
+    const performanceData: [string, number][] = Object.entries(performanceMap).sort((a, b) => {
       const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
-      // Fix: Using .getTime() to avoid arithmetic operation errors on Date objects
       return new Date(dateA).getTime() - new Date(dateB).getTime();
     }).slice(-15);
 
-    // Cluster Performance (New)
     const clusterMap = records.reduce((acc, r) => {
       const cluster = r.cluster || 'Unassigned';
-      acc[cluster] = (acc[cluster] || 0) + r.coopProfit;
+      acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const clusterPerformance = Object.entries(clusterMap).sort((a, b) => b[1] - a[1]);
+    const clusterPerformance: [string, number][] = Object.entries(clusterMap).sort((a, b) => b[1] - a[1]);
 
-    // Top 5 Field Agents (New)
     const agentMap = records.reduce((acc, r) => {
       const agent = r.agentName || 'Unknown Agent';
-      acc[agent] = (acc[agent] || 0) + r.coopProfit;
+      acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const topAgents = Object.entries(agentMap)
+    const topAgents: [string, number][] = Object.entries(agentMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
@@ -582,6 +546,20 @@ const App: React.FC = () => {
       <main className="container mx-auto px-6 -mt-8 space-y-10 relative z-20">
         {currentPortal === 'SALES' && <div className="space-y-10 animate-fade-in"><SaleForm onSubmit={handleAddRecord} /></div>}
         
+        {currentPortal === 'AUDIT' && (
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl animate-fade-in">
+             <div className="flex items-center justify-between mb-8">
+               <div>
+                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Audit Controls</h3>
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal System Integrity Oversight</p>
+               </div>
+               <button onClick={() => exportToCSV(records)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-6 py-3 rounded-2xl shadow-xl active:scale-95 transition-all">
+                 <i className="fas fa-file-csv mr-2"></i>Download Audit Report
+               </button>
+             </div>
+          </div>
+        )}
+
         {currentPortal === 'BOARD' && (
           <div className="space-y-10 animate-fade-in">
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
@@ -590,7 +568,12 @@ const App: React.FC = () => {
                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Re-instatement</h3>
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Approve suspended agents for activation</p>
                  </div>
-                 <i className="fas fa-user-shield text-slate-200 text-2xl"></i>
+                 <div className="flex items-center space-x-3">
+                    <button onClick={() => exportToCSV(records)} className="bg-emerald-900 hover:bg-black text-white text-[10px] font-black uppercase px-6 py-3 rounded-2xl shadow-xl active:scale-95 transition-all">
+                      <i className="fas fa-file-csv mr-2 text-emerald-400"></i>Download Audit Report
+                    </button>
+                    <i className="fas fa-user-shield text-slate-200 text-2xl"></i>
+                 </div>
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
@@ -624,32 +607,32 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex-1 min-h-[350px] flex items-end justify-between pl-24 pr-6 pb-20 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-visible">
-                    {/* Background Grid Lines */}
                     <div className="absolute inset-0 pl-24 pr-6 pb-20 pt-8 pointer-events-none flex flex-col justify-between">
                       {[1, 0.75, 0.5, 0.25, 0].map((_, i) => (
                         <div key={i} className="w-full border-t border-slate-200/60 h-0 first:border-t-0"></div>
                       ))}
                     </div>
-                    
                     {boardMetrics.performanceData.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : (
                       <>{(() => {
-                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
+                        // Fix: Explicitly cast to Number for arithmetic operations
+                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => Number(d[1])), 1);
                         const intervals = [maxVal, maxVal * 0.75, maxVal * 0.5, maxVal * 0.25, 0];
                         return intervals.map((val, idx) => (
-                          <div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(80px + ${(100 - (idx * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>
+                          <div key={idx} className="absolute left-2 text-[8px] font-black text-slate-400 pointer-events-none whitespace-nowrap" style={{ bottom: `calc(80px + ${(100 - (Number(idx) * 25)) * 0.75}%)`, transform: 'translateY(50%)' }}>
                             KSh {Math.round(val).toLocaleString()}
                           </div>
                         ));
                       })()}{boardMetrics.performanceData.map(([label, value]) => {
-                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => d[1]), 1);
-                        const heightPercent = (value / maxVal) * 100;
-                        const [crop, datePart] = label.split(' (');
+                        // Fix: Explicitly cast to Number for arithmetic operations
+                        const maxVal = Math.max(...boardMetrics.performanceData.map(d => Number(d[1])), 1);
+                        const heightPercent = (Number(value) / maxVal) * 100;
+                        const [crop] = label.split(' (');
                         return (
                           <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1.5 z-10">
                             <div className="w-full max-w-[32px] bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-emerald-500/20" style={{ height: `${heightPercent}%` }}>
                               <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap transform translate-y-2 group-hover:translate-y-0">
                                 <p className="text-emerald-400 text-[8px] mb-1 uppercase tracking-widest">{crop}</p>
-                                KSh {value.toLocaleString()}
+                                KSh {Number(value).toLocaleString()}
                               </div>
                             </div>
                             <div className="absolute -bottom-16 flex flex-col items-center transform rotate-45 origin-left mt-4">
@@ -659,9 +642,7 @@ const App: React.FC = () => {
                         );
                       })}</>
                     )}
-                    <div className="absolute -left-20 top-1/2 -rotate-90 text-[8px] font-black text-slate-400 uppercase tracking-[0.4em] pointer-events-none whitespace-nowrap">
-                      Revenue (KSh)
-                    </div>
+                    <div className="absolute -left-20 top-1/2 -rotate-90 text-[8px] font-black text-slate-400 uppercase tracking-[0.4em] pointer-events-none whitespace-nowrap">Revenue (KSh)</div>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -689,7 +670,6 @@ const App: React.FC = () => {
              </div>
 
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Cluster Performance Chart */}
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
                   <div className="flex justify-between items-center mb-10">
                     <div>
@@ -700,18 +680,15 @@ const App: React.FC = () => {
                   <div className="flex-1 min-h-[300px] flex items-end justify-around px-10 pb-16 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50 overflow-visible">
                     {boardMetrics.clusterPerformance.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : (
                       boardMetrics.clusterPerformance.map(([cluster, value]) => {
-                        const maxVal = Math.max(...boardMetrics.clusterPerformance.map(d => d[1]), 1);
-                        const heightPercent = (value / maxVal) * 100;
+                        // Fix: Explicitly cast to Number for arithmetic operations
+                        const maxVal = Math.max(...boardMetrics.clusterPerformance.map(d => Number(d[1])), 1);
+                        const heightPercent = (Number(value) / maxVal) * 100;
                         return (
                           <div key={cluster} className="flex flex-col items-center group relative h-full justify-end px-4 w-full max-w-[100px] z-10">
                             <div className="w-full bg-blue-600 rounded-t-xl transition-all duration-500 group-hover:bg-blue-700 group-hover:scale-x-105 relative shadow-lg group-hover:shadow-blue-500/20" style={{ height: `${heightPercent}%` }}>
-                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap">
-                                KSh {value.toLocaleString()}
-                              </div>
+                              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 z-50 font-black shadow-2xl whitespace-nowrap">KSh {Number(value).toLocaleString()}</div>
                             </div>
-                            <div className="absolute -bottom-10 flex flex-col items-center">
-                              <span className="text-[9px] font-black text-slate-800 uppercase whitespace-nowrap">{cluster}</span>
-                            </div>
+                            <div className="absolute -bottom-10 flex flex-col items-center"><span className="text-[9px] font-black text-slate-800 uppercase whitespace-nowrap">{cluster}</span></div>
                           </div>
                         );
                       })
@@ -719,7 +696,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Top 5 Field Agents Leaderboard */}
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
                   <div className="flex justify-between items-center mb-10">
                     <div>
@@ -729,23 +705,19 @@ const App: React.FC = () => {
                     <i className="fas fa-trophy text-amber-500 text-xl"></i>
                   </div>
                   <div className="space-y-6 flex-1 flex flex-col justify-center">
-                    {boardMetrics.topAgents.length === 0 ? (
-                      <div className="text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-10">No performance data</div>
-                    ) : (
+                    {boardMetrics.topAgents.length === 0 ? (<div className="text-center text-slate-300 font-black uppercase text-[10px] tracking-widest py-10">No performance data</div>) : (
                       boardMetrics.topAgents.map(([name, value], idx) => {
-                        // Fix: Using boardMetrics.topAgents instead of topAgents
-                        const maxVal = Math.max(...boardMetrics.topAgents.map(d => d[1]), 1);
-                        const widthPercent = (value / maxVal) * 100;
+                        // Fix: Explicitly cast to Number for arithmetic operations
+                        const maxVal = Math.max(...boardMetrics.topAgents.map(d => Number(d[1])), 1);
+                        const widthPercent = (Number(value) / maxVal) * 100;
                         return (
                           <div key={name} className="space-y-2">
                             <div className="flex justify-between items-end">
                               <div className="flex items-center space-x-3">
-                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-slate-100 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
-                                  {idx + 1}
-                                </span>
+                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-slate-100 text-slate-600' : idx === 2 ? 'bg-orange-100 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>{idx + 1}</span>
                                 <span className="text-[12px] font-black text-slate-800 uppercase tracking-tight">{name}</span>
                               </div>
-                              <span className="text-[11px] font-black text-slate-500">KSh {value.toLocaleString()}</span>
+                              <span className="text-[11px] font-black text-slate-500">KSh {Number(value).toLocaleString()}</span>
                             </div>
                             <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
                               <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(16,185,129,0.3)]" style={{ width: `${widthPercent}%` }}></div>
@@ -762,6 +734,16 @@ const App: React.FC = () => {
 
         {isSystemDev && currentPortal === 'SYSTEM' && (
           <div className="space-y-10 animate-fade-in">
+             <div className="bg-emerald-900 p-8 rounded-[2.5rem] border border-emerald-800 shadow-xl flex items-center justify-between">
+                <div>
+                   <h3 className="text-lg font-black text-white uppercase tracking-tight">Cloud Infrastructure</h3>
+                   <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Direct access to the Google Sheets data engine</p>
+                </div>
+                <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-8 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">
+                  <i className="fas fa-table mr-2"></i>Open Google Sheet
+                </a>
+             </div>
+
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
                <div className="flex items-center justify-between mb-8">
                  <div>
@@ -809,7 +791,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Existing Log & Table */}
         <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
           <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
@@ -825,14 +806,6 @@ const App: React.FC = () => {
                <div className="flex gap-6">
                  <div className="flex flex-col"><span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{logFilterDays} Days Gross</span><span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.totalSales.toLocaleString()}</span></div>
                  <div className="flex flex-col"><span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">{logFilterDays} Days Comm.</span><span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.totalComm.toLocaleString()}</span></div>
-                 <div className="flex flex-col border-l border-slate-200 pl-6">
-                   <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">All Time Gross</span>
-                   <span className="text-[12px] font-black text-slate-900 leading-none mt-0.5">KSh {logStats.allTimeSales.toLocaleString()}</span>
-                 </div>
-                 <div className="flex flex-col">
-                   <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">All Time Total Comm.</span>
-                   <span className="text-[12px] font-black text-emerald-600 leading-none mt-0.5">KSh {logStats.allTimeComm.toLocaleString()}</span>
-                 </div>
                </div>
             </div>
           </div>
