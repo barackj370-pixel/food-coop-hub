@@ -47,7 +47,13 @@ const computeHash = async (record: any): Promise<string> => {
 };
 
 const exportToCSV = (records: SaleRecord[]) => {
-  if (records.length === 0) return;
+  // Filter out 'Unassigned' cluster records from the audit report
+  const filteredRecords = records.filter(r => r.cluster !== 'Unassigned');
+  
+  if (filteredRecords.length === 0) {
+    alert("No audit-eligible records found to export.");
+    return;
+  }
 
   const headers = [
     'Transaction ID', 'Date', 'Crop Type', 'Unit Type', 
@@ -56,7 +62,7 @@ const exportToCSV = (records: SaleRecord[]) => {
     'Total Gross', 'Coop Commission', 'Status', 'Digital Signature'
   ];
 
-  const rows = records.map(r => [
+  const rows = filteredRecords.map(r => [
     r.id, r.date, r.cropType, r.unitType,
     `"${r.farmerName}"`, r.farmerPhone, `"${r.customerName}"`, r.customerPhone,
     `"${r.agentName || 'System'}"`, r.agentPhone || '', r.cluster || '', r.unitsSold, r.unitPrice,
@@ -155,7 +161,8 @@ const App: React.FC = () => {
       
       const cloudRecords = await fetchFromGoogleSheets();
       
-      // If we got a valid array (even empty), it's the absolute truth
+      // If we got a valid array (even empty), it's the absolute truth.
+      // We overwrite local state entirely to ensure "ghost" records are banished.
       if (Array.isArray(cloudRecords)) {
         setRecords(cloudRecords);
         persistence.set('food_coop_data', JSON.stringify(cloudRecords));
@@ -344,7 +351,7 @@ const App: React.FC = () => {
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
     const record = records.find(r => r.id === id);
-    if (record) {
+    if (record && record.cluster !== 'Unassigned') {
       const success = await syncToGoogleSheets({ ...record, status: newStatus });
       if (success) {
         setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, synced: true } : r));
@@ -354,7 +361,7 @@ const App: React.FC = () => {
 
   const handleSingleSync = async (id: string) => {
     const record = records.find(r => r.id === id);
-    if (!record) return;
+    if (!record || record.cluster === 'Unassigned') return;
     const success = await syncToGoogleSheets(record);
     if (success) {
       setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
@@ -415,14 +422,18 @@ const App: React.FC = () => {
       createdAt: new Date().toISOString(),
       agentPhone: agentIdentity?.phone,
       agentName: agentIdentity?.name,
-      cluster: agentIdentity?.cluster,
+      cluster: agentIdentity?.cluster || 'Unassigned',
       synced: false
     };
     
     setRecords([newRecord, ...records]);
-    const success = await syncToGoogleSheets(newRecord);
-    if (success) {
-      setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+    
+    // Only sync to Google Sheets if the cluster is NOT 'Unassigned'
+    if (newRecord.cluster !== 'Unassigned') {
+      const success = await syncToGoogleSheets(newRecord);
+      if (success) {
+        setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+      }
     }
   };
 

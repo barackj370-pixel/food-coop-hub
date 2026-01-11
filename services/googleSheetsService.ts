@@ -27,7 +27,12 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
 
   const rawData = Array.isArray(records) ? records : [records];
   
-  const mappedRecords = rawData.map(r => ({
+  // Filter out records with an 'Unassigned' cluster before syncing
+  const filteredData = rawData.filter(r => r.cluster !== 'Unassigned');
+  
+  if (filteredData.length === 0) return true; // Nothing to sync, but treat as success
+
+  const mappedRecords = filteredData.map(r => ({
     id: r.id,
     date: r.date,
     cropType: r.cropType,
