@@ -13,7 +13,6 @@ const formatDate = (dateVal: any): string => {
   if (!dateVal) return "";
   try {
     const d = new Date(dateVal);
-    // Use local date part to avoid UTC shifts that cause 'Tampered' signature mismatches
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -24,14 +23,9 @@ const formatDate = (dateVal: any): string => {
 };
 
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
-  if (!GOOGLE_SHEETS_WEBHOOK_URL) {
-    console.warn("Google Sheets Webhook URL not configured.");
-    return false;
-  }
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
 
   const rawData = Array.isArray(records) ? records : [records];
-  
-  // Filter out records with an 'Unassigned' cluster before syncing
   const filteredData = rawData.filter(r => r.cluster !== 'Unassigned' || r.agentName === 'Barack James');
   
   if (filteredData.length === 0) return true;
@@ -69,7 +63,27 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     });
     return true;
   } catch (error) {
-    console.error("Google Sheets Sync Error:", error);
+    console.error("Cloud Sync Error:", error);
+    return false;
+  }
+};
+
+export const deleteRecordFromCloud = async (id: string): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'delete_record',
+        id: id,
+        _t: Date.now()
+      })
+    });
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
+  } catch (error) {
+    console.error("Cloud Delete Error:", error);
     return false;
   }
 };
@@ -94,26 +108,29 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       const rawData = JSON.parse(trimmed);
       const dataArray = Array.isArray(rawData) ? rawData : [];
       
-      return dataArray.map(r => ({
-        id: String(r["ID"] || r["id"] || ""),
-        date: formatDate(r["Date"] || r["date"]),
-        cropType: String(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
-        farmerName: String(r["Farmer"] || r["Farmer Name"] || r["farmerName"] || ""),
-        farmerPhone: String(r["Farmer Phone"] || r["farmerPhone"] || ""),
-        customerName: String(r["Customer"] || r["Customer Name"] || r["customerName"] || ""),
-        customerPhone: String(r["Customer Phone"] || r["customerPhone"] || ""),
-        unitsSold: safeNum(r["Units"] || r["Units Sold"] || r["unitsSold"]),
-        unitPrice: safeNum(r["Unit Price"] || r["Price per Unit"] || r["Price"] || r["unitPrice"]),
-        totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["Total"] || r["totalSale"]),
-        coopProfit: safeNum(r["Commission"] || r["Commission 10%"] || r["Coop Profit"] || r["coopProfit"]),
-        status: String(r["Status"] || r["status"] || "DRAFT") as any,
-        agentName: String(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
-        agentPhone: String(r["Agent Phone"] || r["agentPhone"] || ""),
-        createdAt: formatDate(r["Created At"] || r["createdAt"] || r["Date"] || r["date"]),
-        synced: true,
-        signature: String(r["Signature"] || r["signature"] || ""),
-        unitType: String(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
-      })) as SaleRecord[];
+      // Filter out empty rows from the Excel sheet that sometimes return as empty objects
+      return dataArray
+        .filter(r => (r["ID"] || r["id"]))
+        .map(r => ({
+          id: String(r["ID"] || r["id"] || ""),
+          date: formatDate(r["Date"] || r["date"]),
+          cropType: String(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
+          farmerName: String(r["Farmer"] || r["Farmer Name"] || r["farmerName"] || ""),
+          farmerPhone: String(r["Farmer Phone"] || r["farmerPhone"] || ""),
+          customerName: String(r["Customer"] || r["Customer Name"] || r["customerName"] || ""),
+          customerPhone: String(r["Customer Phone"] || r["customerPhone"] || ""),
+          unitsSold: safeNum(r["Units"] || r["Units Sold"] || r["unitsSold"]),
+          unitPrice: safeNum(r["Unit Price"] || r["Price"] || r["unitPrice"]),
+          totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["totalSale"]),
+          coopProfit: safeNum(r["Commission"] || r["Coop Profit"] || r["coopProfit"]),
+          status: String(r["Status"] || r["status"] || "DRAFT") as any,
+          agentName: String(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
+          agentPhone: String(r["Agent Phone"] || r["agentPhone"] || ""),
+          createdAt: formatDate(r["Created At"] || r["createdAt"] || r["Date"]),
+          synced: true,
+          signature: String(r["Signature"] || r["signature"] || ""),
+          unitType: String(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
+        })) as SaleRecord[];
     }
     
     return [];
@@ -138,10 +155,8 @@ export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
       }),
     });
     const text = await response.text();
-    // Return true if status 200 or if the text response confirms deletion
-    return response.ok || text.toLowerCase().includes('success') || text.toLowerCase().includes('cleared');
+    return response.ok || text.toLowerCase().includes('success');
   } catch (error) {
-    console.error("Clear Cloud Records Error:", error);
     return false;
   }
 };
@@ -167,7 +182,6 @@ export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => 
     });
     return true;
   } catch (e) {
-    console.error("Cloud User Sync Error:", e);
     return false;
   }
 };
@@ -197,7 +211,6 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
     }
     return null;
   } catch (e) {
-    console.error("Fetch Cloud Users Error:", e);
     return null;
   }
 };

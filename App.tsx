@@ -3,7 +3,7 @@ import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } fr
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
-import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud } from './services/googleSheetsService.ts';
+import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud, deleteRecordFromCloud } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
@@ -22,6 +22,7 @@ const persistence = {
 };
 
 const computeHash = async (record: any): Promise<string> => {
+  // Strict normalization for hash matching between local and cloud
   const normalizedUnits = Number(record.unitsSold).toString();
   const normalizedPrice = Number(record.unitPrice).toString();
   const msg = `${record.id}-${record.date}-${normalizedUnits}-${normalizedPrice}`;
@@ -141,25 +142,30 @@ const App: React.FC = () => {
   }, [records, agentIdentity]);
 
   const handleClearRecords = async () => {
-    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will wipe ALL records from the Google Sheet (the CSV source) and local storage. Ghost records will be permanently deleted. Continue?")) {
+    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud Excel file and local storage. All 'ghost records' will be deleted. Continue?")) {
       try {
         await clearAllRecordsOnCloud();
         setRecords([]);
         localStorage.clear();
         sessionStorage.clear();
-        if ('serviceWorker' in navigator) {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          for (const registration of registrations) { await registration.unregister(); }
-        }
-        if ('caches' in window) {
-          const keys = await caches.keys();
-          for (const key of keys) { await caches.delete(key); }
-        }
-        alert("System Fully Cleared. Reloading...");
-        window.location.replace(window.location.origin + window.location.pathname + '?purge=' + Date.now());
+        alert("Cloud and Local Storage Cleared. App will now reload.");
+        window.location.replace(window.location.origin + window.location.pathname + '?reset=' + Date.now());
       } catch (err) {
         window.location.reload();
       }
+    }
+  };
+
+  const handleDeleteRecord = async (id: string) => {
+    if (!window.confirm("Permanently delete this record from the cloud and local log?")) return;
+    
+    // Remove locally
+    setRecords(prev => prev.filter(r => r.id !== id));
+    
+    // Attempt cloud delete
+    const success = await deleteRecordFromCloud(id);
+    if (!success) {
+      alert("Note: Cloud deletion might have failed or row already gone. Record removed locally.");
     }
   };
 
@@ -230,6 +236,9 @@ const App: React.FC = () => {
 
   const filteredRecords = useMemo(() => {
     let base = records;
+    // Strict validation: Ignore rows that are corrupted or missing essential IDs
+    base = base.filter(r => r.id && r.id.length > 2);
+
     if (!isSystemDev) {
       const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
                      agentIdentity?.role === SystemRole.FINANCE_OFFICER ||
@@ -264,7 +273,7 @@ const App: React.FC = () => {
 
   const auditPeriodMetrics = useMemo(() => {
     const now = new Date();
-    // Statistics must respect the same visibility filters as the table to prevent ghost records appearing in totals
+    // Statistics MUST respect the same filteredRecords list to exclude ghost data
     const rLog = filteredRecords;
     
     const getRange = (days: number) => {
@@ -378,7 +387,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
         </div>
-        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
+        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div><h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2><p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Identity Required</p></div>
               <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
@@ -581,11 +590,18 @@ const App: React.FC = () => {
                  </button>
               </div>
             </div>
-            <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} normalizePhone={normalizePhone} />
+            <Table 
+              groupedRecords={groupedAndSortedRecords} 
+              portal={currentPortal} 
+              onStatusUpdate={handleUpdateStatus} 
+              onForceSync={handleSingleSync} 
+              onDeleteRecord={isSystemDev ? handleDeleteRecord : undefined}
+              normalizePhone={normalizePhone} 
+            />
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.7</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.3.0</p></footer>
     </div>
   );
 };
@@ -594,9 +610,10 @@ const Table: React.FC<{
   groupedRecords: Record<string, SaleRecord[]>, 
   onStatusUpdate?: (id: string, s: RecordStatus) => void, 
   onForceSync?: (id: string) => void,
+  onDeleteRecord?: (id: string) => void,
   portal?: PortalType,
   normalizePhone: (p: string) => string
-}> = ({ groupedRecords, onStatusUpdate, onForceSync, portal, normalizePhone }) => (
+}> = ({ groupedRecords, onStatusUpdate, onForceSync, onDeleteRecord, portal, normalizePhone }) => (
   <div className="overflow-x-auto">
     <table className="w-full text-left min-w-[1200px]">
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
@@ -619,9 +636,20 @@ const Table: React.FC<{
                 <td className="px-8 py-6"><span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>{r.status}</span></td>
                 <td className="px-8 py-6"><SecurityBadge record={r} /></td>
                 <td className="px-8 py-6 text-center">
-                  {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Forward</button>)}
-                  {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Approve</button>)}
-                  {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Verify</button>)}
+                  <div className="flex items-center justify-center space-x-2">
+                    {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Forward</button>)}
+                    {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Approve</button>)}
+                    {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Verify</button>)}
+                    {onDeleteRecord && (
+                      <button 
+                        onClick={() => onDeleteRecord(r.id)} 
+                        className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                        title="Delete Record Permanently"
+                      >
+                        <i className="fas fa-trash-can text-[12px]"></i>
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
