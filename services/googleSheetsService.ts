@@ -27,10 +27,14 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
 
   const rawData = Array.isArray(records) ? records : [records];
   
-  // Filter out records with an 'Unassigned' cluster before syncing
-  const filteredData = rawData.filter(r => r.cluster !== 'Unassigned');
+  // Filter: Exclude 'Unassigned' unless it's Barack James (System Developer testing)
+  const filteredData = rawData.filter(r => 
+    r.cluster !== 'Unassigned' || 
+    r.agentName === 'Barack James' || 
+    r.createdBy === 'Barack James'
+  );
   
-  if (filteredData.length === 0) return true; // Nothing to sync, but treat as success
+  if (filteredData.length === 0) return true;
 
   const mappedRecords = filteredData.map(r => ({
     id: r.id,
@@ -60,7 +64,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       body: JSON.stringify({
         action: 'sync_records',
         records: mappedRecords,
-        _t: Date.now() // Strict cache busting
+        _t: Date.now() 
       }),
     });
     return true;
@@ -79,7 +83,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'get_records',
-        _t: Date.now() // Strict cache busting
+        _t: Date.now() 
       })
     });
     
@@ -112,7 +116,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       })) as SaleRecord[];
     }
     
-    // Explicitly return empty array if response is not JSON, signaling a cleared state
     return [];
   } catch (error) {
     console.error("Fetch Error:", error);
