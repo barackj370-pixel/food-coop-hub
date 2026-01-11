@@ -69,6 +69,13 @@ const App: React.FC = () => {
     return portals;
   }, [agentIdentity, isSystemDev]);
 
+  const handleLogout = () => {
+    setAgentIdentity(null);
+    setRecords([]); 
+    persistence.remove('agent_session');
+    persistence.remove('food_coop_data');
+  };
+
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
@@ -163,7 +170,7 @@ const App: React.FC = () => {
           phone: authForm.phone.trim(), 
           passcode: targetPasscode, 
           role: authForm.role, 
-          cluster: authForm.role === SystemRole.SYSTEM_DEVELOPER ? 'System' : authForm.cluster, 
+          cluster: authForm.role === SystemRole.FIELD_AGENT ? authForm.cluster : 'System', 
           status: 'ACTIVE' 
         };
         users.push(newUser);
@@ -332,7 +339,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
         </div>
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
+        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div><h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2><p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Identity Required</p></div>
               <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
@@ -350,7 +357,11 @@ const App: React.FC = () => {
                     <option value={SystemRole.MANAGER} className="bg-slate-900">Director</option>
                     <option value={SystemRole.SYSTEM_DEVELOPER} className="bg-slate-900">System Developer</option>
                   </select>
-                  <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">{CLUSTERS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select>
+                  {authForm.role === SystemRole.FIELD_AGENT && (
+                    <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">
+                      {CLUSTERS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
+                    </select>
+                  )}
                 </>
               )}
               <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Create Account' : 'Authenticate')}</button>
