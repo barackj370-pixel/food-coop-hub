@@ -26,7 +26,8 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
 
   const rawData = Array.isArray(records) ? records : [records];
-  const filteredData = rawData.filter(r => r.cluster !== 'Unassigned' || r.agentName === 'Barack James');
+  // STRICTOR FILTER: Never sync unassigned records
+  const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
   
   if (filteredData.length === 0) return true;
 
@@ -46,7 +47,8 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     status: r.status,
     createdBy: r.agentName || "System Agent",
     agentPhone: r.agentPhone || "",
-    signature: r.signature
+    signature: r.signature,
+    cluster: r.cluster
   }));
 
   try {
@@ -109,7 +111,11 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       const dataArray = Array.isArray(rawData) ? rawData : [];
       
       return dataArray
-        .filter(r => (r["ID"] || r["id"]))
+        .filter(r => {
+          // STRICTOR SOURCE FILTER: Discard any 'Unassigned' cluster records at the source
+          const cluster = String(r["Cluster"] || r["cluster"] || "");
+          return (r["ID"] || r["id"]) && cluster !== 'Unassigned' && cluster.trim() !== '';
+        })
         .map(r => ({
           id: String(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
@@ -125,6 +131,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
           status: String(r["Status"] || r["status"] || "DRAFT") as any,
           agentName: String(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
           agentPhone: String(r["Agent Phone"] || r["agentPhone"] || ""),
+          cluster: String(r["Cluster"] || r["cluster"] || ""),
           createdAt: formatDate(r["Created At"] || r["createdAt"] || r["Date"]),
           synced: true,
           signature: String(r["Signature"] || r["signature"] || ""),

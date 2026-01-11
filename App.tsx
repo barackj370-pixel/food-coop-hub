@@ -89,8 +89,10 @@ const App: React.FC = () => {
       }
 
       if (cloudRecords) {
-        setRecords(cloudRecords);
-        persistence.set('food_coop_data', JSON.stringify(cloudRecords));
+        // Double check cluster at this point just in case
+        const validRecords = cloudRecords.filter(r => r.cluster && r.cluster !== 'Unassigned');
+        setRecords(validRecords);
+        persistence.set('food_coop_data', JSON.stringify(validRecords));
       }
     };
     loadCloudData();
@@ -98,7 +100,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const saved = persistence.get('food_coop_data');
-    if (saved) { try { setRecords(JSON.parse(saved)); } catch (e) { } }
+    if (saved) { 
+      try { 
+        const parsed: SaleRecord[] = JSON.parse(saved);
+        // Scrub 'Unassigned' from local history on boot
+        const scrubbed = parsed.filter(r => r.cluster && r.cluster !== 'Unassigned');
+        setRecords(scrubbed); 
+      } catch (e) { } 
+    }
   }, []);
 
   useEffect(() => {
@@ -148,6 +157,13 @@ const App: React.FC = () => {
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
     
+    // STRICT CLUSTER ENFORCEMENT
+    const cluster = agentIdentity?.cluster || 'Unassigned';
+    if (cluster === 'Unassigned' && !isSystemDev) {
+      alert("Error: Your account is missing a cluster assignment. Please contact support.");
+      return;
+    }
+
     const newRecord: SaleRecord = {
       ...data,
       id,
@@ -158,13 +174,13 @@ const App: React.FC = () => {
       createdAt: new Date().toISOString(),
       agentPhone: agentIdentity?.phone,
       agentName: agentIdentity?.name,
-      cluster: agentIdentity?.cluster || 'Unassigned',
+      cluster: cluster,
       synced: false
     };
     
     setRecords([newRecord, ...records]);
     
-    if (newRecord.cluster !== 'Unassigned' || isSystemDev) {
+    if (newRecord.cluster !== 'Unassigned') {
       const success = await syncToGoogleSheets(newRecord);
       if (success) {
         setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
@@ -208,9 +224,16 @@ const App: React.FC = () => {
   };
 
   const filteredRecords = useMemo(() => {
+    // 1. Initial Structural Filter
     let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
+    
+    // 2. GLOBAL PURGE: Completely remove all 'Unassigned' cluster records for ALL roles
+    base = base.filter(r => r.cluster && r.cluster !== 'Unassigned');
+
+    // 3. Date Patch
     base = base.filter(r => r.date !== '2025-02-10');
 
+    // 4. Role-based Visibility
     if (!isSystemDev) {
       const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
                      agentIdentity?.role === SystemRole.FINANCE_OFFICER ||
@@ -218,14 +241,13 @@ const App: React.FC = () => {
       if (!isPriv) {
         base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity?.phone || ''));
       }
-      base = base.filter(r => r.cluster !== 'Unassigned' || r.agentName === 'Barack James');
     }
     return base;
   }, [records, isSystemDev, agentIdentity]);
 
   const groupedAndSortedRecords = useMemo(() => {
     const grouped = filteredRecords.reduce((acc, r) => {
-      const cluster = r.cluster || 'Unassigned';
+      const cluster = r.cluster || 'Unknown';
       if (!acc[cluster]) acc[cluster] = [];
       acc[cluster].push(r);
       return acc;
@@ -291,7 +313,7 @@ const App: React.FC = () => {
     }).slice(-15);
 
     const clusterMap = rLog.reduce((acc, r) => {
-      const cluster = r.cluster || 'Unassigned';
+      const cluster = r.cluster || 'Unknown';
       acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
@@ -330,7 +352,7 @@ const App: React.FC = () => {
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
     const record = records.find(r => r.id === id);
-    if (record && (record.cluster !== 'Unassigned' || isSystemDev)) {
+    if (record && record.cluster && record.cluster !== 'Unassigned') {
       const success = await syncToGoogleSheets({ ...record, status: newStatus });
       if (success) {
         setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, synced: true } : r));
@@ -340,7 +362,7 @@ const App: React.FC = () => {
 
   const handleSingleSync = async (id: string) => {
     const record = records.find(r => r.id === id);
-    if (!record || (record.cluster === 'Unassigned' && !isSystemDev)) return;
+    if (!record || !record.cluster || record.cluster === 'Unassigned') return;
     const success = await syncToGoogleSheets(record);
     if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
   };
@@ -589,7 +611,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.4</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.5</p></footer>
     </div>
   );
 };
