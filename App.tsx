@@ -653,9 +653,11 @@ const App: React.FC = () => {
                       <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
                     ))}
                  </div>
-                 <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-black text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
-                   <i className="fas fa-table mr-2"></i>Open Cloud Sheet
-                 </a>
+                 {currentPortal === 'SYSTEM' && (
+                   <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-black text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
+                     <i className="fas fa-table mr-2"></i>Open Cloud Sheet
+                   </a>
+                 )}
               </div>
             </div>
             <Table 
@@ -669,7 +671,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.6</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.7</p></footer>
     </div>
   );
 };
