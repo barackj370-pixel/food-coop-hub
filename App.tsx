@@ -76,6 +76,28 @@ const App: React.FC = () => {
     persistence.remove('food_coop_data');
   };
 
+  // TARGETED CLEANUP EFFECT: Remove specified phone numbers to allow re-registration
+  useEffect(() => {
+    const cleanupTargets = ['0725717170', '0733717170'].map(p => normalizePhone(p));
+    
+    // Cleanup local storage users
+    const usersData = persistence.get('coop_users');
+    if (usersData) {
+      try {
+        const users: AgentIdentity[] = JSON.parse(usersData);
+        const filtered = users.filter(u => !cleanupTargets.includes(normalizePhone(u.phone)));
+        if (filtered.length !== users.length) {
+          persistence.set('coop_users', JSON.stringify(filtered));
+        }
+      } catch (e) { console.error("Cleanup error", e); }
+    }
+
+    // Cleanup active session if it matches target
+    if (agentIdentity && cleanupTargets.includes(normalizePhone(agentIdentity.phone))) {
+      handleLogout();
+    }
+  }, []);
+
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
@@ -83,7 +105,14 @@ const App: React.FC = () => {
         fetchUsersFromCloud(),
         fetchFromGoogleSheets()
       ]);
-      if (cloudUsers) persistence.set('coop_users', JSON.stringify(cloudUsers));
+      
+      if (cloudUsers) {
+        // Filter out deleted targets from cloud result too
+        const cleanupTargets = ['0725717170', '0733717170'].map(p => normalizePhone(p));
+        const activeUsers = cloudUsers.filter(u => !cleanupTargets.includes(normalizePhone(u.phone)));
+        persistence.set('coop_users', JSON.stringify(activeUsers));
+      }
+
       if (cloudRecords) {
         setRecords(cloudRecords);
         persistence.set('food_coop_data', JSON.stringify(cloudRecords));
@@ -564,7 +593,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.2</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.3</p></footer>
     </div>
   );
 };
