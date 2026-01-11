@@ -69,13 +69,6 @@ const App: React.FC = () => {
     return portals;
   }, [agentIdentity, isSystemDev]);
 
-  const handleLogout = () => {
-    setAgentIdentity(null);
-    setRecords([]); 
-    persistence.remove('agent_session');
-    persistence.remove('food_coop_data');
-  };
-
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
@@ -374,7 +367,7 @@ const App: React.FC = () => {
           </div>
           <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
             <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mb-1">Authenticated: {agentIdentity.name}</p>
-            <button onClick={handleLogout} className="text-[9px] font-black uppercase text-emerald-400 hover:text-white mt-1.5 flex items-center justify-end w-full group transition-all"><i className="fas fa-user-gear mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>End Session</button>
+            {/* Session end button removed to ensure permanent access as per user request */}
           </div>
         </div>
         <div className="container mx-auto px-6 flex flex-wrap gap-2 animate-fade-in">
@@ -554,7 +547,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.1</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.2</p></footer>
     </div>
   );
 };
