@@ -136,9 +136,19 @@ const App: React.FC = () => {
     return clean.length >= 9 ? clean.slice(-9) : clean;
   };
 
+  // Logout utility
+  const handleLogout = () => {
+    setAgentIdentity(null);
+    setRecords([]); // Clear memory
+    persistence.remove('agent_session');
+    persistence.remove('food_coop_data'); // Clear local stale records
+  };
+
   // Fetch all cloud data on startup for cross-device support
   useEffect(() => {
     const loadCloudData = async () => {
+      if (!agentIdentity) return;
+      
       const cloudUsers = await fetchUsersFromCloud();
       if (cloudUsers && cloudUsers.length > 0) {
         persistence.set('coop_users', JSON.stringify(cloudUsers));
@@ -150,7 +160,7 @@ const App: React.FC = () => {
       }
     };
     loadCloudData();
-  }, [agentIdentity]); // Reload if identity changes to refresh portal context
+  }, [agentIdentity]); 
 
   useEffect(() => {
     const saved = persistence.get('food_coop_data');
@@ -201,18 +211,16 @@ const App: React.FC = () => {
 
         if (newStatus === 'SUSPENDED') {
           alert("Account Suspended: You have received 3 warnings for not meeting weekly targets. Please contact the Director.");
-          setAgentIdentity(null);
+          handleLogout();
         }
       }
     }
   }, [agentIdentity, records]);
 
   useEffect(() => {
-    persistence.set('food_coop_data', JSON.stringify(records));
     if (agentIdentity) {
+      persistence.set('food_coop_data', JSON.stringify(records));
       persistence.set('agent_session', JSON.stringify(agentIdentity));
-    } else {
-      persistence.remove('agent_session');
     }
   }, [records, agentIdentity]);
 
@@ -270,7 +278,6 @@ const App: React.FC = () => {
     const targetCluster = targetRole === SystemRole.SYSTEM_DEVELOPER ? 'System' : authForm.cluster;
 
     try {
-      // Re-fetch cloud users for highest security during login
       const latestCloudUsers = await fetchUsersFromCloud();
       let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
 
@@ -355,8 +362,12 @@ const App: React.FC = () => {
     if (window.confirm("CRITICAL: This will permanently delete ALL audit and integrity records across ALL devices. This cannot be undone. Are you sure?")) {
       setRecords([]);
       persistence.remove('food_coop_data');
-      await clearAllRecordsOnCloud();
-      alert("Audit records successfully cleared globally.");
+      const success = await clearAllRecordsOnCloud();
+      if (success) {
+        alert("Audit records successfully cleared globally.");
+      } else {
+        alert("Local purge complete. Cloud sync may still be in progress.");
+      }
     }
   };
 
@@ -583,7 +594,7 @@ const App: React.FC = () => {
             <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
               <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mb-1">Authenticated: {agentIdentity.name}</p>
               <p className="text-[13px] font-black tracking-tight">{agentIdentity.phone}</p>
-              <button onClick={() => setAgentIdentity(null)} className="text-[9px] font-black uppercase text-emerald-400 hover:text-white mt-1.5 flex items-center justify-end w-full group"><i className="fas fa-user-gear mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>End Session</button>
+              <button onClick={handleLogout} className="text-[9px] font-black uppercase text-emerald-400 hover:text-white mt-1.5 flex items-center justify-end w-full group"><i className="fas fa-user-gear mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>End Session</button>
             </div>
           </div>
           <div className="mb-10 flex flex-wrap gap-2 animate-fade-in">

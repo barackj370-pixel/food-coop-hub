@@ -4,7 +4,6 @@ import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 const safeNum = (val: any): number => {
   if (typeof val === 'number') return val;
   if (!val) return 0;
-  // Remove currency symbols, commas, and other non-numeric chars except decimal point and minus
   const clean = String(val).replace(/[^\d.-]/g, '');
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
@@ -76,9 +75,14 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     });
     
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawData = JSON.parse(text) as any[];
-      return rawData.map(r => ({
+    const trimmed = text.trim();
+    
+    // If the response is valid JSON array, parse it
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      const rawData = JSON.parse(trimmed);
+      const dataArray = Array.isArray(rawData) ? rawData : [];
+      
+      return dataArray.map(r => ({
         id: String(r["ID"] || ""),
         date: formatDate(r["Date"]),
         cropType: String(r["Commodity"] || r["Crop Type"] || ""),
@@ -99,7 +103,9 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
         unitType: String(r["Unit"] || r["Unit Type"] || "Kg"),
       })) as SaleRecord[];
     }
-    return null;
+    
+    // If we get a non-JSON response from a successful fetch, assume the database is empty/cleared
+    return [];
   } catch (error) {
     console.error("Fetch Error:", error);
     return null;
