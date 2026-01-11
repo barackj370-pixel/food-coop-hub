@@ -55,7 +55,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       body: JSON.stringify({
         action: 'sync_records',
         records: mappedRecords,
-        _t: Date.now() // Cache busting
+        _t: Date.now() // Strict cache busting
       }),
     });
     return true;
@@ -74,19 +74,17 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'get_records',
-        _t: Date.now() // Cache busting
+        _t: Date.now() // Strict cache busting
       })
     });
     
     const text = await response.text();
     const trimmed = text.trim();
     
-    // Check if the response is JSON (either array or object)
     if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
       const rawData = JSON.parse(trimmed);
       const dataArray = Array.isArray(rawData) ? rawData : [];
       
-      // If we got an empty array from the cloud, it's explicitly cleared
       return dataArray.map(r => ({
         id: String(r["ID"] || ""),
         date: formatDate(r["Date"]),
@@ -109,8 +107,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       })) as SaleRecord[];
     }
     
-    // If the response is success but not JSON, it implies the database is empty.
-    // Return empty array to force all devices to clear their local state.
+    // Explicitly return empty array if response is not JSON, signaling a cleared state
     return [];
   } catch (error) {
     console.error("Fetch Error:", error);
@@ -129,7 +126,8 @@ export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
         _t: Date.now()
       }),
     });
-    return response.ok;
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
   } catch (error) {
     console.error("Clear Cloud Records Error:", error);
     return false;

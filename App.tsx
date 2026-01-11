@@ -143,7 +143,7 @@ const App: React.FC = () => {
     persistence.remove('food_coop_data');
   };
 
-  // Main synchronization engine
+  // Synchronize Cloud state as absolute truth
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
@@ -155,8 +155,7 @@ const App: React.FC = () => {
       
       const cloudRecords = await fetchFromGoogleSheets();
       
-      // If the cloud response is an array (even if empty), it's the absolute truth.
-      // This solves the 'ghost records' issue where empty cloud databases were ignored.
+      // If we got a valid response (array), overwrite local stale state completely
       if (Array.isArray(cloudRecords)) {
         setRecords(cloudRecords);
         persistence.set('food_coop_data', JSON.stringify(cloudRecords));
@@ -220,8 +219,9 @@ const App: React.FC = () => {
     }
   }, [agentIdentity, records]);
 
+  // Persist records to local storage only if an identity is active
   useEffect(() => {
-    if (agentIdentity) {
+    if (agentIdentity && records.length >= 0) {
       persistence.set('food_coop_data', JSON.stringify(records));
       persistence.set('agent_session', JSON.stringify(agentIdentity));
     }
@@ -362,23 +362,22 @@ const App: React.FC = () => {
   };
 
   const handleClearRecords = async () => {
-    if (window.confirm("CRITICAL NUCLEAR OPTION: This will force-clear ALL memory and ALL local caches across ALL devices by purging the cloud source. If 'ghost' records are still showing, this will banish them. Proceed?")) {
+    if (window.confirm("NUCLEAR OPTION: This will force-purge the cloud and destroy ALL local session data to banish ghost records. Are you absolutely sure?")) {
       // Step 1: Nuclear purge in cloud
       const success = await clearAllRecordsOnCloud();
       
-      // Step 2: Immediate local state purge
+      // Step 2: Immediate local wipe
       setRecords([]);
-      
-      // Step 3: Explicit key-by-key local storage destruction
       persistence.remove('food_coop_data');
       
       if (success) {
-        alert("Success: Cloud and local state cleared. The app will now reload to reset React state.");
-        window.location.reload();
+        alert("Global Cloud and Local caches purged. Reloading app to finalize...");
       } else {
-        alert("Cloud request failed to confirm, but local state was purged. Please check connectivity.");
-        window.location.reload();
+        alert("Local cache purged. Cloud confirmation failed - please manually check Google Sheet.");
       }
+      
+      // Force reload to kill any stale state in memory
+      window.location.reload();
     }
   };
 
