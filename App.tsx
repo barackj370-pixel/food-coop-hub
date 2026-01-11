@@ -136,15 +136,14 @@ const App: React.FC = () => {
     return clean.length >= 9 ? clean.slice(-9) : clean;
   };
 
-  // Logout utility
   const handleLogout = () => {
     setAgentIdentity(null);
-    setRecords([]); // Clear memory
+    setRecords([]); 
     persistence.remove('agent_session');
-    persistence.remove('food_coop_data'); // Clear local stale records
+    persistence.remove('food_coop_data');
   };
 
-  // Fetch all cloud data on startup for cross-device support
+  // Main synchronization engine
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
@@ -155,9 +154,11 @@ const App: React.FC = () => {
       }
       
       const cloudRecords = await fetchFromGoogleSheets();
-      if (cloudRecords !== null) {
+      
+      // If the cloud response is an array (even if empty), it's the absolute truth.
+      // This solves the 'ghost records' issue where empty cloud databases were ignored.
+      if (Array.isArray(cloudRecords)) {
         setRecords(cloudRecords);
-        // Ensure local storage matches the cloud "truth"
         persistence.set('food_coop_data', JSON.stringify(cloudRecords));
       }
     };
@@ -361,20 +362,22 @@ const App: React.FC = () => {
   };
 
   const handleClearRecords = async () => {
-    if (window.confirm("CRITICAL: This will permanently delete ALL audit and integrity records across ALL devices. This cannot be undone. Are you sure?")) {
-      // Step 1: Purge the cloud first to establish the new global state
+    if (window.confirm("CRITICAL NUCLEAR OPTION: This will force-clear ALL memory and ALL local caches across ALL devices by purging the cloud source. If 'ghost' records are still showing, this will banish them. Proceed?")) {
+      // Step 1: Nuclear purge in cloud
       const success = await clearAllRecordsOnCloud();
       
+      // Step 2: Immediate local state purge
+      setRecords([]);
+      
+      // Step 3: Explicit key-by-key local storage destruction
+      persistence.remove('food_coop_data');
+      
       if (success) {
-        // Step 2: Only if cloud confirmed, clear local state and cache
-        setRecords([]);
-        persistence.remove('food_coop_data');
-        alert("Audit records successfully cleared globally.");
+        alert("Success: Cloud and local state cleared. The app will now reload to reset React state.");
+        window.location.reload();
       } else {
-        // Fallback for dev: even if GAS fails, clear local to test
-        setRecords([]);
-        persistence.remove('food_coop_data');
-        alert("Local purge complete. Please manually verify Google Sheet as cloud confirmed response failed.");
+        alert("Cloud request failed to confirm, but local state was purged. Please check connectivity.");
+        window.location.reload();
       }
     }
   };
@@ -442,7 +445,7 @@ const App: React.FC = () => {
           .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime())
           .reduce((sum, r) => sum + Number(r.totalSale), 0),
         comm: records
-          .filter(r => new Date(r.date).getTime() >= startOfMonth.getTime() && r.status === RecordStatus.VERIFIED)
+          .filter(r => r.status === RecordStatus.VERIFIED && new Date(r.date).getTime() >= startOfMonth.getTime())
           .reduce((sum, r) => sum + Number(r.coopProfit), 0),
       },
       weekly: {
@@ -450,7 +453,7 @@ const App: React.FC = () => {
           .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime())
           .reduce((sum, r) => sum + Number(r.totalSale), 0),
         comm: records
-          .filter(r => new Date(r.date).getTime() >= startOfWeek.getTime() && r.status === RecordStatus.VERIFIED)
+          .filter(r => r.status === RecordStatus.VERIFIED && new Date(r.date).getTime() >= startOfWeek.getTime())
           .reduce((sum, r) => sum + Number(r.coopProfit), 0),
       }
     };

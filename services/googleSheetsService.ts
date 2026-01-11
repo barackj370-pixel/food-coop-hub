@@ -54,7 +54,8 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action: 'sync_records',
-        records: mappedRecords
+        records: mappedRecords,
+        _t: Date.now() // Cache busting
       }),
     });
     return true;
@@ -71,16 +72,21 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'get_records' })
+      body: JSON.stringify({ 
+        action: 'get_records',
+        _t: Date.now() // Cache busting
+      })
     });
     
     const text = await response.text();
     const trimmed = text.trim();
     
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    // Check if the response is JSON (either array or object)
+    if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
       const rawData = JSON.parse(trimmed);
       const dataArray = Array.isArray(rawData) ? rawData : [];
       
+      // If we got an empty array from the cloud, it's explicitly cleared
       return dataArray.map(r => ({
         id: String(r["ID"] || ""),
         date: formatDate(r["Date"]),
@@ -108,7 +114,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     return [];
   } catch (error) {
     console.error("Fetch Error:", error);
-    // Return null only on actual network/service failure to prevent clearing local data by mistake.
     return null;
   }
 };
@@ -116,11 +121,13 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
 export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
-    // We use a regular POST here to wait for the cloud operation to signal completion
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'clear_records' }),
+      body: JSON.stringify({ 
+        action: 'clear_records',
+        _t: Date.now()
+      }),
     });
     return response.ok;
   } catch (error) {
@@ -161,7 +168,10 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'get_users' })
+      body: JSON.stringify({ 
+        action: 'get_users',
+        _t: Date.now()
+      })
     });
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
