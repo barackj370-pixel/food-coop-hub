@@ -351,6 +351,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleClearRecords = () => {
+    if (window.confirm("CRITICAL: This will permanently delete ALL local audit and integrity records. This cannot be undone. Are you sure?")) {
+      setRecords([]);
+      persistence.remove('food_coop_data');
+      alert("Audit records successfully cleared.");
+    }
+  };
+
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
@@ -804,14 +812,26 @@ const App: React.FC = () => {
 
         {isSystemDev && currentPortal === 'SYSTEM' && (
           <div className="space-y-10 animate-fade-in">
-             <div className="bg-emerald-900 p-8 rounded-[2.5rem] border border-emerald-800 shadow-xl flex items-center justify-between">
-                <div>
-                   <h3 className="text-lg font-black text-white uppercase tracking-tight">Cloud Infrastructure</h3>
-                   <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Direct access to the Google Sheets data engine</p>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-emerald-900 p-8 rounded-[2.5rem] border border-emerald-800 shadow-xl flex items-center justify-between">
+                   <div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-tight">Cloud Infrastructure</h3>
+                      <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Direct access to the Google Sheets engine</p>
+                   </div>
+                   <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">
+                     <i className="fas fa-table mr-2"></i>Open Cloud
+                   </a>
                 </div>
-                <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-8 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">
-                  <i className="fas fa-table mr-2"></i>Open Google Sheet
-                </a>
+
+                <div className="bg-white p-8 rounded-[2.5rem] border border-red-50 shadow-xl flex items-center justify-between">
+                   <div>
+                      <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Maintenance</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Danger Zone: Purge all local audit history</p>
+                   </div>
+                   <button onClick={handleClearRecords} className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">
+                     <i className="fas fa-trash-can mr-2"></i>Clear Records
+                   </button>
+                </div>
              </div>
 
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
