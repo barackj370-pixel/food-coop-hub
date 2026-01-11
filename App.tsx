@@ -236,8 +236,15 @@ const App: React.FC = () => {
     return base;
   }, [records, isSystemDev, agentIdentity]);
 
+  const auditLogRecords = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - logFilterDays);
+    return filteredRecords.filter(r => new Date(r.date).getTime() >= cutoff.getTime());
+  }, [filteredRecords, logFilterDays]);
+
   const groupedAndSortedRecords = useMemo(() => {
-    const grouped = filteredRecords.reduce((acc, r) => {
+    const grouped = auditLogRecords.reduce((acc, r) => {
       const cluster = r.cluster || 'Unknown';
       if (!acc[cluster]) acc[cluster] = [];
       acc[cluster].push(r);
@@ -245,7 +252,7 @@ const App: React.FC = () => {
     }, {} as Record<string, SaleRecord[]>);
     Object.keys(grouped).forEach(cluster => grouped[cluster].sort((a, b) => (a.agentName || '').localeCompare(b.agentName || '')));
     return grouped;
-  }, [filteredRecords]);
+  }, [auditLogRecords]);
 
   const stats = useMemo(() => {
     const relevantRecords = filteredRecords;
@@ -359,7 +366,7 @@ const App: React.FC = () => {
   };
 
   const handleExportCsv = () => {
-    if (filteredRecords.length === 0) {
+    if (auditLogRecords.length === 0) {
       alert("No data available to export.");
       return;
     }
@@ -369,7 +376,7 @@ const App: React.FC = () => {
       "Total Gross", "Commission", "Status", "Agent",
       "Agent Phone", "Cluster", "Created At", "Signature", "Unit"
     ];
-    const csvRows = filteredRecords.map(r => [
+    const csvRows = auditLogRecords.map(r => [
       r.id, r.date, r.cropType, r.farmerName, r.farmerPhone || "",
       r.customerName || "", r.customerPhone || "", r.unitsSold, r.unitPrice,
       r.totalSale, r.coopProfit, r.status, r.agentName || "",
@@ -381,7 +388,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `food_coop_audit_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `food_coop_audit_${logFilterDays}D_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -679,7 +686,7 @@ const App: React.FC = () => {
               </div>
               <div className="flex items-center space-x-4">
                  <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
-                    {[7, 14, 30].map(d => (
+                    {[7, 14, 21, 30].map(d => (
                       <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
                     ))}
                  </div>
@@ -704,7 +711,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.7</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.8</p></footer>
     </div>
   );
 };
@@ -730,8 +737,20 @@ const Table: React.FC<{
               <tr key={r.id} className="hover:bg-slate-50/30 group transition-colors">
                 <td className="px-8 py-6 text-[12px] font-black text-slate-900">{r.date}<br/><span className="text-[9px] text-slate-400 font-bold">{new Date(r.createdAt).toLocaleTimeString()}</span></td>
                 <td className="px-8 py-6">
-                  <div className="text-[11px] font-black text-slate-800">{r.farmerName} <span className="text-slate-300 mx-1">→</span> {r.customerName}</div>
-                  <div className="text-[9px] opacity-60 uppercase font-black text-emerald-600 mt-1.5">Agent: {r.agentName || 'System'}</div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-black text-slate-800">
+                      <span className="text-emerald-600 uppercase text-[8px] mr-1">Agent:</span> 
+                      {r.agentName || 'System'} <span className="text-slate-400 font-bold">({r.agentPhone || 'N/A'})</span>
+                    </div>
+                    <div className="text-[10px] font-black text-slate-700">
+                      <span className="text-slate-400 uppercase text-[8px] mr-1">Farmer:</span> 
+                      {r.farmerName} <span className="text-slate-400 font-bold">({r.farmerPhone || 'N/A'})</span>
+                    </div>
+                    <div className="text-[10px] font-black text-slate-700">
+                      <span className="text-slate-400 uppercase text-[8px] mr-1">Buyer:</span> 
+                      {r.customerName} <span className="text-slate-400 font-bold">({r.customerPhone || 'N/A'})</span>
+                    </div>
+                  </div>
                 </td>
                 <td className="px-8 py-6"><span className="bg-slate-100 px-3 py-1 rounded-xl text-[10px] font-black uppercase text-slate-600">{r.cropType}</span></td>
                 <td className="px-8 py-6 text-[12px] font-black text-slate-900">{r.unitsSold} <span className="text-[10px] text-slate-400 uppercase ml-0.5">{r.unitType}</span><br/><span className="text-[11px] font-bold text-slate-500">KSh {r.totalSale.toLocaleString()}</span></td>
