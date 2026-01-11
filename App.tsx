@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -8,7 +9,6 @@ import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersF
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi'];
-const WEEKLY_TARGET = 2;
 
 const persistence = {
   get: (key: string): string | null => {
@@ -22,23 +22,7 @@ const persistence = {
   }
 };
 
-const getWeekKey = (date: Date): string => {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${weekNo}`;
-};
-
-const getPreviousWeekKey = (date: Date): string => {
-  const prev = new Date(date);
-  prev.setDate(prev.getDate() - 7);
-  return getWeekKey(prev);
-};
-
 const computeHash = async (record: any): Promise<string> => {
-  // Strict normalization of fields to ensure re-hashing consistent values across cloud/local
   const normalizedId = String(record.id);
   const normalizedDate = String(record.date);
   const normalizedUnits = Number(record.unitsSold).toString();
@@ -97,15 +81,15 @@ const App: React.FC = () => {
     );
     
     if (filteredRecords.length === 0) {
-      alert("No audit-eligible records found to export.");
+      alert("No records to export.");
       return;
     }
 
     const headers = [
-      'Transaction ID', 'Date', 'Crop Type', 'Unit Type', 
-      'Farmer Name', 'Farmer Phone', 'Customer Name', 'Customer Phone', 
-      'Agent Name', 'Agent Phone', 'Cluster', 'Units Sold', 'Unit Price', 
-      'Total Gross', 'Coop Commission', 'Status', 'Digital Signature'
+      'ID', 'Date', 'Commodity', 'Unit', 
+      'Farmer', 'Farmer Phone', 'Customer', 'Customer Phone', 
+      'Agent', 'Agent Phone', 'Cluster', 'Qty', 'Price', 
+      'Total', 'Commission', 'Status', 'Signature'
     ];
 
     const rows = filteredRecords.map(r => [
@@ -119,12 +103,10 @@ const App: React.FC = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Audit_Report_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `Audit_Report_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleLogout = () => {
@@ -137,12 +119,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
-      const cloudUsers = await fetchUsersFromCloud();
-      if (cloudUsers && cloudUsers.length > 0) {
-        persistence.set('coop_users', JSON.stringify(cloudUsers));
-      }
-      const cloudRecords = await fetchFromGoogleSheets();
-      if (Array.isArray(cloudRecords)) {
+      const [cloudUsers, cloudRecords] = await Promise.all([
+        fetchUsersFromCloud(),
+        fetchFromGoogleSheets()
+      ]);
+      if (cloudUsers) persistence.set('coop_users', JSON.stringify(cloudUsers));
+      if (cloudRecords) {
         setRecords(cloudRecords);
         persistence.set('food_coop_data', JSON.stringify(cloudRecords));
       }
@@ -163,7 +145,7 @@ const App: React.FC = () => {
   }, [records, agentIdentity]);
 
   const handleClearRecords = async () => {
-    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will wipe ALL records from cloud and local cache to banish ghost records permanently. Proceed?")) {
+    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will wipe ALL records from the Google Sheet (the CSV source) and local storage. Ghost records will be permanently deleted. Continue?")) {
       try {
         await clearAllRecordsOnCloud();
         setRecords([]);
@@ -174,10 +156,10 @@ const App: React.FC = () => {
           for (const registration of registrations) { await registration.unregister(); }
         }
         if ('caches' in window) {
-          const cacheKeys = await caches.keys();
-          for (const key of cacheKeys) { await caches.delete(key); }
+          const keys = await caches.keys();
+          for (const key of keys) { await caches.delete(key); }
         }
-        alert("System Cleaned. Reloading...");
+        alert("System Fully Cleared. Reloading...");
         window.location.replace(window.location.origin + window.location.pathname + '?purge=' + Date.now());
       } catch (err) {
         window.location.reload();
@@ -218,30 +200,22 @@ const App: React.FC = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
-    const targetPhoneRaw = authForm.phone.trim();
-    const targetPhoneNormalized = normalizePhone(targetPhoneRaw);
+    const targetPhoneNormalized = normalizePhone(authForm.phone);
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
-    const targetName = authForm.name.trim();
-    const targetRole = authForm.role;
-    const targetCluster = targetRole === SystemRole.SYSTEM_DEVELOPER ? 'System' : authForm.cluster;
 
     try {
       const latestCloudUsers = await fetchUsersFromCloud();
       let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
 
       if (isRegisterMode) {
-        if (!targetName || targetPhoneNormalized.length < 9 || targetPasscode.length !== 4) {
-          alert("Validation failed: Please check phone number and 4-digit passcode.");
-          setIsAuthLoading(false);
-          return;
-        }
-        const exists = users.find(u => normalizePhone(u.phone) === targetPhoneNormalized);
-        if (exists) {
-          alert("Account already exists with this phone number.");
-          setIsAuthLoading(false);
-          return;
-        }
-        const newUser: AgentIdentity = { name: targetName, phone: targetPhoneRaw, passcode: targetPasscode, role: targetRole, cluster: targetCluster, status: 'ACTIVE' };
+        const newUser: AgentIdentity = { 
+          name: authForm.name.trim(), 
+          phone: authForm.phone.trim(), 
+          passcode: targetPasscode, 
+          role: authForm.role, 
+          cluster: authForm.role === SystemRole.SYSTEM_DEVELOPER ? 'System' : authForm.cluster, 
+          status: 'ACTIVE' 
+        };
         users.push(newUser);
         persistence.set('coop_users', JSON.stringify(users));
         await syncUserToCloud(newUser);
@@ -249,10 +223,10 @@ const App: React.FC = () => {
       } else {
         const user = users.find(u => normalizePhone(u.phone) === targetPhoneNormalized && String(u.passcode).replace(/\D/g, '') === targetPasscode);
         if (user) setAgentIdentity(user);
-        else alert("Authentication failed. Check details.");
+        else alert("Authentication failed.");
       }
     } catch (err) {
-      alert("System Error: Could not verify identity.");
+      alert("System Auth Error.");
     } finally {
       setIsAuthLoading(false);
     }
@@ -275,6 +249,7 @@ const App: React.FC = () => {
   const groupedAndSortedRecords = useMemo(() => {
     const grouped = filteredRecords.reduce((acc, r) => {
       const cluster = r.cluster || 'Unassigned';
+      // Fix: Use 'cluster' variable directly for index access instead of 'acc.cluster'
       if (!acc[cluster]) acc[cluster] = [];
       acc[cluster].push(r);
       return acc;
@@ -291,6 +266,28 @@ const App: React.FC = () => {
     const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + Number(b.coopProfit), 0);
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
+
+  const auditPeriodMetrics = useMemo(() => {
+    const now = new Date();
+    const rLog = records.filter(r => r.cluster !== 'Unassigned' || r.agentName === 'Barack James');
+    
+    const getRange = (days: number) => {
+      const cutoff = new Date(now);
+      cutoff.setDate(now.getDate() - days);
+      const rangeRecords = rLog.filter(r => new Date(r.date).getTime() >= cutoff.getTime());
+      return {
+        sales: rangeRecords.reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: rangeRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((sum, r) => sum + Number(r.coopProfit), 0)
+      };
+    };
+
+    return {
+      d7: getRange(7),
+      d14: getRange(14),
+      d21: getRange(21),
+      d30: getRange(30)
+    };
+  }, [records]);
 
   const periodicMetrics = useMemo(() => {
     const now = new Date();
@@ -385,7 +382,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
         </div>
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
+        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div><h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2><p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Identity Required</p></div>
               <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
@@ -507,43 +504,6 @@ const App: React.FC = () => {
                    <div className="pt-6 border-t border-white/5"><div className="flex items-center space-x-2"><i className="fas fa-shield-check text-emerald-400 text-[10px]"></i><span className="text-[9px] font-black uppercase tracking-widest">Coop Status: Healthy</span></div></div>
                 </div>
              </div>
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
-                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-10">Cluster Yield Analysis</h3>
-                  <div className="flex-1 min-h-[300px] flex items-end justify-around px-10 pb-16 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50">
-                    {boardMetrics.clusterPerformance.length === 0 ? (<div className="absolute inset-0 flex items-center justify-center text-slate-300 font-black uppercase text-[10px] tracking-widest">No data</div>) : boardMetrics.clusterPerformance.map(([cluster, value]) => {
-                      const maxVal = Math.max(...boardMetrics.clusterPerformance.map(d => Number(d[1])), 1);
-                      const heightPercent = (Number(value) / maxVal) * 100;
-                      return (
-                        <div key={cluster} className="flex flex-col items-center group relative h-full justify-end px-4 w-full max-w-[100px]">
-                          <div className="w-full bg-blue-600 rounded-t-xl transition-all duration-500 group-hover:bg-blue-700 relative shadow-lg" style={{ height: `${heightPercent}%` }}>
-                            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all font-black shadow-2xl">KSh {Number(value).toLocaleString()}</div>
-                          </div>
-                          <span className="text-[9px] font-black text-slate-800 uppercase mt-4 whitespace-nowrap">{cluster}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
-                  <div className="flex justify-between items-center mb-10">
-                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Leaderboard</h3>
-                    <i className="fas fa-trophy text-amber-500 text-xl"></i>
-                  </div>
-                  <div className="space-y-6 flex-1 flex flex-col justify-center">
-                    {boardMetrics.topAgents.length === 0 ? (<div className="text-center text-slate-300 font-black uppercase text-[10px] py-10">No performance data</div>) : boardMetrics.topAgents.map(([name, value], idx) => {
-                      const maxVal = Math.max(...boardMetrics.topAgents.map(d => Number(d[1])), 1);
-                      const widthPercent = (Number(value) / maxVal) * 100;
-                      return (
-                        <div key={name} className="space-y-2">
-                          <div className="flex justify-between items-end"><span className="text-[12px] font-black text-slate-800 uppercase tracking-tight flex items-center"><span className="w-6 h-6 rounded bg-slate-100 text-[10px] flex items-center justify-center mr-3">{idx + 1}</span>{name}</span><span className="text-[11px] font-black text-slate-500">KSh {Number(value).toLocaleString()}</span></div>
-                          <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(16,185,129,0.3)]" style={{ width: `${widthPercent}%` }}></div></div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-             </div>
           </div>
         )}
 
@@ -588,27 +548,48 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
-          <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div>
-              <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Audit & Integrity Log</h3>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal System Integrity Oversight</p>
-            </div>
-            <div className="flex items-center space-x-4">
-               <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
-                  {[7, 14, 30].map(d => (
-                    <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
-                  ))}
-               </div>
-               <button onClick={() => exportToCSV(records)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all">
-                 <i className="fas fa-file-csv mr-2"></i>Download Audit Report
-               </button>
-            </div>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
+            {[7, 14, 21, 30].map(days => {
+              const range = auditPeriodMetrics[`d${days}` as keyof typeof auditPeriodMetrics];
+              return (
+                <div key={days} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.4em] mb-3">{days} Day Audit</p>
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Gross Sales</p>
+                    <p className="text-[13px] font-black text-slate-900">KSh {range.sales.toLocaleString()}</p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-50 space-y-1">
+                    <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Approved Comm.</p>
+                    <p className="text-[13px] font-black text-emerald-600">KSh {range.comm.toLocaleString()}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} normalizePhone={normalizePhone} />
+
+          <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in">
+            <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div>
+                <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-[0.4em]">Audit & Integrity Log</h3>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal System Integrity Oversight</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                 <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+                    {[7, 14, 30].map(d => (
+                      <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
+                    ))}
+                 </div>
+                 <button onClick={() => exportToCSV(records)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all">
+                   <i className="fas fa-file-csv mr-2"></i>Download Audit Report
+                 </button>
+              </div>
+            </div>
+            <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} normalizePhone={normalizePhone} />
+          </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.5</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.7</p></footer>
     </div>
   );
 };
