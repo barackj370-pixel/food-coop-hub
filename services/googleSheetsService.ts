@@ -106,6 +106,23 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   }
 };
 
+export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      cache: 'no-cache',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'clear_records' }),
+    });
+    return true;
+  } catch (error) {
+    console.error("Clear Cloud Records Error:", error);
+    return false;
+  }
+};
+
 export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {

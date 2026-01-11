@@ -3,7 +3,7 @@ import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } fr
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
-import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud } from './services/googleSheetsService.ts';
+import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
@@ -145,7 +145,7 @@ const App: React.FC = () => {
       }
       
       const cloudRecords = await fetchFromGoogleSheets();
-      if (cloudRecords && cloudRecords.length > 0) {
+      if (cloudRecords !== null) {
         setRecords(cloudRecords);
       }
     };
@@ -351,11 +351,12 @@ const App: React.FC = () => {
     }
   };
 
-  const handleClearRecords = () => {
-    if (window.confirm("CRITICAL: This will permanently delete ALL local audit and integrity records. This cannot be undone. Are you sure?")) {
+  const handleClearRecords = async () => {
+    if (window.confirm("CRITICAL: This will permanently delete ALL audit and integrity records across ALL devices. This cannot be undone. Are you sure?")) {
       setRecords([]);
       persistence.remove('food_coop_data');
-      alert("Audit records successfully cleared.");
+      await clearAllRecordsOnCloud();
+      alert("Audit records successfully cleared globally.");
     }
   };
 
@@ -826,10 +827,10 @@ const App: React.FC = () => {
                 <div className="bg-white p-8 rounded-[2.5rem] border border-red-50 shadow-xl flex items-center justify-between">
                    <div>
                       <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">System Maintenance</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Danger Zone: Purge all local audit history</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Danger Zone: Purge ALL cross-device audit history</p>
                    </div>
                    <button onClick={handleClearRecords} className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">
-                     <i className="fas fa-trash-can mr-2"></i>Clear Records
+                     <i className="fas fa-trash-can mr-2"></i>Global Clear
                    </button>
                 </div>
              </div>
