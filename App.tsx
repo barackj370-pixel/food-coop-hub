@@ -157,6 +157,8 @@ const App: React.FC = () => {
       const cloudRecords = await fetchFromGoogleSheets();
       if (cloudRecords !== null) {
         setRecords(cloudRecords);
+        // Ensure local storage matches the cloud "truth"
+        persistence.set('food_coop_data', JSON.stringify(cloudRecords));
       }
     };
     loadCloudData();
@@ -360,13 +362,19 @@ const App: React.FC = () => {
 
   const handleClearRecords = async () => {
     if (window.confirm("CRITICAL: This will permanently delete ALL audit and integrity records across ALL devices. This cannot be undone. Are you sure?")) {
-      setRecords([]);
-      persistence.remove('food_coop_data');
+      // Step 1: Purge the cloud first to establish the new global state
       const success = await clearAllRecordsOnCloud();
+      
       if (success) {
+        // Step 2: Only if cloud confirmed, clear local state and cache
+        setRecords([]);
+        persistence.remove('food_coop_data');
         alert("Audit records successfully cleared globally.");
       } else {
-        alert("Local purge complete. Cloud sync may still be in progress.");
+        // Fallback for dev: even if GAS fails, clear local to test
+        setRecords([]);
+        persistence.remove('food_coop_data');
+        alert("Local purge complete. Please manually verify Google Sheet as cloud confirmed response failed.");
       }
     }
   };

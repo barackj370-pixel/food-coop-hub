@@ -77,7 +77,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     const text = await response.text();
     const trimmed = text.trim();
     
-    // If the response is valid JSON array, parse it
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       const rawData = JSON.parse(trimmed);
       const dataArray = Array.isArray(rawData) ? rawData : [];
@@ -104,10 +103,12 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       })) as SaleRecord[];
     }
     
-    // If we get a non-JSON response from a successful fetch, assume the database is empty/cleared
+    // If the response is success but not JSON, it implies the database is empty.
+    // Return empty array to force all devices to clear their local state.
     return [];
   } catch (error) {
     console.error("Fetch Error:", error);
+    // Return null only on actual network/service failure to prevent clearing local data by mistake.
     return null;
   }
 };
@@ -115,14 +116,13 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
 export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
-    await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+    // We use a regular POST here to wait for the cloud operation to signal completion
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
-      mode: 'no-cors',
-      cache: 'no-cache',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'clear_records' }),
     });
-    return true;
+    return response.ok;
   } catch (error) {
     console.error("Clear Cloud Records Error:", error);
     return false;
