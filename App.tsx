@@ -343,7 +343,13 @@ const App: React.FC = () => {
               <input type="password" maxLength={4} placeholder="••••" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none tracking-[1em]" />
               {isRegisterMode && (
                 <>
-                  <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none"><option value={SystemRole.FIELD_AGENT} className="bg-slate-900">Field Agent</option><option value={SystemRole.FINANCE_OFFICER} className="bg-slate-900">Finance Officer</option><option value={SystemRole.AUDITOR} className="bg-slate-900">Audit Officer</option><option value={SystemRole.MANAGER} className="bg-slate-900">Director</option></select>
+                  <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">
+                    <option value={SystemRole.FIELD_AGENT} className="bg-slate-900">Field Agent</option>
+                    <option value={SystemRole.FINANCE_OFFICER} className="bg-slate-900">Finance Officer</option>
+                    <option value={SystemRole.AUDITOR} className="bg-slate-900">Audit Officer</option>
+                    <option value={SystemRole.MANAGER} className="bg-slate-900">Director</option>
+                    <option value={SystemRole.SYSTEM_DEVELOPER} className="bg-slate-900">System Developer</option>
+                  </select>
                   <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">{CLUSTERS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select>
                 </>
               )}
