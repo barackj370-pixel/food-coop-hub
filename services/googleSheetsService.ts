@@ -29,7 +29,10 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   // STRICTOR FILTER: Never sync unassigned records
   const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
   
-  if (filteredData.length === 0) return true;
+  if (filteredData.length === 0) {
+    console.warn("Sync blocked: All records were 'Unassigned' cluster.");
+    return true; 
+  }
 
   const mappedRecords = filteredData.map(r => ({
     id: r.id,
@@ -45,16 +48,15 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     totalSale: r.totalSale,
     coopProfit: r.coopProfit,
     status: r.status,
-    createdBy: r.agentName || "System Agent",
+    agentName: r.agentName || "System Agent", // Changed from createdBy to match retrieval key
     agentPhone: r.agentPhone || "",
     signature: r.signature,
     cluster: r.cluster
   }));
 
   try {
-    await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
-      mode: 'no-cors', 
       cache: 'no-cache',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
@@ -63,7 +65,10 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
         _t: Date.now()
       }),
     });
-    return true;
+    
+    // Using text() check because Google Apps Script might return a string like "Success"
+    const resultText = await response.text();
+    return response.ok || resultText.toLowerCase().includes('success');
   } catch (error) {
     console.error("Cloud Sync Error:", error);
     return false;
@@ -190,9 +195,8 @@ export const clearAllUsersOnCloud = async (): Promise<boolean> => {
 export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
-    await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action: 'sync_user',
@@ -206,7 +210,8 @@ export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => 
         }
       }),
     });
-    return true;
+    const resultText = await response.text();
+    return response.ok || resultText.toLowerCase().includes('success');
   } catch (e) {
     return false;
   }
