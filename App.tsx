@@ -69,13 +69,6 @@ const App: React.FC = () => {
     return portals;
   }, [agentIdentity, isSystemDev]);
 
-  const handleLogout = () => {
-    setAgentIdentity(null);
-    setRecords([]); 
-    persistence.remove('agent_session');
-    persistence.remove('food_coop_data');
-  };
-
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
@@ -105,14 +98,13 @@ const App: React.FC = () => {
   }, [records, agentIdentity]);
 
   const handleClearRecords = async () => {
-    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud source and local storage. Ghost records will be permanently ignored. Continue?")) {
+    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud source and local storage. Your account session will be preserved. Continue?")) {
       try {
         setRecords([]);
         await clearAllRecordsOnCloud();
-        localStorage.clear();
-        sessionStorage.clear();
-        alert("Full System Reset Successful. App will now reload.");
-        window.location.replace(window.location.origin + window.location.pathname + '?nuclear=' + Date.now());
+        persistence.remove('food_coop_data');
+        alert("Full Data Reset Successful. App will now reload.");
+        window.location.reload();
       } catch (err) {
         window.location.reload();
       }
@@ -191,11 +183,10 @@ const App: React.FC = () => {
   };
 
   const filteredRecords = useMemo(() => {
-    // 1. Core structural filter for ghost rows
+    // Structural filter for valid data
     let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
 
-    // 2. HARD-CODE PURGE: Explicitly remove the two specific sales recorded on the 10th (Feb 10, 2025)
-    // This ensures those records never appear in logs or totals regardless of browser state or cloud persistence.
+    // HARD-CODE PURGE: Define specific exclusion for records dated 10th Feb 2025
     base = base.filter(r => r.date !== '2025-02-10');
 
     if (!isSystemDev) {
@@ -233,7 +224,6 @@ const App: React.FC = () => {
   const auditPeriodMetrics = useMemo(() => {
     const now = new Date();
     const rLog = filteredRecords;
-    
     const getRange = (days: number) => {
       const cutoff = new Date(now);
       cutoff.setDate(now.getDate() - days);
@@ -243,10 +233,7 @@ const App: React.FC = () => {
         comm: rangeRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((sum, r) => sum + Number(r.coopProfit), 0)
       };
     };
-
-    return {
-      d7: getRange(7), d14: getRange(14), d21: getRange(21), d30: getRange(30)
-    };
+    return { d7: getRange(7), d14: getRange(14), d21: getRange(21), d30: getRange(30) };
   }, [filteredRecords]);
 
   const periodicMetrics = useMemo(() => {
@@ -274,7 +261,8 @@ const App: React.FC = () => {
       acc[label] = (acc[label] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const performanceData: [string, number][] = Object.entries(performanceMap).sort((a, b) => {
+    
+    const performanceData: [string, number][] = (Object.keys(performanceMap).map(key => [key, Number(performanceMap[key])] as [string, number])).sort((a, b) => {
       const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
       const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
       return new Date(dateA).getTime() - new Date(dateB).getTime();
@@ -285,14 +273,16 @@ const App: React.FC = () => {
       acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const clusterPerformance: [string, number][] = Object.entries(clusterMap).sort((a, b) => b[1] - a[1]);
+    
+    const clusterPerformance: [string, number][] = (Object.keys(clusterMap).map(key => [key, Number(clusterMap[key])] as [string, number])).sort((a, b) => b[1] - a[1]);
 
     const agentMap = rLog.reduce((acc, r) => {
       const agent = r.agentName || 'Unknown Agent';
       acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
       return acc;
     }, {} as Record<string, number>);
-    const topAgents: [string, number][] = Object.entries(agentMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    
+    const topAgents: [string, number][] = (Object.keys(agentMap).map(key => [key, Number(agentMap[key])] as [string, number])).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
     return { performanceData, clusterPerformance, topAgents };
   }, [filteredRecords]);
@@ -342,7 +332,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
         </div>
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
+        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div><h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2><p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Identity Required</p></div>
               <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
@@ -377,7 +367,7 @@ const App: React.FC = () => {
           </div>
           <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
             <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mb-1">Authenticated: {agentIdentity.name}</p>
-            <button onClick={handleLogout} className="text-[9px] font-black uppercase text-emerald-400 hover:text-white mt-1.5 flex items-center justify-end w-full group"><i className="fas fa-user-gear mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>End Session</button>
+            {/* End Session button removed to ensure permanent account access after first creation/login */}
           </div>
         </div>
         <div className="container mx-auto px-6 flex flex-wrap gap-2 animate-fade-in">
@@ -540,6 +530,7 @@ const App: React.FC = () => {
                       <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
                     ))}
                  </div>
+                 {/* Replaced CSV Export with direct Cloud Sheet link */}
                  <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-black text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
                    <i className="fas fa-table mr-2"></i>Open Cloud Sheet
                  </a>
@@ -556,7 +547,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.5.2</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.6.1</p></footer>
     </div>
   );
 };
