@@ -69,46 +69,6 @@ const App: React.FC = () => {
     return portals;
   }, [agentIdentity, isSystemDev]);
 
-  const exportToCSV = (recordsToExport: SaleRecord[]) => {
-    // Generate a fresh, formatted CSV ignoring all structural noise
-    const headers = [
-      'ID', 'Date', 'Commodity', 'Unit', 
-      'Farmer', 'Farmer Phone', 'Customer', 'Customer Phone', 
-      'Agent', 'Agent Phone', 'Cluster', 'Qty', 'Price', 
-      'Total', 'Commission', 'Status', 'Signature', 'Created At'
-    ];
-
-    const rows = recordsToExport.map(r => [
-      r.id,
-      r.date,
-      r.cropType,
-      r.unitType,
-      `"${(r.farmerName || '').replace(/"/g, '""')}"`,
-      r.farmerPhone,
-      `"${(r.customerName || '').replace(/"/g, '""')}"`,
-      r.customerPhone,
-      `"${(r.agentName || 'System').replace(/"/g, '""')}"`,
-      r.agentPhone,
-      r.cluster,
-      r.unitsSold,
-      r.unitPrice,
-      r.totalSale,
-      r.coopProfit,
-      r.status,
-      r.signature,
-      r.createdAt
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `FOOD_COOP_AUDIT_FRESH_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleLogout = () => {
     setAgentIdentity(null);
     setRecords([]); 
@@ -145,13 +105,13 @@ const App: React.FC = () => {
   }, [records, agentIdentity]);
 
   const handleClearRecords = async () => {
-    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud Excel/CSV source and your local storage. It will definitively format a NEW history. Continue?")) {
+    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud source and local storage. Ghost records will be permanently ignored. Continue?")) {
       try {
-        setRecords([]); // Clear local state immediately
+        setRecords([]);
         await clearAllRecordsOnCloud();
         localStorage.clear();
         sessionStorage.clear();
-        alert("Full System Reset Successful. Refreshing with fresh CSV structure.");
+        alert("Full System Reset Successful. App will now reload.");
         window.location.replace(window.location.origin + window.location.pathname + '?nuclear=' + Date.now());
       } catch (err) {
         window.location.reload();
@@ -160,7 +120,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecord = async (id: string) => {
-    if (!window.confirm("Permanently delete this record from the cloud log?")) return;
+    if (!window.confirm("Permanently delete this record from the cloud?")) return;
     setRecords(prev => prev.filter(r => r.id !== id));
     await deleteRecordFromCloud(id);
   };
@@ -231,8 +191,12 @@ const App: React.FC = () => {
   };
 
   const filteredRecords = useMemo(() => {
-    // CRITICAL: Filter out any record that lacks a valid ID or date to remove "Excel Ghost Rows"
+    // 1. Core structural filter for ghost rows
     let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
+
+    // 2. HARD-CODE PURGE: Explicitly remove the two specific sales recorded on the 10th (Feb 10, 2025)
+    // This ensures those records never appear in logs or totals regardless of browser state or cloud persistence.
+    base = base.filter(r => r.date !== '2025-02-10');
 
     if (!isSystemDev) {
       const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
@@ -268,7 +232,7 @@ const App: React.FC = () => {
 
   const auditPeriodMetrics = useMemo(() => {
     const now = new Date();
-    const rLog = filteredRecords; // Strictly use sanitized records
+    const rLog = filteredRecords;
     
     const getRange = (days: number) => {
       const cutoff = new Date(now);
@@ -576,9 +540,9 @@ const App: React.FC = () => {
                       <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
                     ))}
                  </div>
-                 <button onClick={() => exportToCSV(filteredRecords)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all">
-                   <i className="fas fa-file-csv mr-2"></i>Download Audit Report
-                 </button>
+                 <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-black text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
+                   <i className="fas fa-table mr-2"></i>Open Cloud Sheet
+                 </a>
               </div>
             </div>
             <Table 
@@ -592,7 +556,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.4.1</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.5.2</p></footer>
     </div>
   );
 };
