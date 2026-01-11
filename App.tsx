@@ -131,11 +131,16 @@ const App: React.FC = () => {
     cluster: CLUSTERS[0]
   });
 
+  const normalizePhone = (p: string) => {
+    const clean = p.replace(/\D/g, '');
+    return clean.length >= 9 ? clean.slice(-9) : clean;
+  };
+
   // Fetch all cloud data on startup for cross-device support
   useEffect(() => {
     const loadCloudData = async () => {
       const cloudUsers = await fetchUsersFromCloud();
-      if (cloudUsers) {
+      if (cloudUsers && cloudUsers.length > 0) {
         persistence.set('coop_users', JSON.stringify(cloudUsers));
       }
       
@@ -185,7 +190,7 @@ const App: React.FC = () => {
         const usersData = persistence.get('coop_users');
         if (usersData) {
           let users: AgentIdentity[] = JSON.parse(usersData);
-          const idx = users.findIndex(u => u.phone === agentIdentity.phone);
+          const idx = users.findIndex(u => normalizePhone(u.phone) === normalizePhone(agentIdentity.phone));
           if (idx !== -1) {
             users[idx] = updatedIdentity;
             persistence.set('coop_users', JSON.stringify(users));
@@ -257,66 +262,73 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsAuthLoading(true);
 
-    const targetPhone = authForm.phone.replace(/\D/g, '');
+    const targetPhoneRaw = authForm.phone.trim();
+    const targetPhoneNormalized = normalizePhone(targetPhoneRaw);
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     const targetName = authForm.name.trim();
     const targetRole = authForm.role;
-    // System Developer has no cluster
     const targetCluster = targetRole === SystemRole.SYSTEM_DEVELOPER ? 'System' : authForm.cluster;
 
-    const latestCloudUsers = await fetchUsersFromCloud();
-    let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
+    try {
+      // Re-fetch cloud users for highest security during login
+      const latestCloudUsers = await fetchUsersFromCloud();
+      let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
 
-    if (isRegisterMode) {
-      if (!targetName || targetPhone.length < 10 || targetPasscode.length !== 4) {
-        alert("Validation failed: All fields required.");
-        setIsAuthLoading(false);
-        return;
-      }
-      
-      const exists = users.find(u => u.phone.replace(/\D/g, '') === targetPhone);
-      if (exists) {
-        alert("Account already exists.");
-        setIsAuthLoading(false);
-        return;
-      }
-
-      const newUser: AgentIdentity = { 
-        name: targetName, 
-        phone: targetPhone, 
-        passcode: targetPasscode, 
-        role: targetRole,
-        cluster: targetCluster,
-        status: 'ACTIVE',
-        ...(targetRole === SystemRole.FIELD_AGENT && {
-          warnings: 0,
-          lastCheckWeek: getWeekKey(new Date())
-        })
-      };
-      
-      users.push(newUser);
-      persistence.set('coop_users', JSON.stringify(users));
-      await syncUserToCloud(newUser);
-      setAgentIdentity(newUser);
-    } else {
-      const user = users.find(u => 
-        u.phone.replace(/\D/g, '') === targetPhone && 
-        u.passcode.replace(/\D/g, '') === targetPasscode
-      );
-      
-      if (user) {
-        if (user.status === 'SUSPENDED') {
-          alert("This account is suspended due to target failures. Contact the Director for approval.");
-        } else if (user.status === 'AWAITING_ACTIVATION') {
-          alert("Director has approved your account. Waiting for System Developer to finalize reactivation.");
-        } else {
-          setAgentIdentity(user);
+      if (isRegisterMode) {
+        if (!targetName || targetPhoneNormalized.length < 9 || targetPasscode.length !== 4) {
+          alert("Validation failed: Please check phone number and 4-digit passcode.");
+          setIsAuthLoading(false);
+          return;
         }
+        
+        const exists = users.find(u => normalizePhone(u.phone) === targetPhoneNormalized);
+        if (exists) {
+          alert("Account already exists with this phone number.");
+          setIsAuthLoading(false);
+          return;
+        }
+
+        const newUser: AgentIdentity = { 
+          name: targetName, 
+          phone: targetPhoneRaw, 
+          passcode: targetPasscode, 
+          role: targetRole,
+          cluster: targetCluster,
+          status: 'ACTIVE',
+          ...(targetRole === SystemRole.FIELD_AGENT && {
+            warnings: 0,
+            lastCheckWeek: getWeekKey(new Date())
+          })
+        };
+        
+        users.push(newUser);
+        persistence.set('coop_users', JSON.stringify(users));
+        await syncUserToCloud(newUser);
+        setAgentIdentity(newUser);
       } else {
-        alert("Authentication failed. Check details or verify your cloud connection.");
+        const user = users.find(u => 
+          normalizePhone(u.phone) === targetPhoneNormalized && 
+          String(u.passcode).replace(/\D/g, '') === targetPasscode
+        );
+        
+        if (user) {
+          if (user.status === 'SUSPENDED') {
+            alert("This account is suspended due to target failures. Contact the Director for approval.");
+          } else if (user.status === 'AWAITING_ACTIVATION') {
+            alert("Director has approved your account. Waiting for System Developer to finalize reactivation.");
+          } else {
+            setAgentIdentity(user);
+          }
+        } else {
+          alert("Authentication failed. Check details or verify your cloud connection.");
+        }
       }
+    } catch (err) {
+      console.error("Auth Error:", err);
+      alert("System Error: Could not verify identity. Please check your internet connection.");
+    } finally {
+      setIsAuthLoading(false);
     }
-    setIsAuthLoading(false);
   };
 
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
@@ -370,7 +382,7 @@ const App: React.FC = () => {
     const usersData = persistence.get('coop_users');
     if (!usersData) return;
     let users: AgentIdentity[] = JSON.parse(usersData);
-    const idx = users.findIndex(u => u.phone === phone);
+    const idx = users.findIndex(u => normalizePhone(u.phone) === normalizePhone(phone));
     if (idx !== -1) {
       users[idx].status = status;
       if (resetWarnings) users[idx].warnings = 0;
@@ -417,7 +429,7 @@ const App: React.FC = () => {
   }, [records]);
 
   const stats = useMemo(() => {
-    const relevantRecords = records.filter(r => isPrivileged || r.agentPhone === agentIdentity?.phone);
+    const relevantRecords = records.filter(r => isPrivileged || normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity?.phone || ''));
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
     const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + Number(b.coopProfit), 0);
     const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + Number(b.coopProfit), 0);
@@ -428,7 +440,7 @@ const App: React.FC = () => {
 
   const filteredRecords = useMemo(() => {
     let base = records;
-    if (!isPrivileged) base = base.filter(r => r.agentPhone === agentIdentity?.phone);
+    if (!isPrivileged) base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity?.phone || ''));
     return base;
   }, [records, isPrivileged, agentIdentity]);
 
@@ -516,7 +528,6 @@ const App: React.FC = () => {
                       {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
                     </select>
                   </div>
-                  {/* Updated: Cluster selection visible for Agents. System Devs are cluster-neutral */}
                   {authForm.role === SystemRole.FIELD_AGENT && (
                     <div className="space-y-1">
                       <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
@@ -868,10 +879,10 @@ const App: React.FC = () => {
                </div>
             </div>
           </div>
-          <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} />
+          <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} normalizePhone={normalizePhone} />
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.0</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.1</p></footer>
     </div>
   );
 };
@@ -880,8 +891,9 @@ const Table: React.FC<{
   groupedRecords: Record<string, SaleRecord[]>, 
   onStatusUpdate?: (id: string, s: RecordStatus) => void, 
   onForceSync?: (id: string) => void,
-  portal?: PortalType 
-}> = ({ groupedRecords, onStatusUpdate, onForceSync, portal }) => (
+  portal?: PortalType,
+  normalizePhone: (p: string) => string
+}> = ({ groupedRecords, onStatusUpdate, onForceSync, portal, normalizePhone }) => (
   <div className="overflow-x-auto">
     <table className="w-full text-left min-w-[1200px]">
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]"><tr><th className="px-8 py-6">Timestamp</th><th className="px-8 py-6">Participants</th><th className="px-8 py-6">Commodity</th><th className="px-8 py-6">Quantity</th><th className="px-8 py-6">Unit Price</th><th className="px-8 py-6">Total Gross</th><th className="px-8 py-6 text-emerald-600">Profit (10%)</th><th className="px-8 py-6">Backup</th><th className="px-8 py-6">Security</th><th className="px-8 py-6 text-center">Status</th><th className="px-8 py-6 text-center">Action</th></tr></thead>
