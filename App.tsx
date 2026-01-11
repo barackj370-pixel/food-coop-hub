@@ -22,7 +22,6 @@ const persistence = {
 };
 
 const computeHash = async (record: any): Promise<string> => {
-  // Strict normalization for hash matching between local and cloud
   const normalizedUnits = Number(record.unitsSold).toString();
   const normalizedPrice = Number(record.unitPrice).toString();
   const msg = `${record.id}-${record.date}-${normalizedUnits}-${normalizedPrice}`;
@@ -70,30 +69,34 @@ const App: React.FC = () => {
     return portals;
   }, [agentIdentity, isSystemDev]);
 
-  const exportToCSV = (records: SaleRecord[]) => {
-    const filteredRecords = records.filter(r => 
-      r.cluster !== 'Unassigned' || 
-      r.agentName === 'Barack James' ||
-      r.createdBy === 'Barack James'
-    );
-    
-    if (filteredRecords.length === 0) {
-      alert("No records to export.");
-      return;
-    }
-
+  const exportToCSV = (recordsToExport: SaleRecord[]) => {
+    // Generate a fresh, formatted CSV ignoring all structural noise
     const headers = [
       'ID', 'Date', 'Commodity', 'Unit', 
       'Farmer', 'Farmer Phone', 'Customer', 'Customer Phone', 
       'Agent', 'Agent Phone', 'Cluster', 'Qty', 'Price', 
-      'Total', 'Commission', 'Status', 'Signature'
+      'Total', 'Commission', 'Status', 'Signature', 'Created At'
     ];
 
-    const rows = filteredRecords.map(r => [
-      r.id, r.date, r.cropType, r.unitType,
-      `"${r.farmerName}"`, r.farmerPhone, `"${r.customerName}"`, r.customerPhone,
-      `"${r.agentName || 'System'}"`, r.agentPhone || '', r.cluster || '', r.unitsSold, r.unitPrice,
-      r.totalSale, r.coopProfit, r.status, r.signature
+    const rows = recordsToExport.map(r => [
+      r.id,
+      r.date,
+      r.cropType,
+      r.unitType,
+      `"${(r.farmerName || '').replace(/"/g, '""')}"`,
+      r.farmerPhone,
+      `"${(r.customerName || '').replace(/"/g, '""')}"`,
+      r.customerPhone,
+      `"${(r.agentName || 'System').replace(/"/g, '""')}"`,
+      r.agentPhone,
+      r.cluster,
+      r.unitsSold,
+      r.unitPrice,
+      r.totalSale,
+      r.coopProfit,
+      r.status,
+      r.signature,
+      r.createdAt
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
@@ -101,7 +104,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Audit_Report_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `FOOD_COOP_AUDIT_FRESH_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -142,14 +145,14 @@ const App: React.FC = () => {
   }, [records, agentIdentity]);
 
   const handleClearRecords = async () => {
-    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud Excel file and local storage. All 'ghost records' will be deleted. Continue?")) {
+    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud Excel/CSV source and your local storage. It will definitively format a NEW history. Continue?")) {
       try {
+        setRecords([]); // Clear local state immediately
         await clearAllRecordsOnCloud();
-        setRecords([]);
         localStorage.clear();
         sessionStorage.clear();
-        alert("Cloud and Local Storage Cleared. App will now reload.");
-        window.location.replace(window.location.origin + window.location.pathname + '?reset=' + Date.now());
+        alert("Full System Reset Successful. Refreshing with fresh CSV structure.");
+        window.location.replace(window.location.origin + window.location.pathname + '?nuclear=' + Date.now());
       } catch (err) {
         window.location.reload();
       }
@@ -157,16 +160,9 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecord = async (id: string) => {
-    if (!window.confirm("Permanently delete this record from the cloud and local log?")) return;
-    
-    // Remove locally
+    if (!window.confirm("Permanently delete this record from the cloud log?")) return;
     setRecords(prev => prev.filter(r => r.id !== id));
-    
-    // Attempt cloud delete
-    const success = await deleteRecordFromCloud(id);
-    if (!success) {
-      alert("Note: Cloud deletion might have failed or row already gone. Record removed locally.");
-    }
+    await deleteRecordFromCloud(id);
   };
 
   const handleAddRecord = async (data: any) => {
@@ -235,9 +231,8 @@ const App: React.FC = () => {
   };
 
   const filteredRecords = useMemo(() => {
-    let base = records;
-    // Strict validation: Ignore rows that are corrupted or missing essential IDs
-    base = base.filter(r => r.id && r.id.length > 2);
+    // CRITICAL: Filter out any record that lacks a valid ID or date to remove "Excel Ghost Rows"
+    let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
 
     if (!isSystemDev) {
       const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
@@ -273,8 +268,7 @@ const App: React.FC = () => {
 
   const auditPeriodMetrics = useMemo(() => {
     const now = new Date();
-    // Statistics MUST respect the same filteredRecords list to exclude ghost data
-    const rLog = filteredRecords;
+    const rLog = filteredRecords; // Strictly use sanitized records
     
     const getRange = (days: number) => {
       const cutoff = new Date(now);
@@ -287,10 +281,7 @@ const App: React.FC = () => {
     };
 
     return {
-      d7: getRange(7),
-      d14: getRange(14),
-      d21: getRange(21),
-      d30: getRange(30)
+      d7: getRange(7), d14: getRange(14), d21: getRange(21), d30: getRange(30)
     };
   }, [filteredRecords]);
 
@@ -585,7 +576,7 @@ const App: React.FC = () => {
                       <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
                     ))}
                  </div>
-                 <button onClick={() => exportToCSV(records)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all">
+                 <button onClick={() => exportToCSV(filteredRecords)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all">
                    <i className="fas fa-file-csv mr-2"></i>Download Audit Report
                  </button>
               </div>
@@ -601,7 +592,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.3.0</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.4.1</p></footer>
     </div>
   );
 };
