@@ -38,7 +38,12 @@ const getPreviousWeekKey = (date: Date): string => {
 };
 
 const computeHash = async (record: any): Promise<string> => {
-  const msg = `${record.id}-${record.date}-${record.unitsSold}-${record.unitPrice}`;
+  const normalizedId = String(record.id);
+  const normalizedDate = String(record.date);
+  const normalizedUnits = Number(record.unitsSold).toString();
+  const normalizedPrice = Number(record.unitPrice).toString();
+  
+  const msg = `${normalizedId}-${normalizedDate}-${normalizedUnits}-${normalizedPrice}`;
   const encoder = new TextEncoder();
   const data = encoder.encode(msg);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -157,13 +162,12 @@ const App: React.FC = () => {
   }, [records, agentIdentity]);
 
   const handleClearRecords = async () => {
-    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will wipe ALL records from cloud, local cache, and banish ghost records permanently. Proceed?")) {
+    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will wipe ALL records from cloud and local cache to banish ghost records permanently. Proceed?")) {
       try {
         await clearAllRecordsOnCloud();
         setRecords([]);
         localStorage.clear();
         sessionStorage.clear();
-
         if ('serviceWorker' in navigator) {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (const registration of registrations) { await registration.unregister(); }
@@ -173,7 +177,7 @@ const App: React.FC = () => {
           for (const key of cacheKeys) { await caches.delete(key); }
         }
         alert("System Cleaned. Reloading...");
-        window.location.replace(window.location.origin + window.location.pathname);
+        window.location.replace(window.location.origin + window.location.pathname + '?purge=' + Date.now());
       } catch (err) {
         window.location.reload();
       }
@@ -213,7 +217,6 @@ const App: React.FC = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
-
     const targetPhoneRaw = authForm.phone.trim();
     const targetPhoneNormalized = normalizePhone(targetPhoneRaw);
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
@@ -227,41 +230,22 @@ const App: React.FC = () => {
 
       if (isRegisterMode) {
         if (!targetName || targetPhoneNormalized.length < 9 || targetPasscode.length !== 4) {
-          alert("Validation failed: Please check phone number and 4-digit passcode.");
+          alert("Validation failed.");
           setIsAuthLoading(false);
           return;
         }
-        const exists = users.find(u => normalizePhone(u.phone) === targetPhoneNormalized);
-        if (exists) {
-          alert("Account already exists with this phone number.");
-          setIsAuthLoading(false);
-          return;
-        }
-        const newUser: AgentIdentity = { 
-          name: targetName, 
-          phone: targetPhoneRaw, 
-          passcode: targetPasscode, 
-          role: targetRole,
-          cluster: targetCluster,
-          status: 'ACTIVE'
-        };
+        const newUser: AgentIdentity = { name: targetName, phone: targetPhoneRaw, passcode: targetPasscode, role: targetRole, cluster: targetCluster, status: 'ACTIVE' };
         users.push(newUser);
         persistence.set('coop_users', JSON.stringify(users));
         await syncUserToCloud(newUser);
         setAgentIdentity(newUser);
       } else {
-        const user = users.find(u => 
-          normalizePhone(u.phone) === targetPhoneNormalized && 
-          String(u.passcode).replace(/\D/g, '') === targetPasscode
-        );
-        if (user) {
-          setAgentIdentity(user);
-        } else {
-          alert("Authentication failed. Check details or verify your cloud connection.");
-        }
+        const user = users.find(u => normalizePhone(u.phone) === targetPhoneNormalized && String(u.passcode).replace(/\D/g, '') === targetPasscode);
+        if (user) setAgentIdentity(user);
+        else alert("Auth failed.");
       }
     } catch (err) {
-      alert("System Error: Could not verify identity.");
+      alert("System Error.");
     } finally {
       setIsAuthLoading(false);
     }
@@ -292,6 +276,81 @@ const App: React.FC = () => {
     return grouped;
   }, [filteredRecords]);
 
+  const stats = useMemo(() => {
+    const relevantRecords = filteredRecords;
+    const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + Number(b.coopProfit), 0);
+    return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
+  }, [filteredRecords]);
+
+  const periodicMetrics = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - 7);
+    const rLog = records.filter(r => r.cluster !== 'Unassigned' || r.agentName === 'Barack James');
+    return {
+      monthly: {
+        sales: rLog.filter(r => new Date(r.date).getTime() >= startOfMonth.getTime()).reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: rLog.filter(r => r.status === RecordStatus.VERIFIED && new Date(r.date).getTime() >= startOfMonth.getTime()).reduce((sum, r) => sum + Number(r.coopProfit), 0),
+      },
+      weekly: {
+        sales: rLog.filter(r => new Date(r.date).getTime() >= startOfWeek.getTime()).reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: rLog.filter(r => r.status === RecordStatus.VERIFIED && new Date(r.date).getTime() >= startOfWeek.getTime()).reduce((sum, r) => sum + Number(r.coopProfit), 0),
+      }
+    };
+  }, [records]);
+
+  const boardMetrics = useMemo(() => {
+    const rLog = records.filter(r => r.cluster !== 'Unassigned' || r.agentName === 'Barack James');
+    const performanceMap = rLog.reduce((acc, r) => {
+      const label = `${r.cropType} (${r.date})`;
+      acc[label] = (acc[label] || 0) + Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, number>);
+    const performanceData: [string, number][] = Object.entries(performanceMap).sort((a, b) => {
+      const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
+      const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    }).slice(-15);
+
+    const clusterMap = rLog.reduce((acc, r) => {
+      const cluster = r.cluster || 'Unassigned';
+      acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, number>);
+    const clusterPerformance: [string, number][] = Object.entries(clusterMap).sort((a, b) => b[1] - a[1]);
+
+    const agentMap = rLog.reduce((acc, r) => {
+      const agent = r.agentName || 'Unknown Agent';
+      acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, number>);
+    const topAgents: [string, number][] = Object.entries(agentMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    return { performanceData, clusterPerformance, topAgents };
+  }, [records]);
+
+  const registeredUsers = useMemo(() => {
+    const usersData = persistence.get('coop_users');
+    return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
+  }, [isAuthLoading]);
+
+  const updateUserStatus = (phone: string, status: AccountStatus, resetWarnings = false) => {
+    const usersData = persistence.get('coop_users');
+    if (!usersData) return;
+    let users: AgentIdentity[] = JSON.parse(usersData);
+    const idx = users.findIndex(u => normalizePhone(u.phone) === normalizePhone(phone));
+    if (idx !== -1) {
+      users[idx].status = status;
+      if (resetWarnings) users[idx].warnings = 0;
+      persistence.set('coop_users', JSON.stringify(users));
+      setIsAuthLoading(!isAuthLoading);
+    }
+  };
+
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
     setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
     const record = records.find(r => r.id === id);
@@ -307,66 +366,35 @@ const App: React.FC = () => {
     const record = records.find(r => r.id === id);
     if (!record || (record.cluster === 'Unassigned' && !isSystemDev)) return;
     const success = await syncToGoogleSheets(record);
-    if (success) {
-      setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
-    }
+    if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
   };
 
   if (!agentIdentity) {
     return (
       <div className="min-h-screen bg-[#022c22] flex flex-col items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] translate-x-1/2 translate-y-1/2"></div>
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl mb-4 border border-emerald-500/30"><i className="fas fa-leaf text-xl"></i></div>
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
         </div>
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10">
-          <div className="p-8 space-y-5">
+        <div className="w-full max-w-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
             <div className="flex justify-between items-end">
-              <div>
-                <h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2>
-                <p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Verified Identity Required</p>
-              </div>
-              <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400 transition-colors">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
+              <div><h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2><p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Identity Required</p></div>
+              <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="text-[9px] font-black uppercase text-white/40">{isRegisterMode ? 'Login' : 'Register'}</button>
             </div>
             <form onSubmit={handleAuth} className="space-y-4">
-              {isRegisterMode && (
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Full Name</label>
-                  <input type="text" required placeholder="e.g. Barack James" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-white/10" />
-                </div>
-              )}
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Phone Number</label>
-                <input type="tel" required placeholder="07..." value={authForm.phone} onChange={(e) => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-white/10" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">4-Digit Passcode</label>
-                <input type="password" maxLength={4} required placeholder="••••" value={authForm.passcode} onChange={(e) => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white tracking-[1.2em] text-center focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-white/10" />
-              </div>
+              {isRegisterMode && <input type="text" placeholder="Name" value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />}
+              <input type="tel" placeholder="Phone" value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />
+              <input type="password" maxLength={4} placeholder="••••" value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none tracking-[1em]" />
               {isRegisterMode && (
                 <>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">System Role</label>
-                    <select value={authForm.role} onChange={(e) => setAuthForm({...authForm, role: e.target.value as SystemRole})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
-                      {Object.values(SystemRole).map(role => (<option key={role} value={role} className="bg-slate-900">{role}</option>))}
-                    </select>
-                  </div>
-                  {authForm.role === SystemRole.FIELD_AGENT && (
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-white/30 uppercase ml-2 tracking-widest">Assigned Cluster</label>
-                      <select value={authForm.cluster} onChange={(e) => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all appearance-none">
-                        {CLUSTERS.map(c => (<option key={c} value={c} className="bg-slate-900">{c}</option>))}
-                      </select>
-                    </div>
-                  )}
+                  <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none"><option value={SystemRole.FIELD_AGENT} className="bg-slate-900">Field Agent</option><option value={SystemRole.FINANCE_OFFICER} className="bg-slate-900">Finance Officer</option><option value={SystemRole.AUDITOR} className="bg-slate-900">Auditor</option><option value={SystemRole.MANAGER} className="bg-slate-900">Director</option></select>
+                  <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">{CLUSTERS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}</select>
                 </>
               )}
-              <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl shadow-emerald-500/10 active:scale-95 transition-all mt-4">{isAuthLoading ? <i className="fas fa-circle-notch fa-spin"></i> : (isRegisterMode ? 'Create Identity' : 'Authenticate')}</button>
+              <button disabled={isAuthLoading} className="w-full bg-emerald-500 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em]">{isAuthLoading ? '...' : 'Authenticate'}</button>
             </form>
-          </div>
         </div>
       </div>
     );
@@ -385,7 +413,6 @@ const App: React.FC = () => {
           </div>
           <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
             <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mb-1">Authenticated: {agentIdentity.name}</p>
-            <p className="text-[13px] font-black tracking-tight">{agentIdentity.phone}</p>
             <button onClick={handleLogout} className="text-[9px] font-black uppercase text-emerald-400 hover:text-white mt-1.5 flex items-center justify-end w-full group"><i className="fas fa-user-gear mr-2 text-[8px] opacity-50 group-hover:opacity-100 transition-opacity"></i>End Session</button>
           </div>
         </div>
@@ -401,16 +428,118 @@ const App: React.FC = () => {
       <main className="container mx-auto px-6 -mt-8 space-y-10 relative z-20">
         {currentPortal === 'SALES' && <SaleForm onSubmit={handleAddRecord} />}
         
+        {currentPortal === 'FINANCE' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+             <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden border border-blue-500">
+                <p className="text-[10px] font-black text-blue-100 uppercase tracking-[0.4em] mb-4">Urgent Actions</p>
+                <p className="text-[8px] font-black text-blue-200 uppercase tracking-widest mb-1">Awaiting Finance Approval</p>
+                <p className="text-3xl font-black">KSh {stats.awaitingFinanceComm.toLocaleString()}</p>
+                <div className="mt-6 pt-6 border-t border-white/10"><span className="text-[9px] font-black uppercase tracking-widest bg-white/10 px-3 py-1 rounded-lg">High Visibility Queue</span></div>
+             </div>
+          </div>
+        )}
+
+        {currentPortal === 'AUDIT' && (
+          <div className="space-y-10 animate-fade-in">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden border border-emerald-800">
+                   <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-4">Verification Desk</p>
+                   <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest mb-1">Awaiting Auditor's Stamp</p>
+                   <p className="text-3xl font-black">KSh {stats.awaitingAuditComm.toLocaleString()}</p>
+                   <div className="mt-6 pt-6 border-t border-white/5"><span className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-lg">Audit Verification Required</span></div>
+                </div>
+             </div>
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <div className="flex items-center justify-between mb-8">
+                 <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Audit Controls</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Universal Integrity Oversight</p></div>
+                 <button onClick={() => exportToCSV(records)} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase px-6 py-3 rounded-2xl shadow-xl active:scale-95 transition-all">Download Audit Report</button>
+               </div>
+             </div>
+          </div>
+        )}
+
+        {currentPortal === 'BOARD' && (
+          <div className="space-y-10 animate-fade-in">
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <div className="flex items-center justify-between mb-8">
+                 <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Re-instatement</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Approve suspended agents</p></div>
+                 <i className="fas fa-user-shield text-slate-200 text-2xl"></i>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                   <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest"><tr><th className="px-6 py-4">Agent Name</th><th className="px-6 py-4">Cluster</th><th className="px-6 py-4 text-center">Action</th></tr></thead>
+                   <tbody className="divide-y divide-slate-50">
+                     {registeredUsers.filter(u => u.status === 'SUSPENDED').length === 0 ? (<tr><td colSpan={3} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No suspensions</td></tr>) : registeredUsers.filter(u => u.status === 'SUSPENDED').map(user => (
+                       <tr key={user.phone}>
+                         <td className="px-6 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                         <td className="px-6 py-4 text-[11px] font-bold text-slate-400">{user.cluster}</td>
+                         <td className="px-6 py-4 text-center"><button onClick={() => updateUserStatus(user.phone, 'AWAITING_ACTIVATION')} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl">Approve</button></td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-10">Commodity Yield Analysis</h3>
+                  <div className="flex-1 min-h-[300px] flex items-end justify-between pl-10 pr-6 pb-16 pt-8 relative bg-slate-50/20 rounded-[2rem] border border-slate-100/50">
+                    {boardMetrics.performanceData.map(([label, value]) => {
+                      const maxVal = Math.max(...boardMetrics.performanceData.map(d => Number(d[1])), 1);
+                      const heightPercent = (Number(value) / maxVal) * 100;
+                      return (
+                        <div key={label} className="flex-1 flex flex-col items-center group relative h-full justify-end px-1">
+                          <div className="w-full bg-emerald-500 rounded-t-xl transition-all duration-500 group-hover:bg-emerald-600 relative" style={{ height: `${heightPercent}%` }}>
+                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[8px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity font-black">KSh {Number(value).toLocaleString()}</div>
+                          </div>
+                          <span className="text-[6px] font-black text-slate-800 uppercase mt-2 transform rotate-45">{label.split(' (')[0]}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl space-y-6">
+                   <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em]">Integrity Snapshots</p>
+                   <div><p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Monthly Performance</p><p className="text-2xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p></div>
+                   <div><p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest">Weekly Performance</p><p className="text-2xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p></div>
+                </div>
+             </div>
+          </div>
+        )}
+
         {isSystemDev && currentPortal === 'SYSTEM' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-            <div className="bg-emerald-900 p-8 rounded-[2.5rem] border border-emerald-800 text-white flex justify-between items-center shadow-xl">
-               <div><h3 className="font-black uppercase tracking-tight text-lg">Infrastructure</h3><p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Direct Cloud Engine Access</p></div>
-               <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Open Sheet</a>
-            </div>
-            <div className="bg-white p-8 rounded-[2.5rem] border border-red-100 flex justify-between items-center shadow-xl">
-               <div><h3 className="font-black uppercase tracking-tight text-lg text-red-600">Danger Zone</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Nuclear Clear All History</p></div>
-               <button onClick={handleClearRecords} className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Global Clear</button>
-            </div>
+          <div className="space-y-10 animate-fade-in">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-emerald-900 p-8 rounded-[2.5rem] border border-emerald-800 text-white flex justify-between items-center shadow-xl">
+                   <div><h3 className="font-black uppercase tracking-tight text-lg">Infrastructure</h3><p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Direct Cloud Engine Access</p></div>
+                   <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Open Sheet</a>
+                </div>
+                <div className="bg-white p-8 rounded-[2.5rem] border border-red-100 flex justify-between items-center shadow-xl">
+                   <div><h3 className="font-black uppercase tracking-tight text-lg text-red-600">Danger Zone</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Nuclear Clear All History</p></div>
+                   <button onClick={handleClearRecords} className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Global Clear</button>
+                </div>
+             </div>
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-8">Pending Activations</h3>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                   <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest"><tr><th className="px-6 py-4">Agent Name</th><th className="px-6 py-4">Status</th><th className="px-6 py-4 text-center">Action</th></tr></thead>
+                   <tbody className="divide-y divide-slate-50">
+                     {registeredUsers.filter(u => u.status === 'AWAITING_ACTIVATION').length === 0 ? (<tr><td colSpan={3} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No pending activations</td></tr>) : registeredUsers.filter(u => u.status === 'AWAITING_ACTIVATION').map(user => (
+                       <tr key={user.phone}>
+                         <td className="px-6 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                         <td className="px-6 py-4"><span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-[8px] font-black uppercase">Pending Approval</span></td>
+                         <td className="px-6 py-4 text-center"><button onClick={() => updateUserStatus(user.phone, 'ACTIVE', true)} className="bg-slate-900 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl">Reactivate</button></td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="p-8 border-b border-slate-50"><h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3></div>
+                <div className="overflow-x-auto"><table className="w-full text-left"><thead className="bg-slate-50 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Phone</th><th className="px-8 py-4">Status</th></tr></thead><tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[9px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td><td className="px-8 py-4"><span className={`text-[8px] font-black uppercase ${user.status === 'ACTIVE' ? 'text-emerald-500' : 'text-red-500'}`}>{user.status}</span></td></tr>))}</tbody></table></div>
+             </div>
           </div>
         )}
 
@@ -427,7 +556,7 @@ const App: React.FC = () => {
           <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} normalizePhone={normalizePhone} />
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.2</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.4</p></footer>
     </div>
   );
 };
@@ -462,6 +591,7 @@ const Table: React.FC<{
                 <td className="px-8 py-6"><SecurityBadge record={r} /></td>
                 <td className="px-8 py-6 text-center">
                   {portal === 'SALES' && r.status === RecordStatus.DRAFT && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.PAID)} className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Forward</button>)}
+                  {portal === 'FINANCE' && r.status === RecordStatus.PAID && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Approve</button>)}
                   {portal === 'AUDIT' && r.status === RecordStatus.VALIDATED && (<button onClick={() => onStatusUpdate?.(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 hover:bg-black text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-all active:scale-95">Verify</button>)}
                 </td>
               </tr>
