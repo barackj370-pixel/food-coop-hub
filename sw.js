@@ -1,27 +1,37 @@
-const CACHE_NAME = 'food-coop-hub-v2'; // Bumped version to force update
+const CACHE_NAME = 'food-coop-hub-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './index.tsx',
-  'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+  './App.tsx',
+  './types.ts',
+  './constants.ts',
+  './components/StatCard.tsx',
+  './components/SaleForm.tsx',
+  './services/geminiService.ts',
   'https://cdn-icons-png.flaticon.com/512/188/188333.png'
 ];
 
+// Install Event: Cache core assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE);
+    })
   );
   self.skipWaiting();
 });
 
+// Activate Event: Cleanup old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) return caches.delete(cache);
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
         })
       );
     })
@@ -29,28 +39,28 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Fetch Event: Stale-while-revalidate strategy
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // For development, we prioritize network for app logic to avoid stale state
-  const isAppLogic = event.request.url.includes('.tsx') || event.request.url.includes('.ts');
-  
-  if (isAppLogic) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
-  } else {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        const fetchPromise = fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
-          }
-          return networkResponse;
-        }).catch(() => {});
-        return cachedResponse || fetchPromise;
-      })
-    );
-  }
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        // Only cache valid responses
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        // Silent catch for offline network failures
+      });
+
+      // Return cached response immediately if available, otherwise wait for network
+      return cachedResponse || fetchPromise;
+    })
+  );
 });

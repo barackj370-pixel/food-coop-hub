@@ -27,16 +27,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
 
   const rawData = Array.isArray(records) ? records : [records];
   
-  // Filter: Exclude 'Unassigned' unless it's Barack James (System Developer testing)
-  const filteredData = rawData.filter(r => 
-    r.cluster !== 'Unassigned' || 
-    r.agentName === 'Barack James' || 
-    r.createdBy === 'Barack James'
-  );
-  
-  if (filteredData.length === 0) return true;
-
-  const mappedRecords = filteredData.map(r => ({
+  const mappedRecords = rawData.map(r => ({
     id: r.id,
     date: r.date,
     cropType: r.cropType,
@@ -64,7 +55,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       body: JSON.stringify({
         action: 'sync_records',
         records: mappedRecords,
-        _t: Date.now() 
+        _t: Date.now() // Strict cache busting
       }),
     });
     return true;
@@ -83,7 +74,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'get_records',
-        _t: Date.now() 
+        _t: Date.now() // Strict cache busting
       })
     });
     
@@ -116,6 +107,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       })) as SaleRecord[];
     }
     
+    // Explicitly return empty array if response is not JSON, signaling a cleared state
     return [];
   } catch (error) {
     console.error("Fetch Error:", error);
