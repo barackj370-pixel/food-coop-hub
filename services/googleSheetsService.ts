@@ -13,7 +13,6 @@ const formatDate = (dateVal: any): string => {
   if (!dateVal) return "";
   try {
     const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return String(dateVal).split('T')[0];
     return d.toISOString().split('T')[0];
   } catch (e) {
     return String(dateVal).split('T')[0];
@@ -46,10 +45,10 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     farmerPhone: r.farmerPhone || "", 
     customerName: r.customerName || "",
     customerPhone: r.customerPhone || "",
-    unitsSold: Number(r.unitsSold),
-    unitPrice: Number(r.unitPrice), 
-    totalSale: Number(r.totalSale),
-    coopProfit: Number(r.coopProfit),
+    unitsSold: r.unitsSold,
+    unitPrice: r.unitPrice, 
+    totalSale: r.totalSale,
+    coopProfit: r.coopProfit,
     status: r.status,
     createdBy: r.agentName || "System Agent",
     agentPhone: r.agentPhone || "",
@@ -79,7 +78,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
 
   try {
-    const response = await fetch(`${GOOGLE_SHEETS_WEBHOOK_URL}?t=${Date.now()}`, {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
@@ -95,30 +94,26 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       const rawData = JSON.parse(trimmed);
       const dataArray = Array.isArray(rawData) ? rawData : [];
       
-      return dataArray.map(r => {
-        const uSold = safeNum(r["Units"] || r["Units Sold"]);
-        const uPrice = safeNum(r["Unit Price"] || r["Price per Unit"] || r["Price"]);
-        return {
-          id: String(r["ID"] || ""),
-          date: formatDate(r["Date"]),
-          cropType: String(r["Commodity"] || r["Crop Type"] || ""),
-          farmerName: String(r["Farmer"] || r["Farmer Name"] || ""),
-          farmerPhone: String(r["Farmer Phone"] || ""),
-          customerName: String(r["Customer"] || r["Customer Name"] || ""),
-          customerPhone: String(r["Customer Phone"] || ""),
-          unitsSold: uSold,
-          unitPrice: uPrice,
-          totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["Total"]),
-          coopProfit: safeNum(r["Commission"] || r["Commission 10%"] || r["Coop Profit"]),
-          status: String(r["Status"] || "DRAFT") as any,
-          agentName: String(r["Agent"] || r["Agent Name"] || ""),
-          agentPhone: String(r["Agent Phone"] || ""),
-          createdAt: formatDate(r["Created At"] || r["Date"]),
-          synced: true,
-          signature: String(r["Signature"] || ""),
-          unitType: String(r["Unit"] || r["Unit Type"] || "Kg"),
-        };
-      }) as SaleRecord[];
+      return dataArray.map(r => ({
+        id: String(r["ID"] || ""),
+        date: formatDate(r["Date"]),
+        cropType: String(r["Commodity"] || r["Crop Type"] || ""),
+        farmerName: String(r["Farmer"] || r["Farmer Name"] || ""),
+        farmerPhone: String(r["Farmer Phone"] || ""),
+        customerName: String(r["Customer"] || r["Customer Name"] || ""),
+        customerPhone: String(r["Customer Phone"] || ""),
+        unitsSold: safeNum(r["Units"] || r["Units Sold"]),
+        unitPrice: safeNum(r["Unit Price"] || r["Price per Unit"] || r["Price"]),
+        totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["Total"]),
+        coopProfit: safeNum(r["Commission"] || r["Commission 10%"] || r["Coop Profit"]),
+        status: String(r["Status"] || "DRAFT") as any,
+        agentName: String(r["Agent"] || r["Agent Name"] || ""),
+        agentPhone: String(r["Agent Phone"] || ""),
+        createdAt: formatDate(r["Date"]),
+        synced: true,
+        signature: String(r["Signature"] || ""),
+        unitType: String(r["Unit"] || r["Unit Type"] || "Kg"),
+      })) as SaleRecord[];
     }
     
     return [];
@@ -136,11 +131,11 @@ export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'clear_records',
-        confirm: true,
         _t: Date.now()
       }),
     });
-    return response.ok;
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
   } catch (error) {
     console.error("Clear Cloud Records Error:", error);
     return false;

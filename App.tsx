@@ -38,13 +38,7 @@ const getPreviousWeekKey = (date: Date): string => {
 };
 
 const computeHash = async (record: any): Promise<string> => {
-  // Strict normalization of fields to ensure re-hashing consistent values
-  const normalizedId = String(record.id);
-  const normalizedDate = String(record.date);
-  const normalizedUnits = Number(record.unitsSold).toString();
-  const normalizedPrice = Number(record.unitPrice).toString();
-  
-  const msg = `${normalizedId}-${normalizedDate}-${normalizedUnits}-${normalizedPrice}`;
+  const msg = `${record.id}-${record.date}-${record.unitsSold}-${record.unitPrice}`;
   const encoder = new TextEncoder();
   const data = encoder.encode(msg);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -163,35 +157,24 @@ const App: React.FC = () => {
   }, [records, agentIdentity]);
 
   const handleClearRecords = async () => {
-    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will wipe ALL records from cloud and local cache to banish ghost records permanently. Proceed?")) {
+    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will wipe ALL records from cloud, local cache, and banish ghost records permanently. Proceed?")) {
       try {
         await clearAllRecordsOnCloud();
-        
-        // Wipe all state
         setRecords([]);
-        
-        // Wipe all storage
         localStorage.clear();
         sessionStorage.clear();
 
-        // Wipe Service Workers
         if ('serviceWorker' in navigator) {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (const registration of registrations) { await registration.unregister(); }
         }
-        
-        // Wipe Cache API
         if ('caches' in window) {
           const cacheKeys = await caches.keys();
           for (const key of cacheKeys) { await caches.delete(key); }
         }
-
-        alert("System Cleaned. Reloading to ensure fresh state...");
-        
-        // Force reload without cache
-        window.location.replace(window.location.origin + window.location.pathname + '?v=' + Date.now());
+        alert("System Cleaned. Reloading...");
+        window.location.replace(window.location.origin + window.location.pathname);
       } catch (err) {
-        console.error("Clear Failure:", err);
         window.location.reload();
       }
     }
@@ -219,7 +202,6 @@ const App: React.FC = () => {
     
     setRecords([newRecord, ...records]);
     
-    // Barack James can sync 'Unassigned' records; others cannot
     if (newRecord.cluster !== 'Unassigned' || isSystemDev) {
       const success = await syncToGoogleSheets(newRecord);
       if (success) {
@@ -445,7 +427,7 @@ const App: React.FC = () => {
           <Table groupedRecords={groupedAndSortedRecords} portal={currentPortal} onStatusUpdate={handleUpdateStatus} onForceSync={handleSingleSync} normalizePhone={normalizePhone} />
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.3</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.2.2</p></footer>
     </div>
   );
 };
