@@ -3,7 +3,7 @@ import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } fr
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
-import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud, deleteRecordFromCloud } from './services/googleSheetsService.ts';
+import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud, clearAllUsersOnCloud, deleteRecordFromCloud } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
@@ -76,28 +76,6 @@ const App: React.FC = () => {
     persistence.remove('food_coop_data');
   };
 
-  // TARGETED CLEANUP EFFECT: Remove specified phone numbers to allow re-registration
-  useEffect(() => {
-    const cleanupTargets = ['0725717170', '0733717170'].map(p => normalizePhone(p));
-    
-    // Cleanup local storage users
-    const usersData = persistence.get('coop_users');
-    if (usersData) {
-      try {
-        const users: AgentIdentity[] = JSON.parse(usersData);
-        const filtered = users.filter(u => !cleanupTargets.includes(normalizePhone(u.phone)));
-        if (filtered.length !== users.length) {
-          persistence.set('coop_users', JSON.stringify(filtered));
-        }
-      } catch (e) { console.error("Cleanup error", e); }
-    }
-
-    // Cleanup active session if it matches target
-    if (agentIdentity && cleanupTargets.includes(normalizePhone(agentIdentity.phone))) {
-      handleLogout();
-    }
-  }, []);
-
   useEffect(() => {
     const loadCloudData = async () => {
       if (!agentIdentity) return;
@@ -107,10 +85,7 @@ const App: React.FC = () => {
       ]);
       
       if (cloudUsers) {
-        // Filter out deleted targets from cloud result too
-        const cleanupTargets = ['0725717170', '0733717170'].map(p => normalizePhone(p));
-        const activeUsers = cloudUsers.filter(u => !cleanupTargets.includes(normalizePhone(u.phone)));
-        persistence.set('coop_users', JSON.stringify(activeUsers));
+        persistence.set('coop_users', JSON.stringify(cloudUsers));
       }
 
       if (cloudRecords) {
@@ -140,6 +115,20 @@ const App: React.FC = () => {
         await clearAllRecordsOnCloud();
         persistence.remove('food_coop_data');
         alert("Full Data Reset Successful. App will now reload.");
+        window.location.reload();
+      } catch (err) {
+        window.location.reload();
+      }
+    }
+  };
+
+  const handleClearUsers = async () => {
+    if (window.confirm("IDENTITY NUCLEAR RESET: This will delete ALL registered accounts from the cloud and local registry. You will be logged out. Continue?")) {
+      try {
+        await clearAllUsersOnCloud();
+        persistence.remove('coop_users');
+        persistence.remove('agent_session');
+        alert("Identity Database Cleared. Starting fresh registration...");
         window.location.reload();
       } catch (err) {
         window.location.reload();
@@ -219,10 +208,7 @@ const App: React.FC = () => {
   };
 
   const filteredRecords = useMemo(() => {
-    // Structural filter for valid data
     let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
-
-    // HARD-CODE PURGE: Define specific exclusion for records dated 10th Feb 2025
     base = base.filter(r => r.date !== '2025-02-10');
 
     if (!isSystemDev) {
@@ -413,7 +399,6 @@ const App: React.FC = () => {
           </div>
           <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
             <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mb-1">Authenticated: {agentIdentity.name}</p>
-            {/* Session end button removed to ensure permanent access as per user request */}
           </div>
         </div>
         <div className="container mx-auto px-6 flex flex-wrap gap-2 animate-fade-in">
@@ -505,14 +490,18 @@ const App: React.FC = () => {
 
         {isSystemDev && currentPortal === 'SYSTEM' && (
           <div className="space-y-10 animate-fade-in">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-emerald-900 p-8 rounded-[2.5rem] border border-emerald-800 text-white flex justify-between items-center shadow-2xl">
-                   <div><h3 className="font-black uppercase tracking-tight text-lg">Infrastructure</h3><p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Direct Cloud Engine Access</p></div>
+                   <div><h3 className="font-black uppercase tracking-tight text-lg">Infrastructure</h3><p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Cloud Engine</p></div>
                    <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Open Sheet</a>
                 </div>
                 <div className="bg-white p-8 rounded-[2.5rem] border border-red-100 flex justify-between items-center shadow-xl">
-                   <div><h3 className="font-black uppercase tracking-tight text-lg text-red-600">Danger Zone</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Nuclear Clear All History</p></div>
-                   <button onClick={handleClearRecords} className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Global Clear</button>
+                   <div><h3 className="font-black uppercase tracking-tight text-lg text-red-600">Nuclear Records</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Clear All History</p></div>
+                   <button onClick={handleClearRecords} className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Clear All</button>
+                </div>
+                <div className="bg-white p-8 rounded-[2.5rem] border border-red-500 flex justify-between items-center shadow-xl">
+                   <div><h3 className="font-black uppercase tracking-tight text-lg text-red-600">Nuclear Identity</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Wipe All Users</p></div>
+                   <button onClick={handleClearUsers} className="bg-red-900 hover:bg-black text-white text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Wipe Users</button>
                 </div>
              </div>
              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
@@ -532,12 +521,20 @@ const App: React.FC = () => {
                  </table>
                </div>
              </div>
-             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden h-[400px] flex flex-col">
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden h-[450px] flex flex-col">
                 <div className="p-8 border-b border-slate-50 flex items-center justify-between"><h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3><p className="text-[9px] font-bold text-slate-300 uppercase">Authenticated Accounts</p></div>
                 <div className="overflow-y-auto flex-1">
                   <table className="w-full text-left">
-                    <thead className="bg-slate-50/50 sticky top-0 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Phone</th><th className="px-8 py-4">Status</th></tr></thead>
-                    <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (<tr key={idx} className="hover:bg-slate-50"><td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td><td className="px-8 py-4"><span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[9px] font-black uppercase">{user.role}</span></td><td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td><td className="px-8 py-4"><span className={`text-[8px] font-black uppercase ${user.status === 'ACTIVE' ? 'text-emerald-500' : 'text-red-500'}`}>{user.status}</span></td></tr>))}</tbody>
+                    <thead className="bg-slate-50/50 sticky top-0 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Cluster</th><th className="px-8 py-4">Phone</th><th className="px-8 py-4">Status</th></tr></thead>
+                    <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
+                        <td className="px-8 py-4"><span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[9px] font-black uppercase">{user.role}</span></td>
+                        <td className="px-8 py-4 text-[11px] font-bold text-slate-500 italic">{user.cluster || 'None'}</td>
+                        <td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td>
+                        <td className="px-8 py-4"><span className={`text-[8px] font-black uppercase ${user.status === 'ACTIVE' ? 'text-emerald-500' : 'text-red-500'}`}>{user.status}</span></td>
+                      </tr>
+                    ))}</tbody>
                   </table>
                 </div>
              </div>
@@ -576,7 +573,6 @@ const App: React.FC = () => {
                       <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
                     ))}
                  </div>
-                 {/* Replaced CSV Export with direct Cloud Sheet link */}
                  <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-black text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
                    <i className="fas fa-table mr-2"></i>Open Cloud Sheet
                  </a>
@@ -593,7 +589,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.3</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.4</p></footer>
     </div>
   );
 };

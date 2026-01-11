@@ -108,7 +108,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       const rawData = JSON.parse(trimmed);
       const dataArray = Array.isArray(rawData) ? rawData : [];
       
-      // Filter out empty rows from the Excel sheet that sometimes return as empty objects
       return dataArray
         .filter(r => (r["ID"] || r["id"]))
         .map(r => ({
@@ -151,6 +150,26 @@ export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
         confirm: true,
         purge: true,
         auth: 'system_admin_reset',
+        _t: Date.now()
+      }),
+    });
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
+  } catch (error) {
+    return false;
+  }
+};
+
+export const clearAllUsersOnCloud = async (): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'clear_users',
+        confirm: true,
+        auth: 'system_admin_identity_reset',
         _t: Date.now()
       }),
     });
