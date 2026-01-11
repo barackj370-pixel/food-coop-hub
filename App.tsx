@@ -89,7 +89,6 @@ const App: React.FC = () => {
       }
 
       if (cloudRecords) {
-        // Double check cluster at this point just in case
         const validRecords = cloudRecords.filter(r => r.cluster && r.cluster !== 'Unassigned');
         setRecords(validRecords);
         persistence.set('food_coop_data', JSON.stringify(validRecords));
@@ -103,7 +102,6 @@ const App: React.FC = () => {
     if (saved) { 
       try { 
         const parsed: SaleRecord[] = JSON.parse(saved);
-        // Scrub 'Unassigned' from local history on boot
         const scrubbed = parsed.filter(r => r.cluster && r.cluster !== 'Unassigned');
         setRecords(scrubbed); 
       } catch (e) { } 
@@ -157,7 +155,6 @@ const App: React.FC = () => {
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
     
-    // STRICT CLUSTER ENFORCEMENT
     const cluster = agentIdentity?.cluster || 'Unassigned';
     if (cluster === 'Unassigned' && !isSystemDev) {
       alert("Error: Your account is missing a cluster assignment. Please contact support.");
@@ -224,16 +221,10 @@ const App: React.FC = () => {
   };
 
   const filteredRecords = useMemo(() => {
-    // 1. Initial Structural Filter
     let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
-    
-    // 2. GLOBAL PURGE: Completely remove all 'Unassigned' cluster records for ALL roles
     base = base.filter(r => r.cluster && r.cluster !== 'Unassigned');
-
-    // 3. Date Patch
     base = base.filter(r => r.date !== '2025-02-10');
 
-    // 4. Role-based Visibility
     if (!isSystemDev) {
       const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
                      agentIdentity?.role === SystemRole.FINANCE_OFFICER ||
@@ -376,7 +367,7 @@ const App: React.FC = () => {
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
            <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
         </div>
-        <div className="w-full max-sm bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
+        <div className="w-full max-w-[340px] bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
             <div className="flex justify-between items-end">
               <div><h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2><p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Identity Required</p></div>
               <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
@@ -481,6 +472,7 @@ const App: React.FC = () => {
                  </table>
                </div>
              </div>
+             
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-10">Commodity Yield Analysis</h3>
@@ -499,12 +491,78 @@ const App: React.FC = () => {
                     })}
                   </div>
                 </div>
-                <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl space-y-6 relative overflow-hidden">
+                
+                <div className="bg-emerald-900 p-8 rounded-[2.5rem] text-white shadow-2xl space-y-6 relative overflow-hidden flex flex-col justify-center">
                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-[40px] translate-x-1/2 -translate-y-1/2"></div>
                    <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em]">Integrity Snapshots</p>
-                   <div><p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest mb-1">Monthly Gross</p><p className="text-2xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p></div>
-                   <div><p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest mb-1">Weekly Gross</p><p className="text-2xl font-black">KSh {periodicMetrics.weekly.sales.toLocaleString()}</p></div>
+                   <div className="grid grid-cols-1 gap-6">
+                      <div className="border-l-2 border-emerald-500/30 pl-4">
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest mb-1">Monthly Approved Comm</p>
+                        <p className="text-2xl font-black text-emerald-300">KSh {periodicMetrics.monthly.comm.toLocaleString()}</p>
+                      </div>
+                      <div className="border-l-2 border-emerald-500/30 pl-4">
+                        <p className="text-[8px] font-black text-emerald-400/40 uppercase tracking-widest mb-1">Weekly Approved Comm</p>
+                        <p className="text-2xl font-black text-emerald-300">KSh {periodicMetrics.weekly.comm.toLocaleString()}</p>
+                      </div>
+                      <div className="border-l-2 border-white/10 pl-4 opacity-50">
+                        <p className="text-[8px] font-black text-white/40 uppercase tracking-widest mb-1">Monthly Gross Sales</p>
+                        <p className="text-xl font-black">KSh {periodicMetrics.monthly.sales.toLocaleString()}</p>
+                      </div>
+                   </div>
                    <div className="pt-6 border-t border-white/5"><div className="flex items-center space-x-2"><i className="fas fa-shield-check text-emerald-400 text-[10px]"></i><span className="text-[9px] font-black uppercase tracking-widest">Coop Status: Healthy</span></div></div>
+                </div>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Field Agent Leaderboard */}
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Leaderboard</h3>
+                    <i className="fas fa-medal text-amber-500 text-xl"></i>
+                  </div>
+                  <div className="space-y-4">
+                    {boardMetrics.topAgents.length === 0 ? (
+                      <p className="text-center py-10 text-slate-300 font-bold uppercase text-[10px]">No agent data</p>
+                    ) : boardMetrics.topAgents.map(([name, value], idx) => (
+                      <div key={name} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
+                        <div className="flex items-center space-x-4">
+                          <span className={`w-8 h-8 flex items-center justify-center rounded-xl font-black text-[10px] ${idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-slate-200 text-slate-600' : 'bg-orange-50 text-orange-600'}`}>{idx + 1}</span>
+                          <div>
+                            <p className="text-[12px] font-black text-slate-900">{name}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Field Agent</p>
+                          </div>
+                        </div>
+                        <p className="text-[12px] font-black text-emerald-600">KSh {value.toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cluster Performance Chart */}
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cluster Rankings</h3>
+                    <i className="fas fa-chart-bar text-emerald-500 text-xl"></i>
+                  </div>
+                  <div className="space-y-6">
+                    {boardMetrics.clusterPerformance.length === 0 ? (
+                      <p className="text-center py-10 text-slate-300 font-bold uppercase text-[10px]">No cluster data</p>
+                    ) : boardMetrics.clusterPerformance.map(([cluster, value]) => {
+                      const maxVal = Math.max(...boardMetrics.clusterPerformance.map(d => Number(d[1])), 1);
+                      const widthPercent = (Number(value) / maxVal) * 100;
+                      return (
+                        <div key={cluster} className="space-y-2">
+                          <div className="flex justify-between items-end">
+                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest">{cluster}</span>
+                            <span className="text-[11px] font-black text-emerald-600">KSh {value.toLocaleString()}</span>
+                          </div>
+                          <div className="h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100">
+                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${widthPercent}%` }}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
              </div>
           </div>
@@ -611,7 +669,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.5</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.6</p></footer>
     </div>
   );
 };
