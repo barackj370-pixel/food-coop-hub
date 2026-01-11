@@ -358,6 +358,36 @@ const App: React.FC = () => {
     if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
   };
 
+  const handleExportCsv = () => {
+    if (filteredRecords.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+    const headers = [
+      "ID", "Date", "Commodity", "Farmer", "Farmer Phone",
+      "Customer", "Customer Phone", "Units", "Unit Price",
+      "Total Gross", "Commission", "Status", "Agent",
+      "Agent Phone", "Cluster", "Created At", "Signature", "Unit"
+    ];
+    const csvRows = filteredRecords.map(r => [
+      r.id, r.date, r.cropType, r.farmerName, r.farmerPhone || "",
+      r.customerName || "", r.customerPhone || "", r.unitsSold, r.unitPrice,
+      r.totalSale, r.coopProfit, r.status, r.agentName || "",
+      r.agentPhone || "", r.cluster || "", r.createdAt, r.signature, r.unitType
+    ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+
+    const csvContent = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `food_coop_audit_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (!agentIdentity) {
     return (
       <div className="min-h-screen bg-[#022c22] flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -653,6 +683,9 @@ const App: React.FC = () => {
                       <button key={d} onClick={() => setLogFilterDays(d)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${logFilterDays === d ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}>{d}D</button>
                     ))}
                  </div>
+                 <button onClick={handleExportCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
+                   <i className="fas fa-file-csv mr-2"></i>Export CSV
+                 </button>
                  {currentPortal === 'SYSTEM' && (
                    <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-900 hover:bg-black text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
                      <i className="fas fa-table mr-2"></i>Open Cloud Sheet
