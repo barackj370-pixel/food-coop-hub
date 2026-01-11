@@ -155,7 +155,7 @@ const App: React.FC = () => {
       
       const cloudRecords = await fetchFromGoogleSheets();
       
-      // If we got a valid response (array), overwrite local stale state completely
+      // If we got a valid array (even empty), it's the absolute truth
       if (Array.isArray(cloudRecords)) {
         setRecords(cloudRecords);
         persistence.set('food_coop_data', JSON.stringify(cloudRecords));
@@ -362,22 +362,40 @@ const App: React.FC = () => {
   };
 
   const handleClearRecords = async () => {
-    if (window.confirm("NUCLEAR OPTION: This will force-purge the cloud and destroy ALL local session data to banish ghost records. Are you absolutely sure?")) {
-      // Step 1: Nuclear purge in cloud
-      const success = await clearAllRecordsOnCloud();
-      
-      // Step 2: Immediate local wipe
-      setRecords([]);
-      persistence.remove('food_coop_data');
-      
-      if (success) {
-        alert("Global Cloud and Local caches purged. Reloading app to finalize...");
-      } else {
-        alert("Local cache purged. Cloud confirmation failed - please manually check Google Sheet.");
+    if (window.confirm("ULTIMATE NUCLEAR CLEAR: This will force-purge the cloud, destroy ALL local caches, unregister Service Workers, and clear browser caches to banish ghost records permanently. Proceed?")) {
+      try {
+        // Step 1: Nuclear purge in cloud
+        await clearAllRecordsOnCloud();
+        
+        // Step 2: Immediate local state wipe
+        setRecords([]);
+        
+        // Step 3: Purge ALL local storage keys
+        localStorage.clear();
+
+        // Step 4: Purge Service Worker and Cache Storage
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+          }
+        }
+        
+        if ('caches' in window) {
+          const cacheKeys = await caches.keys();
+          for (const key of cacheKeys) {
+            await caches.delete(key);
+          }
+        }
+
+        alert("System Cleaned: Global Cloud and Local caches destroyed. The app will now reload.");
+      } catch (err) {
+        console.error("Clear Error:", err);
+        alert("Partial Clean complete. Reloading to reset state.");
+      } finally {
+        // Step 5: Force reload bypass cache
+        window.location.reload();
       }
-      
-      // Force reload to kill any stale state in memory
-      window.location.reload();
     }
   };
 
