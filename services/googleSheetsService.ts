@@ -13,7 +13,11 @@ const formatDate = (dateVal: any): string => {
   if (!dateVal) return "";
   try {
     const d = new Date(dateVal);
-    return d.toISOString().split('T')[0];
+    // Use local date part to avoid UTC shifts that cause 'Tampered' signature mismatches
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   } catch (e) {
     return String(dateVal).split('T')[0];
   }
@@ -28,9 +32,9 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   const rawData = Array.isArray(records) ? records : [records];
   
   // Filter out records with an 'Unassigned' cluster before syncing
-  const filteredData = rawData.filter(r => r.cluster !== 'Unassigned');
+  const filteredData = rawData.filter(r => r.cluster !== 'Unassigned' || r.agentName === 'Barack James');
   
-  if (filteredData.length === 0) return true; // Nothing to sync, but treat as success
+  if (filteredData.length === 0) return true;
 
   const mappedRecords = filteredData.map(r => ({
     id: r.id,
@@ -60,7 +64,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       body: JSON.stringify({
         action: 'sync_records',
         records: mappedRecords,
-        _t: Date.now() // Strict cache busting
+        _t: Date.now()
       }),
     });
     return true;
@@ -79,7 +83,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'get_records',
-        _t: Date.now() // Strict cache busting
+        _t: Date.now()
       })
     });
     
@@ -91,28 +95,27 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       const dataArray = Array.isArray(rawData) ? rawData : [];
       
       return dataArray.map(r => ({
-        id: String(r["ID"] || ""),
-        date: formatDate(r["Date"]),
-        cropType: String(r["Commodity"] || r["Crop Type"] || ""),
-        farmerName: String(r["Farmer"] || r["Farmer Name"] || ""),
-        farmerPhone: String(r["Farmer Phone"] || ""),
-        customerName: String(r["Customer"] || r["Customer Name"] || ""),
-        customerPhone: String(r["Customer Phone"] || ""),
-        unitsSold: safeNum(r["Units"] || r["Units Sold"]),
-        unitPrice: safeNum(r["Unit Price"] || r["Price per Unit"] || r["Price"]),
-        totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["Total"]),
-        coopProfit: safeNum(r["Commission"] || r["Commission 10%"] || r["Coop Profit"]),
-        status: String(r["Status"] || "DRAFT") as any,
-        agentName: String(r["Agent"] || r["Agent Name"] || ""),
-        agentPhone: String(r["Agent Phone"] || ""),
-        createdAt: formatDate(r["Date"]),
+        id: String(r["ID"] || r["id"] || ""),
+        date: formatDate(r["Date"] || r["date"]),
+        cropType: String(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
+        farmerName: String(r["Farmer"] || r["Farmer Name"] || r["farmerName"] || ""),
+        farmerPhone: String(r["Farmer Phone"] || r["farmerPhone"] || ""),
+        customerName: String(r["Customer"] || r["Customer Name"] || r["customerName"] || ""),
+        customerPhone: String(r["Customer Phone"] || r["customerPhone"] || ""),
+        unitsSold: safeNum(r["Units"] || r["Units Sold"] || r["unitsSold"]),
+        unitPrice: safeNum(r["Unit Price"] || r["Price per Unit"] || r["Price"] || r["unitPrice"]),
+        totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["Total"] || r["totalSale"]),
+        coopProfit: safeNum(r["Commission"] || r["Commission 10%"] || r["Coop Profit"] || r["coopProfit"]),
+        status: String(r["Status"] || r["status"] || "DRAFT") as any,
+        agentName: String(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
+        agentPhone: String(r["Agent Phone"] || r["agentPhone"] || ""),
+        createdAt: formatDate(r["Created At"] || r["createdAt"] || r["Date"] || r["date"]),
         synced: true,
-        signature: String(r["Signature"] || ""),
-        unitType: String(r["Unit"] || r["Unit Type"] || "Kg"),
+        signature: String(r["Signature"] || r["signature"] || ""),
+        unitType: String(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
       })) as SaleRecord[];
     }
     
-    // Explicitly return empty array if response is not JSON, signaling a cleared state
     return [];
   } catch (error) {
     console.error("Fetch Error:", error);
@@ -128,11 +131,15 @@ export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'clear_records',
+        confirm: true,
+        purge: true,
+        auth: 'system_admin_reset',
         _t: Date.now()
       }),
     });
     const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
+    // Return true if status 200 or if the text response confirms deletion
+    return response.ok || text.toLowerCase().includes('success') || text.toLowerCase().includes('cleared');
   } catch (error) {
     console.error("Clear Cloud Records Error:", error);
     return false;
