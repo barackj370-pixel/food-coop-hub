@@ -95,6 +95,26 @@ export const deleteRecordFromCloud = async (id: string): Promise<boolean> => {
   }
 };
 
+export const deleteUserFromCloud = async (phone: string): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'delete_user',
+        phone: phone,
+        _t: Date.now()
+      })
+    });
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
+  } catch (error) {
+    console.error("Cloud User Delete Error:", error);
+    return false;
+  }
+};
+
 export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
 

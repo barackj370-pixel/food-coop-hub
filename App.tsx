@@ -3,7 +3,7 @@ import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } fr
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
-import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud, clearAllUsersOnCloud, deleteRecordFromCloud } from './services/googleSheetsService.ts';
+import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud, clearAllUsersOnCloud, deleteRecordFromCloud, deleteUserFromCloud } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
@@ -147,6 +147,23 @@ const App: React.FC = () => {
     if (!window.confirm("Permanently delete this record from the cloud?")) return;
     setRecords(prev => prev.filter(r => r.id !== id));
     await deleteRecordFromCloud(id);
+  };
+
+  const handleDeleteUser = async (phone: string) => {
+    if (!window.confirm(`Permanently delete user with phone ${phone} from the cloud and local registry?`)) return;
+    const success = await deleteUserFromCloud(phone);
+    if (success) {
+      const usersData = persistence.get('coop_users');
+      if (usersData) {
+        let users: AgentIdentity[] = JSON.parse(usersData);
+        users = users.filter(u => normalizePhone(u.phone) !== normalizePhone(phone));
+        persistence.set('coop_users', JSON.stringify(users));
+        setIsAuthLoading(!isAuthLoading); // Trigger re-memoization of registeredUsers
+      }
+      alert("User deleted successfully.");
+    } else {
+      alert("Cloud Sync Failure: User may still exist on server.");
+    }
   };
 
   const handleAddRecord = async (data: any) => {
@@ -643,7 +660,7 @@ const App: React.FC = () => {
                 <div className="p-8 border-b border-slate-50 flex items-center justify-between"><h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Global Identity Registry</h3><p className="text-[9px] font-bold text-slate-300 uppercase">Authenticated Accounts</p></div>
                 <div className="overflow-y-auto flex-1">
                   <table className="w-full text-left">
-                    <thead className="bg-slate-50/50 sticky top-0 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Cluster</th><th className="px-8 py-4">Phone</th><th className="px-8 py-4">Status</th></tr></thead>
+                    <thead className="bg-slate-50/50 sticky top-0 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Cluster</th><th className="px-8 py-4">Phone</th><th className="px-8 py-4">Status</th><th className="px-8 py-4 text-center">Action</th></tr></thead>
                     <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
@@ -651,6 +668,15 @@ const App: React.FC = () => {
                         <td className="px-8 py-4 text-[11px] font-bold text-slate-500 italic">{user.cluster || 'None'}</td>
                         <td className="px-8 py-4 text-[12px] font-bold text-slate-500">{user.phone}</td>
                         <td className="px-8 py-4"><span className={`text-[8px] font-black uppercase ${user.status === 'ACTIVE' ? 'text-emerald-500' : 'text-red-500'}`}>{user.status}</span></td>
+                        <td className="px-8 py-4 text-center">
+                          <button 
+                            onClick={() => handleDeleteUser(user.phone)} 
+                            className="text-slate-300 hover:text-red-500 transition-colors p-2"
+                            title="Delete User Permanently"
+                          >
+                            <i className="fas fa-trash-can text-[12px]"></i>
+                          </button>
+                        </td>
                       </tr>
                     ))}</tbody>
                   </table>
