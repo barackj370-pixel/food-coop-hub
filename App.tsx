@@ -712,7 +712,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.8</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.9</p></footer>
     </div>
   );
 };
@@ -728,12 +728,12 @@ const Table: React.FC<{
   <div className="overflow-x-auto">
     <table className="w-full text-left min-w-[1200px]">
       <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
-        <tr><th className="px-8 py-6">Timestamp</th><th className="px-8 py-6">Participants</th><th className="px-8 py-6">Commodity</th><th className="px-8 py-6">Quantity</th><th className="px-8 py-6">Unit Price</th><th className="px-8 py-6 text-center">Cloud</th><th className="px-8 py-6">Status</th><th className="px-8 py-6">Security</th><th className="px-8 py-6 text-center">Action</th></tr>
+        <tr><th className="px-8 py-6">Timestamp</th><th className="px-8 py-6">Participants</th><th className="px-8 py-6">Commodity</th><th className="px-8 py-6">Quantity</th><th className="px-8 py-6">Unit Price</th><th className="px-8 py-6">Coop Comm. (10%)</th><th className="px-8 py-6 text-center">Cloud</th><th className="px-8 py-6">Status</th><th className="px-8 py-6">Security</th><th className="px-8 py-6 text-center">Action</th></tr>
       </thead>
       <tbody className="divide-y divide-slate-50">
-        {Object.keys(groupedRecords).length === 0 ? (<tr><td colSpan={9} className="px-8 py-20 text-center text-slate-300 uppercase font-black tracking-[0.2em] text-[10px]">No audit logs detected</td></tr>) : Object.keys(groupedRecords).map(cluster => (
+        {Object.keys(groupedRecords).length === 0 ? (<tr><td colSpan={10} className="px-8 py-20 text-center text-slate-300 uppercase font-black tracking-[0.2em] text-[10px]">No audit logs detected</td></tr>) : Object.keys(groupedRecords).map(cluster => (
           <React.Fragment key={cluster}>
-            <tr className="bg-slate-50/50"><td colSpan={9} className="px-8 py-3 text-[10px] font-black uppercase text-emerald-600 tracking-[0.4em] border-y border-slate-100">{cluster} Cluster</td></tr>
+            <tr className="bg-slate-50/50"><td colSpan={10} className="px-8 py-3 text-[10px] font-black uppercase text-emerald-600 tracking-[0.4em] border-y border-slate-100">{cluster} Cluster</td></tr>
             {groupedRecords[cluster].map(r => (
               <tr key={r.id} className="hover:bg-slate-50/30 group transition-colors">
                 <td className="px-8 py-6 text-[12px] font-black text-slate-900">{r.date}<br/><span className="text-[9px] text-slate-400 font-bold">{new Date(r.createdAt).toLocaleTimeString()}</span></td>
@@ -756,6 +756,7 @@ const Table: React.FC<{
                 <td className="px-8 py-6"><span className="bg-slate-100 px-3 py-1 rounded-xl text-[10px] font-black uppercase text-slate-600">{r.cropType}</span></td>
                 <td className="px-8 py-6 text-[12px] font-black text-slate-900">{r.unitsSold} <span className="text-[10px] text-slate-400 uppercase ml-0.5">{r.unitType}</span><br/><span className="text-[11px] font-bold text-slate-500">KSh {r.totalSale.toLocaleString()}</span></td>
                 <td className="px-8 py-6 text-[12px] font-black text-slate-900">KSh {r.unitPrice.toLocaleString()}<br/><span className="text-[9px] text-slate-400 font-bold uppercase">per {r.unitType}</span></td>
+                <td className="px-8 py-6 text-[12px] font-black text-emerald-600">KSh {r.coopProfit.toLocaleString()}</td>
                 <td className="px-8 py-6 text-center"><CloudSyncBadge synced={r.synced} onSync={() => onForceSync?.(r.id)} showSyncBtn={portal === 'SALES'} /></td>
                 <td className="px-8 py-6"><span className={`text-[9px] font-black uppercase px-3 py-1.5 rounded-xl border shadow-sm ${r.status === RecordStatus.VERIFIED ? 'bg-emerald-900 text-white border-emerald-800' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>{r.status}</span></td>
                 <td className="px-8 py-6"><SecurityBadge record={r} /></td>
