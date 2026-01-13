@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -346,6 +347,34 @@ const App: React.FC = () => {
     return { performanceData, clusterPerformance, topAgents };
   }, [filteredRecords]);
 
+  const clusterSummary = useMemo(() => {
+    const rLog = filteredRecords;
+    const summary = rLog.reduce((acc, r) => {
+      const cluster = r.cluster || 'Unknown';
+      if (!acc[cluster]) {
+        acc[cluster] = { sales: 0, profit: 0 };
+      }
+      acc[cluster].sales += Number(r.totalSale);
+      acc[cluster].profit += Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, { sales: number; profit: number }>);
+
+    // Fix: Spread types may only be created from object types. 
+    // Explicitly mapping properties to avoid object spread issues in some environments.
+    const rows = Object.entries(summary).map(([name, data]) => ({
+      name,
+      sales: data.sales,
+      profit: data.profit
+    })).sort((a, b) => b.sales - a.sales);
+
+    const totals = rows.reduce((acc, row) => ({
+      sales: acc.sales + row.sales,
+      profit: acc.profit + row.profit
+    }), { sales: 0, profit: 0 });
+
+    return { rows, totals };
+  }, [filteredRecords]);
+
   const registeredUsers = useMemo(() => {
     const usersData = persistence.get('coop_users');
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
@@ -568,6 +597,45 @@ const App: React.FC = () => {
                 </div>
              </div>
 
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Summary Trade Report for Food Coop</h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Global Cluster Performance Summary</p>
+                  </div>
+                  <i className="fas fa-file-contract text-slate-200 text-2xl"></i>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                      <tr>
+                        <th className="px-8 py-5">Food Coop Clusters</th>
+                        <th className="px-8 py-5">Total of sales (Ksh)</th>
+                        <th className="px-8 py-5">Total Gross Profit 10% (Ksh)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {clusterSummary.rows.length === 0 ? (
+                        <tr><td colSpan={3} className="px-8 py-10 text-center text-slate-300 font-black uppercase text-[10px]">No sales data recorded</td></tr>
+                      ) : clusterSummary.rows.map(row => (
+                        <tr key={row.name} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-8 py-5 text-[12px] font-black text-slate-900 uppercase tracking-tight">{row.name}</td>
+                          <td className="px-8 py-5 text-[12px] font-black text-slate-700">KSh {row.sales.toLocaleString()}</td>
+                          <td className="px-8 py-5 text-[12px] font-black text-emerald-600">KSh {row.profit.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t border-slate-200">
+                      <tr className="font-black text-slate-900">
+                        <td className="px-8 py-6 text-[11px] uppercase tracking-widest">Grand Totals</td>
+                        <td className="px-8 py-6 text-[14px]">KSh {clusterSummary.totals.sales.toLocaleString()}</td>
+                        <td className="px-8 py-6 text-[14px] text-emerald-600">KSh {clusterSummary.totals.profit.toLocaleString()}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+             </div>
+
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Field Agent Leaderboard */}
                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
@@ -738,7 +806,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.9</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.10</p></footer>
     </div>
   );
 };
