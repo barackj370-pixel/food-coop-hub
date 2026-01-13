@@ -35,6 +35,7 @@ const computeHash = async (record: any): Promise<string> => {
 
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>([]);
+  const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
     return saved ? JSON.parse(saved) : null;
@@ -75,8 +76,10 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setAgentIdentity(null);
     setRecords([]); 
+    setUsers([]);
     persistence.remove('agent_session');
     persistence.remove('food_coop_data');
+    persistence.remove('coop_users');
   };
 
   const loadCloudData = useCallback(async () => {
@@ -89,6 +92,7 @@ const App: React.FC = () => {
       ]);
       
       if (cloudUsers) {
+        setUsers(cloudUsers);
         persistence.set('coop_users', JSON.stringify(cloudUsers));
       }
 
@@ -105,14 +109,19 @@ const App: React.FC = () => {
     }
   }, [agentIdentity]);
 
-  // Initial load on login
+  // Initial load
   useEffect(() => {
+    const savedUsers = persistence.get('coop_users');
+    if (savedUsers) {
+      try { setUsers(JSON.parse(savedUsers)); } catch (e) { }
+    }
+    
     if (agentIdentity) {
       loadCloudData();
     }
   }, [agentIdentity, loadCloudData]);
 
-  // Background polling for dynamic multi-device sync
+  // Background polling
   useEffect(() => {
     if (!agentIdentity) return;
     const interval = setInterval(() => {
@@ -150,6 +159,7 @@ const App: React.FC = () => {
     if (confirm && !window.confirm("IDENTITY NUCLEAR RESET: This will delete ALL registered accounts from the cloud and local registry. You will be logged out. Continue?")) return;
     try {
       await clearAllUsersOnCloud();
+      setUsers([]);
       persistence.remove('coop_users');
       persistence.remove('agent_session');
       alert("Identity Database Cleared.");
@@ -167,25 +177,21 @@ const App: React.FC = () => {
 
   const handleDeleteUser = async (phone: string) => {
     if (!window.confirm(`Permanently delete user with phone ${phone} from the cloud and local registry?`)) return;
-    setIsSyncing(true);
     
-    // Optimistic local update to ensure UI immediate response
-    const usersData = persistence.get('coop_users');
-    if (usersData) {
-      const users: AgentIdentity[] = JSON.parse(usersData);
-      const filtered = users.filter(u => u.phone !== phone);
-      persistence.set('coop_users', JSON.stringify(filtered));
-      setLastSyncTime(new Date()); // Refresh registry view
-    }
-
+    // Update state immediately (Optimistic)
+    const updatedUsers = users.filter(u => u.phone !== phone);
+    setUsers(updatedUsers);
+    persistence.set('coop_users', JSON.stringify(updatedUsers));
+    
+    setIsSyncing(true);
     try {
       const success = await deleteUserFromCloud(phone);
       if (success) {
-        // Refresh from cloud to confirm parity
-        await loadCloudData();
-        alert("User deleted permanently from cloud registry.");
+        // Success: ensure local storage is synced with the deletion
+        alert("User permanently removed from global registry.");
       } else {
-        alert("Cloud deletion failed. The user may still exist in the central registry.");
+        alert("Cloud deletion failed. The user might reappear during next sync.");
+        // Re-fetch to restore correct state if cloud failed
         await loadCloudData();
       }
     } catch (e) {
@@ -240,7 +246,7 @@ const App: React.FC = () => {
 
     try {
       const latestCloudUsers = await fetchUsersFromCloud();
-      let users: AgentIdentity[] = latestCloudUsers || JSON.parse(persistence.get('coop_users') || '[]');
+      let currentUsers: AgentIdentity[] = latestCloudUsers || users;
 
       if (isRegisterMode) {
         const newUser: AgentIdentity = { 
@@ -251,14 +257,19 @@ const App: React.FC = () => {
           cluster: authForm.role === SystemRole.FIELD_AGENT ? authForm.cluster : 'System', 
           status: 'ACTIVE' 
         };
-        users.push(newUser);
-        persistence.set('coop_users', JSON.stringify(users));
+        const updatedUsersList = [...currentUsers, newUser];
+        setUsers(updatedUsersList);
+        persistence.set('coop_users', JSON.stringify(updatedUsersList));
         await syncUserToCloud(newUser);
         setAgentIdentity(newUser);
       } else {
-        const user = users.find(u => normalizePhone(u.phone) === targetPhoneNormalized && String(u.passcode).replace(/\D/g, '') === targetPasscode);
-        if (user) setAgentIdentity(user);
-        else alert("Authentication failed.");
+        const user = currentUsers.find(u => normalizePhone(u.phone) === targetPhoneNormalized && String(u.passcode).replace(/\D/g, '') === targetPasscode);
+        if (user) {
+          setAgentIdentity(user);
+          persistence.set('agent_session', JSON.stringify(user));
+        } else {
+          alert("Authentication failed.");
+        }
       }
     } catch (err) {
       alert("System Auth Error.");
@@ -402,22 +413,15 @@ const App: React.FC = () => {
     return { rows, totals };
   }, [filteredRecords]);
 
-  const registeredUsers = useMemo(() => {
-    const usersData = persistence.get('coop_users');
-    return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
-  }, [isAuthLoading, lastSyncTime]); 
-
   const updateUserStatus = (phone: string, status: AccountStatus, resetWarnings = false) => {
-    const usersData = persistence.get('coop_users');
-    if (!usersData) return;
-    let users: AgentIdentity[] = JSON.parse(usersData);
-    const idx = users.findIndex(u => normalizePhone(u.phone) === normalizePhone(phone));
-    if (idx !== -1) {
-      users[idx].status = status;
-      if (resetWarnings) users[idx].warnings = 0;
-      persistence.set('coop_users', JSON.stringify(users));
-      setIsAuthLoading(!isAuthLoading);
-    }
+    const updatedUsers = users.map(u => {
+      if (normalizePhone(u.phone) === normalizePhone(phone)) {
+        return { ...u, status, warnings: resetWarnings ? 0 : u.warnings };
+      }
+      return u;
+    });
+    setUsers(updatedUsers);
+    persistence.set('coop_users', JSON.stringify(updatedUsers));
   };
 
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
@@ -604,7 +608,7 @@ const App: React.FC = () => {
                  <table className="w-full text-left">
                    <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest"><tr><th className="px-6 py-4">Agent Name</th><th className="px-6 py-4">Cluster</th><th className="px-6 py-4 text-center">Action</th></tr></thead>
                    <tbody className="divide-y divide-slate-50">
-                     {registeredUsers.filter(u => u.status === 'SUSPENDED').length === 0 ? (<tr><td colSpan={3} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No suspensions detected</td></tr>) : registeredUsers.filter(u => u.status === 'SUSPENDED').map(user => (
+                     {users.filter(u => u.status === 'SUSPENDED').length === 0 ? (<tr><td colSpan={3} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No suspensions detected</td></tr>) : users.filter(u => u.status === 'SUSPENDED').map(user => (
                        <tr key={user.phone}>
                          <td className="px-6 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
                          <td className="px-6 py-4 text-[11px] font-bold text-slate-400">{user.cluster}</td>
@@ -780,7 +784,7 @@ const App: React.FC = () => {
                  <table className="w-full text-left">
                    <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest"><tr><th className="px-6 py-4">Agent Name</th><th className="px-6 py-4">Status</th><th className="px-6 py-4 text-center">Action</th></tr></thead>
                    <tbody className="divide-y divide-slate-50">
-                     {registeredUsers.filter(u => u.status === 'AWAITING_ACTIVATION').length === 0 ? (<tr><td colSpan={3} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No pending activations</td></tr>) : registeredUsers.filter(u => u.status === 'AWAITING_ACTIVATION').map(user => (
+                     {users.filter(u => u.status === 'AWAITING_ACTIVATION').length === 0 ? (<tr><td colSpan={3} className="px-6 py-10 text-center text-slate-300 font-bold uppercase text-[10px]">No pending activations</td></tr>) : users.filter(u => u.status === 'AWAITING_ACTIVATION').map(user => (
                        <tr key={user.phone}>
                          <td className="px-6 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
                          <td className="px-6 py-4"><span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-[8px] font-black uppercase">Pending Approval</span></td>
@@ -796,7 +800,7 @@ const App: React.FC = () => {
                 <div className="overflow-y-auto flex-1">
                   <table className="w-full text-left">
                     <thead className="bg-slate-50/50 sticky top-0 text-[10px] text-slate-400 font-black uppercase tracking-widest"><tr><th className="px-8 py-4">Name</th><th className="px-8 py-4">Role</th><th className="px-8 py-4">Cluster</th><th className="px-8 py-4">Phone</th><th className="px-8 py-4">Status</th><th className="px-8 py-4 text-center">Action</th></tr></thead>
-                    <tbody className="divide-y divide-slate-50">{registeredUsers.map((user, idx) => (
+                    <tbody className="divide-y divide-slate-50">{users.map((user, idx) => (
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="px-8 py-4 text-[12px] font-black text-slate-900">{user.name}</td>
                         <td className="px-8 py-4"><span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[9px] font-black uppercase">{user.role}</span></td>
