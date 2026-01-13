@@ -96,8 +96,8 @@ const App: React.FC = () => {
         const validRecords = cloudRecords.filter(r => r.cluster && r.cluster !== 'Unassigned');
         setRecords(validRecords);
         persistence.set('food_coop_data', JSON.stringify(validRecords));
-        setLastSyncTime(new Date());
       }
+      setLastSyncTime(new Date());
     } catch (e) {
       console.error("Background sync failed:", e);
     } finally {
@@ -167,16 +167,15 @@ const App: React.FC = () => {
 
   const handleDeleteUser = async (phone: string) => {
     if (!window.confirm(`Permanently delete user with phone ${phone} from the cloud and local registry?`)) return;
+    setIsSyncing(true);
     const success = await deleteUserFromCloud(phone);
     if (success) {
-      const usersData = persistence.get('coop_users');
-      if (usersData) {
-        let users: AgentIdentity[] = JSON.parse(usersData);
-        users = users.filter(u => normalizePhone(u.phone) !== normalizePhone(phone));
-        persistence.set('coop_users', JSON.stringify(users));
-        setIsAuthLoading(!isAuthLoading);
-      }
+      // Force immediate cloud fetch to ensure source-of-truth parity
+      await loadCloudData();
       alert("User deleted successfully.");
+    } else {
+      setIsSyncing(false);
+      alert("Delete Failed: User might still exist on cloud server. Please try again.");
     }
   };
 
@@ -389,7 +388,7 @@ const App: React.FC = () => {
   const registeredUsers = useMemo(() => {
     const usersData = persistence.get('coop_users');
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
-  }, [isAuthLoading]);
+  }, [isAuthLoading, lastSyncTime]); // Added lastSyncTime as dependency
 
   const updateUserStatus = (phone: string, status: AccountStatus, resetWarnings = false) => {
     const usersData = persistence.get('coop_users');
@@ -685,6 +684,7 @@ const App: React.FC = () => {
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Field Agent Leaderboard */}
                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Leaderboard</h3>
@@ -708,6 +708,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Cluster Performance Chart */}
                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cluster Rankings</h3>
