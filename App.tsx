@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -359,15 +358,14 @@ const App: React.FC = () => {
       return acc;
     }, {} as Record<string, { sales: number; profit: number }>);
 
-    // Fix: Spread types may only be created from object types. 
-    // Explicitly mapping properties to avoid object spread issues in some environments.
     const rows = Object.entries(summary).map(([name, data]) => ({
       name,
       sales: data.sales,
       profit: data.profit
     })).sort((a, b) => b.sales - a.sales);
 
-    const totals = rows.reduce((acc, row) => ({
+    // Fix: Added explicit type to prevent 'unknown' property access errors on sales and profit
+    const totals = rows.reduce<{ sales: number; profit: number }>((acc, row) => ({
       sales: acc.sales + row.sales,
       profit: acc.profit + row.profit
     }), { sales: 0, profit: 0 });
@@ -435,6 +433,32 @@ const App: React.FC = () => {
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", `food_coop_audit_${logFilterDays}D_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSummaryCsv = () => {
+    if (clusterSummary.rows.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+    const headers = ["Food Coop Clusters", "Total of sales (Ksh)", "Total Gross Profit 10% (Ksh)"];
+    const csvRows = clusterSummary.rows.map(row => [
+      row.name, row.sales, row.profit
+    ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+
+    csvRows.push([
+      "Grand Totals", clusterSummary.totals.sales, clusterSummary.totals.profit
+    ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+
+    const csvContent = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `food_coop_summary_trade_report_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -557,6 +581,50 @@ const App: React.FC = () => {
                </div>
              </div>
              
+             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div>
+                    <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Summary Trade Report for Food Coop</h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Global Cluster Performance Summary</p>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <button onClick={handleExportSummaryCsv} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase px-8 py-3.5 rounded-2xl shadow-xl active:scale-95 transition-all inline-flex items-center">
+                      <i className="fas fa-file-csv mr-2"></i>Download CSV
+                    </button>
+                    <i className="fas fa-file-contract text-slate-200 text-2xl hidden md:block"></i>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
+                      <tr>
+                        <th className="px-8 py-5">Food Coop Clusters</th>
+                        <th className="px-8 py-5">Total of sales (Ksh)</th>
+                        <th className="px-8 py-5">Total Gross Profit 10% (Ksh)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {clusterSummary.rows.length === 0 ? (
+                        <tr><td colSpan={3} className="px-8 py-10 text-center text-slate-300 font-black uppercase text-[10px]">No sales data recorded</td></tr>
+                      ) : clusterSummary.rows.map(row => (
+                        <tr key={row.name} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-8 py-5 text-[12px] font-black text-slate-900 uppercase tracking-tight">{row.name}</td>
+                          <td className="px-8 py-5 text-[12px] font-black text-slate-700">KSh {row.sales.toLocaleString()}</td>
+                          <td className="px-8 py-5 text-[12px] font-black text-emerald-600">KSh {row.profit.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t border-slate-200">
+                      <tr className="font-black text-slate-900">
+                        <td className="px-8 py-6 text-[11px] uppercase tracking-widest">Grand Totals</td>
+                        <td className="px-8 py-6 text-[14px]">KSh {clusterSummary.totals.sales.toLocaleString()}</td>
+                        <td className="px-8 py-6 text-[14px] text-emerald-600">KSh {clusterSummary.totals.profit.toLocaleString()}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+             </div>
+
              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl flex flex-col">
                   <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-10">Commodity Yield Analysis</h3>
@@ -594,45 +662,6 @@ const App: React.FC = () => {
                       </div>
                    </div>
                    <div className="pt-6 border-t border-white/5"><div className="flex items-center space-x-2"><i className="fas fa-shield-check text-emerald-400 text-[10px]"></i><span className="text-[9px] font-black uppercase tracking-widest">Coop Status: Healthy</span></div></div>
-                </div>
-             </div>
-
-             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                <div className="p-8 border-b border-slate-50 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.4em]">Summary Trade Report for Food Coop</h3>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Global Cluster Performance Summary</p>
-                  </div>
-                  <i className="fas fa-file-contract text-slate-200 text-2xl"></i>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
-                      <tr>
-                        <th className="px-8 py-5">Food Coop Clusters</th>
-                        <th className="px-8 py-5">Total of sales (Ksh)</th>
-                        <th className="px-8 py-5">Total Gross Profit 10% (Ksh)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {clusterSummary.rows.length === 0 ? (
-                        <tr><td colSpan={3} className="px-8 py-10 text-center text-slate-300 font-black uppercase text-[10px]">No sales data recorded</td></tr>
-                      ) : clusterSummary.rows.map(row => (
-                        <tr key={row.name} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-8 py-5 text-[12px] font-black text-slate-900 uppercase tracking-tight">{row.name}</td>
-                          <td className="px-8 py-5 text-[12px] font-black text-slate-700">KSh {row.sales.toLocaleString()}</td>
-                          <td className="px-8 py-5 text-[12px] font-black text-emerald-600">KSh {row.profit.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-slate-50 border-t border-slate-200">
-                      <tr className="font-black text-slate-900">
-                        <td className="px-8 py-6 text-[11px] uppercase tracking-widest">Grand Totals</td>
-                        <td className="px-8 py-6 text-[14px]">KSh {clusterSummary.totals.sales.toLocaleString()}</td>
-                        <td className="px-8 py-6 text-[14px] text-emerald-600">KSh {clusterSummary.totals.profit.toLocaleString()}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
                 </div>
              </div>
 
@@ -806,7 +835,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.10</p></footer>
+      <footer className="mt-20 text-center pb-12"><p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em]">Agricultural Trust Network • v4.7.11</p></footer>
     </div>
   );
 };
