@@ -130,17 +130,16 @@ const App: React.FC = () => {
     }
   };
 
-  const handleClearUsers = async () => {
-    if (window.confirm("IDENTITY NUCLEAR RESET: This will delete ALL registered accounts from the cloud and local registry. You will be logged out. Continue?")) {
-      try {
-        await clearAllUsersOnCloud();
-        persistence.remove('coop_users');
-        persistence.remove('agent_session');
-        alert("Identity Database Cleared. Starting fresh registration...");
-        window.location.reload();
-      } catch (err) {
-        window.location.reload();
-      }
+  const handleClearUsers = async (confirm = true) => {
+    if (confirm && !window.confirm("IDENTITY NUCLEAR RESET: This will delete ALL registered accounts from the cloud and local registry. You will be logged out. Continue?")) return;
+    try {
+      await clearAllUsersOnCloud();
+      persistence.remove('coop_users');
+      persistence.remove('agent_session');
+      alert("Identity Database Cleared. Starting fresh registration...");
+      window.location.reload();
+    } catch (err) {
+      window.location.reload();
     }
   };
 
@@ -359,14 +358,14 @@ const App: React.FC = () => {
       return acc;
     }, {} as Record<string, { sales: number; profit: number }>);
 
-    // Explicitly type the rows array to fix property access errors on 'unknown' types during reduce
     const rows: { name: string; sales: number; profit: number }[] = Object.entries(summary).map(([name, data]) => ({
       name,
       sales: data.sales,
       profit: data.profit
     })).sort((a, b) => b.sales - a.sales);
 
-    const totals = rows.reduce<{ sales: number; profit: number }>((acc, row) => ({
+    // Fix: Add explicit types to the accumulator and current item in reduce to prevent 'unknown' inference errors
+    const totals = rows.reduce<{ sales: number; profit: number }>((acc: { sales: number; profit: number }, row: { sales: number; profit: number }) => ({
       sales: acc.sales + row.sales,
       profit: acc.profit + row.profit
     }), { sales: 0, profit: 0 });
@@ -483,7 +482,7 @@ const App: React.FC = () => {
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />}
               <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />
-              <input type="password" maxLength={4} placeholder="••••" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none tracking-[1em]" />
+              <input type="password" maxLength={4} placeholder="enter 4 digit pincode" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none" />
               {isRegisterMode && (
                 <>
                   <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">
