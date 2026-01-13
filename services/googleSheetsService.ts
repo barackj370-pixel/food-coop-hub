@@ -1,3 +1,4 @@
+
 import { SaleRecord, AgentIdentity } from "../types.ts";
 import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
@@ -26,11 +27,9 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
 
   const rawData = Array.isArray(records) ? records : [records];
-  // STRICTOR FILTER: Never sync unassigned records
   const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
   
   if (filteredData.length === 0) {
-    console.warn("Sync blocked: All records were 'Unassigned' cluster.");
     return true; 
   }
 
@@ -48,7 +47,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     totalSale: r.totalSale,
     coopProfit: r.coopProfit,
     status: r.status,
-    agentName: r.agentName || "System Agent", // Changed from createdBy to match retrieval key
+    agentName: r.agentName || "System Agent",
     agentPhone: r.agentPhone || "",
     signature: r.signature,
     cluster: r.cluster
@@ -57,7 +56,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
-      cache: 'no-cache',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action: 'sync_records',
@@ -66,7 +65,6 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
       }),
     });
     
-    // Using text() check because Google Apps Script might return a string like "Success"
     const resultText = await response.text();
     return response.ok || resultText.toLowerCase().includes('success');
   } catch (error) {
@@ -80,6 +78,7 @@ export const deleteRecordFromCloud = async (id: string): Promise<boolean> => {
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'delete_record',
@@ -90,7 +89,7 @@ export const deleteRecordFromCloud = async (id: string): Promise<boolean> => {
     const text = await response.text();
     return response.ok || text.toLowerCase().includes('success');
   } catch (error) {
-    console.error("Cloud Delete Error:", error);
+    console.error("Cloud Record Delete Error:", error);
     return false;
   }
 };
@@ -100,10 +99,11 @@ export const deleteUserFromCloud = async (phone: string): Promise<boolean> => {
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'delete_user',
-        phone: phone,
+        phone: phone.trim(),
         _t: Date.now()
       })
     });
@@ -121,6 +121,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'get_records',
@@ -137,7 +138,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       
       return dataArray
         .filter(r => {
-          // STRICTOR SOURCE FILTER: Discard any 'Unassigned' cluster records at the source
           const cluster = String(r["Cluster"] || r["cluster"] || "");
           return (r["ID"] || r["id"]) && cluster !== 'Unassigned' && cluster.trim() !== '';
         })
@@ -176,6 +176,7 @@ export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'clear_records',
@@ -197,6 +198,7 @@ export const clearAllUsersOnCloud = async (): Promise<boolean> => {
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'clear_users',
@@ -217,6 +219,7 @@ export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => 
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action: 'sync_user',
@@ -227,7 +230,8 @@ export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => 
           passcode: user.passcode,
           cluster: user.cluster,
           status: user.status
-        }
+        },
+        _t: Date.now()
       }),
     });
     const resultText = await response.text();
@@ -242,6 +246,7 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         action: 'get_users',

@@ -168,14 +168,31 @@ const App: React.FC = () => {
   const handleDeleteUser = async (phone: string) => {
     if (!window.confirm(`Permanently delete user with phone ${phone} from the cloud and local registry?`)) return;
     setIsSyncing(true);
-    const success = await deleteUserFromCloud(phone);
-    if (success) {
-      // Force immediate cloud fetch to ensure source-of-truth parity
+    
+    // Optimistic local update to ensure UI immediate response
+    const usersData = persistence.get('coop_users');
+    if (usersData) {
+      const users: AgentIdentity[] = JSON.parse(usersData);
+      const filtered = users.filter(u => u.phone !== phone);
+      persistence.set('coop_users', JSON.stringify(filtered));
+      setLastSyncTime(new Date()); // Refresh registry view
+    }
+
+    try {
+      const success = await deleteUserFromCloud(phone);
+      if (success) {
+        // Refresh from cloud to confirm parity
+        await loadCloudData();
+        alert("User deleted permanently from cloud registry.");
+      } else {
+        alert("Cloud deletion failed. The user may still exist in the central registry.");
+        await loadCloudData();
+      }
+    } catch (e) {
+      console.error("Delete Error:", e);
       await loadCloudData();
-      alert("User deleted successfully.");
-    } else {
+    } finally {
       setIsSyncing(false);
-      alert("Delete Failed: User might still exist on cloud server. Please try again.");
     }
   };
 
@@ -456,7 +473,6 @@ const App: React.FC = () => {
       alert("No data available to export.");
       return;
     }
-    // Updated header to match standard reporting nomenclature
     const headers = ["Food Coop Clusters", "Total Volume of Sales (Ksh)", "Total Gross Profit 10% (Ksh)"];
     const csvRows = clusterSummary.rows.map(row => [
       row.name, row.sales, row.profit
