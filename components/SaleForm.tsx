@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { CROP_TYPES, CROP_CONFIG, PROFIT_MARGIN } from '../constants.ts';
+import { CROP_TYPES, CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
 
 interface SaleFormProps {
   onSubmit: (data: {
@@ -64,7 +65,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
       <div className="flex flex-col lg:flex-row justify-between items-center mb-10 gap-8">
         <div className="text-center lg:text-left">
           <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">New Sale Entry</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Field Verification Portal</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">KPL Food Coop Hub</p>
         </div>
         <div className="bg-emerald-900 px-10 py-6 rounded-3xl border border-emerald-800 text-center lg:text-right shadow-2xl shadow-emerald-900/10">
            <span className="text-[9px] font-black text-emerald-400/40 uppercase tracking-[0.3em] block mb-2">Calculated Total</span>
@@ -86,13 +87,19 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
         </div>
         
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Crop</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Commodity/Product</label>
           <select 
             value={formData.cropType}
             onChange={(e) => setFormData({...formData, cropType: e.target.value})}
             className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl text-[13px] font-black text-slate-900 p-4.5 focus:bg-white focus:border-emerald-500 outline-none transition-all appearance-none"
           >
-            {CROP_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
+            {Object.entries(COMMODITY_CATEGORIES).map(([category, items]) => (
+              <optgroup key={category} label={category} className="font-bold text-emerald-700 bg-emerald-50">
+                {items.map(item => (
+                  <option key={item} value={item} className="text-slate-900 bg-white">{item}</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </div>
 
@@ -108,10 +115,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Farmer</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Supplier</label>
           <input 
             type="text" 
-            placeholder="Farmer name..."
+            placeholder="Supplier name..."
             value={formData.farmerName}
             onChange={(e) => setFormData({...formData, farmerName: e.target.value})}
             className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl text-[13px] font-black text-slate-900 p-4.5 focus:bg-white focus:border-emerald-500 outline-none transition-all placeholder:text-slate-200"
@@ -119,7 +126,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Farmer Tel</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Supplier Tel</label>
           <input 
             type="tel" 
             placeholder="07..."
@@ -179,7 +186,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
             type="submit"
             className="w-full bg-slate-900 hover:bg-black text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95"
           >
-            Add Records
+            Add Record
           </button>
         </div>
       </form>

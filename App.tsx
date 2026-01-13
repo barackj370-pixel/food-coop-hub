@@ -348,7 +348,8 @@ const App: React.FC = () => {
 
   const clusterSummary = useMemo(() => {
     const rLog = filteredRecords;
-    const summary = rLog.reduce((acc, r) => {
+    // Fix: Added explicit Record type to the reduce accumulator to fix 'unknown' type access errors on lines 363-364
+    const summary = rLog.reduce((acc: Record<string, { sales: number; profit: number }>, r) => {
       const cluster = r.cluster || 'Unknown';
       if (!acc[cluster]) {
         acc[cluster] = { sales: 0, profit: 0 };
@@ -364,7 +365,6 @@ const App: React.FC = () => {
       profit: data.profit
     })).sort((a, b) => b.sales - a.sales);
 
-    // Fix: Add explicit types to the accumulator and current item in reduce to prevent 'unknown' inference errors
     const totals = rows.reduce<{ sales: number; profit: number }>((acc: { sales: number; profit: number }, row: { sales: number; profit: number }) => ({
       sales: acc.sales + row.sales,
       profit: acc.profit + row.profit
@@ -867,7 +867,7 @@ const Table: React.FC<{
                       {r.agentName || 'System'} <span className="text-slate-400 font-bold">({r.agentPhone || 'N/A'})</span>
                     </div>
                     <div className="text-[10px] font-black text-slate-700">
-                      <span className="text-slate-400 uppercase text-[8px] mr-1">Farmer:</span> 
+                      <span className="text-slate-400 uppercase text-[8px] mr-1">Supplier:</span> 
                       {r.farmerName} <span className="text-slate-400 font-bold">({r.farmerPhone || 'N/A'})</span>
                     </div>
                     <div className="text-[10px] font-black text-slate-700">

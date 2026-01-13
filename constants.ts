@@ -1,21 +1,38 @@
+
+export const COMMODITY_CATEGORIES = {
+  'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans'],
+  'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano'],
+  'Non-food Products': ['Books', 'Cloths', 'Soap', 'Farm tools']
+} as const;
+
 export const CROP_CONFIG = {
+  // Farm Food Products
+  'Tomatoes': ['Crate', 'Box', 'Kg'],
+  'Onions': ['Bag', 'Kg'],
+  'Vegetables': ['Bundle', 'Kg'],
+  'Cassava': ['Bag', 'Kg'],
   'Maize': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
+  'Millet': ['2kg Tin', '1kg Tin', 'Kg'],
   'Beans': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
-  'Sorghum': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
-  'Wheat': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
-  'Coffee': ['Kg', 'Bag'],
-  'Tea': ['Kg'],
-  'Potato': ['Bag', 'Kg'],
-  'Cabbage': ['Head', 'Bag'],
-  'Tomato': ['Crate', 'Box', 'Kg'],
-  'Kales': ['Bundle', 'Kg']
+  // Food Products
+  'Sugar': ['Kg', 'Packet'],
+  'Salt': ['Packet', 'Kg'],
+  'Cooking Oil': ['Litre', 'Bottle'],
+  'Milk': ['Litre', 'Packet'],
+  'Bread': ['Loaf'],
+  'Ngano': ['Kg', 'Packet'],
+  // Non-food Products
+  'Books': ['Piece'],
+  'Cloths': ['Piece'],
+  'Soap': ['Piece', 'Bar'],
+  'Farm tools': ['Piece']
 } as const;
 
 export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
 export const PROFIT_MARGIN = 0.10; // 10% coop margin
 
-/**https://script.google.com/macros/s/AKfycbxUpf51FjGuia1eRSH7B4axYYqK3ClBpHmAWvLxI1XIK9Pd312DCi4RLwgM0MNXlvOTAg/exec
+/**
  * CONFIGURATION: 
  * Your deployed Google Apps Script Web App URL.
  */
