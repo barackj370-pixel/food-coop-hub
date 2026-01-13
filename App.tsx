@@ -388,7 +388,7 @@ const App: React.FC = () => {
   const registeredUsers = useMemo(() => {
     const usersData = persistence.get('coop_users');
     return usersData ? JSON.parse(usersData) as AgentIdentity[] : [];
-  }, [isAuthLoading, lastSyncTime]); // Added lastSyncTime as dependency
+  }, [isAuthLoading, lastSyncTime]); 
 
   const updateUserStatus = (phone: string, status: AccountStatus, resetWarnings = false) => {
     const usersData = persistence.get('coop_users');
@@ -456,7 +456,8 @@ const App: React.FC = () => {
       alert("No data available to export.");
       return;
     }
-    const headers = ["Food Coop Clusters", "Total of sales (Ksh)", "Total Gross Profit 10% (Ksh)"];
+    // Updated header to match standard reporting nomenclature
+    const headers = ["Food Coop Clusters", "Total Volume of Sales (Ksh)", "Total Gross Profit 10% (Ksh)"];
     const csvRows = clusterSummary.rows.map(row => [
       row.name, row.sales, row.profit
     ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
@@ -617,7 +618,7 @@ const App: React.FC = () => {
                     <thead className="bg-slate-50/50 text-[10px] text-slate-400 font-black uppercase tracking-widest">
                       <tr>
                         <th className="px-8 py-5">Food Coop Clusters</th>
-                        <th className="px-8 py-5">Total of sales (Ksh)</th>
+                        <th className="px-8 py-5">Total Volume of Sales (Ksh)</th>
                         <th className="px-8 py-5">Total Gross Profit 10% (Ksh)</th>
                       </tr>
                     </thead>
