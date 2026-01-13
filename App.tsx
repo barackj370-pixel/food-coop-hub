@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -7,7 +8,7 @@ import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersF
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
-const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi'];
+const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
 const persistence = {
   get: (key: string): string | null => {
@@ -358,13 +359,13 @@ const App: React.FC = () => {
       return acc;
     }, {} as Record<string, { sales: number; profit: number }>);
 
-    const rows = Object.entries(summary).map(([name, data]) => ({
+    // Explicitly type the rows array to fix property access errors on 'unknown' types during reduce
+    const rows: { name: string; sales: number; profit: number }[] = Object.entries(summary).map(([name, data]) => ({
       name,
       sales: data.sales,
       profit: data.profit
     })).sort((a, b) => b.sales - a.sales);
 
-    // Fix: Added explicit type to prevent 'unknown' property access errors on sales and profit
     const totals = rows.reduce<{ sales: number; profit: number }>((acc, row) => ({
       sales: acc.sales + row.sales,
       profit: acc.profit + row.profit
@@ -580,7 +581,7 @@ const App: React.FC = () => {
                  </table>
                </div>
              </div>
-             
+
              <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
                 <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                   <div>
