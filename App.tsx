@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
+import { PROFIT_MARGIN, CROP_TYPES, GOOGLE_SHEETS_WEBHOOK_URL, GOOGLE_SHEET_VIEW_URL, SYNC_POLLING_INTERVAL } from './constants.ts';
 import { syncToGoogleSheets, fetchFromGoogleSheets, syncUserToCloud, fetchUsersFromCloud, clearAllRecordsOnCloud, clearAllUsersOnCloud, deleteRecordFromCloud, deleteUserFromCloud } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
@@ -42,6 +42,8 @@ const App: React.FC = () => {
   
   const [currentPortal, setCurrentPortal] = useState<PortalType>('SALES');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [logFilterDays, setLogFilterDays] = useState(7);
   
@@ -77,9 +79,10 @@ const App: React.FC = () => {
     persistence.remove('food_coop_data');
   };
 
-  useEffect(() => {
-    const loadCloudData = async () => {
-      if (!agentIdentity) return;
+  const loadCloudData = useCallback(async () => {
+    if (!agentIdentity) return;
+    setIsSyncing(true);
+    try {
       const [cloudUsers, cloudRecords] = await Promise.all([
         fetchUsersFromCloud(),
         fetchFromGoogleSheets()
@@ -93,28 +96,41 @@ const App: React.FC = () => {
         const validRecords = cloudRecords.filter(r => r.cluster && r.cluster !== 'Unassigned');
         setRecords(validRecords);
         persistence.set('food_coop_data', JSON.stringify(validRecords));
+        setLastSyncTime(new Date());
       }
-    };
-    loadCloudData();
-  }, [agentIdentity]); 
+    } catch (e) {
+      console.error("Background sync failed:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [agentIdentity]);
+
+  // Initial load on login
+  useEffect(() => {
+    if (agentIdentity) {
+      loadCloudData();
+    }
+  }, [agentIdentity, loadCloudData]);
+
+  // Background polling for dynamic multi-device sync
+  useEffect(() => {
+    if (!agentIdentity) return;
+    const interval = setInterval(() => {
+      loadCloudData();
+    }, SYNC_POLLING_INTERVAL);
+    return () => clearInterval(interval);
+  }, [agentIdentity, loadCloudData]);
 
   useEffect(() => {
     const saved = persistence.get('food_coop_data');
-    if (saved) { 
+    if (saved && records.length === 0) { 
       try { 
         const parsed: SaleRecord[] = JSON.parse(saved);
         const scrubbed = parsed.filter(r => r.cluster && r.cluster !== 'Unassigned');
         setRecords(scrubbed); 
       } catch (e) { } 
     }
-  }, []);
-
-  useEffect(() => {
-    if (agentIdentity && records.length >= 0) {
-      persistence.set('food_coop_data', JSON.stringify(records));
-      persistence.set('agent_session', JSON.stringify(agentIdentity));
-    }
-  }, [records, agentIdentity]);
+  }, [records.length]);
 
   const handleClearRecords = async () => {
     if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud source and local storage. Your account session will be preserved. Continue?")) {
@@ -122,8 +138,8 @@ const App: React.FC = () => {
         setRecords([]);
         await clearAllRecordsOnCloud();
         persistence.remove('food_coop_data');
-        alert("Full Data Reset Successful. App will now reload.");
-        window.location.reload();
+        alert("Full Data Reset Successful.");
+        loadCloudData();
       } catch (err) {
         window.location.reload();
       }
@@ -136,7 +152,7 @@ const App: React.FC = () => {
       await clearAllUsersOnCloud();
       persistence.remove('coop_users');
       persistence.remove('agent_session');
-      alert("Identity Database Cleared. Starting fresh registration...");
+      alert("Identity Database Cleared.");
       window.location.reload();
     } catch (err) {
       window.location.reload();
@@ -158,11 +174,9 @@ const App: React.FC = () => {
         let users: AgentIdentity[] = JSON.parse(usersData);
         users = users.filter(u => normalizePhone(u.phone) !== normalizePhone(phone));
         persistence.set('coop_users', JSON.stringify(users));
-        setIsAuthLoading(!isAuthLoading); // Trigger re-memoization of registeredUsers
+        setIsAuthLoading(!isAuthLoading);
       }
       alert("User deleted successfully.");
-    } else {
-      alert("Cloud Sync Failure: User may still exist on server.");
     }
   };
 
@@ -346,7 +360,6 @@ const App: React.FC = () => {
     return { performanceData, clusterPerformance, topAgents };
   }, [filteredRecords]);
 
-  // Fix: Explicitly type rows and totals to avoid 'unknown' property access errors.
   const clusterSummary = useMemo(() => {
     const rLog = filteredRecords;
     const summary = rLog.reduce((acc: Record<string, { sales: number; profit: number }>, r) => {
@@ -519,7 +532,13 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
-            <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mb-1">Authenticated: {agentIdentity.name}</p>
+            <div className="flex items-center justify-end space-x-2">
+              {isSyncing && <i className="fas fa-sync fa-spin text-emerald-400 text-[10px]"></i>}
+              <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60">
+                Last Sync: {lastSyncTime ? lastSyncTime.toLocaleTimeString() : 'Initializing...'}
+              </p>
+            </div>
+            <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mt-1">User: {agentIdentity.name}</p>
           </div>
         </div>
         <div className="container mx-auto px-6 flex flex-wrap gap-2 animate-fade-in">
@@ -666,7 +685,6 @@ const App: React.FC = () => {
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Field Agent Leaderboard */}
                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Agent Leaderboard</h3>
@@ -690,7 +708,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Cluster Performance Chart */}
                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cluster Rankings</h3>
@@ -725,7 +742,10 @@ const App: React.FC = () => {
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="bg-emerald-900 p-8 rounded-[2.5rem] border border-emerald-800 text-white flex justify-between items-center shadow-2xl">
                    <div><h3 className="font-black uppercase tracking-tight text-lg">Infrastructure</h3><p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mt-1">Cloud Engine</p></div>
-                   <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all">Open Sheet</a>
+                   <div className="flex flex-col space-y-2">
+                     <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-emerald-500 hover:bg-emerald-400 text-emerald-950 text-[10px] font-black uppercase px-6 py-4 rounded-2xl shadow-xl active:scale-95 transition-all text-center">Open Sheet</a>
+                     <button onClick={loadCloudData} className="bg-emerald-400/10 hover:bg-emerald-400/20 text-emerald-400 text-[10px] font-black uppercase px-6 py-3 rounded-2xl border border-emerald-400/30">Manual Sync</button>
+                   </div>
                 </div>
                 <div className="bg-white p-8 rounded-[2.5rem] border border-red-100 flex justify-between items-center shadow-xl">
                    <div><h3 className="font-black uppercase tracking-tight text-lg text-red-600">Nuclear Records</h3><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Clear All History</p></div>
