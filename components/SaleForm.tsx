@@ -20,6 +20,7 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cropType: 'Maize',
+    otherCropType: '',
     unitType: '2kg Tin',
     farmerName: '',
     farmerPhone: '',
@@ -41,14 +42,20 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.farmerName || !formData.customerName || formData.unitsSold <= 0 || formData.unitPrice <= 0) {
-      alert("Validation Error: Please complete all fields.");
+    
+    const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
+
+    if (!formData.farmerName || !formData.customerName || formData.unitsSold <= 0 || formData.unitPrice <= 0 || (formData.cropType === 'Other' && !finalCropType)) {
+      alert("Validation Error: Please complete all fields. If 'Other' is selected, specific details must be provided.");
       return;
     }
     
-    onSubmit(formData);
+    const { otherCropType, ...submissionData } = formData;
+    onSubmit({ ...submissionData, cropType: finalCropType });
+    
     setFormData({
       ...formData,
+      otherCropType: '',
       farmerName: '',
       farmerPhone: '',
       customerName: '',
@@ -87,7 +94,7 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
         </div>
         
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity Category</label>
           <select 
             value={formData.cropType}
             onChange={(e) => setFormData({...formData, cropType: e.target.value})}
@@ -102,6 +109,20 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
             ))}
           </select>
         </div>
+
+        {formData.cropType === 'Other' && (
+          <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+            <label className="text-[10px] font-black text-red-600 uppercase ml-2 tracking-widest">Specific Commodity Details</label>
+            <input 
+              type="text" 
+              placeholder="e.g. Avocado, Mangoes..."
+              value={formData.otherCropType}
+              onChange={(e) => setFormData({...formData, otherCropType: e.target.value})}
+              className="w-full bg-red-50/30 border border-red-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-red-400 outline-none transition-all shadow-sm"
+              required
+            />
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Unit Type</label>

@@ -1,8 +1,8 @@
 
 export const COMMODITY_CATEGORIES = {
-  'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans'],
-  'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano'],
-  'Non-food Products': ['Books', 'Cloths', 'Soap', 'Farm tools']
+  'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Other'],
+  'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano', 'Other'],
+  'Non-food Products': ['Books', 'Cloths', 'Soap', 'Farm tools', 'Other']
 } as const;
 
 export const CROP_CONFIG = {
@@ -25,7 +25,9 @@ export const CROP_CONFIG = {
   'Books': ['Piece'],
   'Cloths': ['Piece'],
   'Soap': ['Piece', 'Bar'],
-  'Farm tools': ['Piece']
+  'Farm tools': ['Piece'],
+  // Default for Other
+  'Other': ['Units', 'Kg', 'Bag', 'Litre', 'Piece', 'Packet']
 } as const;
 
 export const CROP_TYPES = Object.keys(CROP_CONFIG);
