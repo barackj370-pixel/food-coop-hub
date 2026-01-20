@@ -16,7 +16,7 @@ interface SaleFormProps {
   }) => void;
 }
 
-const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
+const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cropType: 'Maize',
@@ -64,7 +64,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit }) => {
     <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden relative">
       <div className="flex flex-col lg:flex-row justify-between items-center mb-10 gap-8">
         <div className="text-center lg:text-left">
-          <h3 className="text-xl font-black text-black uppercase tracking-tighter">New Trade Log Entry</h3>
+          <h3 className="text-xl font-black text-black uppercase tracking-tighter">New Sales Entry</h3>
           <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-1">Audit Verification Required</p>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
