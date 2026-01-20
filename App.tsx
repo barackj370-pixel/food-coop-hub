@@ -67,7 +67,7 @@ const App: React.FC = () => {
     phone: '',
     passcode: '',
     role: SystemRole.FIELD_AGENT,
-    cluster: CLUSTERS[0]
+    cluster: '' // Start empty to force selection if needed, or default to first
   });
 
   const normalizePhone = (p: string) => {
@@ -190,6 +190,8 @@ const App: React.FC = () => {
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
+    
+    // Every entry is classified under the agent's assigned cluster
     const cluster = agentIdentity?.cluster || 'Unassigned';
     
     const newRecord: SaleRecord = {
@@ -239,27 +241,6 @@ const App: React.FC = () => {
     persistence.remove('coop_users');
   };
 
-  const handleExportCsv = () => {
-    if (filteredRecords.length === 0) {
-      alert("No records to export.");
-      return;
-    }
-    const headers = ["ID", "Date", "Commodity", "Farmer", "Farmer Phone", "Customer", "Customer Phone", "Units", "Unit Type", "Price", "Total", "Commission", "Status", "Agent", "Cluster"];
-    const rows = filteredRecords.map(r => [
-      r.id, r.date, r.cropType, r.farmerName, r.farmerPhone, r.customerName, r.customerPhone, r.unitsSold, r.unitType, r.unitPrice, r.totalSale, r.coopProfit, r.status, r.agentName, r.cluster
-    ]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `coop_audit_report_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
@@ -269,6 +250,13 @@ const App: React.FC = () => {
       const latestCloudUsers = await fetchUsersFromCloud();
       let currentUsers: AgentIdentity[] = latestCloudUsers || users;
       if (isRegisterMode) {
+        // Enforce cluster selection for Field Agents
+        if (authForm.role === SystemRole.FIELD_AGENT && !authForm.cluster) {
+            alert("Please select a cluster.");
+            setIsAuthLoading(false);
+            return;
+        }
+
         const newUser: AgentIdentity = { 
           name: authForm.name.trim(), 
           phone: authForm.phone.trim(), 
@@ -346,7 +334,7 @@ const App: React.FC = () => {
         <div className="w-full max-w-[340px] bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl p-8 space-y-5 z-10">
             <div className="flex justify-between items-end">
               <h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'Register' : 'Login'}</h2>
-              <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Back' : 'New Account'}</button>
+              <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Back' : 'New Account'}</button>
             </div>
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />}
@@ -358,13 +346,17 @@ const App: React.FC = () => {
                     {Object.values(SystemRole).map(r => <option key={r} value={r} className="bg-slate-900">{r}</option>)}
                   </select>
                   {authForm.role === SystemRole.FIELD_AGENT && (
-                    <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none">
-                      {CLUSTERS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
-                    </select>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-emerald-400/60 uppercase tracking-widest ml-2">Assign Cluster (Required)</label>
+                      <select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none">
+                        <option value="" disabled>Select Cluster</option>
+                        {CLUSTERS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
+                      </select>
+                    </div>
                   )}
                 </>
               )}
-              <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : 'Authenticate'}</button>
+              <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register' : 'Authenticate')}</button>
             </form>
         </div>
       </div>
