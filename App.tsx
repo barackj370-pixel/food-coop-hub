@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
 import { 
   syncToGoogleSheets, 
   fetchFromGoogleSheets, 
@@ -51,6 +52,17 @@ const App: React.FC = () => {
     return [];
   });
 
+  const [marketOrders, setMarketOrders] = useState<MarketOrder[]>(() => {
+    const saved = persistence.get('food_coop_orders');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) { return []; }
+    }
+    return [];
+  });
+
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
@@ -62,6 +74,7 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -69,6 +82,14 @@ const App: React.FC = () => {
     passcode: '',
     role: SystemRole.FIELD_AGENT,
     cluster: ''
+  });
+
+  const [demandForm, setDemandForm] = useState({
+    cropType: 'Maize',
+    unitsRequested: 0,
+    unitType: '2kg Tin',
+    customerName: '',
+    customerPhone: ''
   });
 
   const normalizePhone = (p: string) => {
@@ -139,21 +160,25 @@ const App: React.FC = () => {
 
   const filteredRecords = useMemo(() => {
     let base = records.filter(r => r.id && r.date);
-    
     if (agentIdentity) {
-      // FIX: Ensure privileged roles (including System Dev) see EVERYTHING across all clusters
       const isPrivileged = isSystemDev || 
                            agentIdentity.role === SystemRole.MANAGER || 
                            agentIdentity.role === SystemRole.FINANCE_OFFICER ||
                            agentIdentity.role === SystemRole.AUDITOR;
-      
       if (!isPrivileged) {
-        // Only Field Agents are restricted to their own entries
         base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity.phone || ''));
       }
     }
     return base;
   }, [records, isSystemDev, agentIdentity]);
+
+  const filteredOrders = useMemo(() => {
+    let base = marketOrders;
+    if (agentIdentity && !isSystemDev && agentIdentity.role === SystemRole.FIELD_AGENT) {
+      base = base.filter(o => normalizePhone(o.agentPhone) === normalizePhone(agentIdentity.phone));
+    }
+    return base;
+  }, [marketOrders, isSystemDev, agentIdentity]);
 
   const stats = useMemo(() => {
     const relevantRecords = filteredRecords;
@@ -184,6 +209,44 @@ const App: React.FC = () => {
     return { clusterPerformance, commodityTrends };
   }, [filteredRecords]);
 
+  const handleAddOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!demandForm.customerName || demandForm.unitsRequested <= 0) {
+      alert("Please enter customer name and quantity.");
+      return;
+    }
+
+    const newOrder: MarketOrder = {
+      id: 'ORD-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+      date: new Date().toISOString().split('T')[0],
+      cropType: demandForm.cropType,
+      unitsRequested: demandForm.unitsRequested,
+      unitType: demandForm.unitType,
+      customerName: demandForm.customerName,
+      customerPhone: demandForm.customerPhone,
+      status: OrderStatus.OPEN,
+      agentPhone: agentIdentity?.phone || '',
+      cluster: agentIdentity?.cluster || 'Unassigned'
+    };
+
+    const updated = [newOrder, ...marketOrders];
+    setMarketOrders(updated);
+    persistence.set('food_coop_orders', JSON.stringify(updated));
+    setDemandForm({ ...demandForm, customerName: '', customerPhone: '', unitsRequested: 0 });
+  };
+
+  const handleFulfillOrderClick = (order: MarketOrder) => {
+    setFulfillmentData({
+      cropType: order.cropType,
+      unitsSold: order.unitsRequested,
+      unitType: order.unitType,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      orderId: order.id
+    });
+    window.scrollTo({ top: 400, behavior: 'smooth' });
+  };
+
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
@@ -210,6 +273,17 @@ const App: React.FC = () => {
         persistence.set('food_coop_data', JSON.stringify(updated));
         return updated;
     });
+
+    // Mark order as fulfilled if linked
+    if (data.orderId) {
+      setMarketOrders(prev => {
+        const updated = prev.map(o => o.id === data.orderId ? { ...o, status: OrderStatus.FULFILLED } : o);
+        persistence.set('food_coop_orders', JSON.stringify(updated));
+        return updated;
+      });
+      setFulfillmentData(null);
+    }
+
     try {
       const success = await syncToGoogleSheets(newRecord);
       if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
@@ -228,21 +302,14 @@ const App: React.FC = () => {
     await syncToGoogleSheets(updated);
   };
 
-  // NEW: Handle deleting a record for demo cleanup
   const handleDeleteRecord = async (id: string) => {
     if (!window.confirm("Action required: Permanent deletion of record ID: " + id + ". Continue?")) return;
-    
     setRecords(prev => {
         const updated = prev.filter(r => r.id !== id);
         persistence.set('food_coop_data', JSON.stringify(updated));
         return updated;
     });
-
-    try {
-      await deleteRecordFromCloud(id);
-    } catch (e) {
-      console.error("Cloud deletion failed:", e);
-    }
+    try { await deleteRecordFromCloud(id); } catch (e) { console.error("Cloud deletion failed:", e); }
   };
 
   const handleToggleUserStatus = async (phone: string, currentStatus?: AccountStatus) => {
@@ -258,9 +325,11 @@ const App: React.FC = () => {
     setAgentIdentity(null);
     setRecords([]); 
     setUsers([]);
+    setMarketOrders([]);
     persistence.remove('agent_session');
     persistence.remove('food_coop_data');
     persistence.remove('coop_users');
+    persistence.remove('food_coop_orders');
   };
 
   const handleExportSummaryCsv = () => {
@@ -297,7 +366,6 @@ const App: React.FC = () => {
     const rows = filteredRecords.map(r => [
       r.id, r.date, r.cluster, r.agentName, r.farmerName, r.customerName, r.cropType, `${r.unitsSold} ${r.unitType}`, r.unitPrice, r.totalSale, r.coopProfit, r.status
     ]);
-
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -324,7 +392,6 @@ const App: React.FC = () => {
             setIsAuthLoading(false);
             return;
         }
-
         const newUser: AgentIdentity = { 
           name: authForm.name.trim(), 
           phone: authForm.phone.trim(), 
@@ -372,7 +439,6 @@ const App: React.FC = () => {
         {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
           const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
-          
           return (
             <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
               <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
@@ -396,7 +462,7 @@ const App: React.FC = () => {
                       <td className="py-6 text-slate-400">{r.date}</td>
                       <td className="py-6">
                         <div className="space-y-1">
-                          <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
+                          <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName}</p>
                           <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName}</p>
                           <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName}</p>
                         </div>
@@ -438,17 +504,13 @@ const App: React.FC = () => {
             </div>
           );
         })}
-
         {data.length > 0 && (
           <div className="bg-slate-900 text-white rounded-[2rem] p-10 border border-black shadow-2xl relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-8 opacity-10">
-                <i className="fas fa-chart-line text-8xl"></i>
-             </div>
+             <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-chart-line text-8xl"></i></div>
              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-red-500 mb-2">Aggregate System Audit</p>
                    <h4 className="text-2xl font-black uppercase tracking-tight">Combined Universal Grand Totals</h4>
-                   <p className="text-slate-400 text-[10px] font-bold uppercase mt-2">Consolidated across all registered nodes and clusters</p>
                 </div>
                 <div className="flex gap-12">
                    <div className="text-center md:text-right">
@@ -463,12 +525,6 @@ const App: React.FC = () => {
              </div>
           </div>
         )}
-
-        {data.length === 0 && (
-          <div className="bg-white rounded-[2rem] p-12 border border-slate-100 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
-            No entries to display in this audit log
-          </div>
-        )}
       </div>
     );
   };
@@ -479,7 +535,7 @@ const App: React.FC = () => {
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-50 text-green-500 rounded-3xl mb-4 border border-green-100"><i className="fas fa-leaf text-2xl text-green-500"></i></div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Food Coop Market</h1>
-           <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Linking Suppliers and Consumer</p>
+           <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting Suppliers with Consumers</p>
         </div>
         <div className="w-full max-w-[360px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 z-10">
             <div className="flex justify-between items-end mb-2">
@@ -487,36 +543,36 @@ const App: React.FC = () => {
               <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, cluster: CLUSTERS[0]})}} className="text-[10px] font-black uppercase text-red-600 hover:text-red-700">{isRegisterMode ? 'Back' : 'Create New Account'}</button>
             </div>
             <form onSubmit={handleAuth} className="space-y-4">
-              {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none focus:border-green-400 focus:bg-white transition-all" />}
-              <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none focus:border-green-400 focus:bg-white transition-all" />
-              <input type="password" maxLength={4} placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none focus:border-green-400 focus:bg-white transition-all" />
+              {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none transition-all" />}
+              <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none transition-all" />
+              <input type="password" maxLength={4} placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none transition-all" />
               {isRegisterMode && (
                 <>
                   <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
                     {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                   {authForm.role === SystemRole.FIELD_AGENT && (
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Assign Cluster (Required)</label>
-                      <select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
-                        <option value="" disabled>Select Cluster</option>
-                        {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
+                    <select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
+                      <option value="" disabled>Select Cluster</option>
+                      {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
                   )}
                 </>
               )}
-              <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl active:scale-95 transition-all">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register' : 'Authenticate')}</button>
+              <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register' : 'Authenticate')}</button>
             </form>
-            <div className="pt-4 flex justify-center space-x-2">
-               <div className="w-8 h-1 bg-red-600 rounded-full"></div>
-               <div className="w-8 h-1 bg-black rounded-full"></div>
-               <div className="w-8 h-1 bg-green-500 rounded-full"></div>
-            </div>
         </div>
       </div>
     );
   }
+
+  const isPrivilegedRole = (agent: AgentIdentity | null) => {
+    if (!agent) return false;
+    return isSystemDev || 
+           agent.role === SystemRole.MANAGER || 
+           agent.role === SystemRole.FINANCE_OFFICER || 
+           agent.role === SystemRole.AUDITOR;
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
@@ -527,7 +583,7 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">Food Coop Market</h1>
               <div className="flex items-center space-x-2 mt-1.5">
-                <span className="text-red-600 text-[9px] font-black uppercase tracking-[0.4em] italic">Linking Suppliers and Consumer</span>
+                <span className="text-red-600 text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting Suppliers with Consumers</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
@@ -544,7 +600,6 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-
         <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
           {availablePortals.map(p => (
             <button 
@@ -567,7 +622,78 @@ const App: React.FC = () => {
               <StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" />
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
             </div>
-            <SaleForm onSubmit={handleAddRecord} />
+
+            {/* NEW: Market Demand Intake (Capturing Consumer Orders) */}
+            <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-shopping-basket text-8xl"></i></div>
+               <div className="relative z-10">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-red-500 mb-6">Market Demand Intake (Unfulfilled Orders)</h3>
+                  <form onSubmit={handleAddOrder} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Commodity</label>
+                      <select 
+                        value={demandForm.cropType}
+                        onChange={e => setDemandForm({...demandForm, cropType: e.target.value})}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                      >
+                         {Object.values(COMMODITY_CATEGORIES).flat().map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity Required</label>
+                      <div className="flex gap-2">
+                        <input type="number" value={demandForm.unitsRequested || ''} onChange={e => setDemandForm({...demandForm, unitsRequested: parseFloat(e.target.value) || 0})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                        <select value={demandForm.unitType} onChange={e => setDemandForm({...demandForm, unitType: e.target.value})} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-[10px] font-black text-white outline-none">
+                           {CROP_CONFIG[demandForm.cropType as keyof typeof CROP_CONFIG]?.map(u => <option key={u} value={u}>{u}</option>) || <option value="Kg">Kg</option>}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Name</label>
+                      <input type="text" placeholder="..." value={demandForm.customerName} onChange={e => setDemandForm({...demandForm, customerName: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Contact</label>
+                      <input type="tel" placeholder="07..." value={demandForm.customerPhone} onChange={e => setDemandForm({...demandForm, customerPhone: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                    </div>
+                    <div className="flex items-end">
+                      <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95">Log Demand</button>
+                    </div>
+                  </form>
+               </div>
+
+               {/* Open Orders Table */}
+               <div className="mt-10 overflow-x-auto">
+                 <table className="w-full text-left">
+                    <thead className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-800">
+                      <tr><th className="pb-4">Order ID</th><th className="pb-4">Consumer</th><th className="pb-4">Demand Details</th><th className="pb-4">Action</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                       {filteredOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
+                         <tr key={o.id} className="hover:bg-slate-800/50">
+                           <td className="py-4 font-mono text-[10px] text-slate-500">{o.id}</td>
+                           <td className="py-4">
+                              <p className="text-[11px] font-black uppercase">{o.customerName}</p>
+                              <p className="text-[9px] text-slate-400 font-mono">{o.customerPhone}</p>
+                           </td>
+                           <td className="py-4">
+                              <p className="text-[11px] font-black uppercase text-green-400">{o.cropType}</p>
+                              <p className="text-[9px] text-slate-400 font-bold">{o.unitsRequested} {o.unitType}</p>
+                           </td>
+                           <td className="py-4">
+                              <button onClick={() => handleFulfillOrderClick(o)} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md">Fulfill Sale</button>
+                           </td>
+                         </tr>
+                       ))}
+                       {filteredOrders.filter(o => o.status === OrderStatus.OPEN).length === 0 && (
+                         <tr><td colSpan={4} className="py-4 text-[9px] font-bold text-slate-600 uppercase text-center">No unfulfilled demand logged</td></tr>
+                       )}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+
+            <SaleForm onSubmit={handleAddRecord} initialData={fulfillmentData} />
             <AuditLogTable data={filteredRecords.slice(0, 10)} title="Recent Integrity Logs (Classified)" onDelete={isSystemDev ? handleDeleteRecord : undefined} />
           </>
         )}
@@ -657,28 +783,14 @@ const App: React.FC = () => {
                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">KPL Food Coops Summary Trade Report</h3>
                   <div className="flex gap-2">
-                    <button 
-                      onClick={handleExportSummaryCsv}
-                      className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
-                    >
-                      Summary CSV
-                    </button>
-                    <button 
-                      onClick={handleExportDetailedCsv}
-                      className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 active:scale-95 transition-all"
-                    >
-                      <i className="fas fa-download mr-2"></i> Detailed CSV Report
-                    </button>
+                    <button onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Summary CSV</button>
+                    <button onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 active:scale-95 transition-all"><i className="fas fa-download mr-2"></i> Detailed CSV Report</button>
                   </div>
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
                     <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                      <tr>
-                        <th className="pb-6">Food Coop Clusters</th>
-                        <th className="pb-6">Total Volume of Sales (Ksh)</th>
-                        <th className="pb-6">Total Gross Profit (Ksh)</th>
-                      </tr>
+                      <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Volume of Sales (Ksh)</th><th className="pb-6">Total Gross Profit (Ksh)</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
@@ -697,70 +809,22 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
-                 <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8">Yield Analysis</h3>
-                 <div className="space-y-6">
-                    {boardMetrics.commodityTrends.slice(0, 8).map(([crop, value]: any) => (
-                      <div key={crop} className="space-y-2">
-                        <div className="flex justify-between text-[11px] font-black uppercase tracking-wider text-slate-600">
-                          <span>{crop}</span>
-                          <span>{value.toLocaleString()} Units</span>
-                        </div>
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-green-500" style={{ width: `${(value / (boardMetrics.commodityTrends[0]?.[1] || 1)) * 100}%` }}></div>
-                        </div>
-                      </div>
-                    ))}
-                 </div>
-              </div>
-              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
-                 <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Cluster Ranking</h3>
-                 <div className="mt-8 space-y-5">
-                    {boardMetrics.clusterPerformance.map(([cluster, stats]: any, idx) => (
-                      <div key={cluster} className="space-y-2">
-                         <div className="flex justify-between items-center text-[11px] font-black uppercase text-black tracking-widest">
-                            <span className="text-slate-400">{idx + 1}. {cluster}</span>
-                            <span className="text-green-600 font-black">KSh {stats.profit.toLocaleString()}</span>
-                         </div>
-                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-red-600 shadow-sm" style={{ width: `${(stats.profit / (boardMetrics.clusterPerformance[0]?.[1].profit || 1)) * 100}%` }}></div>
-                         </div>
-                      </div>
-                    ))}
-                 </div>
-              </div>
-            </div>
-
             <AuditLogTable data={filteredRecords} title="Universal Trade Log (Classified by Cluster)" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
           <div className="space-y-12">
-            {/* Added: Direct Cloud Repository Link */}
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-8 opacity-10">
-                  <i className="fas fa-database text-8xl"></i>
-               </div>
+               <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-database text-8xl"></i></div>
                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                   <div>
                      <p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-500 mb-2">Cloud Storage Node</p>
                      <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
-                     <p className="text-slate-400 text-[10px] font-bold uppercase mt-2">Direct live access to Google Sheets data ledger for auditing</p>
                   </div>
-                  <a 
-                    href={GOOGLE_SHEET_VIEW_URL} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="bg-green-600 text-white px-10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:bg-green-700 active:scale-95 transition-all flex items-center"
-                  >
-                    <i className="fas fa-table mr-3 text-lg"></i> Launch Master Ledger
-                  </a>
+                  <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:bg-green-700 active:scale-95 transition-all flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Master Ledger</a>
                </div>
             </div>
-
             <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl">
                <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3>
                <div className="overflow-x-auto">
@@ -771,24 +835,14 @@ const App: React.FC = () => {
                     <tbody className="divide-y">
                       {users.map(u => (
                         <tr key={u.phone} className="group hover:bg-slate-50/50">
-                          <td className="py-6">
-                             <p className="text-sm font-black uppercase text-black">{u.name}</p>
-                             <p className="text-[10px] text-slate-400 font-mono">{u.phone}</p>
-                          </td>
-                          <td className="py-6">
-                             <p className="text-[11px] font-black text-black uppercase">{u.role}</p>
-                             <p className="text-[9px] text-slate-400 uppercase">{u.cluster}</p>
-                          </td>
-                          <td className="py-6">
-                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                               {u.status || 'AWAITING'}
-                             </span>
-                          </td>
+                          <td className="py-6"><p className="text-sm font-black uppercase text-black">{u.name}</p></td>
+                          <td className="py-6"><p className="text-[11px] font-black text-black uppercase">{u.role}</p></td>
+                          <td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td>
                           <td className="py-6 text-right">
                              {u.status === 'ACTIVE' ? (
-                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
+                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
                              ) : (
-                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-md">Reactivate</button>
+                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
                              )}
                           </td>
                         </tr>
@@ -797,21 +851,12 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            
             <AuditLogTable data={filteredRecords} title="System-Wide Classified Universal Audit Log" onDelete={handleDeleteRecord} />
           </div>
         )}
       </main>
     </div>
   );
-
-  function isPrivilegedRole(agent: AgentIdentity | null) {
-    if (!agent) return false;
-    return isSystemDev || 
-           agent.role === SystemRole.MANAGER || 
-           agent.role === SystemRole.FINANCE_OFFICER || 
-           agent.role === SystemRole.AUDITOR;
-  }
 };
 
 export default App;

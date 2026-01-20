@@ -6,6 +6,12 @@ export enum RecordStatus {
   VERIFIED = 'VERIFIED'
 }
 
+export enum OrderStatus {
+  OPEN = 'OPEN',
+  FULFILLED = 'FULFILLED',
+  CANCELLED = 'CANCELLED'
+}
+
 export enum SystemRole {
   FIELD_AGENT = 'Field Agent',
   FINANCE_OFFICER = 'Finance Officer',
@@ -25,6 +31,19 @@ export interface AgentIdentity {
   warnings?: number;
   lastCheckWeek?: string;
   status?: AccountStatus;
+}
+
+export interface MarketOrder {
+  id: string;
+  date: string;
+  cropType: string;
+  unitsRequested: number;
+  unitType: string;
+  customerName: string;
+  customerPhone: string;
+  status: OrderStatus;
+  agentPhone: string;
+  cluster: string;
 }
 
 export interface SaleRecord {
@@ -48,5 +67,6 @@ export interface SaleRecord {
   agentPhone?: string;
   agentName?: string;
   cluster?: string;
-  synced?: boolean; // Track if record is in Google Sheets
+  synced?: boolean;
+  orderId?: string; // Optional link to the original market order
 }

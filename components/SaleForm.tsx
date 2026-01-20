@@ -3,6 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
 
 interface SaleFormProps {
+  initialData?: {
+    cropType?: string;
+    unitsSold?: number;
+    unitType?: string;
+    customerName?: string;
+    customerPhone?: string;
+    orderId?: string;
+  };
   onSubmit: (data: {
     date: string;
     cropType: string;
@@ -13,10 +21,11 @@ interface SaleFormProps {
     customerPhone: string;
     unitsSold: number;
     unitPrice: number;
+    orderId?: string;
   }) => void;
 }
 
-const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
+const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormProps) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cropType: 'Maize',
@@ -29,6 +38,20 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
     unitsSold: 0,
     unitPrice: 0.00
   });
+
+  // Effect to handle pre-filling from an order
+  useEffect(() => {
+    if (initialData) {
+      setFormData(prev => ({
+        ...prev,
+        cropType: initialData.cropType || prev.cropType,
+        unitsSold: initialData.unitsSold || prev.unitsSold,
+        unitType: initialData.unitType || prev.unitType,
+        customerName: initialData.customerName || prev.customerName,
+        customerPhone: initialData.customerPhone || prev.customerPhone
+      }));
+    }
+  }, [initialData]);
 
   useEffect(() => {
     const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] as readonly string[];
@@ -51,7 +74,7 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
     }
     
     const { otherCropType, ...submissionData } = formData;
-    onSubmit({ ...submissionData, cropType: finalCropType });
+    onSubmit({ ...submissionData, cropType: finalCropType, orderId: initialData?.orderId });
     
     setFormData({
       ...formData,
@@ -75,7 +98,7 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
           <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-1">Audit Verification Required</p>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation</span>
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation {initialData?.orderId && "(Order Linked)"}</span>
            <p className="text-[13px] font-black text-white uppercase tracking-tight">
              Total: KSh {totalSale.toLocaleString()} | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
            </p>
@@ -94,7 +117,7 @@ const SaleForm: React.FC = ({ onSubmit }: SaleFormProps) => {
         </div>
         
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity Category</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity</label>
           <select 
             value={formData.cropType}
             onChange={(e) => setFormData({...formData, cropType: e.target.value})}
