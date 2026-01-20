@@ -252,6 +252,27 @@ const App: React.FC = () => {
     persistence.remove('coop_users');
   };
 
+  const handleExportCsv = () => {
+    if (filteredRecords.length === 0) {
+      alert("No records to export.");
+      return;
+    }
+    const headers = ["ID", "Date", "Commodity", "Farmer", "Farmer Phone", "Customer", "Customer Phone", "Units", "Unit Type", "Price", "Total", "Commission", "Status", "Agent", "Cluster"];
+    const rows = filteredRecords.map(r => [
+      r.id, r.date, r.cropType, r.farmerName, r.farmerPhone, r.customerName, r.customerPhone, r.unitsSold, r.unitType, r.unitPrice, r.totalSale, r.coopProfit, r.status, r.agentName, r.cluster
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `coop_audit_report_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
@@ -403,7 +424,7 @@ const App: React.FC = () => {
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-emerald-600" />
             </div>
             <SaleForm onSubmit={handleAddRecord} />
-            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Recent Submissions" />
+            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Audit and Integrity Log" />
           </>
         )}
 
@@ -477,6 +498,17 @@ const App: React.FC = () => {
                     </tbody>
                  </table>
                </div>
+            </div>
+            <div className="flex justify-between items-center bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl mb-4">
+              <div className="flex gap-4">
+                <select value={logFilterDays} onChange={e => setLogFilterDays(Number(e.target.value))} className="bg-slate-50 border-none rounded-xl px-6 py-3 font-bold text-[11px] uppercase tracking-widest outline-none">
+                  <option value={7}>Last 7 Days</option>
+                  <option value={14}>Last 14 Days</option>
+                  <option value={30}>Last 30 Days</option>
+                  <option value={365}>Full History</option>
+                </select>
+                <button onClick={handleExportCsv} className="bg-emerald-900 text-white px-8 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest shadow-xl">Export Report</button>
+              </div>
             </div>
             <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
           </div>
