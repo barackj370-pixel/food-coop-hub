@@ -244,6 +244,32 @@ const App: React.FC = () => {
     persistence.remove('coop_users');
   };
 
+  const handleExportSummaryCsv = () => {
+    if (boardMetrics.clusterPerformance.length === 0) {
+      alert("No summary data to export.");
+      return;
+    }
+    const headers = ["Food Coop Clusters", "Total Volume of Sales (Ksh)", "Total Gross Profit (Ksh)"];
+    const rows = boardMetrics.clusterPerformance.map(([cluster, stats]: any) => [
+      cluster, stats.volume, stats.profit
+    ]);
+    
+    const totalVolume = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0);
+    const totalProfit = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0);
+    rows.push(["TOTAL SYSTEM OUTPUT", totalVolume, totalProfit]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `kpl_coop_summary_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
@@ -496,9 +522,14 @@ const App: React.FC = () => {
           <div className="space-y-12">
             {/* KPL Food Coops Summary Trade Report */}
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
-               <div className="flex justify-between items-center mb-10">
+               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter border-l-4 border-emerald-500 pl-4">KPL Food Coops Summary Trade Report</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Aggregate Data</p>
+                  <button 
+                    onClick={handleExportSummaryCsv}
+                    className="bg-emerald-900 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-emerald-800 active:scale-95 transition-all"
+                  >
+                    <i className="fas fa-download mr-2"></i> Download CSV
+                  </button>
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
