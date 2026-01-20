@@ -177,15 +177,7 @@ const App: React.FC = () => {
     }, {});
     const commodityTrends = Object.entries(commodityMap).sort((a: any, b: any) => b[1] - a[1]);
 
-    // Classification of records by cluster for Audit logs
-    const recordsByCluster = rLog.reduce((acc: Record<string, SaleRecord[]>, r) => {
-      const cluster = r.cluster || 'Unassigned';
-      if (!acc[cluster]) acc[cluster] = [];
-      acc[cluster].push(r);
-      return acc;
-    }, {});
-
-    return { clusterPerformance, topAgents, commodityTrends, recordsByCluster };
+    return { clusterPerformance, topAgents, commodityTrends };
   }, [filteredRecords]);
 
   const handleAddRecord = async (data: any) => {
@@ -306,66 +298,70 @@ const App: React.FC = () => {
     } catch (err) { alert("System Auth Error."); } finally { setIsAuthLoading(false); }
   };
 
-  const AuditLogTable = ({ data, title, showClusterHeader = false }: { data: SaleRecord[], title: string, showClusterHeader?: boolean }) => (
-    <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto mb-8">
-      <h3 className={`text-sm font-black uppercase tracking-tighter mb-8 ${showClusterHeader ? 'text-red-600 border-l-4 border-red-600 pl-4' : 'text-black'}`}>
-        {title} ({data.length})
-      </h3>
-      <table className="w-full text-left">
-        <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-          <tr>
-            <th className="pb-6">Date</th>
-            <th className="pb-6">Participants</th>
-            <th className="pb-6">Commodity</th>
-            <th className="pb-6">Gross Sale</th>
-            <th className="pb-6">Commission</th>
-            <th className="pb-6 text-right">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-50">
-          {data.map(r => (
-            <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
-              <td className="py-6 text-slate-400">{r.date}</td>
-              <td className="py-6">
-                <div className="space-y-1">
-                  <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
-                  <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
-                  <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
-                </div>
-                <p className="text-[8px] text-slate-300 mt-1 uppercase">ID: {r.id}</p>
-              </td>
-              <td className="py-6 text-black uppercase">{r.cropType}</td>
-              <td className="py-6 font-black text-black">KSh {r.totalSale.toLocaleString()}</td>
-              <td className="py-6 font-black text-green-600">KSh {r.coopProfit.toLocaleString()}</td>
-              <td className="py-6 text-right">
-                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                  {r.status}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const AuditLogTable = ({ data, title }: { data: SaleRecord[], title: string }) => {
+    const groupedData = useMemo(() => {
+      // Fix: Explicitly typing the initial value of reduce to avoid 'unknown' type inference on groupedData
+      return data.reduce((acc: Record<string, SaleRecord[]>, r) => {
+        const cluster = r.cluster || 'Unassigned';
+        if (!acc[cluster]) acc[cluster] = [];
+        acc[cluster].push(r);
+        return acc;
+      }, {} as Record<string, SaleRecord[]>);
+    }, [data]);
 
-  const ClassifiedAuditLogs = ({ groupedData }: { groupedData: Record<string, SaleRecord[]> }) => (
-    <div className="space-y-4">
-      <div className="flex items-center space-x-3 mb-6">
-        <div className="w-1.5 h-6 bg-red-600 rounded-full"></div>
-        <h2 className="text-lg font-black text-black uppercase tracking-tight">System-Wide Audit Log (Classified by Cluster)</h2>
+    return (
+      <div className="space-y-12">
+        <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
+        {Object.entries(groupedData).map(([cluster, records]) => (
+          <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
+            <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center">
+              <i className="fas fa-map-marker-alt mr-2"></i> Cluster: {cluster}
+            </h4>
+            <table className="w-full text-left">
+              <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
+                <tr>
+                  <th className="pb-6">Date</th>
+                  <th className="pb-6">Participants</th>
+                  <th className="pb-6">Commodity</th>
+                  <th className="pb-6">Gross Sale</th>
+                  <th className="pb-6">Commission</th>
+                  <th className="pb-6 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {records.map(r => (
+                  <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
+                    <td className="py-6 text-slate-400">{r.date}</td>
+                    <td className="py-6">
+                      <div className="space-y-1">
+                        <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
+                        <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                        <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
+                      </div>
+                      <p className="text-[8px] text-slate-300 mt-1 uppercase">ID: {r.id}</p>
+                    </td>
+                    <td className="py-6 text-black uppercase">{r.cropType}</td>
+                    <td className="py-6 font-black text-black">KSh {r.totalSale.toLocaleString()}</td>
+                    <td className="py-6 font-black text-green-600">KSh {r.coopProfit.toLocaleString()}</td>
+                    <td className="py-6 text-right">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                        {r.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        {data.length === 0 && (
+          <div className="bg-white rounded-[2rem] p-12 border border-slate-100 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
+            No entries to display in this audit log
+          </div>
+        )}
       </div>
-      {Object.entries(groupedData).length > 0 ? (
-        Object.entries(groupedData).map(([cluster, clusterRecords]) => (
-          <AuditLogTable key={cluster} data={clusterRecords} title={`${cluster} Cluster Integrity Log`} showClusterHeader={true} />
-        ))
-      ) : (
-        <div className="bg-white rounded-[2rem] p-12 text-center border border-slate-100 shadow-sm">
-           <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest">No transaction records found to classify.</p>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   if (!agentIdentity) {
     return (
@@ -462,7 +458,7 @@ const App: React.FC = () => {
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
             </div>
             <SaleForm onSubmit={handleAddRecord} />
-            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Your Recent Logs" />
+            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Recent Integrity Logs (Classified)" />
           </>
         )}
 
@@ -497,7 +493,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <ClassifiedAuditLogs groupedData={boardMetrics.recordsByCluster} />
+            <AuditLogTable data={filteredRecords} title="Full Financial Classified Audit Log" />
           </div>
         )}
 
@@ -541,7 +537,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <ClassifiedAuditLogs groupedData={boardMetrics.recordsByCluster} />
+            <AuditLogTable data={filteredRecords} title="System Integrity Classified Log" />
           </div>
         )}
 
@@ -618,11 +614,56 @@ const App: React.FC = () => {
                  </div>
               </div>
             </div>
-            
-            <ClassifiedAuditLogs groupedData={boardMetrics.recordsByCluster} />
+
+            <AuditLogTable data={filteredRecords} title="Universal Trade Log (Classified by Cluster)" />
           </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
           <div className="space-y-12">
-            <div className="bg-white rounded-[2.5rem
+            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl">
+               <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                      <tr><th className="pb-4">Name & Contact</th><th className="pb-4">Role / Node</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {users.map(u => (
+                        <tr key={u.phone} className="group hover:bg-slate-50/50">
+                          <td className="py-6">
+                             <p className="text-sm font-black uppercase text-black">{u.name}</p>
+                             <p className="text-[10px] text-slate-400 font-mono">{u.phone}</p>
+                          </td>
+                          <td className="py-6">
+                             <p className="text-[11px] font-black text-black uppercase">{u.role}</p>
+                             <p className="text-[9px] text-slate-400 uppercase">{u.cluster}</p>
+                          </td>
+                          <td className="py-6">
+                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                               {u.status || 'AWAITING'}
+                             </span>
+                          </td>
+                          <td className="py-6 text-right">
+                             {u.status === 'ACTIVE' ? (
+                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
+                             ) : (
+                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-md">Reactivate</button>
+                             )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+            
+            <AuditLogTable data={filteredRecords} title="System-Wide Classified Universal Audit Log" />
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default App;
