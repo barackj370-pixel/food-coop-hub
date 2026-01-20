@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -469,9 +470,9 @@ const App: React.FC = () => {
                       <td className="py-6 text-slate-400">{r.date}</td>
                       <td className="py-6">
                         <div className="space-y-1">
-                          <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName}</p>
-                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName}</p>
-                          <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName}</p>
+                          <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
                         </div>
                         <p className="text-[8px] text-slate-300 mt-1 uppercase">ID: {r.id}</p>
                       </td>
@@ -622,7 +623,6 @@ const App: React.FC = () => {
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
             </div>
 
-            {/* Market Demand Intake (Capturing Consumer Orders) */}
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
                <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-shopping-basket text-8xl"></i></div>
                <div className="relative z-10">
@@ -661,7 +661,6 @@ const App: React.FC = () => {
                   </form>
                </div>
 
-               {/* Open Orders Table */}
                <div className="mt-10 overflow-x-auto">
                  <table className="w-full text-left">
                     <thead className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-800">
@@ -693,7 +692,6 @@ const App: React.FC = () => {
             </div>
 
             <SaleForm onSubmit={handleAddRecord} initialData={fulfillmentData} />
-            {/* FIX: Ensure privileged users see the full audit trail in the Sales Portal */}
             <AuditLogTable 
               data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} 
               title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log (Privileged Access)" : "Recent Integrity Logs (Classified)"} 
@@ -717,9 +715,9 @@ const App: React.FC = () => {
                           <td className="py-6 font-bold">{r.date}</td>
                           <td className="py-6">
                             <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
-                              <p className="text-black">Agent: {r.agentName}</p>
-                              <p>Supplier: {r.farmerName}</p>
-                              <p>Buyer: {r.customerName}</p>
+                              <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
+                              <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                              <p>Buyer: {r.customerName} ({r.customerPhone})</p>
                             </div>
                           </td>
                           <td className="py-6 uppercase font-bold">{r.cropType}</td>
@@ -756,8 +754,8 @@ const App: React.FC = () => {
                           </td>
                           <td className="py-6">
                             <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
-                              <p className="text-black">Agent: {r.agentName}</p>
-                              <p>Supplier: {r.farmerName}</p>
+                              <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
+                              <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
                             </div>
                           </td>
                           <td className="py-6 font-black text-black">
