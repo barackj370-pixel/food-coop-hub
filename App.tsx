@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, CROP_TYPES } from './constants.ts';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants.ts';
 import { 
   syncToGoogleSheets, 
   fetchFromGoogleSheets, 
@@ -151,19 +151,6 @@ const App: React.FC = () => {
     return base;
   }, [records, isSystemDev, agentIdentity]);
 
-  const auditLogRecords = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const cutoff = new Date(today);
-    cutoff.setDate(today.getDate() - logFilterDays);
-
-    return filteredRecords.filter(r => {
-      const recordDate = parseLocalDate(r.date);
-      recordDate.setHours(0, 0, 0, 0);
-      return recordDate.getTime() >= cutoff.getTime();
-    });
-  }, [filteredRecords, logFilterDays]);
-
   const stats = useMemo(() => {
     const relevantRecords = filteredRecords;
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
@@ -237,7 +224,7 @@ const App: React.FC = () => {
   const handleToggleUserStatus = async (phone: string, currentStatus?: AccountStatus) => {
     const user = users.find(u => u.phone === phone);
     if (!user) return;
-    const newStatus: AccountStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const newStatus: AccountStatus = (currentStatus === 'ACTIVE') ? 'SUSPENDED' : 'ACTIVE';
     const updatedUser = { ...user, status: newStatus };
     setUsers(prev => prev.map(u => u.phone === phone ? updatedUser : u));
     await syncUserToCloud(updatedUser);
@@ -313,7 +300,7 @@ const App: React.FC = () => {
         <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
           <tr>
             <th className="pb-6">Date</th>
-            <th className="pb-6">ID/Agent</th>
+            <th className="pb-6">Participants</th>
             <th className="pb-6">Commodity</th>
             <th className="pb-6">Gross Sale</th>
             <th className="pb-6">Commission</th>
@@ -325,8 +312,12 @@ const App: React.FC = () => {
             <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
               <td className="py-6 text-slate-400">{r.date}</td>
               <td className="py-6">
-                <p className="text-slate-900">{r.id}</p>
-                <p className="text-[9px] text-slate-400 uppercase">{r.agentName}</p>
+                <div className="space-y-1">
+                  <p className="text-slate-900 font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
+                  <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                  <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
+                </div>
+                <p className="text-[8px] text-slate-300 mt-1 uppercase">ID: {r.id}</p>
               </td>
               <td className="py-6 text-slate-900 uppercase">{r.cropType}</td>
               <td className="py-6 font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
@@ -350,17 +341,17 @@ const App: React.FC = () => {
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl mb-4 border border-emerald-500/30"><i className="fas fa-leaf text-xl"></i></div>
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
-           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Professional Reporting</p>
+           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Identity Portal</p>
         </div>
         <div className="w-full max-w-[340px] bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl p-8 space-y-5 z-10">
             <div className="flex justify-between items-end">
-              <h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2>
-              <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'Register' : 'Login'}</h2>
+              <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Back' : 'New Account'}</button>
             </div>
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />}
               <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />
-              <input type="password" maxLength={4} placeholder="4 digit pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none" />
+              <input type="password" maxLength={4} placeholder="Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none" />
               {isRegisterMode && (
                 <>
                   <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none">
@@ -373,7 +364,7 @@ const App: React.FC = () => {
                   )}
                 </>
               )}
-              <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register' : 'Authenticate')}</button>
+              <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : 'Authenticate'}</button>
             </form>
         </div>
       </div>
@@ -435,19 +426,21 @@ const App: React.FC = () => {
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-xs">
                     <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                      <tr><th className="pb-4">Date</th><th className="pb-4">ID/Agent</th><th className="pb-4">Commodity</th><th className="pb-4">Gross</th><th className="pb-4">Comm</th><th className="pb-4 text-right">Action</th></tr>
+                      <tr><th className="pb-4">Date</th><th className="pb-4">Participants</th><th className="pb-4">Commodity</th><th className="pb-4">Gross</th><th className="pb-4 text-right">Action</th></tr>
                     </thead>
                     <tbody className="divide-y">
                       {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
                         <tr key={r.id} className="hover:bg-slate-50/50">
                           <td className="py-6 font-bold">{r.date}</td>
                           <td className="py-6">
-                            <p className="font-black">{r.id}</p>
-                            <p className="text-[9px] text-slate-400 uppercase">{r.agentName}</p>
+                            <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
+                              <p className="text-slate-900">Agent: {r.agentName}</p>
+                              <p>Supplier: {r.farmerName}</p>
+                              <p>Buyer: {r.customerName}</p>
+                            </div>
                           </td>
                           <td className="py-6 uppercase font-bold">{r.cropType}</td>
                           <td className="py-6 font-black">KSh {r.totalSale.toLocaleString()}</td>
-                          <td className="py-6 font-black text-emerald-600">KSh {r.coopProfit.toLocaleString()}</td>
                           <td className="py-6 text-right">
                              <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700">Confirm Receipt</button>
                           </td>
@@ -457,40 +450,42 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
+            <AuditLogTable data={filteredRecords} title="Audit and Integrity Log" />
           </div>
         )}
 
         {currentPortal === 'AUDIT' && (
           <div className="space-y-8">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8 border-l-4 border-emerald-500 pl-4">Awaiting Verification & Audit</h3>
+               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8 border-l-4 border-emerald-500 pl-4">Awaiting Approval & Verification</h3>
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-xs">
                     <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                      <tr><th className="pb-4">Agent/Cluster</th><th className="pb-4">Details</th><th className="pb-4">Integrity Hash</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
+                      <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
                     </thead>
                     <tbody className="divide-y">
                       {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
                         <tr key={r.id} className="hover:bg-slate-50/50">
                           <td className="py-6">
-                             <p className="font-black">{r.agentName}</p>
-                             <p className="text-[9px] text-slate-400 uppercase">{r.cluster}</p>
-                          </td>
-                          <td className="py-6">
                              <p className="font-bold uppercase">{r.cropType}</p>
                              <p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p>
+                             <p className="text-[8px] font-mono mt-1 text-slate-300">{r.signature}</p>
                           </td>
-                          <td className="py-6"><span className="bg-slate-50 px-2 py-1 rounded text-[9px] font-mono text-slate-500">{r.signature}</span></td>
                           <td className="py-6">
-                            <p className="font-black">Gross: KSh {r.totalSale.toLocaleString()}</p>
-                            <p className="text-emerald-600 font-black">Comm: KSh {r.coopProfit.toLocaleString()}</p>
+                            <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
+                              <p className="text-slate-900">Agent: {r.agentName}</p>
+                              <p>Supplier: {r.farmerName}</p>
+                            </div>
+                          </td>
+                          <td className="py-6 font-black">
+                            <p>Gross: KSh {r.totalSale.toLocaleString()}</p>
+                            <p className="text-emerald-600">Comm: KSh {r.coopProfit.toLocaleString()}</p>
                           </td>
                           <td className="py-6 text-right">
                              {r.status === RecordStatus.PAID ? (
-                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Audit Approval</button>
+                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Verify Transaction</button>
                              ) : (
-                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Final Seal</button>
+                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Final Audit Seal</button>
                              )}
                           </td>
                         </tr>
@@ -499,18 +494,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <div className="flex justify-between items-center bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl mb-4">
-              <div className="flex gap-4">
-                <select value={logFilterDays} onChange={e => setLogFilterDays(Number(e.target.value))} className="bg-slate-50 border-none rounded-xl px-6 py-3 font-bold text-[11px] uppercase tracking-widest outline-none">
-                  <option value={7}>Last 7 Days</option>
-                  <option value={14}>Last 14 Days</option>
-                  <option value={30}>Last 30 Days</option>
-                  <option value={365}>Full History</option>
-                </select>
-                <button onClick={handleExportCsv} className="bg-emerald-900 text-white px-8 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest shadow-xl">Export Report</button>
-              </div>
-            </div>
-            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
+            <AuditLogTable data={filteredRecords} title="Audit and Integrity Log" />
           </div>
         )}
 
@@ -518,9 +502,9 @@ const App: React.FC = () => {
           <div className="space-y-12">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Commodity Yield Analysis</h3>
+                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Yield Analysis</h3>
                  <div className="space-y-6">
-                    {boardMetrics.commodityTrends.slice(0, 6).map(([crop, value]: any) => (
+                    {boardMetrics.commodityTrends.slice(0, 8).map(([crop, value]: any) => (
                       <div key={crop} className="space-y-2">
                         <div className="flex justify-between text-[11px] font-black uppercase tracking-wider text-slate-600">
                           <span>{crop}</span>
@@ -534,44 +518,35 @@ const App: React.FC = () => {
                  </div>
               </div>
               <div className="bg-[#022c22] p-10 rounded-[2.5rem] shadow-2xl text-white">
-                 <h3 className="text-sm font-black text-emerald-400 uppercase tracking-tighter mb-8">Market Trend Insights</h3>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
-                       <p className="text-[9px] font-black text-emerald-400/40 uppercase tracking-widest mb-2">Top Cluster</p>
-                       <p className="text-lg font-black">{boardMetrics.clusterPerformance[0]?.[0] || 'N/A'}</p>
-                    </div>
-                    <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
-                       <p className="text-[9px] font-black text-emerald-400/40 uppercase tracking-widest mb-2">Total Yield</p>
-                       <p className="text-lg font-black">KSh {stats.approvedComm.toLocaleString()}</p>
-                    </div>
-                 </div>
-                 <div className="mt-8 space-y-4">
+                 <h3 className="text-sm font-black text-emerald-400 uppercase tracking-tighter mb-8">Cluster Contribution Ranking</h3>
+                 <div className="mt-8 space-y-5">
                     {boardMetrics.clusterPerformance.map(([cluster, value]: any, idx) => (
-                      <div key={cluster} className="flex justify-between items-center text-[11px] font-black uppercase text-emerald-100/60">
-                         <span>{idx + 1}. {cluster}</span>
-                         <span className="text-emerald-400">KSh {value.toLocaleString()}</span>
+                      <div key={cluster} className="space-y-2">
+                         <div className="flex justify-between items-center text-[10px] font-black uppercase text-emerald-100/60 tracking-widest">
+                            <span>{idx + 1}. {cluster}</span>
+                            <span className="text-emerald-400">KSh {value.toLocaleString()}</span>
+                         </div>
+                         <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-400/50" style={{ width: `${(value / (boardMetrics.clusterPerformance[0]?.[1] || 1)) * 100}%` }}></div>
+                         </div>
                       </div>
                     ))}
                  </div>
               </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
+            <AuditLogTable data={filteredRecords} title="Audit and Integrity Log" />
           </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
           <div className="space-y-12">
+            {/* Agent Activation Portal */}
             <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
-               <div className="flex justify-between items-center mb-10">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Infrastructure & Identity Console</h3>
-                  <div className="flex gap-4">
-                     <button onClick={() => clearAllUsersOnCloud()} className="bg-red-50 text-red-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-red-200">Reset System</button>
-                  </div>
-               </div>
+               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8 border-l-4 border-emerald-500 pl-4">Agent Activation & Security</h3>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
                     <thead className="text-[10px] font-black text-slate-300 uppercase tracking-widest border-b pb-4">
-                      <tr><th className="pb-4">User Details</th><th className="pb-4">Role/Cluster</th><th className="pb-4">Verification</th><th className="pb-4 text-right">Portal Auth</th></tr>
+                      <tr><th className="pb-4">Name & Contact</th><th className="pb-4">Role / Node</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr>
                     </thead>
                     <tbody className="divide-y">
                       {users.map(u => (
@@ -586,14 +561,14 @@ const App: React.FC = () => {
                           </td>
                           <td className="py-6">
                              <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                               {u.status || 'PENDING'}
+                               {u.status || 'AWAITING'}
                              </span>
                           </td>
                           <td className="py-6 text-right">
-                             {u.status === 'AWAITING_ACTIVATION' || u.status === 'SUSPENDED' ? (
-                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Activate Agent</button>
+                             {u.status === 'ACTIVE' ? (
+                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-100 border border-red-100 transition-all">Suspend Access</button>
                              ) : (
-                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-red-100 text-red-600 px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Suspend Access</button>
+                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all">Reactivate Agent</button>
                              )}
                           </td>
                         </tr>
@@ -603,38 +578,73 @@ const App: React.FC = () => {
                </div>
             </div>
 
+            {/* System Reports Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               {/* Summary Trade Report */}
                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Summary Trade Report</h4>
-                  <div className="space-y-4">
-                     <div className="flex justify-between border-b border-slate-50 pb-2 text-[11px] font-bold">
-                        <span className="text-slate-500">Total Registered Agents</span>
-                        <span>{users.length}</span>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Summary Trade Report</h4>
+                  <div className="space-y-5">
+                     <div className="flex justify-between items-end border-b border-slate-50 pb-3">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">Operational Nodes</span>
+                        <span className="text-slate-900 font-black">{CLUSTERS.length} Clusters</span>
                      </div>
-                     <div className="flex justify-between border-b border-slate-50 pb-2 text-[11px] font-bold">
-                        <span className="text-slate-500">Active Field Units</span>
-                        <span>{users.filter(u => u.status === 'ACTIVE').length}</span>
-                     </div>
-                     <div className="flex justify-between border-b border-slate-50 pb-2 text-[11px] font-bold">
-                        <span className="text-slate-500">Verified Marketplace Profits</span>
+                     <div className="flex justify-between items-end border-b border-slate-50 pb-3">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">Verified Trade Yield</span>
                         <span className="text-emerald-600 font-black">KSh {stats.approvedComm.toLocaleString()}</span>
+                     </div>
+                     <div className="flex justify-between items-end border-b border-slate-50 pb-3">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase">Awaiting Settlement</span>
+                        <span className="text-amber-600 font-black">KSh {stats.dueComm.toLocaleString()}</span>
                      </div>
                   </div>
                </div>
+
+               {/* Commodity Chart Report */}
                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Agent Performance Leaderboard</h4>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Commodity Yield Analysis</h4>
+                  <div className="space-y-4">
+                     {boardMetrics.commodityTrends.slice(0, 5).map(([crop, val]: any) => (
+                        <div key={crop} className="space-y-1">
+                           <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase">
+                              <span>{crop}</span>
+                              <span>{val} Units</span>
+                           </div>
+                           <div className="h-1.5 bg-slate-50 rounded-full overflow-hidden">
+                              <div className="h-full bg-slate-900" style={{ width: `${(val / (boardMetrics.commodityTrends[0]?.[1] || 1)) * 100}%` }}></div>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+
+               {/* Agent Performance Leaderboard */}
+               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Agent Performance Leaderboard</h4>
                   <div className="space-y-4">
                      {boardMetrics.topAgents.map(([agent, value]: any, idx) => (
-                        <div key={agent} className="flex justify-between items-center">
-                           <span className="text-[11px] font-black uppercase text-slate-600">{idx + 1}. {agent}</span>
-                           <span className="text-emerald-600 font-black text-[11px]">KSh {value.toLocaleString()}</span>
+                        <div key={agent} className="flex justify-between items-center bg-slate-50/50 p-4 rounded-2xl">
+                           <span className="text-[11px] font-black uppercase text-slate-700">{idx + 1}. {agent}</span>
+                           <span className="text-emerald-600 font-black text-[12px]">KSh {value.toLocaleString()}</span>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+
+               {/* Cluster Contribution Ranking */}
+               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Cluster Contribution Ranking</h4>
+                  <div className="space-y-5">
+                     {boardMetrics.clusterPerformance.map(([cluster, value]: any, idx) => (
+                        <div key={cluster} className="flex justify-between items-center text-[11px] font-black uppercase">
+                           <span className="text-slate-500">{idx + 1}. {cluster}</span>
+                           <span className="text-slate-900">KSh {value.toLocaleString()}</span>
                         </div>
                      ))}
                   </div>
                </div>
             </div>
 
-            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
+            <AuditLogTable data={filteredRecords} title="Audit and Integrity Log" />
           </div>
         )}
       </main>
