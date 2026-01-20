@@ -344,8 +344,8 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-50 text-green-500 rounded-3xl mb-4 border border-green-100"><i className="fas fa-leaf text-2xl"></i></div>
-           <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Food Coop Hub</h1>
-           <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Official Identity Portal</p>
+           <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Food Coop Market</h1>
+           <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Linking Suppliers and Consumer</p>
         </div>
         <div className="w-full max-w-[360px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 z-10">
             <div className="flex justify-between items-end mb-2">
@@ -391,9 +391,9 @@ const App: React.FC = () => {
           <div className="flex items-center space-x-5">
             <div className="bg-green-50 w-16 h-16 rounded-3xl flex items-center justify-center border border-green-100 shadow-sm"><i className="fas fa-leaf text-2xl text-green-500"></i></div>
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">Food Coop Hub</h1>
+              <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">Food Coop Market</h1>
               <div className="flex items-center space-x-2 mt-1.5">
-                <span className="text-red-600 text-[9px] font-black uppercase tracking-[0.4em] italic">Digital Platform</span>
+                <span className="text-red-600 text-[9px] font-black uppercase tracking-[0.4em] italic">Linking Suppliers and Consumer</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
@@ -519,6 +519,7 @@ const App: React.FC = () => {
 
         {currentPortal === 'BOARD' && (
           <div className="space-y-12">
+            {/* KPL Food Coops Summary Trade Report */}
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">KPL Food Coops Summary Trade Report</h3>
