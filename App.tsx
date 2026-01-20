@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -42,7 +41,18 @@ const computeHash = async (record: any): Promise<string> => {
 };
 
 const App: React.FC = () => {
-  const [records, setRecords] = useState<SaleRecord[]>([]);
+  // Fix: Initialize records from local storage immediately to ensure visibility before sync
+  const [records, setRecords] = useState<SaleRecord[]>(() => {
+    const saved = persistence.get('food_coop_data');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) { return []; }
+    }
+    return [];
+  });
+
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
@@ -95,13 +105,14 @@ const App: React.FC = () => {
       }
 
       if (cloudRecords) {
-        const validRecords = cloudRecords.filter(r => r.cluster && r.cluster !== 'Unassigned');
         setRecords(prev => {
-          const cloudIds = new Set(validRecords.map(r => r.id));
+          // Fix: Ensure we don't accidentally drop local drafts by merging correctly
+          const cloudIds = new Set(cloudRecords.map(r => r.id));
           const localOnly = prev.filter(r => !cloudIds.has(r.id));
-          return [...localOnly, ...validRecords];
+          const combined = [...localOnly, ...cloudRecords];
+          persistence.set('food_coop_data', JSON.stringify(combined));
+          return combined;
         });
-        persistence.set('food_coop_data', JSON.stringify(validRecords));
       }
       setLastSyncTime(new Date());
     } catch (e) {
@@ -130,15 +141,15 @@ const App: React.FC = () => {
   }, [agentIdentity, loadCloudData]);
 
   const filteredRecords = useMemo(() => {
-    let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
-    base = base.filter(r => r.cluster && r.cluster !== 'Unassigned');
-
-    if (!isSystemDev) {
-      const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
-                     agentIdentity?.role === SystemRole.FINANCE_OFFICER ||
-                     agentIdentity?.role === SystemRole.AUDITOR;
+    let base = records.filter(r => r.id && r.date);
+    
+    // Ensure System Developer sees ALL records regardless of cluster/agent
+    if (!isSystemDev && agentIdentity) {
+      const isPriv = agentIdentity.role === SystemRole.MANAGER || 
+                     agentIdentity.role === SystemRole.FINANCE_OFFICER ||
+                     agentIdentity.role === SystemRole.AUDITOR;
       if (!isPriv) {
-        base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity?.phone || ''));
+        base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity.phone || ''));
       }
     }
     return base;
@@ -201,7 +212,11 @@ const App: React.FC = () => {
       synced: false
     };
     
-    setRecords(prev => [newRecord, ...prev]);
+    setRecords(prev => {
+        const updated = [newRecord, ...prev];
+        persistence.set('food_coop_data', JSON.stringify(updated));
+        return updated;
+    });
     try {
       const success = await syncToGoogleSheets(newRecord);
       if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
@@ -212,7 +227,11 @@ const App: React.FC = () => {
     const record = records.find(r => r.id === id);
     if (!record) return;
     const updated = { ...record, status: newStatus };
-    setRecords(prev => prev.map(r => r.id === id ? updated : r));
+    setRecords(prev => {
+        const updatedList = prev.map(r => r.id === id ? updated : r);
+        persistence.set('food_coop_data', JSON.stringify(updatedList));
+        return updatedList;
+    });
     await syncToGoogleSheets(updated);
   };
 
@@ -253,6 +272,28 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
     link.setAttribute("download", `kpl_coop_summary_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportDetailedCsv = () => {
+    if (filteredRecords.length === 0) {
+      alert("No detailed records to export.");
+      return;
+    }
+    const headers = ["ID", "Date", "Cluster", "Agent", "Supplier", "Buyer", "Commodity", "Units", "Unit Price", "Gross Total", "Coop Profit", "Status"];
+    const rows = filteredRecords.map(r => [
+      r.id, r.date, r.cluster, r.agentName, r.farmerName, r.customerName, r.cropType, `${r.unitsSold} ${r.unitType}`, r.unitPrice, r.totalSale, r.coopProfit, r.status
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `kpl_detailed_audit_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -419,7 +460,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
-           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-50 text-green-500 rounded-3xl mb-4 border border-green-100"><i className="fas fa-leaf text-2xl"></i></div>
+           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-50 text-green-500 rounded-3xl mb-4 border border-green-100"><i className="fas fa-leaf text-2xl text-green-500"></i></div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Food Coop Market</h1>
            <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Linking Suppliers and Consumer</p>
         </div>
@@ -598,12 +639,20 @@ const App: React.FC = () => {
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">KPL Food Coops Summary Trade Report</h3>
-                  <button 
-                    onClick={handleExportSummaryCsv}
-                    className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 active:scale-95 transition-all"
-                  >
-                    <i className="fas fa-download mr-2"></i> Export CSV Report
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleExportSummaryCsv}
+                      className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+                    >
+                      Summary CSV
+                    </button>
+                    <button 
+                      onClick={handleExportDetailedCsv}
+                      className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 active:scale-95 transition-all"
+                    >
+                      <i className="fas fa-download mr-2"></i> Detailed CSV Report
+                    </button>
+                  </div>
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
