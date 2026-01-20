@@ -67,7 +67,7 @@ const App: React.FC = () => {
     phone: '',
     passcode: '',
     role: SystemRole.FIELD_AGENT,
-    cluster: '' // Start empty to force selection if needed, or default to first
+    cluster: ''
   });
 
   const normalizePhone = (p: string) => {
@@ -162,12 +162,17 @@ const App: React.FC = () => {
 
   const boardMetrics = useMemo(() => {
     const rLog = filteredRecords;
-    const clusterMap = rLog.reduce((acc: Record<string, number>, r) => {
+    
+    // Cluster Map including Volume and Gross Profit
+    const clusterMap = rLog.reduce((acc: Record<string, { volume: number, profit: number }>, r) => {
       const cluster = r.cluster || 'Unknown';
-      acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
+      if (!acc[cluster]) acc[cluster] = { volume: 0, profit: 0 };
+      acc[cluster].volume += Number(r.totalSale);
+      acc[cluster].profit += Number(r.coopProfit);
       return acc;
     }, {});
-    const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1] - a[1]);
+    
+    const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit);
 
     const agentMap = rLog.reduce((acc: Record<string, number>, r) => {
       const agent = r.agentName || 'Unknown';
@@ -190,8 +195,6 @@ const App: React.FC = () => {
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
-    
-    // Every entry is classified under the agent's assigned cluster
     const cluster = agentIdentity?.cluster || 'Unassigned';
     
     const newRecord: SaleRecord = {
@@ -250,7 +253,6 @@ const App: React.FC = () => {
       const latestCloudUsers = await fetchUsersFromCloud();
       let currentUsers: AgentIdentity[] = latestCloudUsers || users;
       if (isRegisterMode) {
-        // Enforce cluster selection for Field Agents
         if (authForm.role === SystemRole.FIELD_AGENT && !authForm.cluster) {
             alert("Please select a cluster.");
             setIsAuthLoading(false);
@@ -492,6 +494,39 @@ const App: React.FC = () => {
 
         {currentPortal === 'BOARD' && (
           <div className="space-y-12">
+            {/* KPL Food Coops Summary Trade Report */}
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
+               <div className="flex justify-between items-center mb-10">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter border-l-4 border-emerald-500 pl-4">KPL Food Coops Summary Trade Report</h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Aggregate Data</p>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
+                      <tr>
+                        <th className="pb-6">Food Coop Clusters</th>
+                        <th className="pb-6">Total Volume of Sales (Ksh)</th>
+                        <th className="pb-6">Total Gross Profit (Ksh)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
+                        <tr key={cluster} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-6 font-black text-slate-800 uppercase text-[11px]">{cluster}</td>
+                          <td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td>
+                          <td className="py-6 font-black text-emerald-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-slate-900 text-white rounded-2xl overflow-hidden">
+                        <td className="py-6 px-4 font-black uppercase text-[11px] rounded-l-2xl">Total System Output</td>
+                        <td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td>
+                        <td className="py-6 px-4 font-black text-emerald-400 text-[11px] rounded-r-2xl">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td>
+                      </tr>
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Yield Analysis</h3>
@@ -512,14 +547,14 @@ const App: React.FC = () => {
               <div className="bg-[#022c22] p-10 rounded-[2.5rem] shadow-2xl text-white">
                  <h3 className="text-sm font-black text-emerald-400 uppercase tracking-tighter mb-8">Cluster Contribution Ranking</h3>
                  <div className="mt-8 space-y-5">
-                    {boardMetrics.clusterPerformance.map(([cluster, value]: any, idx) => (
+                    {boardMetrics.clusterPerformance.map(([cluster, stats]: any, idx) => (
                       <div key={cluster} className="space-y-2">
                          <div className="flex justify-between items-center text-[10px] font-black uppercase text-emerald-100/60 tracking-widest">
                             <span>{idx + 1}. {cluster}</span>
-                            <span className="text-emerald-400">KSh {value.toLocaleString()}</span>
+                            <span className="text-emerald-400">KSh {stats.profit.toLocaleString()}</span>
                          </div>
                          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-400/50" style={{ width: `${(value / (boardMetrics.clusterPerformance[0]?.[1] || 1)) * 100}%` }}></div>
+                            <div className="h-full bg-emerald-400/50" style={{ width: `${(stats.profit / (boardMetrics.clusterPerformance[0]?.[1].profit || 1)) * 100}%` }}></div>
                          </div>
                       </div>
                     ))}
@@ -532,7 +567,6 @@ const App: React.FC = () => {
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
           <div className="space-y-12">
-            {/* Agent Activation Portal */}
             <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8 border-l-4 border-emerald-500 pl-4">Agent Activation & Security</h3>
                <div className="overflow-x-auto">
@@ -570,9 +604,7 @@ const App: React.FC = () => {
                </div>
             </div>
 
-            {/* System Reports Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               {/* Summary Trade Report */}
                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Summary Trade Report</h4>
                   <div className="space-y-5">
@@ -591,7 +623,6 @@ const App: React.FC = () => {
                   </div>
                </div>
 
-               {/* Commodity Chart Report */}
                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Commodity Yield Analysis</h4>
                   <div className="space-y-4">
@@ -609,7 +640,6 @@ const App: React.FC = () => {
                   </div>
                </div>
 
-               {/* Agent Performance Leaderboard */}
                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Agent Performance Leaderboard</h4>
                   <div className="space-y-4">
@@ -622,14 +652,13 @@ const App: React.FC = () => {
                   </div>
                </div>
 
-               {/* Cluster Contribution Ranking */}
                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Cluster Contribution Ranking</h4>
                   <div className="space-y-5">
-                     {boardMetrics.clusterPerformance.map(([cluster, value]: any, idx) => (
+                     {boardMetrics.clusterPerformance.map(([cluster, stats]: any, idx) => (
                         <div key={cluster} className="flex justify-between items-center text-[11px] font-black uppercase">
                            <span className="text-slate-500">{idx + 1}. {cluster}</span>
-                           <span className="text-slate-900">KSh {value.toLocaleString()}</span>
+                           <span className="text-slate-900">KSh {stats.profit.toLocaleString()}</span>
                         </div>
                      ))}
                   </div>
