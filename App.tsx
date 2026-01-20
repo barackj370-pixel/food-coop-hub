@@ -33,12 +33,6 @@ const computeHash = async (record: any): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
 };
 
-// Helper to parse "YYYY-MM-DD" consistently as a local date
-const parseLocalDate = (dateStr: string) => {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
-};
-
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [users, setUsers] = useState<AgentIdentity[]>([]);
@@ -115,6 +109,7 @@ const App: React.FC = () => {
     }
   }, [agentIdentity]);
 
+  // Initial load
   useEffect(() => {
     const savedUsers = persistence.get('coop_users');
     if (savedUsers) {
@@ -126,6 +121,7 @@ const App: React.FC = () => {
     }
   }, [agentIdentity, loadCloudData]);
 
+  // Background polling
   useEffect(() => {
     if (!agentIdentity) return;
     const interval = setInterval(() => {
@@ -134,77 +130,77 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [agentIdentity, loadCloudData]);
 
-  const filteredRecords = useMemo(() => {
-    let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
-    base = base.filter(r => r.cluster && r.cluster !== 'Unassigned');
+  useEffect(() => {
+    const saved = persistence.get('food_coop_data');
+    if (saved && records.length === 0) { 
+      try { 
+        const parsed: SaleRecord[] = JSON.parse(saved);
+        const scrubbed = parsed.filter(r => r.cluster && r.cluster !== 'Unassigned');
+        setRecords(scrubbed); 
+      } catch (e) { } 
+    }
+  }, [records.length]);
 
-    if (!isSystemDev) {
-      const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
-                     agentIdentity?.role === SystemRole.FINANCE_OFFICER ||
-                     agentIdentity?.role === SystemRole.AUDITOR;
-      if (!isPriv) {
-        base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity?.phone || ''));
+  const handleClearRecords = async () => {
+    if (window.confirm("CRITICAL RESET: This will wipe ALL records from the cloud source and local storage. Your account session will be preserved. Continue?")) {
+      try {
+        setRecords([]);
+        await clearAllRecordsOnCloud();
+        persistence.remove('food_coop_data');
+        alert("Full Data Reset Successful.");
+        loadCloudData();
+      } catch (err) {
+        window.location.reload();
       }
     }
-    return base;
-  }, [records, isSystemDev, agentIdentity]);
+  };
 
-  const auditLogRecords = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const cutoff = new Date(today);
-    cutoff.setDate(today.getDate() - logFilterDays);
+  const handleClearUsers = async (confirm = true) => {
+    if (confirm && !window.confirm("IDENTITY NUCLEAR RESET: This will delete ALL registered accounts from the cloud and local registry. You will be logged out. Continue?")) return;
+    try {
+      await clearAllUsersOnCloud();
+      setUsers([]);
+      persistence.remove('coop_users');
+      persistence.remove('agent_session');
+      alert("Identity Database Cleared.");
+      window.location.reload();
+    } catch (err) {
+      window.location.reload();
+    }
+  };
 
-    return filteredRecords.filter(r => {
-      const recordDate = parseLocalDate(r.date);
-      return recordDate.getTime() >= cutoff.getTime();
-    });
-  }, [filteredRecords, logFilterDays]);
+  const handleDeleteRecord = async (id: string) => {
+    if (!window.confirm("Permanently delete this record from the cloud?")) return;
+    setRecords(prev => prev.filter(r => r.id !== id));
+    await deleteRecordFromCloud(id);
+  };
 
-  // Explicitly typing groupedAndSortedRecords to resolve potential 'unknown' property access in render
-  const groupedAndSortedRecords = useMemo<Record<string, SaleRecord[]>>(() => {
-    const grouped = auditLogRecords.reduce((acc, r) => {
-      const cluster = r.cluster || 'Unknown';
-      if (!acc[cluster]) acc[cluster] = [];
-      acc[cluster].push(r);
-      return acc;
-    }, {} as Record<string, SaleRecord[]>);
-    Object.keys(grouped).forEach(cluster => grouped[cluster].sort((a, b) => (a.agentName || '').localeCompare(b.agentName || '')));
-    return grouped;
-  }, [auditLogRecords]);
-
-  const stats = useMemo(() => {
-    const relevantRecords = filteredRecords;
-    const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + Number(b.coopProfit), 0);
-    return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
-  }, [filteredRecords]);
-
-  // Explicitly typing boardMetrics and using Number casting to fix arithmetic and 'unknown' property access
-  const boardMetrics = useMemo(() => {
-    const rLog = filteredRecords;
-    const clusterMap = rLog.reduce((acc: Record<string, number>, r) => {
-      const cluster = r.cluster || 'Unknown';
-      // Fix: Ensured left-hand side is treated as number for arithmetic operation
-      acc[cluster] = (Number(acc[cluster]) || 0) + Number(r.coopProfit);
-      return acc;
-    }, {} as Record<string, number>);
+  const handleDeleteUser = async (phone: string) => {
+    if (!window.confirm(`Permanently delete user with phone ${phone} from the cloud and local registry?`)) return;
     
-    const clusterPerformance: [string, number][] = Object.entries(clusterMap).sort((a, b) => b[1] - a[1]);
-
-    const agentMap = rLog.reduce((acc: Record<string, number>, r) => {
-      const agent = r.agentName || 'Unknown';
-      // Fix: Ensured left-hand side is treated as number for arithmetic operation
-      acc[agent] = (Number(acc[agent]) || 0) + Number(r.coopProfit);
-      return acc;
-    }, {} as Record<string, number>);
+    // Update state immediately (Optimistic)
+    const updatedUsers = users.filter(u => u.phone !== phone);
+    setUsers(updatedUsers);
+    persistence.set('coop_users', JSON.stringify(updatedUsers));
     
-    const topAgents: [string, number][] = Object.entries(agentMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-    return { clusterPerformance, topAgents };
-  }, [filteredRecords]);
+    setIsSyncing(true);
+    try {
+      const success = await deleteUserFromCloud(phone);
+      if (success) {
+        // Success: ensure local storage is synced with the deletion
+        alert("User permanently removed from global registry.");
+      } else {
+        alert("Cloud deletion failed. The user might reappear during next sync.");
+        // Re-fetch to restore correct state if cloud failed
+        await loadCloudData();
+      }
+    } catch (e) {
+      console.error("Delete Error:", e);
+      await loadCloudData();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -213,6 +209,11 @@ const App: React.FC = () => {
     const signature = await computeHash({ ...data, id });
     
     const cluster = agentIdentity?.cluster || 'Unassigned';
+    if (cluster === 'Unassigned' && !isSystemDev) {
+      alert("Error: Your account is missing a cluster assignment. Please contact support.");
+      return;
+    }
+
     const newRecord: SaleRecord = {
       ...data,
       id,
@@ -228,18 +229,13 @@ const App: React.FC = () => {
     };
     
     setRecords(prev => [newRecord, ...prev]);
-    const success = await syncToGoogleSheets(newRecord);
-    if (success) {
-      setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+    
+    if (newRecord.cluster !== 'Unassigned') {
+      const success = await syncToGoogleSheets(newRecord);
+      if (success) {
+        setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+      }
     }
-  };
-
-  const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
-    const record = records.find(r => r.id === id);
-    if (!record) return;
-    const updated = { ...record, status: newStatus };
-    setRecords(prev => prev.map(r => r.id === id ? updated : r));
-    await syncToGoogleSheets(updated);
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -266,7 +262,6 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(updatedUsersList));
         await syncUserToCloud(newUser);
         setAgentIdentity(newUser);
-        persistence.set('agent_session', JSON.stringify(newUser));
       } else {
         const user = currentUsers.find(u => normalizePhone(u.phone) === targetPhoneNormalized && String(u.passcode).replace(/\D/g, '') === targetPasscode);
         if (user) {
@@ -281,6 +276,236 @@ const App: React.FC = () => {
     } finally {
       setIsAuthLoading(false);
     }
+  };
+
+  const filteredRecords = useMemo(() => {
+    let base = records.filter(r => r.id && r.id.length >= 4 && r.date);
+    base = base.filter(r => r.cluster && r.cluster !== 'Unassigned');
+
+    if (!isSystemDev) {
+      const isPriv = agentIdentity?.role === SystemRole.MANAGER || 
+                     agentIdentity?.role === SystemRole.FINANCE_OFFICER ||
+                     agentIdentity?.role === SystemRole.AUDITOR;
+      if (!isPriv) {
+        base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity?.phone || ''));
+      }
+    }
+    return base;
+  }, [records, isSystemDev, agentIdentity]);
+
+  const auditLogRecords = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - logFilterDays);
+    return filteredRecords.filter(r => {
+      const recordDate = new Date(r.date);
+      recordDate.setHours(0, 0, 0, 0);
+      return recordDate.getTime() >= cutoff.getTime();
+    });
+  }, [filteredRecords, logFilterDays]);
+
+  const groupedAndSortedRecords = useMemo(() => {
+    const grouped = auditLogRecords.reduce((acc, r) => {
+      const cluster = r.cluster || 'Unknown';
+      if (!acc[cluster]) acc[cluster] = [];
+      acc[cluster].push(r);
+      return acc;
+    }, {} as Record<string, SaleRecord[]>);
+    Object.keys(grouped).forEach(cluster => grouped[cluster].sort((a, b) => (a.agentName || '').localeCompare(b.agentName || '')));
+    return grouped;
+  }, [auditLogRecords]);
+
+  const stats = useMemo(() => {
+    const relevantRecords = filteredRecords;
+    const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + Number(b.coopProfit), 0);
+    return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
+  }, [filteredRecords]);
+
+  const auditPeriodMetrics = useMemo(() => {
+    const now = new Date();
+    const rLog = filteredRecords;
+    const getRange = (days: number) => {
+      const cutoff = new Date(now);
+      cutoff.setHours(0, 0, 0, 0);
+      cutoff.setDate(now.getDate() - days);
+      const rangeRecords = rLog.filter(r => {
+        const d = new Date(r.date);
+        d.setHours(0,0,0,0);
+        return d.getTime() >= cutoff.getTime();
+      });
+      return {
+        sales: rangeRecords.reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: rangeRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((sum, r) => sum + Number(r.coopProfit), 0)
+      };
+    };
+    return { d7: getRange(7), d14: getRange(14), d21: getRange(21), d30: getRange(30) };
+  }, [filteredRecords]);
+
+  const periodicMetrics = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    startOfMonth.setHours(0,0,0,0);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - 7);
+    startOfWeek.setHours(0,0,0,0);
+    const rLog = filteredRecords;
+    return {
+      monthly: {
+        sales: rLog.filter(r => new Date(r.date).getTime() >= startOfMonth.getTime()).reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: rLog.filter(r => r.status === RecordStatus.VERIFIED && new Date(r.date).getTime() >= startOfMonth.getTime()).reduce((sum, r) => sum + Number(r.coopProfit), 0),
+      },
+      weekly: {
+        sales: rLog.filter(r => new Date(r.date).getTime() >= startOfWeek.getTime()).reduce((sum, r) => sum + Number(r.totalSale), 0),
+        comm: rLog.filter(r => r.status === RecordStatus.VERIFIED && new Date(r.date).getTime() >= startOfWeek.getTime()).reduce((sum, r) => sum + Number(r.coopProfit), 0),
+      }
+    };
+  }, [filteredRecords]);
+
+  const boardMetrics = useMemo(() => {
+    const rLog = filteredRecords;
+    const performanceMap = rLog.reduce((acc, r) => {
+      const label = `${r.cropType} (${r.date})`;
+      acc[label] = (acc[label] || 0) + Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const performanceData: [string, number][] = (Object.keys(performanceMap).map(key => [key, Number(performanceMap[key])] as [string, number])).sort((a, b) => {
+      const dateA = a[0].match(/\((.*?)\)/)?.[1] || "";
+      const dateB = b[0].match(/\((.*?)\)/)?.[1] || "";
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    }).slice(-15);
+
+    const clusterMap = rLog.reduce((acc, r) => {
+      const cluster = r.cluster || 'Unknown';
+      acc[cluster] = (acc[cluster] || 0) + Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const clusterPerformance: [string, number][] = (Object.keys(clusterMap).map(key => [key, Number(clusterMap[key])] as [string, number])).sort((a, b) => b[1] - a[1]);
+
+    const agentMap = rLog.reduce((acc, r) => {
+      const agent = r.agentName || 'Unknown Agent';
+      acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const topAgents: [string, number][] = (Object.keys(agentMap).map(key => [key, Number(agentMap[key])] as [string, number])).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    return { performanceData, clusterPerformance, topAgents };
+  }, [filteredRecords]);
+
+  const clusterSummary = useMemo(() => {
+    const rLog = filteredRecords;
+    const summary = rLog.reduce((acc: Record<string, { sales: number; profit: number }>, r) => {
+      const cluster = r.cluster || 'Unknown';
+      if (!acc[cluster]) {
+        acc[cluster] = { sales: 0, profit: 0 };
+      }
+      acc[cluster].sales += Number(r.totalSale);
+      acc[cluster].profit += Number(r.coopProfit);
+      return acc;
+    }, {} as Record<string, { sales: number; profit: number }>);
+
+    const rows = (Object.entries(summary) as [string, { sales: number; profit: number }][]).map(([name, data]) => ({
+      name,
+      sales: data.sales,
+      profit: data.profit
+    })).sort((a, b) => b.sales - a.sales);
+
+    const totals = rows.reduce((acc, row) => ({
+      sales: acc.sales + row.sales,
+      profit: acc.profit + row.profit
+    }), { sales: 0, profit: 0 });
+
+    return { rows, totals };
+  }, [filteredRecords]);
+
+  const updateUserStatus = (phone: string, status: AccountStatus, resetWarnings = false) => {
+    const updatedUsers = users.map(u => {
+      if (normalizePhone(u.phone) === normalizePhone(phone)) {
+        return { ...u, status, warnings: resetWarnings ? 0 : u.warnings };
+      }
+      return u;
+    });
+    setUsers(updatedUsers);
+    persistence.set('coop_users', JSON.stringify(updatedUsers));
+  };
+
+  const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+    const record = records.find(r => r.id === id);
+    if (record && record.cluster && record.cluster !== 'Unassigned') {
+      const success = await syncToGoogleSheets({ ...record, status: newStatus });
+      if (success) {
+        setRecords(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, synced: true } : r));
+      }
+    }
+  };
+
+  const handleSingleSync = async (id: string) => {
+    const record = records.find(r => r.id === id);
+    if (!record || !record.cluster || record.cluster === 'Unassigned') return;
+    const success = await syncToGoogleSheets(record);
+    if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+  };
+
+  const handleExportCsv = () => {
+    if (auditLogRecords.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+    const headers = [
+      "ID", "Date", "Commodity", "Farmer", "Farmer Phone",
+      "Customer", "Customer Phone", "Units", "Unit Price",
+      "Total Gross", "Commission", "Status", "Agent",
+      "Agent Phone", "Cluster", "Created At", "Signature", "Unit"
+    ];
+    const csvRows = auditLogRecords.map(r => [
+      r.id, r.date, r.cropType, r.farmerName, r.farmerPhone || "",
+      r.customerName || "", r.customerPhone || "", r.unitsSold, r.unitPrice,
+      r.totalSale, r.coopProfit, r.status, r.agentName || "",
+      r.agentPhone || "", r.cluster || "", r.createdAt, r.signature, r.unitType
+    ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+
+    const csvContent = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `food_coop_audit_${logFilterDays}D_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSummaryCsv = () => {
+    if (clusterSummary.rows.length === 0) {
+      alert("No data available to export.");
+      return;
+    }
+    const headers = ["Food Coop Clusters", "Total Volume of Sales (Ksh)", "Total Gross Profit 10% (Ksh)"];
+    const csvRows = clusterSummary.rows.map(row => [
+      row.name, row.sales, row.profit
+    ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+
+    csvRows.push([
+      "Grand Totals", clusterSummary.totals.sales, clusterSummary.totals.profit
+    ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+
+    const csvContent = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `food_coop_summary_trade_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   if (!agentIdentity) {
@@ -300,7 +525,7 @@ const App: React.FC = () => {
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />}
               <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />
-              <input type="password" maxLength={4} placeholder="4 digit pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none" />
+              <input type="password" maxLength={4} placeholder="enter 4 digit pincode" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none" />
               {isRegisterMode && (
                 <>
                   <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">
@@ -333,253 +558,14 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-2xl font-black uppercase tracking-tight leading-none">Food Coop Hub</h1>
               <p className="text-emerald-400/60 text-[8px] font-black uppercase tracking-[0.4em] mt-1.5 italic">Digital Reporting Platform</p>
-              <p className="text-emerald-400/40 text-[10px] font-black uppercase tracking-[0.3em] mt-1">{agentIdentity.role} ({agentIdentity.cluster})</p>
+              <p className="text-emerald-400/40 text-[10px] font-black uppercase tracking-[0.3em] mt-1">{agentIdentity.role} {isSystemDev ? '(System Developer)' : `(${agentIdentity.cluster})`}</p>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
-             <div className="flex items-center space-x-4">
-                <button onClick={loadCloudData} className="bg-white/10 hover:bg-white/20 p-3 rounded-xl transition-all border border-white/10">
-                  <i className={`fas fa-sync ${isSyncing ? 'fa-spin' : ''} text-emerald-400`}></i>
-                </button>
-                <button onClick={handleLogout} className="bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white px-6 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest border border-red-500/30 transition-all">Logout</button>
-             </div>
-             <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60">Last Sync: {lastSyncTime?.toLocaleTimeString() || '...'}</p>
-          </div>
-        </div>
-
-        <nav className="container mx-auto px-6 flex flex-wrap gap-4 mt-8">
-          {availablePortals.map(p => (
-            <button 
-              key={p} 
-              onClick={() => setCurrentPortal(p)}
-              className={`px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-emerald-500 text-emerald-950 border-emerald-400 shadow-xl shadow-emerald-500/20 scale-105' : 'bg-white/5 text-emerald-100/40 border-white/5 hover:bg-white/10'}`}
-            >
-              {p}
-            </button>
-          ))}
-        </nav>
-      </header>
-
-      <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12">
-        {currentPortal === 'SALES' && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard label="Awaiting Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-[#022c22]" />
-              <StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-[#022c22]" />
-              <StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-[#022c22]" />
-              <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-emerald-600" />
+          <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
+            <div className="flex items-center justify-end space-x-2">
+              {isSyncing && <i className="fas fa-sync fa-spin text-emerald-400 text-[10px]"></i>}
+              <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60">
+                Last Sync: {lastSyncTime ? lastSyncTime.toLocaleTimeString() : 'Initializing...'}
+              </p>
             </div>
-            <SaleForm onSubmit={handleAddRecord} />
-            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl overflow-x-auto">
-               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Recent Submissions ({filteredRecords.length})</h3>
-               <table className="w-full text-left">
-                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                    <tr>
-                      <th className="pb-6">Date</th>
-                      <th className="pb-6">Item</th>
-                      <th className="pb-6">Farmer</th>
-                      <th className="pb-6">Gross</th>
-                      <th className="pb-6">Comm (10%)</th>
-                      <th className="pb-6 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {filteredRecords.slice(0, 10).map(r => (
-                      <tr key={r.id} className="text-[12px] font-bold group hover:bg-slate-50/50">
-                        <td className="py-6 text-slate-400">{r.date}</td>
-                        <td className="py-6 text-slate-900">{r.cropType}</td>
-                        <td className="py-6 text-slate-700">{r.farmerName}</td>
-                        <td className="py-6 font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
-                        <td className="py-6 font-black text-emerald-600">KSh {r.coopProfit.toLocaleString()}</td>
-                        <td className="py-6 text-right">
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-               </table>
-            </div>
-          </>
-        )}
-
-        {currentPortal === 'AUDIT' && (
-          <div className="space-y-8">
-            <div className="flex justify-between items-center bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl">
-              <div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Audit & Integrity Log</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Verification Console</p>
-              </div>
-              <div className="flex gap-4">
-                <select value={logFilterDays} onChange={e => setLogFilterDays(Number(e.target.value))} className="bg-slate-50 border-none rounded-xl px-6 py-3 font-bold text-[11px] uppercase tracking-widest outline-none">
-                  <option value={7}>Last 7 Days</option>
-                  <option value={14}>Last 14 Days</option>
-                  <option value={30}>Last 30 Days</option>
-                  <option value={365}>Full History</option>
-                </select>
-                <button className="bg-emerald-900 text-white px-8 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest shadow-xl">Export CSV</button>
-              </div>
-            </div>
-
-            {Object.entries(groupedAndSortedRecords).map(([cluster, clusterRecords]) => (
-              <div key={cluster} className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
-                <div className="flex justify-between items-end mb-8">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter border-l-4 border-emerald-500 pl-4">{cluster} Operations</h3>
-                  {/* Fix: clusterRecords is now correctly typed as SaleRecord[] via useMemo return type */}
-                  <p className="text-[9px] font-bold text-slate-400 uppercase">{clusterRecords.length} Records</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="text-[9px] font-black text-slate-300 uppercase tracking-widest text-left">
-                      <tr>
-                        <th className="pb-4">Agent</th>
-                        <th className="pb-4">Details</th>
-                        <th className="pb-4">Farmer/Customer</th>
-                        <th className="pb-4">Financials</th>
-                        <th className="pb-4">Integrity Hash</th>
-                        <th className="pb-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {clusterRecords.map(r => (
-                        <tr key={r.id} className="text-[11px] font-bold hover:bg-slate-50/50">
-                          <td className="py-6">
-                            <p className="text-slate-900">{r.agentName}</p>
-                            <p className="text-slate-400 text-[9px]">{r.id}</p>
-                          </td>
-                          <td className="py-6">
-                            <p className="text-slate-900">{r.cropType}</p>
-                            <p className="text-slate-400 text-[9px]">{r.date} • {r.unitsSold} {r.unitType}</p>
-                          </td>
-                          <td className="py-6">
-                            <p className="text-slate-700">F: {r.farmerName}</p>
-                            <p className="text-slate-400 text-[9px]">C: {r.customerName}</p>
-                          </td>
-                          <td className="py-6">
-                            <p className="text-slate-900 font-black">Sale: KSh {r.totalSale.toLocaleString()}</p>
-                            <p className="text-emerald-600 font-black">Coop: KSh {r.coopProfit.toLocaleString()}</p>
-                          </td>
-                          <td className="py-6">
-                            <div className="flex items-center space-x-2">
-                               <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-md font-mono text-[9px]">{r.signature}</span>
-                               <i className="fas fa-shield-alt text-emerald-300 text-[10px]"></i>
-                            </div>
-                          </td>
-                          <td className="py-6 text-right">
-                             <div className="flex justify-end gap-2">
-                                {r.status === RecordStatus.DRAFT && (
-                                  <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg text-[9px] uppercase tracking-widest font-black">Verify Payment</button>
-                                )}
-                                {r.status === RecordStatus.PAID && (
-                                  <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-emerald-900 text-white px-4 py-2 rounded-lg text-[9px] uppercase tracking-widest font-black">Audit</button>
-                                )}
-                                {r.status === RecordStatus.VALIDATED && (
-                                  <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-[9px] uppercase tracking-widest font-black">Final Seal</button>
-                                )}
-                                {r.status === RecordStatus.VERIFIED && (
-                                  <span className="text-emerald-500 flex items-center gap-1.5"><i className="fas fa-check-double"></i> Verified</span>
-                                )}
-                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {currentPortal === 'BOARD' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Cluster Contribution Rankings</h3>
-               <div className="space-y-6">
-                  {/* Fix: boardMetrics.clusterPerformance is correctly typed as [string, number][] */}
-                  {boardMetrics.clusterPerformance.map(([cluster, value], idx) => (
-                    <div key={cluster} className="space-y-2">
-                      <div className="flex justify-between text-[11px] font-black uppercase tracking-wider">
-                        <span className="text-slate-600">#{idx + 1} {cluster}</span>
-                        <span className="text-emerald-600">KSh {value.toLocaleString()}</span>
-                      </div>
-                      <div className="h-3 bg-slate-50 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-emerald-500 transition-all duration-1000" 
-                          style={{ width: `${(value / (boardMetrics.clusterPerformance[0][1] || 1)) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
-               </div>
-            </div>
-            <div className="bg-[#022c22] p-10 rounded-[2.5rem] shadow-2xl text-white">
-               <h3 className="text-sm font-black text-emerald-400 uppercase tracking-tighter mb-8">Agent Performance Leaderboard</h3>
-               <div className="space-y-8">
-                  {/* Fix: boardMetrics.topAgents is correctly typed as [string, number][] */}
-                  {boardMetrics.topAgents.map(([agent, value], idx) => (
-                    <div key={agent} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-[10px]">{idx + 1}</div>
-                        <span className="font-black text-[11px] uppercase tracking-widest">{agent}</span>
-                      </div>
-                      <span className="font-black text-emerald-400">KSh {value.toLocaleString()}</span>
-                    </div>
-                  ))}
-               </div>
-            </div>
-          </div>
-        )}
-
-        {currentPortal === 'SYSTEM' && isSystemDev && (
-          <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
-             <div className="flex justify-between items-center mb-10">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Identity Management ({users.length} Users)</h3>
-                <div className="flex gap-4">
-                  <button onClick={() => clearAllUsersOnCloud()} className="bg-red-50 text-red-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-red-200">Reset Registry</button>
-                  <button onClick={() => clearAllRecordsOnCloud()} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest">Wipe Data</button>
-                </div>
-             </div>
-             <div className="overflow-x-auto">
-               <table className="w-full">
-                  <thead className="text-[10px] font-black text-slate-300 uppercase tracking-widest text-left">
-                    <tr>
-                      <th className="pb-6">User Identity</th>
-                      <th className="pb-6">Role</th>
-                      <th className="pb-6">Cluster</th>
-                      <th className="pb-6 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {users.map(u => (
-                      <tr key={u.phone} className="text-[11px] font-bold group">
-                        <td className="py-6">
-                           <p className="text-slate-900 uppercase">{u.name}</p>
-                           <p className="text-slate-400 font-mono text-[10px]">{u.phone}</p>
-                        </td>
-                        <td className="py-6"><span className="bg-slate-50 px-3 py-1 rounded text-slate-500">{u.role}</span></td>
-                        <td className="py-6 text-slate-500">{u.cluster}</td>
-                        <td className="py-6 text-right">
-                           <button onClick={() => deleteUserFromCloud(u.phone)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all mr-4"><i className="fas fa-trash-alt"></i></button>
-                           <span className="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full font-black text-[9px] tracking-widest uppercase">{u.status || 'ACTIVE'}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-               </table>
-             </div>
-          </div>
-        )}
-      </main>
-      
-      <footer className="fixed bottom-0 inset-x-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 py-6 px-10 flex justify-between items-center z-50 lg:hidden">
-        <button onClick={() => setCurrentPortal('SALES')} className={`text-[9px] font-black uppercase tracking-widest ${currentPortal === 'SALES' ? 'text-emerald-600' : 'text-slate-400'}`}>Sales</button>
-        <button onClick={() => setCurrentPortal('AUDIT')} className={`text-[9px] font-black uppercase tracking-widest ${currentPortal === 'AUDIT' ? 'text-emerald-600' : 'text-slate-400'}`}>Audit</button>
-        <button onClick={() => setCurrentPortal('BOARD')} className={`text-[9px] font-black uppercase tracking-widest ${currentPortal === 'BOARD' ? 'text-emerald-600' : 'text-slate-400'}`}>Board</button>
-      </footer>
-    </div>
-  );
-};
-
-export default App;
+            <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mt-1">User: {agentIdentity.name}</p>
