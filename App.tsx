@@ -153,7 +153,6 @@ const App: React.FC = () => {
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
 
-  // Fix: Explicitly casting results of Object.entries to typed arrays to avoid unknown inference errors
   const boardMetrics = useMemo(() => {
     const rLog = filteredRecords;
     const clusterMap = rLog.reduce((acc: Record<string, { volume: number, profit: number }>, r) => {
@@ -319,7 +318,6 @@ const App: React.FC = () => {
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {/* Fix: Casting Object.entries(groupedData) to explicitly typed nested arrays to solve 'unknown' type errors on line 322, 323, 329, 343 */}
         {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
           const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
@@ -475,7 +473,7 @@ const App: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{isSystemDev ? 'Master Node Access' : `${agentIdentity.cluster} Cluster`}</p>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{isSystemDev ? 'Master Node Access' : `${agentIdentity.name} - ${agentIdentity.cluster} Cluster`}</p>
             </div>
           </div>
           <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex flex-col justify-center">
