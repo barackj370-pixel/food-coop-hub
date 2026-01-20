@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -98,6 +97,14 @@ const App: React.FC = () => {
   };
 
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.name === 'Barack James';
+
+  const isPrivilegedRole = (agent: AgentIdentity | null) => {
+    if (!agent) return false;
+    return isSystemDev || 
+           agent.role === SystemRole.MANAGER || 
+           agent.role === SystemRole.FINANCE_OFFICER || 
+           agent.role === SystemRole.AUDITOR;
+  };
 
   const availablePortals = useMemo<PortalType[]>(() => {
     if (!agentIdentity) return [];
@@ -566,14 +573,6 @@ const App: React.FC = () => {
     );
   }
 
-  const isPrivilegedRole = (agent: AgentIdentity | null) => {
-    if (!agent) return false;
-    return isSystemDev || 
-           agent.role === SystemRole.MANAGER || 
-           agent.role === SystemRole.FINANCE_OFFICER || 
-           agent.role === SystemRole.AUDITOR;
-  };
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
@@ -623,7 +622,7 @@ const App: React.FC = () => {
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
             </div>
 
-            {/* NEW: Market Demand Intake (Capturing Consumer Orders) */}
+            {/* Market Demand Intake (Capturing Consumer Orders) */}
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
                <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-shopping-basket text-8xl"></i></div>
                <div className="relative z-10">
@@ -694,7 +693,12 @@ const App: React.FC = () => {
             </div>
 
             <SaleForm onSubmit={handleAddRecord} initialData={fulfillmentData} />
-            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Recent Integrity Logs (Classified)" onDelete={isSystemDev ? handleDeleteRecord : undefined} />
+            {/* FIX: Ensure privileged users see the full audit trail in the Sales Portal */}
+            <AuditLogTable 
+              data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} 
+              title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log (Privileged Access)" : "Recent Integrity Logs (Classified)"} 
+              onDelete={isSystemDev ? handleDeleteRecord : undefined} 
+            />
           </>
         )}
 

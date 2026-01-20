@@ -6,14 +6,7 @@ const boot = () => {
   const rootElement = document.getElementById('root');
   if (!rootElement) return;
 
-  // Register Service Worker for PWA support
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(err => {
-        console.error("SW Registration Failed:", err);
-      });
-    });
-  }
+  // Service Worker registration removed to avoid cross-origin script errors in cloud preview environments.
 
   try {
     const root = createRoot(rootElement);
