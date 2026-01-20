@@ -475,7 +475,7 @@ const App: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{isSystemDev ? 'Master Node Access' : `Assigned: ${agentIdentity.cluster} Node`}</p>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{isSystemDev ? 'Master Node Access' : `${agentIdentity.cluster} Cluster`}</p>
             </div>
           </div>
           <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex flex-col justify-center">
