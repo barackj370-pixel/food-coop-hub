@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,9 +7,9 @@
     <title>Food Coop Hub</title>
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#064e3b">
+    <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/188/188333.png">
     
     <script>
@@ -36,17 +37,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f8fafc; color: #000000; }
         #loading-screen {
             position: fixed; inset: 0; z-index: 9999;
-            background: #022c22; color: white;
+            background: #ffffff; color: black;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             transition: opacity 0.5s ease-in-out;
             pointer-events: all;
         }
         .spinner {
-            width: 32px; height: 32px; border: 2px solid rgba(16, 185, 129, 0.1);
-            border-top-color: #10b981; border-radius: 50%; animation: spin 0.8s linear infinite;
+            width: 32px; height: 32px; border: 2px solid rgba(34, 197, 94, 0.1);
+            border-top-color: #22c55e; border-radius: 50%; animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
@@ -68,7 +69,7 @@
     <div id="loading-screen">
         <div class="spinner"></div>
         <div id="loader-msg" style="text-align: center;">
-          <p style="margin-top: 1.2rem; font-weight: 800; letter-spacing: 0.2em; font-size: 9px; text-transform: uppercase; color: #10b981;">Hub Initializing</p>
+          <p style="margin-top: 1.2rem; font-weight: 800; letter-spacing: 0.2em; font-size: 10px; text-transform: uppercase; color: #000000;">KPL Hub Initializing</p>
         </div>
     </div>
 
