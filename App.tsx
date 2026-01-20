@@ -153,6 +153,7 @@ const App: React.FC = () => {
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
 
+  // Fix: Explicitly casting results of Object.entries to typed arrays to avoid unknown inference errors
   const boardMetrics = useMemo(() => {
     const rLog = filteredRecords;
     const clusterMap = rLog.reduce((acc: Record<string, { volume: number, profit: number }>, r) => {
@@ -161,21 +162,21 @@ const App: React.FC = () => {
       acc[cluster].volume += Number(r.totalSale);
       acc[cluster].profit += Number(r.coopProfit);
       return acc;
-    }, {});
-    const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit);
+    }, {} as Record<string, { volume: number, profit: number }>);
+    const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit) as [string, { volume: number, profit: number }][];
 
     const agentMap = rLog.reduce((acc: Record<string, number>, r) => {
       const agent = r.agentName || 'Unknown';
       acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
       return acc;
-    }, {});
-    const topAgents = Object.entries(agentMap).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5);
+    }, {} as Record<string, number>);
+    const topAgents = Object.entries(agentMap).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5) as [string, number][];
 
     const commodityMap = rLog.reduce((acc: Record<string, number>, r) => {
       acc[r.cropType] = (acc[r.cropType] || 0) + Number(r.unitsSold);
       return acc;
-    }, {});
-    const commodityTrends = Object.entries(commodityMap).sort((a: any, b: any) => b[1] - a[1]);
+    }, {} as Record<string, number>);
+    const commodityTrends = Object.entries(commodityMap).sort((a: any, b: any) => b[1] - a[1]) as [string, number][];
 
     return { clusterPerformance, topAgents, commodityTrends };
   }, [filteredRecords]);
@@ -240,11 +241,11 @@ const App: React.FC = () => {
       return;
     }
     const headers = ["Food Coop Clusters", "Total Volume of Sales (Ksh)", "Total Gross Profit (Ksh)"];
-    const rows = boardMetrics.clusterPerformance.map(([cluster, stats]: any) => [
+    const rows = boardMetrics.clusterPerformance.map(([cluster, stats]: [string, any]) => [
       cluster, stats.volume, stats.profit
     ]);
-    const totalVolume = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0);
-    const totalProfit = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0);
+    const totalVolume = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + (b[1] as any).volume, 0);
+    const totalProfit = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + (b[1] as any).profit, 0);
     rows.push(["TOTAL SYSTEM OUTPUT", totalVolume, totalProfit]);
 
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -300,7 +301,6 @@ const App: React.FC = () => {
 
   const AuditLogTable = ({ data, title }: { data: SaleRecord[], title: string }) => {
     const groupedData = useMemo(() => {
-      // Fix: Explicitly typing the initial value of reduce to avoid 'unknown' type inference on groupedData
       return data.reduce((acc: Record<string, SaleRecord[]>, r) => {
         const cluster = r.cluster || 'Unassigned';
         if (!acc[cluster]) acc[cluster] = [];
@@ -309,51 +309,105 @@ const App: React.FC = () => {
       }, {} as Record<string, SaleRecord[]>);
     }, [data]);
 
+    const grandTotals = useMemo(() => {
+      return data.reduce((acc, r) => ({
+        gross: acc.gross + Number(r.totalSale),
+        comm: acc.comm + Number(r.coopProfit)
+      }), { gross: 0, comm: 0 });
+    }, [data]);
+
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {Object.entries(groupedData).map(([cluster, records]) => (
-          <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
-            <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center">
-              <i className="fas fa-map-marker-alt mr-2"></i> Cluster: {cluster}
-            </h4>
-            <table className="w-full text-left">
-              <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                <tr>
-                  <th className="pb-6">Date</th>
-                  <th className="pb-6">Participants</th>
-                  <th className="pb-6">Commodity</th>
-                  <th className="pb-6">Gross Sale</th>
-                  <th className="pb-6">Commission</th>
-                  <th className="pb-6 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {records.map(r => (
-                  <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
-                    <td className="py-6 text-slate-400">{r.date}</td>
-                    <td className="py-6">
-                      <div className="space-y-1">
-                        <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
-                        <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
-                        <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
-                      </div>
-                      <p className="text-[8px] text-slate-300 mt-1 uppercase">ID: {r.id}</p>
-                    </td>
-                    <td className="py-6 text-black uppercase">{r.cropType}</td>
-                    <td className="py-6 font-black text-black">KSh {r.totalSale.toLocaleString()}</td>
-                    <td className="py-6 font-black text-green-600">KSh {r.coopProfit.toLocaleString()}</td>
-                    <td className="py-6 text-right">
-                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                        {r.status}
-                      </span>
-                    </td>
+        {/* Fix: Casting Object.entries(groupedData) to explicitly typed nested arrays to solve 'unknown' type errors on line 322, 323, 329, 343 */}
+        {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
+          const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
+          const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+          
+          return (
+            <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
+              <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
+                <span><i className="fas fa-map-marker-alt mr-2"></i> Cluster: {cluster}</span>
+                <span className="text-slate-400 font-bold">{records.length} Transactions</span>
+              </h4>
+              <table className="w-full text-left">
+                <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
+                  <tr>
+                    <th className="pb-6">Date</th>
+                    <th className="pb-6">Participants</th>
+                    <th className="pb-6">Commodity</th>
+                    <th className="pb-6">Gross Sale</th>
+                    <th className="pb-6">Commission</th>
+                    <th className="pb-6 text-right">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {records.map(r => (
+                    <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
+                      <td className="py-6 text-slate-400">{r.date}</td>
+                      <td className="py-6">
+                        <div className="space-y-1">
+                          <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
+                        </div>
+                        <p className="text-[8px] text-slate-300 mt-1 uppercase">ID: {r.id}</p>
+                      </td>
+                      <td className="py-6 text-black uppercase">{r.cropType}</td>
+                      <td className="py-6 font-black text-black">KSh {Number(r.totalSale).toLocaleString()}</td>
+                      <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
+                      <td className="py-6 text-right">
+                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t-2 border-slate-100">
+                  <tr className="bg-slate-50/50">
+                    <td colSpan={3} className="py-6 px-4 text-[11px] font-black text-black uppercase tracking-widest">
+                      {cluster} Cluster Subtotal
+                    </td>
+                    <td className="py-6 text-[12px] font-black text-black">
+                      KSh {clusterTotalGross.toLocaleString()}
+                    </td>
+                    <td className="py-6 text-[12px] font-black text-green-600">
+                      KSh {clusterTotalComm.toLocaleString()}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          );
+        })}
+
+        {data.length > 0 && (
+          <div className="bg-slate-900 text-white rounded-[2rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-8 opacity-10">
+                <i className="fas fa-chart-line text-8xl"></i>
+             </div>
+             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div>
+                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-red-500 mb-2">Aggregate System Audit</p>
+                   <h4 className="text-2xl font-black uppercase tracking-tight">Combined Universal Grand Totals</h4>
+                   <p className="text-slate-400 text-[10px] font-bold uppercase mt-2">Consolidated across all registered nodes and clusters</p>
+                </div>
+                <div className="flex gap-12">
+                   <div className="text-center md:text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Trade Volume</p>
+                      <p className="text-2xl font-black text-white leading-none">KSh {grandTotals.gross.toLocaleString()}</p>
+                   </div>
+                   <div className="text-center md:text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Gross Commission</p>
+                      <p className="text-2xl font-black text-green-400 leading-none">KSh {grandTotals.comm.toLocaleString()}</p>
+                   </div>
+                </div>
+             </div>
           </div>
-        ))}
+        )}
+
         {data.length === 0 && (
           <div className="bg-white rounded-[2rem] p-12 border border-slate-100 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest">
             No entries to display in this audit log
@@ -483,7 +537,7 @@ const App: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-6 uppercase font-bold">{r.cropType}</td>
-                          <td className="py-6 font-black">KSh {r.totalSale.toLocaleString()}</td>
+                          <td className="py-6 font-black">KSh {Number(r.totalSale).toLocaleString()}</td>
                           <td className="py-6 text-right">
                              <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md">Confirm Receipt</button>
                           </td>
@@ -521,8 +575,8 @@ const App: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-6 font-black text-black">
-                            <p>Gross: KSh {r.totalSale.toLocaleString()}</p>
-                            <p className="text-green-600">Comm: KSh {r.coopProfit.toLocaleString()}</p>
+                            <p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p>
+                            <p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p>
                           </td>
                           <td className="py-6 text-right">
                              {r.status === RecordStatus.PAID ? (
@@ -572,8 +626,8 @@ const App: React.FC = () => {
                       ))}
                       <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl">
                         <td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td>
-                        <td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td>
-                        <td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td>
+                        <td className="py-6 font-black text-[11px]">KSh {(boardMetrics.clusterPerformance as any[]).reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td>
+                        <td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {(boardMetrics.clusterPerformance as any[]).reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td>
                       </tr>
                     </tbody>
                  </table>
