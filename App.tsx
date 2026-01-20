@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -370,9 +369,10 @@ const App: React.FC = () => {
       alert("No detailed records to export.");
       return;
     }
-    const headers = ["ID", "Date", "Cluster", "Agent", "Supplier", "Buyer", "Commodity", "Units", "Unit Price", "Gross Total", "Coop Profit", "Status"];
+    // Added phone numbers to headers for full audit traceability
+    const headers = ["ID", "Date", "Cluster", "Agent", "Agent Phone", "Supplier", "Supplier Phone", "Buyer", "Buyer Phone", "Commodity", "Units", "Unit Price", "Gross Total", "Coop Profit", "Status"];
     const rows = filteredRecords.map(r => [
-      r.id, r.date, r.cluster, r.agentName, r.farmerName, r.customerName, r.cropType, `${r.unitsSold} ${r.unitType}`, r.unitPrice, r.totalSale, r.coopProfit, r.status
+      r.id, r.date, r.cluster, r.agentName, r.agentPhone, r.farmerName, r.farmerPhone, r.customerName, r.customerPhone, r.cropType, `${r.unitsSold} ${r.unitType}`, r.unitPrice, r.totalSale, r.coopProfit, r.status
     ]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -756,6 +756,7 @@ const App: React.FC = () => {
                             <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
                               <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
                               <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                              <p>Buyer: {r.customerName} ({r.customerPhone})</p>
                             </div>
                           </td>
                           <td className="py-6 font-black text-black">
@@ -811,6 +812,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
+            {/* The Director (MANAGER role) uses the full filteredRecords without slicing */}
             <AuditLogTable data={filteredRecords} title="Universal Trade Log (Classified by Cluster)" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
