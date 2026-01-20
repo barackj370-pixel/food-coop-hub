@@ -177,7 +177,15 @@ const App: React.FC = () => {
     }, {});
     const commodityTrends = Object.entries(commodityMap).sort((a: any, b: any) => b[1] - a[1]);
 
-    return { clusterPerformance, topAgents, commodityTrends };
+    // Classification of records by cluster for Audit logs
+    const recordsByCluster = rLog.reduce((acc: Record<string, SaleRecord[]>, r) => {
+      const cluster = r.cluster || 'Unassigned';
+      if (!acc[cluster]) acc[cluster] = [];
+      acc[cluster].push(r);
+      return acc;
+    }, {});
+
+    return { clusterPerformance, topAgents, commodityTrends, recordsByCluster };
   }, [filteredRecords]);
 
   const handleAddRecord = async (data: any) => {
@@ -298,9 +306,11 @@ const App: React.FC = () => {
     } catch (err) { alert("System Auth Error."); } finally { setIsAuthLoading(false); }
   };
 
-  const AuditLogTable = ({ data, title }: { data: SaleRecord[], title: string }) => (
-    <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
-      <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8">{title} ({data.length})</h3>
+  const AuditLogTable = ({ data, title, showClusterHeader = false }: { data: SaleRecord[], title: string, showClusterHeader?: boolean }) => (
+    <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto mb-8">
+      <h3 className={`text-sm font-black uppercase tracking-tighter mb-8 ${showClusterHeader ? 'text-red-600 border-l-4 border-red-600 pl-4' : 'text-black'}`}>
+        {title} ({data.length})
+      </h3>
       <table className="w-full text-left">
         <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
           <tr>
@@ -336,6 +346,24 @@ const App: React.FC = () => {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+
+  const ClassifiedAuditLogs = ({ groupedData }: { groupedData: Record<string, SaleRecord[]> }) => (
+    <div className="space-y-4">
+      <div className="flex items-center space-x-3 mb-6">
+        <div className="w-1.5 h-6 bg-red-600 rounded-full"></div>
+        <h2 className="text-lg font-black text-black uppercase tracking-tight">System-Wide Audit Log (Classified by Cluster)</h2>
+      </div>
+      {Object.entries(groupedData).length > 0 ? (
+        Object.entries(groupedData).map(([cluster, clusterRecords]) => (
+          <AuditLogTable key={cluster} data={clusterRecords} title={`${cluster} Cluster Integrity Log`} showClusterHeader={true} />
+        ))
+      ) : (
+        <div className="bg-white rounded-[2rem] p-12 text-center border border-slate-100 shadow-sm">
+           <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest">No transaction records found to classify.</p>
+        </div>
+      )}
     </div>
   );
 
@@ -434,7 +462,7 @@ const App: React.FC = () => {
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
             </div>
             <SaleForm onSubmit={handleAddRecord} />
-            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Audit and Integrity Log" />
+            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Your Recent Logs" />
           </>
         )}
 
@@ -469,7 +497,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="Full Financial Audit Log" />
+            <ClassifiedAuditLogs groupedData={boardMetrics.recordsByCluster} />
           </div>
         )}
 
@@ -513,13 +541,12 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="System Integrity Log" />
+            <ClassifiedAuditLogs groupedData={boardMetrics.recordsByCluster} />
           </div>
         )}
 
         {currentPortal === 'BOARD' && (
           <div className="space-y-12">
-            {/* KPL Food Coops Summary Trade Report */}
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">KPL Food Coops Summary Trade Report</h3>
@@ -591,86 +618,11 @@ const App: React.FC = () => {
                  </div>
               </div>
             </div>
+            
+            <ClassifiedAuditLogs groupedData={boardMetrics.recordsByCluster} />
           </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
           <div className="space-y-12">
-            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl">
-               <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3>
-               <div className="overflow-x-auto">
-                 <table className="w-full text-left">
-                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                      <tr><th className="pb-4">Name & Contact</th><th className="pb-4">Role / Node</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {users.map(u => (
-                        <tr key={u.phone} className="group hover:bg-slate-50/50">
-                          <td className="py-6">
-                             <p className="text-sm font-black uppercase text-black">{u.name}</p>
-                             <p className="text-[10px] text-slate-400 font-mono">{u.phone}</p>
-                          </td>
-                          <td className="py-6">
-                             <p className="text-[11px] font-black text-black uppercase">{u.role}</p>
-                             <p className="text-[9px] text-slate-400 uppercase">{u.cluster}</p>
-                          </td>
-                          <td className="py-6">
-                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                               {u.status || 'AWAITING'}
-                             </span>
-                          </td>
-                          <td className="py-6 text-right">
-                             {u.status === 'ACTIVE' ? (
-                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
-                             ) : (
-                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition-all shadow-md">Reactivate</button>
-                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                 </table>
-               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">System Summary</h4>
-                  <div className="space-y-6">
-                     <div className="flex justify-between items-end border-b border-slate-100 pb-4">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase">Operational Clusters</span>
-                        <span className="text-black font-black text-lg">{CLUSTERS.length}</span>
-                     </div>
-                     <div className="flex justify-between items-end border-b border-slate-100 pb-4">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase">Total Verified Yield</span>
-                        <span className="text-green-600 font-black text-lg">KSh {stats.approvedComm.toLocaleString()}</span>
-                     </div>
-                     <div className="flex justify-between items-end">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase">Pending Inflow</span>
-                        <span className="text-red-600 font-black text-lg">KSh {stats.dueComm.toLocaleString()}</span>
-                     </div>
-                  </div>
-               </div>
-
-               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Agent Performance Ranking</h4>
-                  <div className="space-y-4">
-                     {boardMetrics.topAgents.map(([agent, value]: any, idx) => (
-                        <div key={agent} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                           <span className="text-[11px] font-black uppercase text-black">{idx + 1}. {agent}</span>
-                           <span className="text-green-600 font-black text-[12px]">KSh {value.toLocaleString()}</span>
-                        </div>
-                     ))}
-                  </div>
-               </div>
-            </div>
-
-            <AuditLogTable data={filteredRecords} title="System Wide Transaction Audit" />
-          </div>
-        )}
-      </main>
-    </div>
-  );
-};
-
-export default App;
+            <div className="bg-white rounded-[2.5rem
