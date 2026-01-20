@@ -8,8 +8,7 @@ import {
   fetchFromGoogleSheets, 
   syncUserToCloud, 
   fetchUsersFromCloud, 
-  clearAllRecordsOnCloud, 
-  clearAllUsersOnCloud, 
+  deleteRecordFromCloud,
   deleteUserFromCloud 
 } from './services/googleSheetsService.ts';
 
@@ -41,7 +40,6 @@ const computeHash = async (record: any): Promise<string> => {
 };
 
 const App: React.FC = () => {
-  // Fix: Initialize records from local storage immediately to ensure visibility before sync
   const [records, setRecords] = useState<SaleRecord[]>(() => {
     const saved = persistence.get('food_coop_data');
     if (saved) {
@@ -106,7 +104,6 @@ const App: React.FC = () => {
 
       if (cloudRecords) {
         setRecords(prev => {
-          // Fix: Ensure we don't accidentally drop local drafts by merging correctly
           const cloudIds = new Set(cloudRecords.map(r => r.id));
           const localOnly = prev.filter(r => !cloudIds.has(r.id));
           const combined = [...localOnly, ...cloudRecords];
@@ -143,12 +140,15 @@ const App: React.FC = () => {
   const filteredRecords = useMemo(() => {
     let base = records.filter(r => r.id && r.date);
     
-    // Ensure System Developer sees ALL records regardless of cluster/agent
-    if (!isSystemDev && agentIdentity) {
-      const isPriv = agentIdentity.role === SystemRole.MANAGER || 
-                     agentIdentity.role === SystemRole.FINANCE_OFFICER ||
-                     agentIdentity.role === SystemRole.AUDITOR;
-      if (!isPriv) {
+    if (agentIdentity) {
+      // FIX: Ensure privileged roles (including System Dev) see EVERYTHING across all clusters
+      const isPrivileged = isSystemDev || 
+                           agentIdentity.role === SystemRole.MANAGER || 
+                           agentIdentity.role === SystemRole.FINANCE_OFFICER ||
+                           agentIdentity.role === SystemRole.AUDITOR;
+      
+      if (!isPrivileged) {
+        // Only Field Agents are restricted to their own entries
         base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity.phone || ''));
       }
     }
@@ -175,20 +175,13 @@ const App: React.FC = () => {
     }, {} as Record<string, { volume: number, profit: number }>);
     const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit) as [string, { volume: number, profit: number }][];
 
-    const agentMap = rLog.reduce((acc: Record<string, number>, r) => {
-      const agent = r.agentName || 'Unknown';
-      acc[agent] = (acc[agent] || 0) + Number(r.coopProfit);
-      return acc;
-    }, {} as Record<string, number>);
-    const topAgents = Object.entries(agentMap).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5) as [string, number][];
-
     const commodityMap = rLog.reduce((acc: Record<string, number>, r) => {
       acc[r.cropType] = (acc[r.cropType] || 0) + Number(r.unitsSold);
       return acc;
     }, {} as Record<string, number>);
     const commodityTrends = Object.entries(commodityMap).sort((a: any, b: any) => b[1] - a[1]) as [string, number][];
 
-    return { clusterPerformance, topAgents, commodityTrends };
+    return { clusterPerformance, commodityTrends };
   }, [filteredRecords]);
 
   const handleAddRecord = async (data: any) => {
@@ -233,6 +226,23 @@ const App: React.FC = () => {
         return updatedList;
     });
     await syncToGoogleSheets(updated);
+  };
+
+  // NEW: Handle deleting a record for demo cleanup
+  const handleDeleteRecord = async (id: string) => {
+    if (!window.confirm("Action required: Permanent deletion of record ID: " + id + ". Continue?")) return;
+    
+    setRecords(prev => {
+        const updated = prev.filter(r => r.id !== id);
+        persistence.set('food_coop_data', JSON.stringify(updated));
+        return updated;
+    });
+
+    try {
+      await deleteRecordFromCloud(id);
+    } catch (e) {
+      console.error("Cloud deletion failed:", e);
+    }
   };
 
   const handleToggleUserStatus = async (phone: string, currentStatus?: AccountStatus) => {
@@ -321,7 +331,7 @@ const App: React.FC = () => {
           passcode: targetPasscode, 
           role: authForm.role, 
           cluster: authForm.role === SystemRole.FIELD_AGENT ? authForm.cluster : 'System', 
-          status: 'AWAITING_ACTIVATION' 
+          status: 'ACTIVE' 
         };
         const updatedUsersList = [...currentUsers, newUser];
         setUsers(updatedUsersList);
@@ -339,7 +349,7 @@ const App: React.FC = () => {
     } catch (err) { alert("System Auth Error."); } finally { setIsAuthLoading(false); }
   };
 
-  const AuditLogTable = ({ data, title }: { data: SaleRecord[], title: string }) => {
+  const AuditLogTable = ({ data, title, onDelete }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void }) => {
     const groupedData = useMemo(() => {
       return data.reduce((acc: Record<string, SaleRecord[]>, r) => {
         const cluster = r.cluster || 'Unassigned';
@@ -387,8 +397,8 @@ const App: React.FC = () => {
                       <td className="py-6">
                         <div className="space-y-1">
                           <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
-                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
-                          <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName}</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName}</p>
                         </div>
                         <p className="text-[8px] text-slate-300 mt-1 uppercase">ID: {r.id}</p>
                       </td>
@@ -396,9 +406,16 @@ const App: React.FC = () => {
                       <td className="py-6 font-black text-black">KSh {Number(r.totalSale).toLocaleString()}</td>
                       <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
                       <td className="py-6 text-right">
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                          {r.status}
-                        </span>
+                        <div className="flex items-center justify-end gap-3">
+                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                            {r.status}
+                          </span>
+                          {onDelete && (
+                            <button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-600 transition-colors p-1" title="Delete record for demo cleanup">
+                               <i className="fas fa-trash-alt text-[10px]"></i>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -551,7 +568,7 @@ const App: React.FC = () => {
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
             </div>
             <SaleForm onSubmit={handleAddRecord} />
-            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Recent Integrity Logs (Classified)" />
+            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Recent Integrity Logs (Classified)" onDelete={isSystemDev ? handleDeleteRecord : undefined} />
           </>
         )}
 
@@ -586,7 +603,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="Full Financial Classified Audit Log" />
+            <AuditLogTable data={filteredRecords} title="Full Financial Classified Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
@@ -630,7 +647,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="System Integrity Classified Log" />
+            <AuditLogTable data={filteredRecords} title="System Integrity Classified Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
@@ -716,7 +733,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <AuditLogTable data={filteredRecords} title="Universal Trade Log (Classified by Cluster)" />
+            <AuditLogTable data={filteredRecords} title="Universal Trade Log (Classified by Cluster)" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
@@ -759,12 +776,20 @@ const App: React.FC = () => {
                </div>
             </div>
             
-            <AuditLogTable data={filteredRecords} title="System-Wide Classified Universal Audit Log" />
+            <AuditLogTable data={filteredRecords} title="System-Wide Classified Universal Audit Log" onDelete={handleDeleteRecord} />
           </div>
         )}
       </main>
     </div>
   );
+
+  function isPrivilegedRole(agent: AgentIdentity | null) {
+    if (!agent) return false;
+    return isSystemDev || 
+           agent.role === SystemRole.MANAGER || 
+           agent.role === SystemRole.FINANCE_OFFICER || 
+           agent.role === SystemRole.AUDITOR;
+  }
 };
 
 export default App;
