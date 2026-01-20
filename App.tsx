@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants.ts';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL } from './constants.ts';
 import { 
   syncToGoogleSheets, 
   fetchFromGoogleSheets, 
@@ -739,6 +739,28 @@ const App: React.FC = () => {
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
           <div className="space-y-12">
+            {/* Added: Direct Cloud Repository Link */}
+            <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-8 opacity-10">
+                  <i className="fas fa-database text-8xl"></i>
+               </div>
+               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                  <div>
+                     <p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-500 mb-2">Cloud Storage Node</p>
+                     <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
+                     <p className="text-slate-400 text-[10px] font-bold uppercase mt-2">Direct live access to Google Sheets data ledger for auditing</p>
+                  </div>
+                  <a 
+                    href={GOOGLE_SHEET_VIEW_URL} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-green-600 text-white px-10 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:bg-green-700 active:scale-95 transition-all flex items-center"
+                  >
+                    <i className="fas fa-table mr-3 text-lg"></i> Launch Master Ledger
+                  </a>
+               </div>
+            </div>
+
             <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl">
                <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3>
                <div className="overflow-x-auto">
