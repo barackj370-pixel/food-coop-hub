@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, SystemRole, AgentIdentity, AccountStatus } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants.ts';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, CROP_TYPES } from './constants.ts';
 import { 
   syncToGoogleSheets, 
   fetchFromGoogleSheets, 
@@ -11,7 +11,6 @@ import {
   fetchUsersFromCloud, 
   clearAllRecordsOnCloud, 
   clearAllUsersOnCloud, 
-  deleteRecordFromCloud, 
   deleteUserFromCloud 
 } from './services/googleSheetsService.ts';
 
@@ -42,7 +41,6 @@ const computeHash = async (record: any): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
 };
 
-// Helper to parse "YYYY-MM-DD" as a local date to avoid timezone shifts
 const parseLocalDate = (dateStr: string) => {
   if (!dateStr) return new Date();
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -89,15 +87,6 @@ const App: React.FC = () => {
     return portals;
   }, [agentIdentity, isSystemDev]);
 
-  const handleLogout = () => {
-    setAgentIdentity(null);
-    setRecords([]); 
-    setUsers([]);
-    persistence.remove('agent_session');
-    persistence.remove('food_coop_data');
-    persistence.remove('coop_users');
-  };
-
   const loadCloudData = useCallback(async () => {
     if (!agentIdentity) return;
     setIsSyncing(true);
@@ -114,7 +103,6 @@ const App: React.FC = () => {
 
       if (cloudRecords) {
         const validRecords = cloudRecords.filter(r => r.cluster && r.cluster !== 'Unassigned');
-        // FIX: Merge local records with cloud records so new entries don't disappear before cloud update
         setRecords(prev => {
           const cloudIds = new Set(validRecords.map(r => r.id));
           const localOnly = prev.filter(r => !cloudIds.has(r.id));
@@ -176,17 +164,6 @@ const App: React.FC = () => {
     });
   }, [filteredRecords, logFilterDays]);
 
-  const groupedAndSortedRecords = useMemo(() => {
-    const grouped = auditLogRecords.reduce((acc, r) => {
-      const cluster = r.cluster || 'Unknown';
-      if (!acc[cluster]) acc[cluster] = [];
-      acc[cluster].push(r);
-      return acc;
-    }, {} as Record<string, SaleRecord[]>);
-    Object.keys(grouped).forEach(cluster => grouped[cluster].sort((a, b) => (a.agentName || '').localeCompare(b.agentName || '')));
-    return grouped;
-  }, [auditLogRecords]);
-
   const stats = useMemo(() => {
     const relevantRecords = filteredRecords;
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
@@ -212,7 +189,13 @@ const App: React.FC = () => {
     }, {});
     const topAgents = Object.entries(agentMap).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5);
 
-    return { clusterPerformance, topAgents };
+    const commodityMap = rLog.reduce((acc: Record<string, number>, r) => {
+      acc[r.cropType] = (acc[r.cropType] || 0) + Number(r.unitsSold);
+      return acc;
+    }, {});
+    const commodityTrends = Object.entries(commodityMap).sort((a: any, b: any) => b[1] - a[1]);
+
+    return { clusterPerformance, topAgents, commodityTrends };
   }, [filteredRecords]);
 
   const handleAddRecord = async (data: any) => {
@@ -237,15 +220,10 @@ const App: React.FC = () => {
     };
     
     setRecords(prev => [newRecord, ...prev]);
-    
     try {
       const success = await syncToGoogleSheets(newRecord);
-      if (success) {
-        setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
-      }
-    } catch (e) {
-      console.error("Sync error:", e);
-    }
+      if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+    } catch (e) { console.error("Sync error:", e); }
   };
 
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
@@ -256,26 +234,22 @@ const App: React.FC = () => {
     await syncToGoogleSheets(updated);
   };
 
-  // Fix: Added handleExportCsv function to resolve missing name error
-  const handleExportCsv = () => {
-    if (filteredRecords.length === 0) {
-      alert("No records to export.");
-      return;
-    }
-    const headers = ["ID", "Date", "Commodity", "Farmer", "Farmer Phone", "Customer", "Customer Phone", "Units", "Unit Type", "Price", "Total", "Commission", "Status", "Agent", "Cluster"];
-    const rows = filteredRecords.map(r => [
-      r.id, r.date, r.cropType, r.farmerName, r.farmerPhone, r.customerName, r.customerPhone, r.unitsSold, r.unitType, r.unitPrice, r.totalSale, r.coopProfit, r.status, r.agentName, r.cluster
-    ]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `coop_audit_report_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleToggleUserStatus = async (phone: string, currentStatus?: AccountStatus) => {
+    const user = users.find(u => u.phone === phone);
+    if (!user) return;
+    const newStatus: AccountStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const updatedUser = { ...user, status: newStatus };
+    setUsers(prev => prev.map(u => u.phone === phone ? updatedUser : u));
+    await syncUserToCloud(updatedUser);
+  };
+
+  const handleLogout = () => {
+    setAgentIdentity(null);
+    setRecords([]); 
+    setUsers([]);
+    persistence.remove('agent_session');
+    persistence.remove('food_coop_data');
+    persistence.remove('coop_users');
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -283,11 +257,9 @@ const App: React.FC = () => {
     setIsAuthLoading(true);
     const targetPhoneNormalized = normalizePhone(authForm.phone);
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
-
     try {
       const latestCloudUsers = await fetchUsersFromCloud();
       let currentUsers: AgentIdentity[] = latestCloudUsers || users;
-
       if (isRegisterMode) {
         const newUser: AgentIdentity = { 
           name: authForm.name.trim(), 
@@ -295,7 +267,7 @@ const App: React.FC = () => {
           passcode: targetPasscode, 
           role: authForm.role, 
           cluster: authForm.role === SystemRole.FIELD_AGENT ? authForm.cluster : 'System', 
-          status: 'ACTIVE' 
+          status: 'AWAITING_ACTIVATION' 
         };
         const updatedUsersList = [...currentUsers, newUser];
         setUsers(updatedUsersList);
@@ -308,52 +280,79 @@ const App: React.FC = () => {
         if (user) {
           setAgentIdentity(user);
           persistence.set('agent_session', JSON.stringify(user));
-        } else {
-          alert("Authentication failed.");
-        }
+        } else { alert("Authentication failed."); }
       }
-    } catch (err) {
-      alert("System Auth Error.");
-    } finally {
-      setIsAuthLoading(false);
-    }
+    } catch (err) { alert("System Auth Error."); } finally { setIsAuthLoading(false); }
   };
+
+  const AuditLogTable = ({ data, title }: { data: SaleRecord[], title: string }) => (
+    <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl overflow-x-auto">
+      <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">{title} ({data.length})</h3>
+      <table className="w-full text-left">
+        <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
+          <tr>
+            <th className="pb-6">Date</th>
+            <th className="pb-6">ID/Agent</th>
+            <th className="pb-6">Commodity</th>
+            <th className="pb-6">Gross Sale</th>
+            <th className="pb-6">Commission</th>
+            <th className="pb-6 text-right">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {data.map(r => (
+            <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
+              <td className="py-6 text-slate-400">{r.date}</td>
+              <td className="py-6">
+                <p className="text-slate-900">{r.id}</p>
+                <p className="text-[9px] text-slate-400 uppercase">{r.agentName}</p>
+              </td>
+              <td className="py-6 text-slate-900 uppercase">{r.cropType}</td>
+              <td className="py-6 font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
+              <td className="py-6 font-black text-emerald-600">KSh {r.coopProfit.toLocaleString()}</td>
+              <td className="py-6 text-right">
+                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {r.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
   if (!agentIdentity) {
     return (
-      <div className="min-h-screen bg-[#022c22] flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="min-h-screen bg-[#022c22] flex flex-col items-center justify-center p-6 relative">
         <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2"></div>
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl mb-4 border border-emerald-500/30"><i className="fas fa-leaf text-xl"></i></div>
            <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Food Coop Hub</h1>
-           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Digital Reporting Platform</p>
+           <p className="text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Professional Reporting</p>
         </div>
-        <div className="w-full max-w-[340px] bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in z-10 p-8 space-y-5">
+        <div className="w-full max-w-[340px] bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl p-8 space-y-5 z-10">
             <div className="flex justify-between items-end">
-              <div><h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2><p className="text-[9px] text-emerald-400/80 font-black uppercase tracking-widest mt-1">Identity Required</p></div>
-              <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, name: '', phone: '', passcode: '', cluster: CLUSTERS[0]})}} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">{isRegisterMode ? 'New Account' : 'Secure Login'}</h2>
+              <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="text-[9px] font-black uppercase text-white/40 hover:text-emerald-400">{isRegisterMode ? 'Login Instead' : 'Register Account'}</button>
             </div>
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />}
               <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none" />
-              <input type="password" maxLength={4} placeholder="enter 4 digit pincode" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none" />
+              <input type="password" maxLength={4} placeholder="4 digit pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white text-center outline-none" />
               {isRegisterMode && (
                 <>
-                  <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">
-                    <option value={SystemRole.FIELD_AGENT} className="bg-slate-900">Field Agent</option>
-                    <option value={SystemRole.FINANCE_OFFICER} className="bg-slate-900">Finance Officer</option>
-                    <option value={SystemRole.AUDITOR} className="bg-slate-900">Audit Officer</option>
-                    <option value={SystemRole.MANAGER} className="bg-slate-900">Director</option>
-                    <option value={SystemRole.SYSTEM_DEVELOPER} className="bg-slate-900">System Developer</option>
+                  <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none">
+                    {Object.values(SystemRole).map(r => <option key={r} value={r} className="bg-slate-900">{r}</option>)}
                   </select>
                   {authForm.role === SystemRole.FIELD_AGENT && (
-                    <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none appearance-none">
+                    <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 font-bold text-white outline-none">
                       {CLUSTERS.map(c => <option key={c} value={c} className="bg-slate-900">{c}</option>)}
                     </select>
                   )}
                 </>
               )}
-              <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Create Account' : 'Authenticate')}</button>
+              <button disabled={isAuthLoading} className="w-full bg-emerald-500 hover:bg-emerald-400 text-emerald-950 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register' : 'Authenticate')}</button>
             </form>
         </div>
       </div>
@@ -373,14 +372,11 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="bg-white/5 backdrop-blur-xl px-6 py-4 rounded-3xl border border-white/10 text-right w-full lg:w-auto shadow-2xl">
-            <div className="flex items-center justify-end space-x-2">
-              {isSyncing && <i className="fas fa-sync fa-spin text-emerald-400 text-[10px]"></i>}
-              <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60">
-                Last Sync: {lastSyncTime ? lastSyncTime.toLocaleTimeString() : 'Initializing...'}
-              </p>
+            <div className="flex items-center justify-end space-x-4">
+               {isSyncing && <i className="fas fa-sync fa-spin text-emerald-400 text-[10px]"></i>}
+               <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60">Last Sync: {lastSyncTime?.toLocaleTimeString() || '...'}</p>
+               <button onClick={handleLogout} className="text-[8px] font-black uppercase tracking-[0.4em] text-red-400 hover:text-red-300 transition-colors">Logout</button>
             </div>
-            <p className="text-[8px] font-black uppercase tracking-[0.4em] text-emerald-300/60 mt-1">User: {agentIdentity.name}</p>
-            <button onClick={handleLogout} className="text-[8px] font-black uppercase tracking-[0.4em] text-red-400 hover:text-red-300 transition-colors mt-2">Logout Session</button>
           </div>
         </div>
 
@@ -407,198 +403,206 @@ const App: React.FC = () => {
               <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-emerald-600" />
             </div>
             <SaleForm onSubmit={handleAddRecord} />
-            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl overflow-x-auto">
-               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Recent Submissions ({filteredRecords.length})</h3>
-               <table className="w-full text-left">
-                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                    <tr>
-                      <th className="pb-6">Date</th>
-                      <th className="pb-6">Commodity</th>
-                      <th className="pb-6">Farmer</th>
-                      <th className="pb-6">Gross Sale</th>
-                      <th className="pb-6">Profit (10%)</th>
-                      <th className="pb-6 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {filteredRecords.slice(0, 10).map(r => (
-                      <tr key={r.id} className="text-[12px] font-bold group hover:bg-slate-50/50">
-                        <td className="py-6 text-slate-400">{r.date}</td>
-                        <td className="py-6 text-slate-900">{r.cropType}</td>
-                        <td className="py-6 text-slate-700">{r.farmerName}</td>
-                        <td className="py-6 font-black text-slate-900">KSh {r.totalSale.toLocaleString()}</td>
-                        <td className="py-6 font-black text-emerald-600">KSh {r.coopProfit.toLocaleString()}</td>
-                        <td className="py-6 text-right">
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {r.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-               </table>
-            </div>
+            <AuditLogTable data={filteredRecords.slice(0, 10)} title="Recent Submissions" />
           </>
         )}
 
-        {currentPortal === 'AUDIT' && (
+        {currentPortal === 'FINANCE' && (
           <div className="space-y-8">
-            <div className="flex justify-between items-center bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl">
-              <div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Audit & Integrity Log</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">Real-time Verification Ledger</p>
-              </div>
-              <div className="flex gap-4">
-                <select value={logFilterDays} onChange={e => setLogFilterDays(Number(e.target.value))} className="bg-slate-50 border-none rounded-xl px-6 py-3 font-bold text-[11px] uppercase tracking-widest outline-none">
-                  <option value={7}>Last 7 Days</option>
-                  <option value={14}>Last 14 Days</option>
-                  <option value={30}>Last 30 Days</option>
-                  <option value={365}>Full History</option>
-                </select>
-                <button onClick={handleExportCsv} className="bg-emerald-900 text-white px-8 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest shadow-xl">Export Report</button>
-              </div>
-            </div>
-
-            {/* Fix: Explicitly typed clusterRecords to SaleRecord[] to resolve 'unknown' property errors */}
-            {Object.entries(groupedAndSortedRecords).map(([cluster, clusterRecords]: [string, SaleRecord[]]) => (
-              <div key={cluster} className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
-                <div className="flex justify-between items-end mb-8">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter border-l-4 border-emerald-500 pl-4">{cluster} Cluster</h3>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase">{clusterRecords.length} Records Found</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="text-[9px] font-black text-slate-300 uppercase tracking-widest text-left">
-                      <tr>
-                        <th className="pb-4">Agent Identification</th>
-                        <th className="pb-4">Transaction Details</th>
-                        <th className="pb-4">Audit Signature</th>
-                        <th className="pb-4">Financial Yield</th>
-                        <th className="pb-4 text-right">Verification</th>
-                      </tr>
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8 border-l-4 border-emerald-500 pl-4">Transactions Waiting Confirmation</h3>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-xs">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                      <tr><th className="pb-4">Date</th><th className="pb-4">ID/Agent</th><th className="pb-4">Commodity</th><th className="pb-4">Gross</th><th className="pb-4">Comm</th><th className="pb-4 text-right">Action</th></tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {clusterRecords.map(r => (
-                        <tr key={r.id} className="text-[11px] font-bold hover:bg-slate-50/50">
+                    <tbody className="divide-y">
+                      {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
+                        <tr key={r.id} className="hover:bg-slate-50/50">
+                          <td className="py-6 font-bold">{r.date}</td>
                           <td className="py-6">
-                            <p className="text-slate-900 uppercase">{r.agentName}</p>
-                            <p className="text-slate-400 text-[9px] mt-0.5">{r.id}</p>
+                            <p className="font-black">{r.id}</p>
+                            <p className="text-[9px] text-slate-400 uppercase">{r.agentName}</p>
                           </td>
-                          <td className="py-6">
-                            <p className="text-slate-900 uppercase">{r.cropType}</p>
-                            <p className="text-slate-400 text-[9px] mt-0.5">{r.date} • {r.unitsSold} {r.unitType}</p>
-                          </td>
-                          <td className="py-6">
-                             <div className="flex items-center space-x-2">
-                                <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-md font-mono text-[9px]">{r.signature}</span>
-                                <i className="fas fa-shield-alt text-emerald-200 text-[10px]"></i>
-                             </div>
-                          </td>
-                          <td className="py-6">
-                            <p className="text-slate-900 font-black">Gross: KSh {r.totalSale.toLocaleString()}</p>
-                            <p className="text-emerald-600 font-black">Coop: KSh {r.coopProfit.toLocaleString()}</p>
-                          </td>
+                          <td className="py-6 uppercase font-bold">{r.cropType}</td>
+                          <td className="py-6 font-black">KSh {r.totalSale.toLocaleString()}</td>
+                          <td className="py-6 font-black text-emerald-600">KSh {r.coopProfit.toLocaleString()}</td>
                           <td className="py-6 text-right">
-                             <div className="flex justify-end gap-2">
-                                {r.status === RecordStatus.DRAFT && (
-                                  <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg text-[9px] uppercase tracking-widest font-black">Verify Pay</button>
-                                )}
-                                {r.status === RecordStatus.PAID && (
-                                  <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-emerald-900 text-white px-4 py-2 rounded-lg text-[9px] uppercase tracking-widest font-black">Log Audit</button>
-                                )}
-                                {r.status === RecordStatus.VALIDATED && (
-                                  <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-[9px] uppercase tracking-widest font-black">Final Seal</button>
-                                )}
-                                {r.status === RecordStatus.VERIFIED && (
-                                  <span className="text-emerald-500 flex items-center gap-1.5"><i className="fas fa-check-double"></i> Authenticated</span>
-                                )}
-                             </div>
+                             <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700">Confirm Receipt</button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
+                 </table>
+               </div>
+            </div>
+            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
+          </div>
+        )}
+
+        {currentPortal === 'AUDIT' && (
+          <div className="space-y-8">
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8 border-l-4 border-emerald-500 pl-4">Awaiting Verification & Audit</h3>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-xs">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                      <tr><th className="pb-4">Agent/Cluster</th><th className="pb-4">Details</th><th className="pb-4">Integrity Hash</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
+                        <tr key={r.id} className="hover:bg-slate-50/50">
+                          <td className="py-6">
+                             <p className="font-black">{r.agentName}</p>
+                             <p className="text-[9px] text-slate-400 uppercase">{r.cluster}</p>
+                          </td>
+                          <td className="py-6">
+                             <p className="font-bold uppercase">{r.cropType}</p>
+                             <p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p>
+                          </td>
+                          <td className="py-6"><span className="bg-slate-50 px-2 py-1 rounded text-[9px] font-mono text-slate-500">{r.signature}</span></td>
+                          <td className="py-6">
+                            <p className="font-black">Gross: KSh {r.totalSale.toLocaleString()}</p>
+                            <p className="text-emerald-600 font-black">Comm: KSh {r.coopProfit.toLocaleString()}</p>
+                          </td>
+                          <td className="py-6 text-right">
+                             {r.status === RecordStatus.PAID ? (
+                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Audit Approval</button>
+                             ) : (
+                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-emerald-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Final Seal</button>
+                             )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
           </div>
         )}
 
         {currentPortal === 'BOARD' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
-               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Cluster Contribution Rankings</h3>
-               <div className="space-y-6">
-                  {boardMetrics.clusterPerformance.map(([cluster, value]: any, idx) => (
-                    <div key={cluster} className="space-y-2">
-                      <div className="flex justify-between text-[11px] font-black uppercase tracking-wider">
-                        <span className="text-slate-600">#{idx + 1} {cluster}</span>
-                        <span className="text-emerald-600">KSh {value.toLocaleString()}</span>
+          <div className="space-y-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter mb-8">Commodity Yield Analysis</h3>
+                 <div className="space-y-6">
+                    {boardMetrics.commodityTrends.slice(0, 6).map(([crop, value]: any) => (
+                      <div key={crop} className="space-y-2">
+                        <div className="flex justify-between text-[11px] font-black uppercase tracking-wider text-slate-600">
+                          <span>{crop}</span>
+                          <span>{value.toLocaleString()} Units</span>
+                        </div>
+                        <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500" style={{ width: `${(value / (boardMetrics.commodityTrends[0]?.[1] || 1)) * 100}%` }}></div>
+                        </div>
                       </div>
-                      <div className="h-3 bg-slate-50 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-emerald-500 transition-all duration-1000" 
-                          style={{ width: `${(value / (boardMetrics.clusterPerformance[0]?.[1] || 1)) * 100}%` }}
-                        ></div>
-                      </div>
+                    ))}
+                 </div>
+              </div>
+              <div className="bg-[#022c22] p-10 rounded-[2.5rem] shadow-2xl text-white">
+                 <h3 className="text-sm font-black text-emerald-400 uppercase tracking-tighter mb-8">Market Trend Insights</h3>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
+                       <p className="text-[9px] font-black text-emerald-400/40 uppercase tracking-widest mb-2">Top Cluster</p>
+                       <p className="text-lg font-black">{boardMetrics.clusterPerformance[0]?.[0] || 'N/A'}</p>
                     </div>
-                  ))}
-               </div>
-            </div>
-            <div className="bg-[#022c22] p-10 rounded-[2.5rem] shadow-2xl text-white">
-               <h3 className="text-sm font-black text-emerald-400 uppercase tracking-tighter mb-8">Agent Performance Leaderboard</h3>
-               <div className="space-y-8">
-                  {boardMetrics.topAgents.map(([agent, value]: any, idx) => (
-                    <div key={agent} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-[10px]">{idx + 1}</div>
-                        <span className="font-black text-[11px] uppercase tracking-widest">{agent}</span>
-                      </div>
-                      <span className="font-black text-emerald-400">KSh {value.toLocaleString()}</span>
+                    <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
+                       <p className="text-[9px] font-black text-emerald-400/40 uppercase tracking-widest mb-2">Total Yield</p>
+                       <p className="text-lg font-black">KSh {stats.approvedComm.toLocaleString()}</p>
                     </div>
-                  ))}
-               </div>
+                 </div>
+                 <div className="mt-8 space-y-4">
+                    {boardMetrics.clusterPerformance.map(([cluster, value]: any, idx) => (
+                      <div key={cluster} className="flex justify-between items-center text-[11px] font-black uppercase text-emerald-100/60">
+                         <span>{idx + 1}. {cluster}</span>
+                         <span className="text-emerald-400">KSh {value.toLocaleString()}</span>
+                      </div>
+                    ))}
+                 </div>
+              </div>
             </div>
+            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
           </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
-          <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
-             <div className="flex justify-between items-center mb-10">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Identity Management Console</h3>
-                <div className="flex gap-4">
-                   <button onClick={() => clearAllUsersOnCloud()} className="bg-red-50 text-red-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-red-200">Reset Users</button>
-                   <button onClick={() => clearAllRecordsOnCloud()} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest">Wipe Sales</button>
-                </div>
-             </div>
-             <div className="overflow-x-auto">
-               <table className="w-full">
-                  <thead className="text-[10px] font-black text-slate-300 uppercase tracking-widest text-left">
-                    <tr>
-                      <th className="pb-6">User Name & Identifier</th>
-                      <th className="pb-6">System Role</th>
-                      <th className="pb-6">Cluster Node</th>
-                      <th className="pb-6 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {users.map(u => (
-                      <tr key={u.phone} className="text-[11px] font-bold group">
-                        <td className="py-6">
-                           <p className="text-slate-900 uppercase">{u.name}</p>
-                           <p className="text-slate-400 font-mono text-[10px] mt-0.5">{u.phone}</p>
-                        </td>
-                        <td className="py-6"><span className="bg-slate-100 px-3 py-1 rounded-md text-slate-600 uppercase text-[9px] tracking-widest font-black">{u.role}</span></td>
-                        <td className="py-6 text-slate-500 uppercase">{u.cluster}</td>
-                        <td className="py-6 text-right">
-                           <button onClick={() => deleteUserFromCloud(u.phone)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all mr-6"><i className="fas fa-trash-alt"></i></button>
-                           <span className="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full font-black text-[9px] tracking-widest uppercase">{u.status || 'ACTIVE'}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-               </table>
-             </div>
+          <div className="space-y-12">
+            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-xl">
+               <div className="flex justify-between items-center mb-10">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Infrastructure & Identity Console</h3>
+                  <div className="flex gap-4">
+                     <button onClick={() => clearAllUsersOnCloud()} className="bg-red-50 text-red-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-red-200">Reset System</button>
+                  </div>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                    <thead className="text-[10px] font-black text-slate-300 uppercase tracking-widest border-b pb-4">
+                      <tr><th className="pb-4">User Details</th><th className="pb-4">Role/Cluster</th><th className="pb-4">Verification</th><th className="pb-4 text-right">Portal Auth</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {users.map(u => (
+                        <tr key={u.phone} className="group hover:bg-slate-50/50">
+                          <td className="py-6">
+                             <p className="text-sm font-black uppercase text-slate-800">{u.name}</p>
+                             <p className="text-[10px] text-slate-400 font-mono">{u.phone}</p>
+                          </td>
+                          <td className="py-6">
+                             <p className="text-[11px] font-black text-slate-600 uppercase">{u.role}</p>
+                             <p className="text-[9px] text-slate-400 uppercase">{u.cluster}</p>
+                          </td>
+                          <td className="py-6">
+                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                               {u.status || 'PENDING'}
+                             </span>
+                          </td>
+                          <td className="py-6 text-right">
+                             {u.status === 'AWAITING_ACTIVATION' || u.status === 'SUSPENDED' ? (
+                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Activate Agent</button>
+                             ) : (
+                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-red-100 text-red-600 px-6 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Suspend Access</button>
+                             )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Summary Trade Report</h4>
+                  <div className="space-y-4">
+                     <div className="flex justify-between border-b border-slate-50 pb-2 text-[11px] font-bold">
+                        <span className="text-slate-500">Total Registered Agents</span>
+                        <span>{users.length}</span>
+                     </div>
+                     <div className="flex justify-between border-b border-slate-50 pb-2 text-[11px] font-bold">
+                        <span className="text-slate-500">Active Field Units</span>
+                        <span>{users.filter(u => u.status === 'ACTIVE').length}</span>
+                     </div>
+                     <div className="flex justify-between border-b border-slate-50 pb-2 text-[11px] font-bold">
+                        <span className="text-slate-500">Verified Marketplace Profits</span>
+                        <span className="text-emerald-600 font-black">KSh {stats.approvedComm.toLocaleString()}</span>
+                     </div>
+                  </div>
+               </div>
+               <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-xl">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Agent Performance Leaderboard</h4>
+                  <div className="space-y-4">
+                     {boardMetrics.topAgents.map(([agent, value]: any, idx) => (
+                        <div key={agent} className="flex justify-between items-center">
+                           <span className="text-[11px] font-black uppercase text-slate-600">{idx + 1}. {agent}</span>
+                           <span className="text-emerald-600 font-black text-[11px]">KSh {value.toLocaleString()}</span>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
+
+            <AuditLogTable data={filteredRecords} title="Audit & Integrity Log" />
           </div>
         )}
       </main>
