@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
+import ProduceForm from './components/ProduceForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
 import { 
@@ -109,13 +109,6 @@ const App: React.FC = () => {
     unitType: '2kg Tin',
     customerName: '',
     customerPhone: ''
-  });
-
-  const [produceForm, setProduceForm] = useState({
-    cropType: 'Maize',
-    unitsAvailable: 0,
-    unitType: 'Bag',
-    sellingPrice: 0
   });
 
   const normalizePhone = (p: string) => {
@@ -299,20 +292,20 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddProduce = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (produceForm.unitsAvailable <= 0 || produceForm.sellingPrice <= 0) {
-      alert("Please enter valid quantity and price.");
-      return;
-    }
-
+  const handleAddProduce = async (data: {
+    date: string;
+    cropType: string;
+    unitType: string;
+    unitsAvailable: number;
+    sellingPrice: number;
+  }) => {
     const newListing: ProduceListing = {
       id: 'LST-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
-      date: new Date().toISOString().split('T')[0],
-      cropType: produceForm.cropType,
-      unitsAvailable: produceForm.unitsAvailable,
-      unitType: produceForm.unitType,
-      sellingPrice: produceForm.sellingPrice,
+      date: data.date,
+      cropType: data.cropType,
+      unitsAvailable: data.unitsAvailable,
+      unitType: data.unitType,
+      sellingPrice: data.sellingPrice,
       supplierName: agentIdentity?.name || '',
       supplierPhone: agentIdentity?.phone || '',
       cluster: agentIdentity?.cluster || 'Unassigned',
@@ -322,7 +315,6 @@ const App: React.FC = () => {
     const updated = [newListing, ...produceListings];
     setProduceListings(updated);
     persistence.set('food_coop_produce', JSON.stringify(updated));
-    setProduceForm({ ...produceForm, unitsAvailable: 0, sellingPrice: 0 });
 
     try {
       await syncProduceToCloud(newListing);
@@ -847,44 +839,18 @@ const App: React.FC = () => {
 
             {marketView === 'SUPPLIER' && (
               <div className="space-y-12">
+                {agentIdentity.role === SystemRole.SUPPLIER && (
+                  <ProduceForm 
+                    supplierName={agentIdentity.name}
+                    supplierPhone={agentIdentity.phone}
+                    onSubmit={handleAddProduce}
+                  />
+                )}
+
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
                    <div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div>
                    <h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Supplier Produce Repository</h3>
                    
-                   {agentIdentity.role === SystemRole.SUPPLIER && (
-                    <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 mb-10">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-6">List Your Harvest</h4>
-                      <form onSubmit={handleAddProduce} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Commodity</label>
-                          <select 
-                            value={produceForm.cropType}
-                            onChange={e => setProduceForm({...produceForm, cropType: e.target.value})}
-                            className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-black outline-none"
-                          >
-                             {Object.values(COMMODITY_CATEGORIES).flat().map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity Available</label>
-                          <div className="flex gap-2">
-                            <input type="number" placeholder="0" value={produceForm.unitsAvailable || ''} onChange={e => setProduceForm({...produceForm, unitsAvailable: parseFloat(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-black outline-none" />
-                            <select value={produceForm.unitType} onChange={e => setProduceForm({...produceForm, unitType: e.target.value})} className="bg-white border border-slate-200 rounded-xl p-3 text-[10px] font-black text-black outline-none">
-                               {CROP_CONFIG[produceForm.cropType as keyof typeof CROP_CONFIG]?.map(u => <option key={u} value={u}>{u}</option>) || <option value="Kg">Kg</option>}
-                            </select>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Selling Price (Per Unit)</label>
-                          <input type="number" placeholder="KSh" value={produceForm.sellingPrice || ''} onChange={e => setProduceForm({...produceForm, sellingPrice: parseFloat(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-black outline-none" />
-                        </div>
-                        <div className="flex items-end">
-                          <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95">Post Listing</button>
-                        </div>
-                      </form>
-                    </div>
-                   )}
-
                    <div className="overflow-x-auto">
                      <table className="w-full text-left">
                         <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
