@@ -22,8 +22,8 @@ type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
-// Clean, high-contrast SVG: Green background (#16a34a) with white cart and red accent circle.
-const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjEyOCIgZmlsbD0iIzE2YTM0YSIvPjxwYXRoIGQ9Ik0xMjggMTYwaDQ4bDMyIDE2MGgxOTJsMzItMTI4SDIyNCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIzMiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjIwOCIgY3k9IjQwMCIgcj0iMzIiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iMzY4IiBjeT0iNDAwIiByPSIzMiIgZmlsbD0id2hpdGUiLz48Y2lyY2xlIGN4PSIzODAiIGN5PSIxMDAiIHI9IjYwIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC4yIi8+PHBhdGggZD0iTTQwMCA5NmMwIDQwLTQwIDY0LTgwIDY0cy04MC0yNC04MC02NCA0MC02NCA4MC02NCA4MCAyNCA4MCA2NHoiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iNDQ4IiBjeT0iOTYiIHI9IjMyIiBmaWxsPSIjZWY0NDQ0Ii8+PC9zdmc+";
+// Simplified, ultra-robust Green & White logo encoding
+const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIwIiBmaWxsPSIjMTZhMzRhIi8+PHBhdGggZD0iTTMwIDMwaDEwbDUgMzBoMzBsNS0yMEg0NSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSI1IiBmaWxsPSJub25lIi8+PGNpcmNsZSBjeD0iNDUiIGN5PSI3NSIgcj0iNSIgZmlsbD0id2hpdGUiLz48Y2lyY2xlIGN4PSI3NSIgY3k9Ijc1IiByPSI1IiBmaWxsPSJ3aGl0ZSIvPjwvc3ZnPg==";
 
 const persistence = {
   get: (key: string): string | null => {
@@ -753,7 +753,9 @@ const App: React.FC = () => {
               return (
                 <div key={p} className="relative">
                   <button 
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setCurrentPortal('MARKET');
                       setIsMarketMenuOpen(!isMarketMenuOpen);
                     }}
@@ -762,10 +764,10 @@ const App: React.FC = () => {
                   </button>
                   {isMarketMenuOpen && (
                     <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
+                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
                         <i className="fas fa-shopping-cart mr-2"></i> Sales Portal
                       </button>
-                      <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
+                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
                         <i className="fas fa-seedling mr-2"></i> Supplier Portal
                       </button>
                     </div>
@@ -776,6 +778,7 @@ const App: React.FC = () => {
             return (
               <button 
                 key={p} 
+                type="button"
                 onClick={() => {
                   setCurrentPortal(p);
                   setIsMarketMenuOpen(false);
@@ -793,10 +796,10 @@ const App: React.FC = () => {
         {currentPortal === 'MARKET' && (
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <button onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                     <i className="fas fa-shopping-cart"></i> Sales Portal
                 </button>
-                <button onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                     <i className="fas fa-seedling"></i> Supplier Portal
                 </button>
             </div>
@@ -871,7 +874,7 @@ const App: React.FC = () => {
                                </td>
                                <td className="py-4">
                                   {agentIdentity.role !== SystemRole.SUPPLIER && (
-                                    <button onClick={() => handleFulfillOrderClick(o)} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md flex items-center gap-2">
+                                    <button type="button" onClick={() => handleFulfillOrderClick(o)} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md flex items-center gap-2">
                                       <i className="fas fa-check-circle"></i> Fulfill Sale
                                     </button>
                                   )}
@@ -936,7 +939,7 @@ const App: React.FC = () => {
                                </td>
                                <td className="py-6 text-right">
                                   {agentIdentity.role !== SystemRole.SUPPLIER ? (
-                                    <button onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95 flex items-center justify-end gap-2 ml-auto">
+                                    <button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95 flex items-center justify-end gap-2 ml-auto">
                                       <i className="fas fa-plus"></i> Initiate Sale
                                     </button>
                                   ) : (
@@ -980,7 +983,7 @@ const App: React.FC = () => {
                           <td className="py-6 uppercase font-bold">{r.cropType}</td>
                           <td className="py-6 font-black">KSh {Number(r.totalSale).toLocaleString()}</td>
                           <td className="py-6 text-right">
-                             <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
+                             <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
                                <i className="fas fa-check"></i> Confirm Receipt
                              </button>
                           </td>
@@ -1005,7 +1008,7 @@ const App: React.FC = () => {
                     </thead>
                     <tbody className="divide-y">
                       {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
-                        <tr key={r.id} className="hover:bg-slate-50/50">
+                        <tr key={r.id} className="hover:bg-slate-800/50">
                           <td className="py-6">
                              <p className="font-bold uppercase text-black">{r.cropType}</p>
                              <p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p>
@@ -1024,11 +1027,11 @@ const App: React.FC = () => {
                           </td>
                           <td className="py-6 text-right">
                              {r.status === RecordStatus.PAID ? (
-                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2 ml-auto">
+                               <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2 ml-auto">
                                  <i className="fas fa-search"></i> Verify
                                </button>
                              ) : (
-                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md flex items-center justify-end gap-2 ml-auto">
+                               <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md flex items-center justify-end gap-2 ml-auto">
                                  <i className="fas fa-stamp"></i> Final Audit Seal
                                </button>
                              )}
@@ -1049,8 +1052,8 @@ const App: React.FC = () => {
                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">KPL Food Coops Summary Trade Report</h3>
                   <div className="flex gap-2">
-                    <button onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Summary CSV</button>
-                    <button onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 active:scale-95 transition-all"><i className="fas fa-download mr-2"></i> Detailed CSV Report</button>
+                    <button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Summary CSV</button>
+                    <button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 active:scale-95 transition-all"><i className="fas fa-download mr-2"></i> Detailed CSV Report</button>
                   </div>
                </div>
                <div className="overflow-x-auto">
@@ -1118,11 +1121,12 @@ const App: React.FC = () => {
                           <td className="py-6 text-right">
                              <div className="flex items-center justify-end gap-3">
                                 {u.status === 'ACTIVE' ? (
-                                  <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
+                                  <button type="button" onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
                                 ) : (
-                                  <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
+                                  <button type="button" onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
                                 )}
                                 <button 
+                                  type="button"
                                   onClick={() => handleDeleteUser(u.phone)} 
                                   className="text-slate-300 hover:text-red-600 transition-colors p-2" 
                                   title="Delete user permanently"
