@@ -18,6 +18,8 @@ type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
+const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMDAwIiBkPSJNMTc2IDQxNmMtMjYuNSAwLTQ4IDIxLjUtNDggNDhzMjEuNSA0OCA0OCA0OCA0OCA0ZS0yMS41IDQ4LTQ4LTIxLjUtNDgtNDgtNDh6bTI1NiAwYy0yNi41IDAtNDggMjEuNS00OCA0OHMyMS41IDQ4IDQ4IDQ4IDQ4LTIxLjUgNDgtNDgtMjEuNS00OC00OC00OHpNNDQ2LjcgOTZIMTI1bC0xMC00OGgtODNjLTEzLjMgMC0yNCAxMC43LTI0IDI0czEwLjcgMjQgMjQgMjRoNDMuM2w0OC4yIDIyOWM0LjcgMjIgMjQgMzcuNyA0Ni41IDM3LjdINDE2YzIxLjggMCA0MC40LTE0LjggNDUuNS0zNmw0NS40LTE5Mi44YzMuMy0xNC4yLTcuNy0yNy45LTIyLjItMjcuOXonLz48cGF0aCBmaWxsPSIjMjJjNTVlIiBkPSJNNDgwIDMyYy02NCAwLTEyOCAzMi0xNjAgOTYgMzIgNjQgOTYgOTYgMTYwIDk2czY0LTMyIDY0LTk2LTMyLTk2LTY0LTk2eicgdHJhbnNmb3JtPSd0cmFuc2xhdGUoLTgwLCAtNDApIHNjYWxlKDAuNScpJy8+PGNpcmNsZSBmaWxsPSIjZGMyNjI2IiBjeD0iNDAwIiBjeT0iMTMwIiByPSIzMCIvPjwvc3ZnPg==";
+
 const persistence = {
   get: (key: string): string | null => {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -404,7 +406,6 @@ const App: React.FC = () => {
       alert("No detailed records to export.");
       return;
     }
-    // Added phone numbers to headers for full audit traceability
     const headers = ["ID", "Date", "Cluster", "Agent", "Agent Phone", "Supplier", "Supplier Phone", "Buyer", "Buyer Phone", "Commodity", "Units", "Unit Price", "Gross Total", "Coop Profit", "Status"];
     const rows = filteredRecords.map(r => [
       r.id, r.date, r.cluster, r.agentName, r.agentPhone, r.farmerName, r.farmerPhone, r.customerName, r.customerPhone, r.cropType, `${r.unitsSold} ${r.unitType}`, r.unitPrice, r.totalSale, r.coopProfit, r.status
@@ -576,12 +577,8 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
-           <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md relative">
-             <div className="relative">
-                <i className="fas fa-shopping-cart text-3xl text-black"></i>
-                <i className="fas fa-leaf text-2xl text-green-500 absolute -top-3 -right-3 transform rotate-12 drop-shadow-sm"></i>
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-600 rounded-full border-2 border-white"></div>
-             </div>
+           <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md">
+             <img src={LOGO_DATA_URI} alt="Food Coop Logo" className="w-12 h-12 object-contain" />
            </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Food Coop Market</h1>
            <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting Suppliers with Consumers</p>
@@ -626,12 +623,8 @@ const App: React.FC = () => {
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
           <div className="flex items-center space-x-5">
-            <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm relative">
-              <div className="relative">
-                <i className="fas fa-shopping-cart text-xl text-black"></i>
-                <i className="fas fa-leaf text-lg text-green-500 absolute -top-2 -right-2 transform rotate-12"></i>
-                <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-red-600 rounded-full border border-white"></div>
-              </div>
+            <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm">
+              <img src={LOGO_DATA_URI} alt="Food Coop Logo" className="w-10 h-10 object-contain" />
             </div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">Food Coop Market</h1>
@@ -865,7 +858,6 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            {/* The Director (MANAGER role) uses the full filteredRecords without slicing */}
             <AuditLogTable data={filteredRecords} title="Universal Trade Log (Classified by Cluster)" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
