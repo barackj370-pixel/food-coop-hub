@@ -155,13 +155,23 @@ const App: React.FC = () => {
       
       if (cloudUsers) {
         setUsers(prev => {
-          const cloudMap = new Map(cloudUsers.map(u => [normalizePhone(u.phone), u]));
-          const combined = [...cloudUsers];
+          // Use a Map by normalized phone to strictly prevent duplicates
+          const userMap = new Map<string, AgentIdentity>();
+          
+          // First, add all cloud users (authoritative)
+          cloudUsers.forEach(u => {
+            userMap.set(normalizePhone(u.phone), u);
+          });
+          
+          // Then, add local users that aren't in the cloud yet (new registrations)
           prev.forEach(u => {
-            if (!cloudMap.has(normalizePhone(u.phone))) {
-              combined.push(u);
+            const key = normalizePhone(u.phone);
+            if (!userMap.has(key)) {
+              userMap.set(key, u);
             }
           });
+          
+          const combined = Array.from(userMap.values());
           persistence.set('coop_users', JSON.stringify(combined));
           return combined;
         });
@@ -445,18 +455,32 @@ const App: React.FC = () => {
     if (!user) return;
     const newStatus: AccountStatus = (currentStatus === 'ACTIVE') ? 'SUSPENDED' : 'ACTIVE';
     const updatedUser = { ...user, status: newStatus };
-    setUsers(prev => prev.map(u => u.phone === phone ? updatedUser : u));
+    setUsers(prev => {
+      const updated = prev.map(u => u.phone === phone ? updatedUser : u);
+      persistence.set('coop_users', JSON.stringify(updated));
+      return updated;
+    });
     await syncUserToCloud(updatedUser);
   };
 
   const handleDeleteUser = async (phone: string) => {
     if (!window.confirm(`Action required: Permanent deletion of user with phone: ${phone}. This cannot be undone. Continue?`)) return;
+    
+    // Immediately remove from local state and persistence to prevent ghosts
     setUsers(prev => {
-        const updated = prev.filter(u => u.phone !== phone);
+        const updated = prev.filter(u => normalizePhone(u.phone) !== normalizePhone(phone));
         persistence.set('coop_users', JSON.stringify(updated));
         return updated;
     });
-    try { await deleteUserFromCloud(phone); } catch (e) { console.error("Cloud user deletion failed:", e); }
+
+    try { 
+      const success = await deleteUserFromCloud(phone); 
+      if (!success) {
+        console.error("Cloud user deletion reported failure from server response.");
+      }
+    } catch (e) { 
+      console.error("Cloud user deletion failed to connect:", e); 
+    }
   };
 
   const handleLogout = () => {
@@ -542,7 +566,11 @@ const App: React.FC = () => {
           cluster: (authForm.role === SystemRole.SYSTEM_DEVELOPER || authForm.role === SystemRole.FINANCE_OFFICER || authForm.role === SystemRole.AUDITOR || authForm.role === SystemRole.MANAGER) ? '-' : (authForm.cluster || 'System'), 
           status: 'ACTIVE' 
         };
-        const updatedUsersList = [...currentUsers, newUser];
+        
+        // Ensure no duplicate phone entry in currentUsers
+        const filteredUsers = currentUsers.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone));
+        const updatedUsersList = [...filteredUsers, newUser];
+        
         setUsers(updatedUsersList);
         persistence.set('coop_users', JSON.stringify(updatedUsersList));
         await syncUserToCloud(newUser);
