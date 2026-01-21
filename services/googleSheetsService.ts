@@ -1,4 +1,3 @@
-
 import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from "../types.ts";
 import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
@@ -29,9 +28,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   const rawData = Array.isArray(records) ? records : [records];
   const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
   
-  if (filteredData.length === 0) {
-    return true; 
-  }
+  if (filteredData.length === 0) return true; 
 
   const mappedRecords = filteredData.map(r => ({
     id: r.id,
@@ -64,7 +61,6 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
         _t: Date.now()
       }),
     });
-    
     const resultText = await response.text();
     return response.ok || resultText.toLowerCase().includes('success');
   } catch (error) {
@@ -138,7 +134,6 @@ export const deleteProduceFromCloud = async (id: string): Promise<boolean> => {
 
 export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
-
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
@@ -149,19 +144,13 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
         _t: Date.now()
       })
     });
-    
     const text = await response.text();
     const trimmed = text.trim();
-    
     if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
       const rawData = JSON.parse(trimmed);
       const dataArray = Array.isArray(rawData) ? rawData : [];
-      
       return dataArray
-        .filter(r => {
-          const cluster = String(r["Cluster"] || r["cluster"] || "");
-          return (r["ID"] || r["id"]) && cluster !== 'Unassigned' && cluster.trim() !== '';
-        })
+        .filter(r => (r["ID"] || r["id"]))
         .map(r => ({
           id: String(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
@@ -184,7 +173,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
           unitType: String(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
         })) as SaleRecord[];
     }
-    
     return [];
   } catch (error) {
     console.error("Fetch Error:", error);
@@ -350,7 +338,7 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
     });
     const text = await response.text();
     const trimmed = text.trim();
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
       const rawProduce = JSON.parse(trimmed) as any[];
       const dataArray = Array.isArray(rawProduce) ? rawProduce : [];
       return dataArray.map(p => ({
@@ -366,7 +354,7 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
         status: String(p["Status"] || p["status"] || "AVAILABLE") as any,
       }));
     }
-    return null;
+    return [];
   } catch (e) {
     return null;
   }
