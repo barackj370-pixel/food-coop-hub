@@ -211,15 +211,16 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
       })
     });
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawUsers = JSON.parse(text) as any[];
+    const trimmed = text.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      const rawUsers = JSON.parse(trimmed) as any[];
       return rawUsers.map(u => ({
-        name: String(u["Name"] || ""),
-        phone: String(u["Phone"] || ""),
-        role: String(u["Role"] || "") as any,
-        passcode: String(u["Passcode"] || ""),
-        cluster: String(u["Cluster"] || ""),
-        status: String(u["Status"] || "ACTIVE") as any
+        name: String(u["Name"] || u["name"] || ""),
+        phone: String(u["Phone"] || u["phone"] || ""),
+        role: String(u["Role"] || u["role"] || "") as any,
+        passcode: String(u["Passcode"] || u["passcode"] || ""),
+        cluster: String(u["Cluster"] || u["cluster"] || ""),
+        status: String(u["Status"] || u["status"] || "ACTIVE") as any
       }));
     }
     return null;
@@ -272,8 +273,9 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
       })
     });
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawOrders = JSON.parse(text) as any[];
+    const trimmed = text.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      const rawOrders = JSON.parse(trimmed) as any[];
       return rawOrders.map(o => ({
         id: String(o["ID"] || o["id"] || ""),
         date: formatDate(o["Date"] || o["date"]),
@@ -326,8 +328,9 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       })
     });
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawProduce = JSON.parse(text) as any[];
+    const trimmed = text.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      const rawProduce = JSON.parse(trimmed) as any[];
       return rawProduce.map(p => ({
         id: String(p["ID"] || p["id"] || ""),
         date: formatDate(p["Date"] || p["date"]),

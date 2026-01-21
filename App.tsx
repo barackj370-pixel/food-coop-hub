@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -158,7 +159,6 @@ const App: React.FC = () => {
         setUsers(prev => {
           const cloudMap = new Map(cloudUsers.map(u => [normalizePhone(u.phone), u]));
           const combined = [...cloudUsers];
-          // Keep local users that haven't hit the cloud yet to prevent disappearing
           prev.forEach(u => {
             if (!cloudMap.has(normalizePhone(u.phone))) {
               combined.push(u);
@@ -519,7 +519,17 @@ const App: React.FC = () => {
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     try {
       const latestCloudUsers = await fetchUsersFromCloud();
-      let currentUsers: AgentIdentity[] = latestCloudUsers || users;
+      
+      let currentUsers = latestCloudUsers ? [...latestCloudUsers] : [...users];
+      if (latestCloudUsers) {
+        const cloudPhones = new Set(latestCloudUsers.map(u => normalizePhone(u.phone)));
+        users.forEach(u => {
+          if (!cloudPhones.has(normalizePhone(u.phone))) {
+            currentUsers.push(u);
+          }
+        });
+      }
+
       if (isRegisterMode) {
         if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) {
             alert("Please select a cluster.");
@@ -531,7 +541,7 @@ const App: React.FC = () => {
           phone: authForm.phone.trim(), 
           passcode: targetPasscode, 
           role: authForm.role, 
-          cluster: authForm.cluster || 'System', 
+          cluster: (authForm.role === SystemRole.SYSTEM_DEVELOPER || authForm.role === SystemRole.FINANCE_OFFICER || authForm.role === SystemRole.AUDITOR || authForm.role === SystemRole.MANAGER) ? '-' : (authForm.cluster || 'System'), 
           status: 'ACTIVE' 
         };
         const updatedUsersList = [...currentUsers, newUser];
@@ -681,13 +691,13 @@ const App: React.FC = () => {
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none transition-all" />}
               <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none transition-all" />
-              <input type="password" maxLength={4} placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value.replace(/\D/g, '')})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none transition-all" />
+              <input type="password" placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none transition-all" />
               {isRegisterMode && (
                 <>
                   <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
                     {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
-                  {authForm.role !== SystemRole.SYSTEM_DEVELOPER && (
+                  {authForm.role !== SystemRole.SYSTEM_DEVELOPER && authForm.role !== SystemRole.FINANCE_OFFICER && authForm.role !== SystemRole.AUDITOR && authForm.role !== SystemRole.MANAGER && (
                     <select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
                       <option value="" disabled>Select Cluster</option>
                       {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
