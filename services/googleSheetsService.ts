@@ -1,4 +1,5 @@
-import { SaleRecord, AgentIdentity, MarketOrder } from "../types.ts";
+
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from "../types.ts";
 import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
 const safeNum = (val: any): number => {
@@ -170,49 +171,6 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   }
 };
 
-export const clearAllRecordsOnCloud = async (): Promise<boolean> => {
-  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
-  try {
-    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'clear_records',
-        confirm: true,
-        purge: true,
-        auth: 'system_admin_reset',
-        _t: Date.now()
-      }),
-    });
-    const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
-  } catch (error) {
-    return false;
-  }
-};
-
-export const clearAllUsersOnCloud = async (): Promise<boolean> => {
-  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
-  try {
-    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'clear_users',
-        confirm: true,
-        auth: 'system_admin_identity_reset',
-        _t: Date.now()
-      }),
-    });
-    const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
-  } catch (error) {
-    return false;
-  }
-};
-
 export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
@@ -327,6 +285,60 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
         status: String(o["Status"] || o["status"] || "OPEN") as any,
         agentPhone: String(o["Agent Phone"] || o["agentPhone"] || ""),
         cluster: String(o["Cluster"] || o["cluster"] || "")
+      }));
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const syncProduceToCloud = async (produce: ProduceListing): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'sync_produce',
+        produce: produce,
+        _t: Date.now()
+      }),
+    });
+    const resultText = await response.text();
+    return response.ok || resultText.toLowerCase().includes('success');
+  } catch (e) {
+    return false;
+  }
+};
+
+export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'get_produce',
+        _t: Date.now()
+      })
+    });
+    const text = await response.text();
+    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+      const rawProduce = JSON.parse(text) as any[];
+      return rawProduce.map(p => ({
+        id: String(p["ID"] || p["id"] || ""),
+        date: formatDate(p["Date"] || p["date"]),
+        cropType: String(p["Crop Type"] || p["cropType"] || ""),
+        unitsAvailable: safeNum(p["Units Available"] || p["unitsAvailable"]),
+        unitType: String(p["Unit Type"] || p["unitType"] || ""),
+        sellingPrice: safeNum(p["Selling Price"] || p["sellingPrice"]),
+        supplierName: String(p["Supplier Name"] || p["supplierName"] || ""),
+        supplierPhone: String(p["Supplier Phone"] || p["supplierPhone"] || ""),
+        cluster: String(p["Cluster"] || p["cluster"] || ""),
+        status: String(p["Status"] || p["status"] || "AVAILABLE") as any,
       }));
     }
     return null;

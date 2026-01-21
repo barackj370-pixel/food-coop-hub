@@ -17,7 +17,8 @@ export enum SystemRole {
   FINANCE_OFFICER = 'Finance Officer',
   AUDITOR = 'Audit Officer',
   MANAGER = 'Director',
-  SYSTEM_DEVELOPER = 'System Developer'
+  SYSTEM_DEVELOPER = 'System Developer',
+  SUPPLIER = 'Supplier'
 }
 
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
@@ -44,6 +45,19 @@ export interface MarketOrder {
   status: OrderStatus;
   agentPhone: string;
   cluster: string;
+}
+
+export interface ProduceListing {
+  id: string;
+  date: string;
+  cropType: string;
+  unitsAvailable: number;
+  unitType: string;
+  sellingPrice: number;
+  supplierName: string;
+  supplierPhone: string;
+  cluster: string;
+  status: 'AVAILABLE' | 'SOLD_OUT';
 }
 
 export interface SaleRecord {

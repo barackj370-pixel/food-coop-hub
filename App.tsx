@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder } from './types.ts';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
@@ -11,10 +12,13 @@ import {
   deleteRecordFromCloud,
   deleteUserFromCloud,
   syncOrderToCloud,
-  fetchOrdersFromCloud
+  fetchOrdersFromCloud,
+  syncProduceToCloud,
+  fetchProduceFromCloud
 } from './services/googleSheetsService.ts';
 
-type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
+type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
@@ -66,13 +70,25 @@ const App: React.FC = () => {
     return [];
   });
 
+  const [produceListings, setProduceListings] = useState<ProduceListing[]>(() => {
+    const saved = persistence.get('food_coop_produce');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) { return []; }
+    }
+    return [];
+  });
+
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
     return saved ? JSON.parse(saved) : null;
   });
   
-  const [currentPortal, setCurrentPortal] = useState<PortalType>('SALES');
+  const [currentPortal, setCurrentPortal] = useState<PortalType>('MARKET');
+  const [marketView, setMarketView] = useState<MarketView>('SALES');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -95,6 +111,13 @@ const App: React.FC = () => {
     customerPhone: ''
   });
 
+  const [produceForm, setProduceForm] = useState({
+    cropType: 'Maize',
+    unitsAvailable: 0,
+    unitType: 'Bag',
+    sellingPrice: 0
+  });
+
   const normalizePhone = (p: string) => {
     const clean = p.replace(/\D/g, '');
     return clean.length >= 9 ? clean.slice(-9) : clean;
@@ -112,8 +135,9 @@ const App: React.FC = () => {
 
   const availablePortals = useMemo<PortalType[]>(() => {
     if (!agentIdentity) return [];
-    if (isSystemDev) return ['SALES', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
-    const portals: PortalType[] = ['SALES'];
+    if (isSystemDev) return ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+    if (agentIdentity.role === SystemRole.SUPPLIER) return ['MARKET'];
+    const portals: PortalType[] = ['MARKET'];
     if (agentIdentity.role === SystemRole.FINANCE_OFFICER) portals.push('FINANCE');
     else if (agentIdentity.role === SystemRole.AUDITOR) portals.push('AUDIT');
     else if (agentIdentity.role === SystemRole.MANAGER) portals.push('FINANCE', 'AUDIT', 'BOARD');
@@ -124,10 +148,11 @@ const App: React.FC = () => {
     if (!agentIdentity) return;
     setIsSyncing(true);
     try {
-      const [cloudUsers, cloudRecords, cloudOrders] = await Promise.all([
+      const [cloudUsers, cloudRecords, cloudOrders, cloudProduce] = await Promise.all([
         fetchUsersFromCloud(),
         fetchFromGoogleSheets(),
-        fetchOrdersFromCloud()
+        fetchOrdersFromCloud(),
+        fetchProduceFromCloud()
       ]);
       
       if (cloudUsers) {
@@ -151,6 +176,16 @@ const App: React.FC = () => {
           const localOnly = prev.filter(o => !cloudIds.has(o.id));
           const combined = [...localOnly, ...cloudOrders];
           persistence.set('food_coop_orders', JSON.stringify(combined));
+          return combined;
+        });
+      }
+
+      if (cloudProduce) {
+        setProduceListings(prev => {
+          const cloudIds = new Set(cloudProduce.map(p => p.id));
+          const localOnly = prev.filter(p => !cloudIds.has(p.id));
+          const combined = [...localOnly, ...cloudProduce];
+          persistence.set('food_coop_produce', JSON.stringify(combined));
           return combined;
         });
       }
@@ -264,7 +299,40 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAddProduce = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (produceForm.unitsAvailable <= 0 || produceForm.sellingPrice <= 0) {
+      alert("Please enter valid quantity and price.");
+      return;
+    }
+
+    const newListing: ProduceListing = {
+      id: 'LST-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
+      date: new Date().toISOString().split('T')[0],
+      cropType: produceForm.cropType,
+      unitsAvailable: produceForm.unitsAvailable,
+      unitType: produceForm.unitType,
+      sellingPrice: produceForm.sellingPrice,
+      supplierName: agentIdentity?.name || '',
+      supplierPhone: agentIdentity?.phone || '',
+      cluster: agentIdentity?.cluster || 'Unassigned',
+      status: 'AVAILABLE'
+    };
+
+    const updated = [newListing, ...produceListings];
+    setProduceListings(updated);
+    persistence.set('food_coop_produce', JSON.stringify(updated));
+    setProduceForm({ ...produceForm, unitsAvailable: 0, sellingPrice: 0 });
+
+    try {
+      await syncProduceToCloud(newListing);
+    } catch (err) {
+      console.error("Produce sync failed:", err);
+    }
+  };
+
   const handleFulfillOrderClick = (order: MarketOrder) => {
+    setMarketView('SALES');
     setFulfillmentData({
       cropType: order.cropType,
       unitsSold: order.unitsRequested,
@@ -274,6 +342,18 @@ const App: React.FC = () => {
       orderId: order.id
     });
     window.scrollTo({ top: 400, behavior: 'smooth' });
+  };
+
+  const handleUseProduceListing = (listing: ProduceListing) => {
+    setMarketView('SALES');
+    setFulfillmentData({
+      cropType: listing.cropType,
+      unitType: listing.unitType,
+      farmerName: listing.supplierName,
+      farmerPhone: listing.supplierPhone,
+      unitPrice: listing.sellingPrice
+    });
+    window.scrollTo({ top: 600, behavior: 'smooth' });
   };
 
   const handleAddRecord = async (data: any) => {
@@ -303,7 +383,6 @@ const App: React.FC = () => {
         return updated;
     });
 
-    // Mark order as fulfilled if linked
     if (data.orderId) {
       let fulfilledOrder: MarketOrder | undefined;
       setMarketOrders(prev => {
@@ -370,10 +449,12 @@ const App: React.FC = () => {
     setRecords([]); 
     setUsers([]);
     setMarketOrders([]);
+    setProduceListings([]);
     persistence.remove('agent_session');
     persistence.remove('food_coop_data');
     persistence.remove('coop_users');
     persistence.remove('food_coop_orders');
+    persistence.remove('food_coop_produce');
   };
 
   const handleExportSummaryCsv = () => {
@@ -431,7 +512,7 @@ const App: React.FC = () => {
       const latestCloudUsers = await fetchUsersFromCloud();
       let currentUsers: AgentIdentity[] = latestCloudUsers || users;
       if (isRegisterMode) {
-        if (authForm.role === SystemRole.FIELD_AGENT && !authForm.cluster) {
+        if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) {
             alert("Please select a cluster.");
             setIsAuthLoading(false);
             return;
@@ -441,7 +522,7 @@ const App: React.FC = () => {
           phone: authForm.phone.trim(), 
           passcode: targetPasscode, 
           role: authForm.role, 
-          cluster: authForm.role === SystemRole.FIELD_AGENT ? authForm.cluster : 'System', 
+          cluster: authForm.cluster || 'System', 
           status: 'ACTIVE' 
         };
         const updatedUsersList = [...currentUsers, newUser];
@@ -597,7 +678,7 @@ const App: React.FC = () => {
                   <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
                     {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
-                  {authForm.role === SystemRole.FIELD_AGENT && (
+                  {authForm.role !== SystemRole.SYSTEM_DEVELOPER && (
                     <select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
                       <option value="" disabled>Select Cluster</option>
                       {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
@@ -660,90 +741,189 @@ const App: React.FC = () => {
       </header>
 
       <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12">
-        {currentPortal === 'SALES' && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" />
-              <StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" />
-              <StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" />
-              <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
+        {currentPortal === 'MARKET' && (
+          <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                <button onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                    <i className="fas fa-shopping-cart mr-2"></i> Sales Management
+                </button>
+                <button onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                    <i className="fas fa-seedling mr-2"></i> Supplier Inventory
+                </button>
             </div>
 
-            <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-shopping-basket text-8xl"></i></div>
-               <div className="relative z-10">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-red-500 mb-6">Market Demand Intake (Unfulfilled Orders)</h3>
-                  <form onSubmit={handleAddOrder} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Commodity</label>
-                      <select 
-                        value={demandForm.cropType}
-                        onChange={e => setDemandForm({...demandForm, cropType: e.target.value})}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none"
-                      >
-                         {Object.values(COMMODITY_CATEGORIES).flat().map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity Required</label>
-                      <div className="flex gap-2">
-                        <input type="number" value={demandForm.unitsRequested || ''} onChange={e => setDemandForm({...demandForm, unitsRequested: parseFloat(e.target.value) || 0})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
-                        <select value={demandForm.unitType} onChange={e => setDemandForm({...demandForm, unitType: e.target.value})} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-[10px] font-black text-white outline-none">
-                           {CROP_CONFIG[demandForm.cropType as keyof typeof CROP_CONFIG]?.map(u => <option key={u} value={u}>{u}</option>) || <option value="Kg">Kg</option>}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Name</label>
-                      <input type="text" placeholder="..." value={demandForm.customerName} onChange={e => setDemandForm({...demandForm, customerName: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Contact</label>
-                      <input type="tel" placeholder="07..." value={demandForm.customerPhone} onChange={e => setDemandForm({...demandForm, customerPhone: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
-                    </div>
-                    <div className="flex items-end">
-                      <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95">Log Demand</button>
-                    </div>
-                  </form>
-               </div>
+            {marketView === 'SALES' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" />
+                  <StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" />
+                  <StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" />
+                  <StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
+                </div>
 
-               <div className="mt-10 overflow-x-auto">
-                 <table className="w-full text-left">
-                    <thead className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-800">
-                      <tr><th className="pb-4">Order ID</th><th className="pb-4">Consumer</th><th className="pb-4">Demand Details</th><th className="pb-4">Action</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                       {filteredOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
-                         <tr key={o.id} className="hover:bg-slate-800/50">
-                           <td className="py-4 font-mono text-[10px] text-slate-500">{o.id}</td>
-                           <td className="py-4">
-                              <p className="text-[11px] font-black uppercase">{o.customerName}</p>
-                              <p className="text-[9px] text-slate-400 font-mono">{o.customerPhone}</p>
-                           </td>
-                           <td className="py-4">
-                              <p className="text-[11px] font-black uppercase text-green-400">{o.cropType}</p>
-                              <p className="text-[9px] text-slate-400 font-bold">{o.unitsRequested} {o.unitType}</p>
-                           </td>
-                           <td className="py-4">
-                              <button onClick={() => handleFulfillOrderClick(o)} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md">Fulfill Sale</button>
-                           </td>
-                         </tr>
-                       ))}
-                       {filteredOrders.filter(o => o.status === OrderStatus.OPEN).length === 0 && (
-                         <tr><td colSpan={4} className="py-4 text-[9px] font-bold text-slate-600 uppercase text-center">No unfulfilled demand logged</td></tr>
-                       )}
-                    </tbody>
-                 </table>
-               </div>
-            </div>
+                <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+                   <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-shopping-basket text-8xl"></i></div>
+                   <div className="relative z-10">
+                      <h3 className="text-sm font-black uppercase tracking-widest text-red-500 mb-6">Market Demand Intake (Unfulfilled Orders)</h3>
+                      {agentIdentity.role !== SystemRole.SUPPLIER && (
+                        <form onSubmit={handleAddOrder} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Commodity</label>
+                            <select 
+                              value={demandForm.cropType}
+                              onChange={e => setDemandForm({...demandForm, cropType: e.target.value})}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none"
+                            >
+                               {Object.values(COMMODITY_CATEGORIES).flat().map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity Required</label>
+                            <div className="flex gap-2">
+                              <input type="number" value={demandForm.unitsRequested || ''} onChange={e => setDemandForm({...demandForm, unitsRequested: parseFloat(e.target.value) || 0})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                              <select value={demandForm.unitType} onChange={e => setDemandForm({...demandForm, unitType: e.target.value})} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-[10px] font-black text-white outline-none">
+                                 {CROP_CONFIG[demandForm.cropType as keyof typeof CROP_CONFIG]?.map(u => <option key={u} value={u}>{u}</option>) || <option value="Kg">Kg</option>}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Name</label>
+                            <input type="text" placeholder="..." value={demandForm.customerName} onChange={e => setDemandForm({...demandForm, customerName: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Contact</label>
+                            <input type="tel" placeholder="07..." value={demandForm.customerPhone} onChange={e => setDemandForm({...demandForm, customerPhone: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
+                          </div>
+                          <div className="flex items-end">
+                            <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95">Log Demand</button>
+                          </div>
+                        </form>
+                      )}
+                   </div>
 
-            <SaleForm onSubmit={handleAddRecord} initialData={fulfillmentData} />
-            <AuditLogTable 
-              data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} 
-              title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log (Privileged Access)" : "Recent Integrity Logs (Classified)"} 
-              onDelete={isSystemDev ? handleDeleteRecord : undefined} 
-            />
-          </>
+                   <div className="mt-10 overflow-x-auto">
+                     <table className="w-full text-left">
+                        <thead className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-800">
+                          <tr><th className="pb-4">Order ID</th><th className="pb-4">Consumer</th><th className="pb-4">Demand Details</th><th className="pb-4">Action</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                           {filteredOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
+                             <tr key={o.id} className="hover:bg-slate-800/50">
+                               <td className="py-4 font-mono text-[10px] text-slate-500">{o.id}</td>
+                               <td className="py-4">
+                                  <p className="text-[11px] font-black uppercase">{o.customerName}</p>
+                                  <p className="text-[9px] text-slate-400 font-mono">{o.customerPhone}</p>
+                               </td>
+                               <td className="py-4">
+                                  <p className="text-[11px] font-black uppercase text-green-400">{o.cropType}</p>
+                                  <p className="text-[9px] text-slate-400 font-bold">{o.unitsRequested} {o.unitType}</p>
+                               </td>
+                               <td className="py-4">
+                                  {agentIdentity.role !== SystemRole.SUPPLIER && (
+                                    <button onClick={() => handleFulfillOrderClick(o)} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md">Fulfill Sale</button>
+                                  )}
+                               </td>
+                             </tr>
+                           ))}
+                           {filteredOrders.filter(o => o.status === OrderStatus.OPEN).length === 0 && (
+                             <tr><td colSpan={4} className="py-4 text-[9px] font-bold text-slate-600 uppercase text-center">No unfulfilled demand logged</td></tr>
+                           )}
+                        </tbody>
+                     </table>
+                   </div>
+                </div>
+
+                {agentIdentity.role !== SystemRole.SUPPLIER && (
+                  <SaleForm onSubmit={handleAddRecord} initialData={fulfillmentData} />
+                )}
+                
+                <AuditLogTable 
+                  data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} 
+                  title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log (Privileged Access)" : "Recent Integrity Logs (Classified)"} 
+                  onDelete={isSystemDev ? handleDeleteRecord : undefined} 
+                />
+              </>
+            )}
+
+            {marketView === 'SUPPLIER' && (
+              <div className="space-y-12">
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
+                   <div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div>
+                   <h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Supplier Produce Repository</h3>
+                   
+                   {agentIdentity.role === SystemRole.SUPPLIER && (
+                    <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 mb-10">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-6">List Your Harvest</h4>
+                      <form onSubmit={handleAddProduce} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Commodity</label>
+                          <select 
+                            value={produceForm.cropType}
+                            onChange={e => setProduceForm({...produceForm, cropType: e.target.value})}
+                            className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-black outline-none"
+                          >
+                             {Object.values(COMMODITY_CATEGORIES).flat().map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity Available</label>
+                          <div className="flex gap-2">
+                            <input type="number" placeholder="0" value={produceForm.unitsAvailable || ''} onChange={e => setProduceForm({...produceForm, unitsAvailable: parseFloat(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-black outline-none" />
+                            <select value={produceForm.unitType} onChange={e => setProduceForm({...produceForm, unitType: e.target.value})} className="bg-white border border-slate-200 rounded-xl p-3 text-[10px] font-black text-black outline-none">
+                               {CROP_CONFIG[produceForm.cropType as keyof typeof CROP_CONFIG]?.map(u => <option key={u} value={u}>{u}</option>) || <option value="Kg">Kg</option>}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Selling Price (Per Unit)</label>
+                          <input type="number" placeholder="KSh" value={produceForm.sellingPrice || ''} onChange={e => setProduceForm({...produceForm, sellingPrice: parseFloat(e.target.value) || 0})} className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-bold text-black outline-none" />
+                        </div>
+                        <div className="flex items-end">
+                          <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95">Post Listing</button>
+                        </div>
+                      </form>
+                    </div>
+                   )}
+
+                   <div className="overflow-x-auto">
+                     <table className="w-full text-left">
+                        <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                          <tr><th className="pb-4">Supplier</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Price</th><th className="pb-4 text-right">Action</th></tr>
+                        </thead>
+                        <tbody className="divide-y">
+                           {produceListings.map(p => (
+                             <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                               <td className="py-6">
+                                  <p className="text-[11px] font-black uppercase">{p.supplierName}</p>
+                                  <p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone}</p>
+                               </td>
+                               <td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster}</span></td>
+                               <td className="py-6">
+                                  <p className="text-[11px] font-black uppercase text-green-600">{p.cropType}</p>
+                                  <p className="text-[9px] text-slate-400 font-bold">{p.unitsAvailable} {p.unitType}</p>
+                               </td>
+                               <td className="py-6">
+                                  <p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p>
+                               </td>
+                               <td className="py-6 text-right">
+                                  {agentIdentity.role !== SystemRole.SUPPLIER ? (
+                                    <button onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md">Pick Produce</button>
+                                  ) : (
+                                    <span className="text-[8px] font-black uppercase text-slate-300">Your Listing</span>
+                                  )}
+                               </td>
+                             </tr>
+                           ))}
+                           {produceListings.length === 0 && (
+                             <tr><td colSpan={5} className="py-10 text-center text-slate-400 font-black uppercase text-[10px]">No produce listed yet</td></tr>
+                           )}
+                        </tbody>
+                     </table>
+                   </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {currentPortal === 'FINANCE' && (
