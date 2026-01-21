@@ -18,7 +18,7 @@ type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
-const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMDAwIiBkPSJNMTc2IDQxNmMtMjYuNSAwLTQ4IDIxLjUtNDggNDhzMjEuNSA0OCA0OCA0OCA0OCA0ZS0yMS41IDQ4LTQ4LTIxLjUtNDgtNDgtNDh6bTI1NiAwYy0yNi41IDAtNDggMjEuNS00OCA0OHMyMS41IDQ4IDQ4IDQ4IDQ4LTIxLjUgNDgtNDgtMjEuNS00OC00OC00OHpNNDQ2LjcgOTZIMTI1bC0xMC00OGgtODNjLTEzLjMgMC0yNCAxMC43LTI0IDI0czEwLjcgMjQgMjQgMjRoNDMuM2w0OC4yIDIyOWM0LjcgMjIgMjQgMzcuNyA0Ni41IDM3LjdINDE2YzIxLjggMCA0MC40LTE0LjggNDUuNS0zNmw0NS40LTE5Mi44YzMuMy0xNC4yLTcuNy0yNy45LTIyLjItMjcuOXonLz48cGF0aCBmaWxsPSIjMjJjNTVlIiBkPSJNNDgwIDMyYy02NCAwLTEyOCAzMi0xNjAgOTYgMzIgNjQgOTYgOTYgMTYwIDk2czY0LTMyIDY0LTk2LTMyLTk2LTY0LTk2eicgdHJhbnNmb3JtPSd0cmFuc2xhdGUoLTgwLCAtNDApIHNjYWxlKDAuNScpJy8+PGNpcmNsZSBmaWxsPSIjZGMyNjI2IiBjeD0iNDAwIiBjeT0iMTMwIiByPSIzMCIvPjwvc3ZnPg==";
+const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMDAwMDAwIiBkPSJNMTc2IDQxNmMtMjYuNSAwLTQ4IDIxLjUtNDggNDhzMjEuNSA0OCA0OCA0OCA0OCA0ZS0yMS41IDQ4LTQ4LTIxLjUtNDgtNDgtNDh6bTI1NiAwYy0yNi41IDAtNDggMjEuNS00OCA0OHMyMS41IDQ4IDQ4IDQ4IDQ4LTIxLjUgNDgtNDgtMjEuNS00OC00OC00OHpNNDQ2LjcgOTZIMTI1bC0xMC00OGgtODNjLTEzLjMgMC0yNCAxMC43LTI0IDI0czEwLjcgMjQgMjQgMjRoNDMuM2w0OC4yIDIyOWM0LjcgMjIgMjQgMzcuNyA0Ni41IDM3LjdINDE2YzIxLjggMCA0MC40LTE0LjggNDUuNS0zNmw0NS40LTE5Mi44YzMuMy0xNC4yLTcuNy0yNy45LTIyLjItMjcuOXonLz48cGF0aCBmaWxsPSIjMjJjNTVlIiBkPSJNNDgwIDMyYy02NCAwLTEyOCAzMi0xNjAgOTYgMzIgNjQgOTYgOTYgMTYwIDk2czY0LTMyIDY0LTk2LTMyLTk2LTY0LTk2eicgdHJhbnNmb3JtPSd0cmFuc2xhdGUoLTgwLCAtNDApIHNjYWxlKDAuNScpJy8+PGNpcmNsZSBmaWxsPSIjZGMyNjI2IiBjeD0iNDAwIiBjeT0iMTMwIiByPSIzMCIvPjwvc3ZnPg==";
 
 const persistence = {
   get: (key: string): string | null => {
@@ -578,10 +578,10 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md">
-             <img src={LOGO_DATA_URI} alt="Food Coop Logo" className="w-12 h-12 object-contain" />
+             <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-12 h-12 object-contain" />
            </div>
-           <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Food Coop Market</h1>
-           <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting Suppliers with Consumers</p>
+           <h1 className="text-3xl font-black text-black uppercase tracking-tighter">KPL Food Coop Market</h1>
+           <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-black">Consumers</span></p>
         </div>
         <div className="w-full max-w-[360px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 z-10">
             <div className="flex justify-between items-end mb-2">
@@ -624,12 +624,12 @@ const App: React.FC = () => {
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
           <div className="flex items-center space-x-5">
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm">
-              <img src={LOGO_DATA_URI} alt="Food Coop Logo" className="w-10 h-10 object-contain" />
+              <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-10 h-10 object-contain" />
             </div>
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">Food Coop Market</h1>
+              <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
               <div className="flex items-center space-x-2 mt-1.5">
-                <span className="text-red-600 text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting Suppliers with Consumers</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-black">Consumers</span></span>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
