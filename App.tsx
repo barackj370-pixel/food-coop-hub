@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import ProduceForm from './components/ProduceForm.tsx';
@@ -97,6 +98,7 @@ const App: React.FC = () => {
   });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const syncLock = useRef(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
@@ -145,6 +147,8 @@ const App: React.FC = () => {
   }, [agentIdentity, isSystemDev]);
 
   const loadCloudData = useCallback(async () => {
+    if (syncLock.current) return;
+    syncLock.current = true;
     setIsSyncing(true);
     try {
       const [cloudUsers, cloudRecords, cloudOrders, cloudProduce] = await Promise.all([
@@ -168,31 +172,45 @@ const App: React.FC = () => {
         });
       }
 
-      if (cloudRecords) {
+      if (cloudRecords !== null) {
         setRecords(prev => {
           const cloudIds = new Set(cloudRecords.map(r => r.id));
-          const localOnly = prev.filter(r => !cloudIds.has(r.id));
+          const localOnly = prev.filter(r => r.id && !cloudIds.has(r.id));
           const combined = [...localOnly, ...cloudRecords];
           persistence.set('food_coop_data', JSON.stringify(combined));
           return combined;
         });
       }
 
-      if (cloudOrders) {
+      if (cloudOrders !== null) {
         setMarketOrders(prev => {
           const cloudIds = new Set(cloudOrders.map(o => o.id));
-          const localOnly = prev.filter(o => !cloudIds.has(o.id));
+          const localOnly = prev.filter(o => o.id && !cloudIds.has(o.id));
           const combined = [...localOnly, ...cloudOrders];
           persistence.set('food_coop_orders', JSON.stringify(combined));
           return combined;
         });
       }
 
-      if (cloudProduce) {
+      if (cloudProduce !== null) {
         setProduceListings(prev => {
           const cloudIds = new Set(cloudProduce.map(p => p.id));
+          // Smart merge: preserve local full objects if cloud mapping is partial or missing
           const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id));
-          const combined = [...localOnly, ...cloudProduce];
+          const cloudVerified = cloudProduce.map(cp => {
+            const localMatch = prev.find(p => p.id === cp.id);
+            if (localMatch) {
+              // Ensure we don't lose cluster or supplier identity during merge if cloud response is brittle
+              return {
+                ...cp,
+                cluster: cp.cluster || localMatch.cluster,
+                supplierName: cp.supplierName || localMatch.supplierName,
+                supplierPhone: cp.supplierPhone || localMatch.supplierPhone
+              };
+            }
+            return cp;
+          });
+          const combined = [...localOnly, ...cloudVerified];
           persistence.set('food_coop_produce', JSON.stringify(combined));
           return combined;
         });
@@ -200,9 +218,10 @@ const App: React.FC = () => {
 
       setLastSyncTime(new Date());
     } catch (e) {
-      console.error("Sync failed:", e);
+      console.error("Global Sync failed:", e);
     } finally {
       setIsSyncing(false);
+      syncLock.current = false;
     }
   }, []);
 
@@ -292,9 +311,11 @@ const App: React.FC = () => {
       cluster: agentIdentity?.cluster || 'Unassigned'
     };
 
-    const updated = [newOrder, ...marketOrders];
-    setMarketOrders(updated);
-    persistence.set('food_coop_orders', JSON.stringify(updated));
+    setMarketOrders(prev => {
+        const updated = [newOrder, ...prev];
+        persistence.set('food_coop_orders', JSON.stringify(updated));
+        return updated;
+    });
     setDemandForm({ ...demandForm, customerName: '', customerPhone: '', unitsRequested: 0 });
 
     try {
@@ -313,6 +334,7 @@ const App: React.FC = () => {
     supplierName: string;
     supplierPhone: string;
   }) => {
+    const clusterValue = agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa';
     const newListing: ProduceListing = {
       id: 'LST-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       date: data.date,
@@ -322,7 +344,7 @@ const App: React.FC = () => {
       sellingPrice: data.sellingPrice,
       supplierName: data.supplierName,
       supplierPhone: data.supplierPhone,
-      cluster: agentIdentity?.cluster || 'Unassigned',
+      cluster: clusterValue,
       status: 'AVAILABLE'
     };
 
@@ -363,6 +385,20 @@ const App: React.FC = () => {
       produceId: listing.id
     });
     window.scrollTo({ top: 600, behavior: 'smooth' });
+  };
+
+  const handleDeleteProduce = async (id: string) => {
+    if (!window.confirm("Action required: Permanent deletion of harvest listing ID: " + id + ". Continue?")) return;
+    setProduceListings(prev => {
+        const updated = prev.filter(p => p.id !== id);
+        persistence.set('food_coop_produce', JSON.stringify(updated));
+        return updated;
+    });
+    try {
+      await deleteProduceFromCloud(id);
+    } catch (err) {
+      console.error("Produce deletion sync failed:", err);
+    }
   };
 
   const handleAddRecord = async (data: any) => {
@@ -923,10 +959,10 @@ const App: React.FC = () => {
                            {produceListings.map(p => (
                              <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                                <td className="py-6">
-                                  <p className="text-[11px] font-black uppercase">{p.supplierName}</p>
-                                  <p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone}</p>
+                                  <p className="text-[11px] font-black uppercase">{p.supplierName || 'Anonymous'}</p>
+                                  <p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p>
                                </td>
-                               <td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster}</span></td>
+                               <td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td>
                                <td className="py-6">
                                   <p className="text-[11px] font-black uppercase text-green-600">{p.cropType}</p>
                                   <p className="text-[9px] text-slate-400 font-bold">{p.unitsAvailable} {p.unitType}</p>
@@ -936,13 +972,25 @@ const App: React.FC = () => {
                                   <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Est. Val: KSh {(p.sellingPrice * p.unitsAvailable).toLocaleString()}</p>
                                </td>
                                <td className="py-6 text-right">
-                                  {agentIdentity.role !== SystemRole.SUPPLIER ? (
-                                    <button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95 flex items-center justify-end gap-2 ml-auto">
-                                      <i className="fas fa-plus"></i> Initiate Sale
-                                    </button>
-                                  ) : (
-                                    <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
-                                  )}
+                                  <div className="flex items-center justify-end gap-3">
+                                    {(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (
+                                      <button 
+                                        type="button" 
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteProduce(p.id); }} 
+                                        className="text-slate-300 hover:text-red-600 transition-colors p-2"
+                                        title="Delete listing permanently"
+                                      >
+                                        <i className="fas fa-trash-alt text-[12px]"></i>
+                                      </button>
+                                    )}
+                                    {agentIdentity.role !== SystemRole.SUPPLIER ? (
+                                      <button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95 flex items-center justify-end gap-2">
+                                        <i className="fas fa-plus"></i> Initiate Sale
+                                      </button>
+                                    ) : (
+                                      <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
+                                    )}
+                                  </div>
                                </td>
                              </tr>
                            ))}

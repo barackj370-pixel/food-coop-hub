@@ -1,3 +1,4 @@
+
 import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from "../types.ts";
 import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
@@ -148,10 +149,10 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     const trimmed = text.trim();
     if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
       const rawData = JSON.parse(trimmed);
-      const dataArray = Array.isArray(rawData) ? rawData : [];
+      const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || []);
       return dataArray
-        .filter(r => (r["ID"] || r["id"]))
-        .map(r => ({
+        .filter((r: any) => r && (r["ID"] || r["id"]))
+        .map((r: any) => ({
           id: String(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
           cropType: String(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
@@ -173,7 +174,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
           unitType: String(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
         })) as SaleRecord[];
     }
-    return [];
+    return null;
   } catch (error) {
     console.error("Fetch Error:", error);
     return null;
@@ -222,8 +223,9 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
     const text = await response.text();
     const trimmed = text.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      const rawUsers = JSON.parse(trimmed) as any[];
-      return rawUsers.map(u => ({
+      const rawUsersRaw = JSON.parse(trimmed);
+      const rawUsers = Array.isArray(rawUsersRaw) ? rawUsersRaw : (rawUsersRaw.data || rawUsersRaw.records || []);
+      return rawUsers.map((u: any) => ({
         name: String(u["Name"] || u["name"] || ""),
         phone: String(u["Phone"] || u["phone"] || ""),
         role: String(u["Role"] || u["role"] || "") as any,
@@ -284,8 +286,9 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
     const text = await response.text();
     const trimmed = text.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      const rawOrders = JSON.parse(trimmed) as any[];
-      return rawOrders.map(o => ({
+      const rawOrdersRaw = JSON.parse(trimmed);
+      const rawOrders = Array.isArray(rawOrdersRaw) ? rawOrdersRaw : (rawOrdersRaw.data || rawOrdersRaw.records || []);
+      return rawOrders.map((o: any) => ({
         id: String(o["ID"] || o["id"] || ""),
         date: formatDate(o["Date"] || o["date"]),
         cropType: String(o["Crop Type"] || o["cropType"] || ""),
@@ -313,7 +316,18 @@ export const syncProduceToCloud = async (produce: ProduceListing): Promise<boole
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action: 'sync_produce',
-        produce: produce,
+        produce: {
+          id: produce.id,
+          date: produce.date,
+          cropType: produce.cropType,
+          unitsAvailable: produce.unitsAvailable,
+          unitType: produce.unitType,
+          sellingPrice: produce.sellingPrice,
+          supplierName: produce.supplierName,
+          supplierPhone: produce.supplierPhone,
+          cluster: produce.cluster,
+          status: produce.status
+        },
         _t: Date.now()
       }),
     });
@@ -339,23 +353,27 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
     const text = await response.text();
     const trimmed = text.trim();
     if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
-      const rawProduce = JSON.parse(trimmed) as any[];
-      const dataArray = Array.isArray(rawProduce) ? rawProduce : [];
-      return dataArray.map(p => ({
-        id: String(p["ID"] || p["id"] || ""),
-        date: formatDate(p["Date"] || p["date"]),
-        cropType: String(p["Crop Type"] || p["cropType"] || p["Commodity"] || ""),
-        unitsAvailable: safeNum(p["Units Available"] || p["unitsAvailable"] || p["Units"]),
-        unitType: String(p["Unit Type"] || p["unitType"] || p["Unit"] || ""),
-        sellingPrice: safeNum(p["Selling Price"] || p["sellingPrice"] || p["Price"]),
-        supplierName: String(p["Supplier Name"] || p["supplierName"] || p["Farmer"] || ""),
-        supplierPhone: String(p["Supplier Phone"] || p["supplierPhone"] || p["Farmer Phone"] || ""),
-        cluster: String(p["Cluster"] || p["cluster"] || ""),
-        status: String(p["Status"] || p["status"] || "AVAILABLE") as any,
-      }));
+      const rawData = JSON.parse(trimmed);
+      const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || rawData.produce || []);
+      
+      return dataArray
+        .filter((p: any) => p && (p["ID"] || p["id"]))
+        .map((p: any) => ({
+          id: String(p["ID"] || p["id"] || ""),
+          date: formatDate(p["Date"] || p["date"]),
+          cropType: String(p["Crop Type"] || p["cropType"] || p["Commodity"] || p["Crop"] || ""),
+          unitsAvailable: safeNum(p["Units Available"] || p["unitsAvailable"] || p["Units"] || p["Qty"]),
+          unitType: String(p["Unit Type"] || p["unitType"] || p["Unit"] || ""),
+          sellingPrice: safeNum(p["Selling Price"] || p["sellingPrice"] || p["Price"] || p["Asking Price"]),
+          supplierName: String(p["Supplier Name"] || p["supplierName"] || p["Farmer"] || p["Supplier"] || ""),
+          supplierPhone: String(p["Supplier Phone"] || p["supplierPhone"] || p["Farmer Phone"] || p["Phone"] || ""),
+          cluster: String(p["Cluster"] || p["cluster"] || ""),
+          status: (String(p["Status"] || p["status"] || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
+        }));
     }
-    return [];
+    return null; 
   } catch (e) {
+    console.error("Produce Fetch Error:", e);
     return null;
   }
 };
