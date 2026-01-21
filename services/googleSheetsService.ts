@@ -115,6 +115,27 @@ export const deleteUserFromCloud = async (phone: string): Promise<boolean> => {
   }
 };
 
+export const deleteProduceFromCloud = async (id: string): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'delete_produce',
+        id: id,
+        _t: Date.now()
+      })
+    });
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
+  } catch (error) {
+    console.error("Cloud Produce Delete Error:", error);
+    return false;
+  }
+};
+
 export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
 
@@ -331,15 +352,16 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
     const trimmed = text.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       const rawProduce = JSON.parse(trimmed) as any[];
-      return rawProduce.map(p => ({
+      const dataArray = Array.isArray(rawProduce) ? rawProduce : [];
+      return dataArray.map(p => ({
         id: String(p["ID"] || p["id"] || ""),
         date: formatDate(p["Date"] || p["date"]),
-        cropType: String(p["Crop Type"] || p["cropType"] || ""),
-        unitsAvailable: safeNum(p["Units Available"] || p["unitsAvailable"]),
-        unitType: String(p["Unit Type"] || p["unitType"] || ""),
-        sellingPrice: safeNum(p["Selling Price"] || p["sellingPrice"]),
-        supplierName: String(p["Supplier Name"] || p["supplierName"] || ""),
-        supplierPhone: String(p["Supplier Phone"] || p["supplierPhone"] || ""),
+        cropType: String(p["Crop Type"] || p["cropType"] || p["Commodity"] || ""),
+        unitsAvailable: safeNum(p["Units Available"] || p["unitsAvailable"] || p["Units"]),
+        unitType: String(p["Unit Type"] || p["unitType"] || p["Unit"] || ""),
+        sellingPrice: safeNum(p["Selling Price"] || p["sellingPrice"] || p["Price"]),
+        supplierName: String(p["Supplier Name"] || p["supplierName"] || p["Farmer"] || ""),
+        supplierPhone: String(p["Supplier Phone"] || p["supplierPhone"] || p["Farmer Phone"] || ""),
         cluster: String(p["Cluster"] || p["cluster"] || ""),
         status: String(p["Status"] || p["status"] || "AVAILABLE") as any,
       }));

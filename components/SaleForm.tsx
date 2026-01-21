@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
 
@@ -9,6 +10,11 @@ interface SaleFormProps {
     customerName?: string;
     customerPhone?: string;
     orderId?: string;
+    produceId?: string;
+    // Fix: Added missing optional fields to fix type errors at lines 53-55
+    farmerName?: string;
+    farmerPhone?: string;
+    unitPrice?: number;
   };
   onSubmit: (data: {
     date: string;
@@ -21,6 +27,7 @@ interface SaleFormProps {
     unitsSold: number;
     unitPrice: number;
     orderId?: string;
+    produceId?: string;
   }) => void;
 }
 
@@ -38,7 +45,6 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
     unitPrice: 0.00
   });
 
-  // Effect to handle pre-filling from an order
   useEffect(() => {
     if (initialData) {
       setFormData(prev => ({
@@ -47,7 +53,11 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
         unitsSold: initialData.unitsSold || prev.unitsSold,
         unitType: initialData.unitType || prev.unitType,
         customerName: initialData.customerName || prev.customerName,
-        customerPhone: initialData.customerPhone || prev.customerPhone
+        customerPhone: initialData.customerPhone || prev.customerPhone,
+        // Fix: accessing now-available fields from initialData to resolve TS errors
+        farmerName: initialData.farmerName || prev.farmerName,
+        farmerPhone: initialData.farmerPhone || prev.farmerPhone,
+        unitPrice: initialData.unitPrice || prev.unitPrice
       }));
     }
   }, [initialData]);
@@ -68,12 +78,17 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
     const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
 
     if (!formData.farmerName || !formData.customerName || formData.unitsSold <= 0 || formData.unitPrice <= 0 || (formData.cropType === 'Other' && !finalCropType)) {
-      alert("Validation Error: Please complete all fields. If 'Other' is selected, specific details must be provided.");
+      alert("Validation Error: Please complete all fields.");
       return;
     }
     
     const { otherCropType, ...submissionData } = formData;
-    onSubmit({ ...submissionData, cropType: finalCropType, orderId: initialData?.orderId });
+    onSubmit({ 
+      ...submissionData, 
+      cropType: finalCropType, 
+      orderId: initialData?.orderId,
+      produceId: initialData?.produceId 
+    });
     
     setFormData({
       ...formData,
@@ -97,7 +112,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
           <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-1">Audit Verification Required</p>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation {initialData?.orderId && "(Order Linked)"}</span>
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation { (initialData?.orderId || initialData?.produceId) && "(Linked Source)"}</span>
            <p className="text-[13px] font-black text-white uppercase tracking-tight">
              Total: KSh {totalSale.toLocaleString()} | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
            </p>
@@ -123,9 +138,9 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
           >
             {Object.entries(COMMODITY_CATEGORIES).map(([category, items]) => (
-              <optgroup key={category} label={category} className="font-bold text-black bg-slate-50">
+              <optgroup key={category} label={category}>
                 {items.map(item => (
-                  <option key={item} value={item} className="text-black bg-white">{item}</option>
+                  <option key={item} value={item}>{item}</option>
                 ))}
               </optgroup>
             ))}
@@ -134,10 +149,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
 
         {formData.cropType === 'Other' && (
           <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
-            <label className="text-[10px] font-black text-red-600 uppercase ml-2 tracking-widest">Specific Commodity Details</label>
+            <label className="text-[10px] font-black text-red-600 uppercase ml-2 tracking-widest">Details</label>
             <input 
               type="text" 
-              placeholder="e.g. Avocado, Mangoes..."
+              placeholder="..."
               value={formData.otherCropType}
               onChange={(e) => setFormData({...formData, otherCropType: e.target.value})}
               className="w-full bg-red-50/30 border border-red-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-red-400 outline-none transition-all shadow-sm"
