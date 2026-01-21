@@ -576,7 +576,13 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
-           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-50 text-green-500 rounded-3xl mb-4 border border-green-100"><i className="fas fa-leaf text-2xl text-green-500"></i></div>
+           <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md relative">
+             <div className="relative">
+                <i className="fas fa-shopping-cart text-3xl text-black"></i>
+                <i className="fas fa-leaf text-2xl text-green-500 absolute -top-3 -right-3 transform rotate-12 drop-shadow-sm"></i>
+                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-600 rounded-full border-2 border-white"></div>
+             </div>
+           </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">Food Coop Market</h1>
            <p className="text-red-600 text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting Suppliers with Consumers</p>
         </div>
@@ -603,6 +609,12 @@ const App: React.FC = () => {
                 </>
               )}
               <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register' : 'Authenticate')}</button>
+              
+              <div className="flex justify-center space-x-2 mt-8">
+                <div className="w-10 h-1 rounded-full bg-green-500"></div>
+                <div className="w-10 h-1 rounded-full bg-black"></div>
+                <div className="w-10 h-1 rounded-full bg-red-600"></div>
+              </div>
             </form>
         </div>
       </div>
@@ -614,7 +626,13 @@ const App: React.FC = () => {
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
           <div className="flex items-center space-x-5">
-            <div className="bg-green-50 w-16 h-16 rounded-3xl flex items-center justify-center border border-green-100 shadow-sm"><i className="fas fa-leaf text-2xl text-green-500"></i></div>
+            <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm relative">
+              <div className="relative">
+                <i className="fas fa-shopping-cart text-xl text-black"></i>
+                <i className="fas fa-leaf text-lg text-green-500 absolute -top-2 -right-2 transform rotate-12"></i>
+                <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-red-600 rounded-full border border-white"></div>
+              </div>
+            </div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">Food Coop Market</h1>
               <div className="flex items-center space-x-2 mt-1.5">
