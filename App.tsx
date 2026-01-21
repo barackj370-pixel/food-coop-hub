@@ -442,6 +442,16 @@ const App: React.FC = () => {
     await syncUserToCloud(updatedUser);
   };
 
+  const handleDeleteUser = async (phone: string) => {
+    if (!window.confirm(`Action required: Permanent deletion of user with phone: ${phone}. This cannot be undone. Continue?`)) return;
+    setUsers(prev => {
+        const updated = prev.filter(u => u.phone !== phone);
+        persistence.set('coop_users', JSON.stringify(updated));
+        return updated;
+    });
+    try { await deleteUserFromCloud(phone); } catch (e) { console.error("Cloud user deletion failed:", e); }
+  };
+
   const handleLogout = () => {
     setAgentIdentity(null);
     persistence.remove('agent_session');
@@ -1042,7 +1052,7 @@ const App: React.FC = () => {
                </div>
             </div>
             <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl">
-               <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3>
+               <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security (Registered Users)</h3>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
                     <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
@@ -1051,15 +1061,30 @@ const App: React.FC = () => {
                     <tbody className="divide-y">
                       {users.map(u => (
                         <tr key={u.phone} className="group hover:bg-slate-50/50">
-                          <td className="py-6"><p className="text-sm font-black uppercase text-black">{u.name}</p></td>
-                          <td className="py-6"><p className="text-[11px] font-black text-black uppercase">{u.role}</p></td>
+                          <td className="py-6">
+                            <p className="text-sm font-black uppercase text-black">{u.name}</p>
+                            <p className="text-[10px] font-bold text-slate-400">{u.phone}</p>
+                          </td>
+                          <td className="py-6">
+                            <p className="text-[11px] font-black text-black uppercase">{u.role}</p>
+                            <p className="text-[9px] text-slate-400 font-bold">{u.cluster}</p>
+                          </td>
                           <td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td>
                           <td className="py-6 text-right">
-                             {u.status === 'ACTIVE' ? (
-                               <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
-                             ) : (
-                               <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
-                             )}
+                             <div className="flex items-center justify-end gap-3">
+                                {u.status === 'ACTIVE' ? (
+                                  <button onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
+                                ) : (
+                                  <button onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
+                                )}
+                                <button 
+                                  onClick={() => handleDeleteUser(u.phone)} 
+                                  className="text-slate-300 hover:text-red-600 transition-colors p-2" 
+                                  title="Delete user permanently"
+                                >
+                                  <i className="fas fa-trash-alt text-[12px]"></i>
+                                </button>
+                             </div>
                           </td>
                         </tr>
                       ))}
