@@ -179,7 +179,7 @@ const App: React.FC = () => {
 
       if (cloudOrders) {
         setMarketOrders(prev => {
-          const cloudIds = new Set(cloudOrders.map(o => [o.id, o]));
+          const cloudIds = new Set(cloudOrders.map(o => o.id));
           const localOnly = prev.filter(o => !cloudIds.has(o.id));
           const combined = [...localOnly, ...cloudOrders];
           persistence.set('food_coop_orders', JSON.stringify(combined));
@@ -1118,13 +1118,13 @@ const App: React.FC = () => {
                           <td className="py-6 text-right">
                              <div className="flex items-center justify-end gap-3">
                                 {u.status === 'ACTIVE' ? (
-                                  <button type="button" onClick={() => handleToggleUserStatus(u.phone, 'ACTIVE')} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
                                 ) : (
-                                  <button type="button" onClick={() => handleToggleUserStatus(u.phone)} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
                                 )}
                                 <button 
                                   type="button"
-                                  onClick={() => handleDeleteUser(u.phone)} 
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} 
                                   className="text-slate-300 hover:text-red-600 transition-colors p-2" 
                                   title="Delete user permanently"
                                 >
