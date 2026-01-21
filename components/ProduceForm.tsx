@@ -59,7 +59,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
       unitsAvailable: 0,
       sellingPrice: 0,
       supplierName: isSupplier ? (defaultSupplierName || '') : '',
-      supplierPhone: isSupplier ? (defaultSupplierPhone || '') : ''
+      supplierPhone: isSupplier ? (defaultSupplierPhone || '') : '07'
     });
   };
 
@@ -185,7 +185,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
             type="submit"
             className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95"
           >
-            Post Harvest
+            Post Product
           </button>
         </div>
       </form>
