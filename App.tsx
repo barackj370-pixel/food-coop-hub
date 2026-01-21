@@ -9,7 +9,9 @@ import {
   syncUserToCloud, 
   fetchUsersFromCloud, 
   deleteRecordFromCloud,
-  deleteUserFromCloud 
+  deleteUserFromCloud,
+  syncOrderToCloud,
+  fetchOrdersFromCloud
 } from './services/googleSheetsService.ts';
 
 type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
@@ -120,9 +122,10 @@ const App: React.FC = () => {
     if (!agentIdentity) return;
     setIsSyncing(true);
     try {
-      const [cloudUsers, cloudRecords] = await Promise.all([
+      const [cloudUsers, cloudRecords, cloudOrders] = await Promise.all([
         fetchUsersFromCloud(),
-        fetchFromGoogleSheets()
+        fetchFromGoogleSheets(),
+        fetchOrdersFromCloud()
       ]);
       
       if (cloudUsers) {
@@ -139,6 +142,17 @@ const App: React.FC = () => {
           return combined;
         });
       }
+
+      if (cloudOrders) {
+        setMarketOrders(prev => {
+          const cloudIds = new Set(cloudOrders.map(o => o.id));
+          const localOnly = prev.filter(o => !cloudIds.has(o.id));
+          const combined = [...localOnly, ...cloudOrders];
+          persistence.set('food_coop_orders', JSON.stringify(combined));
+          return combined;
+        });
+      }
+
       setLastSyncTime(new Date());
     } catch (e) {
       console.error("Sync failed:", e);
@@ -216,7 +230,7 @@ const App: React.FC = () => {
     return { clusterPerformance, commodityTrends };
   }, [filteredRecords]);
 
-  const handleAddOrder = (e: React.FormEvent) => {
+  const handleAddOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!demandForm.customerName || demandForm.unitsRequested <= 0) {
       alert("Please enter customer name and quantity.");
@@ -240,6 +254,12 @@ const App: React.FC = () => {
     setMarketOrders(updated);
     persistence.set('food_coop_orders', JSON.stringify(updated));
     setDemandForm({ ...demandForm, customerName: '', customerPhone: '', unitsRequested: 0 });
+
+    try {
+      await syncOrderToCloud(newOrder);
+    } catch (err) {
+      console.error("Order sync failed:", err);
+    }
   };
 
   const handleFulfillOrderClick = (order: MarketOrder) => {
@@ -283,11 +303,26 @@ const App: React.FC = () => {
 
     // Mark order as fulfilled if linked
     if (data.orderId) {
+      let fulfilledOrder: MarketOrder | undefined;
       setMarketOrders(prev => {
-        const updated = prev.map(o => o.id === data.orderId ? { ...o, status: OrderStatus.FULFILLED } : o);
+        const updated = prev.map(o => {
+          if (o.id === data.orderId) {
+            fulfilledOrder = { ...o, status: OrderStatus.FULFILLED };
+            return fulfilledOrder;
+          }
+          return o;
+        });
         persistence.set('food_coop_orders', JSON.stringify(updated));
         return updated;
       });
+      
+      if (fulfilledOrder) {
+        try {
+          await syncOrderToCloud(fulfilledOrder);
+        } catch (err) {
+          console.error("Fulfillment sync failed:", err);
+        }
+      }
       setFulfillmentData(null);
     }
 
@@ -517,7 +552,7 @@ const App: React.FC = () => {
              <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-chart-line text-8xl"></i></div>
              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
-                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-red-500 mb-2">Aggregate System Audit</p>
+                   <p className="text-[10px] font-black uppercase tracking-tight text-red-500 mb-2">Aggregate System Audit</p>
                    <h4 className="text-2xl font-black uppercase tracking-tight">Combined Universal Grand Totals</h4>
                 </div>
                 <div className="flex gap-12">

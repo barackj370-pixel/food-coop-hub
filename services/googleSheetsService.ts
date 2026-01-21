@@ -1,5 +1,4 @@
-
-import { SaleRecord, AgentIdentity } from "../types.ts";
+import { SaleRecord, AgentIdentity, MarketOrder } from "../types.ts";
 import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
 const safeNum = (val: any): number => {
@@ -263,6 +262,71 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
         passcode: String(u["Passcode"] || ""),
         cluster: String(u["Cluster"] || ""),
         status: String(u["Status"] || "ACTIVE") as any
+      }));
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const syncOrderToCloud = async (order: MarketOrder): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'sync_order',
+        order: {
+          id: order.id,
+          date: order.date,
+          cropType: order.cropType,
+          unitsRequested: order.unitsRequested,
+          unitType: order.unitType,
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          status: order.status,
+          agentPhone: order.agentPhone,
+          cluster: order.cluster
+        },
+        _t: Date.now()
+      }),
+    });
+    const resultText = await response.text();
+    return response.ok || resultText.toLowerCase().includes('success');
+  } catch (e) {
+    return false;
+  }
+};
+
+export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'get_orders',
+        _t: Date.now()
+      })
+    });
+    const text = await response.text();
+    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+      const rawOrders = JSON.parse(text) as any[];
+      return rawOrders.map(o => ({
+        id: String(o["ID"] || o["id"] || ""),
+        date: formatDate(o["Date"] || o["date"]),
+        cropType: String(o["Crop Type"] || o["cropType"] || ""),
+        unitsRequested: safeNum(o["Units Requested"] || o["unitsRequested"]),
+        unitType: String(o["Unit Type"] || o["unitType"] || ""),
+        customerName: String(o["Customer Name"] || o["customerName"] || ""),
+        customerPhone: String(o["Customer Phone"] || o["customerPhone"] || ""),
+        status: String(o["Status"] || o["status"] || "OPEN") as any,
+        agentPhone: String(o["Agent Phone"] || o["agentPhone"] || ""),
+        cluster: String(o["Cluster"] || o["cluster"] || "")
       }));
     }
     return null;
