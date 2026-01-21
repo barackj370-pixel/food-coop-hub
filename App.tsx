@@ -155,8 +155,18 @@ const App: React.FC = () => {
       ]);
       
       if (cloudUsers) {
-        setUsers(cloudUsers);
-        persistence.set('coop_users', JSON.stringify(cloudUsers));
+        setUsers(prev => {
+          const cloudMap = new Map(cloudUsers.map(u => [normalizePhone(u.phone), u]));
+          const combined = [...cloudUsers];
+          // Keep local users that haven't hit the cloud yet to prevent disappearing
+          prev.forEach(u => {
+            if (!cloudMap.has(normalizePhone(u.phone))) {
+              combined.push(u);
+            }
+          });
+          persistence.set('coop_users', JSON.stringify(combined));
+          return combined;
+        });
       }
 
       if (cloudRecords) {
@@ -202,7 +212,6 @@ const App: React.FC = () => {
     if (savedUsers) {
       try { setUsers(JSON.parse(savedUsers)); } catch (e) { }
     }
-    // Always sync cloud data on mount to ensure database state is current
     loadCloudData();
   }, [loadCloudData]);
 
@@ -455,8 +464,6 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setAgentIdentity(null);
     persistence.remove('agent_session');
-    // We don't necessarily clear records/users from local storage on log out 
-    // to allow offline views, but we reset the active session.
   };
 
   const handleExportSummaryCsv = () => {
@@ -604,7 +611,7 @@ const App: React.FC = () => {
                             {r.status}
                           </span>
                           {onDelete && (
-                            <button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-600 transition-colors p-1" title="Delete record for demo cleanup">
+                            <button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-600 transition-colors p-1" title="Delete record">
                                <i className="fas fa-trash-alt text-[10px]"></i>
                             </button>
                           )}
@@ -1067,7 +1074,12 @@ const App: React.FC = () => {
                           </td>
                           <td className="py-6">
                             <p className="text-[11px] font-black text-black uppercase">{u.role}</p>
-                            <p className="text-[9px] text-slate-400 font-bold">{u.cluster}</p>
+                            <p className="text-[9px] text-slate-400 font-bold">
+                              {(u.role === SystemRole.SYSTEM_DEVELOPER || 
+                                u.role === SystemRole.FINANCE_OFFICER || 
+                                u.role === SystemRole.AUDITOR || 
+                                u.role === SystemRole.MANAGER) ? '-' : u.cluster}
+                            </p>
                           </td>
                           <td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td>
                           <td className="py-6 text-right">
