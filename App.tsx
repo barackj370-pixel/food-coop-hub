@@ -22,7 +22,8 @@ type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
-const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjEyOCIgZmlsbD0iIzE2YTM0YSIvPjxwYXRoIGQ9Ik0xMjggMTYwaDQ4bDMyIDE2MGgxOTJsMzItMTI4SDIyNCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIzMiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjIwOCIgY3k9IjQwMCIgcj0iMzIiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iMzY4IiBjeT0iNDAwIiByPSIzMiIgZmlsbD0id2hpdGUiLz48Y2lyY2xlIGN4PSIzODAiIGN5PSIxMDAiIHI9IjYwIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC4yIi8+PHBhdGggZD0iTTQwMCA5NmMwIDQwLTQwIDY0LTgwIDY0cy04MC0yNC04MC02NCA0MC02NCA4MC02NCA4MCAyNCA4MCA2NHoiIGZpbGw9IiNmZmZmZmYiLz48Y2lyY2xlIGN4PSI0NDgiIGN5PSIComponents/9NiIgcj0iMzIiIGZpbGw9IiNlZjQ0NDQiLz48L3N2Zz4=";
+// Clean, high-contrast SVG: Green background (#16a34a) with white cart and red accent circle.
+const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjEyOCIgZmlsbD0iIzE2YTM0YSIvPjxwYXRoIGQ9Ik0xMjggMTYwaDQ4bDMyIDE2MGgxOTJsMzItMTI4SDIyNCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIzMiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjIwOCIgY3k9IjQwMCIgcj0iMzIiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iMzY4IiBjeT0iNDAwIiByPSIzMiIgZmlsbD0id2hpdGUiLz48Y2lyY2xlIGN4PSIzODAiIGN5PSIxMDAiIHI9IjYwIiBmaWxsPSJ3aGl0ZSIgb3BhY2l0eT0iMC4yIi8+PHBhdGggZD0iTTQwMCA5NmMwIDQwLTQwIDY0LTgwIDY0cy04MC0yNC04MC02NCA0MC02NCA4MC02NCA4MCAyNCA4MCA2NHoiIGZpbGw9IndoaXRlIi8+PGNpcmNsZSBjeD0iNDQ4IiBjeT0iOTYiIHI9IjMyIiBmaWxsPSIjZWY0NDQ0Ii8+PC9zdmc+";
 
 const persistence = {
   get: (key: string): string | null => {
@@ -101,6 +102,7 @@ const App: React.FC = () => {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
+  const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -676,8 +678,8 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
-           <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md">
-             <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-12 h-12 object-contain" />
+           <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md overflow-hidden">
+             <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-16 h-16 object-contain" />
            </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">KPL Food Coop Market</h1>
            <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></p>
@@ -704,7 +706,7 @@ const App: React.FC = () => {
                   )}
                 </>
               )}
-              <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register' : 'Authenticate')}</button>
+              <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register Account' : 'Authenticate')}</button>
               
               <div className="flex justify-center space-x-2 mt-8">
                 <div className="w-10 h-1 rounded-full bg-green-500"></div>
@@ -722,8 +724,8 @@ const App: React.FC = () => {
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
           <div className="flex items-center space-x-5">
-            <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm">
-              <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-10 h-10 object-contain" />
+            <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden">
+              <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-16 h-16 object-contain" />
             </div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
@@ -749,25 +751,35 @@ const App: React.FC = () => {
           {availablePortals.map(p => {
             if (p === 'MARKET') {
               return (
-                <div key={p} className="relative group">
-                  <button className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
-                    Market <i className="fas fa-chevron-down ml-2 opacity-50"></i>
+                <div key={p} className="relative">
+                  <button 
+                    onClick={() => {
+                      setCurrentPortal('MARKET');
+                      setIsMarketMenuOpen(!isMarketMenuOpen);
+                    }}
+                    className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
+                    Market <i className={`fas fa-chevron-down opacity-50 transition-transform ${isMarketMenuOpen ? 'rotate-180' : ''}`}></i>
                   </button>
-                  <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform group-hover:translate-y-0 translate-y-2">
-                    <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
-                      <i className="fas fa-shopping-cart mr-2"></i> Sales
-                    </button>
-                    <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
-                      <i className="fas fa-seedling mr-2"></i> Supplier
-                    </button>
-                  </div>
+                  {isMarketMenuOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
+                        <i className="fas fa-shopping-cart mr-2"></i> Sales Portal
+                      </button>
+                      <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
+                        <i className="fas fa-seedling mr-2"></i> Supplier Portal
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             }
             return (
               <button 
                 key={p} 
-                onClick={() => setCurrentPortal(p)}
+                onClick={() => {
+                  setCurrentPortal(p);
+                  setIsMarketMenuOpen(false);
+                }}
                 className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}
               >
                 {p}
@@ -777,15 +789,15 @@ const App: React.FC = () => {
         </nav>
       </header>
 
-      <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12">
+      <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
         {currentPortal === 'MARKET' && (
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <button onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                    <i className="fas fa-shopping-cart mr-2"></i> Sales Portal
+                <button onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                    <i className="fas fa-shopping-cart"></i> Sales Portal
                 </button>
-                <button onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                    <i className="fas fa-seedling mr-2"></i> Supplier Portal
+                <button onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                    <i className="fas fa-seedling"></i> Supplier Portal
                 </button>
             </div>
 
@@ -832,7 +844,9 @@ const App: React.FC = () => {
                             <input type="tel" placeholder="07..." value={demandForm.customerPhone} onChange={e => setDemandForm({...demandForm, customerPhone: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" />
                           </div>
                           <div className="flex items-end">
-                            <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95">Log Demand</button>
+                            <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                              <i className="fas fa-save"></i> Log Demand
+                            </button>
                           </div>
                         </form>
                       )}
@@ -857,7 +871,9 @@ const App: React.FC = () => {
                                </td>
                                <td className="py-4">
                                   {agentIdentity.role !== SystemRole.SUPPLIER && (
-                                    <button onClick={() => handleFulfillOrderClick(o)} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md">Fulfill Sale</button>
+                                    <button onClick={() => handleFulfillOrderClick(o)} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md flex items-center gap-2">
+                                      <i className="fas fa-check-circle"></i> Fulfill Sale
+                                    </button>
                                   )}
                                </td>
                              </tr>
@@ -920,7 +936,9 @@ const App: React.FC = () => {
                                </td>
                                <td className="py-6 text-right">
                                   {agentIdentity.role !== SystemRole.SUPPLIER ? (
-                                    <button onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95">Initiate Sale</button>
+                                    <button onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95 flex items-center justify-end gap-2 ml-auto">
+                                      <i className="fas fa-plus"></i> Initiate Sale
+                                    </button>
                                   ) : (
                                     <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
                                   )}
@@ -962,7 +980,9 @@ const App: React.FC = () => {
                           <td className="py-6 uppercase font-bold">{r.cropType}</td>
                           <td className="py-6 font-black">KSh {Number(r.totalSale).toLocaleString()}</td>
                           <td className="py-6 text-right">
-                             <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md">Confirm Receipt</button>
+                             <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
+                               <i className="fas fa-check"></i> Confirm Receipt
+                             </button>
                           </td>
                         </tr>
                       ))}
@@ -1004,9 +1024,13 @@ const App: React.FC = () => {
                           </td>
                           <td className="py-6 text-right">
                              {r.status === RecordStatus.PAID ? (
-                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md">Verify</button>
+                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2 ml-auto">
+                                 <i className="fas fa-search"></i> Verify
+                               </button>
                              ) : (
-                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md">Final Audit Seal</button>
+                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md flex items-center justify-end gap-2 ml-auto">
+                                 <i className="fas fa-stamp"></i> Final Audit Seal
+                               </button>
                              )}
                           </td>
                         </tr>

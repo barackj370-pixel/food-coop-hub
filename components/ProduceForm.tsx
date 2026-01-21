@@ -183,9 +183,9 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
         <div className="flex items-end">
           <button 
             type="submit"
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95"
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
           >
-            Post Product
+            <i className="fas fa-seedling"></i> Post Product
           </button>
         </div>
       </form>

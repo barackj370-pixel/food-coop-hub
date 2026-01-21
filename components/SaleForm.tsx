@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
 
@@ -228,9 +227,9 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
         <div className="flex items-end">
           <button 
             type="submit"
-            className="w-full bg-black hover:bg-slate-900 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95"
+            className="w-full bg-black hover:bg-slate-900 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
           >
-            Commit Entry
+            <i className="fas fa-file-contract"></i> Commit Entry
           </button>
         </div>
       </form>
