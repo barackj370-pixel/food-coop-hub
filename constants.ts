@@ -41,10 +41,10 @@ export const SYNC_POLLING_INTERVAL = 30000;
  * CONFIGURATION: 
  * Update this URL with your unique Google Apps Script Web App URL from Step 3.
  */
-export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbx0iq5jjAVpf2BfHDAK8Ri0X5dmrdZxk8sJgBKLhc-97z62f1yT9plDxVAsQIG1BCaf/exec";
+export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxiRiDCXNVJfn1TAqd-pDHXf0UMIjaALOXazob8jciLpHf8wbxeskSbjLY4XWNqFEM9AQ/exec";
 
 /**
  * VIEW URL: 
  * Update this with your actual Google Sheet browser URL.
  */
-export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1SjMrFDNOd3zY-IInRcSgUIlSAeZV8AKIkOoQbPeWvoY/edit?gid=0#gid=0";
+export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1WL6yQY6AkRJy18pdxJAoYVGdLyZZUoQIsZlZew7oY6Y/edit?gid=1771130545#gid=1771130545";
