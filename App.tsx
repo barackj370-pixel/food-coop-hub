@@ -88,7 +88,14 @@ const App: React.FC = () => {
   });
   
   const [currentPortal, setCurrentPortal] = useState<PortalType>('MARKET');
-  const [marketView, setMarketView] = useState<MarketView>('SALES');
+  const [marketView, setMarketView] = useState<MarketView>(() => {
+    const saved = persistence.get('agent_session');
+    if (saved) {
+      const agent = JSON.parse(saved);
+      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'SALES';
+    }
+    return 'SALES';
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -298,6 +305,8 @@ const App: React.FC = () => {
     unitType: string;
     unitsAvailable: number;
     sellingPrice: number;
+    supplierName: string;
+    supplierPhone: string;
   }) => {
     const newListing: ProduceListing = {
       id: 'LST-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
@@ -306,8 +315,8 @@ const App: React.FC = () => {
       unitsAvailable: data.unitsAvailable,
       unitType: data.unitType,
       sellingPrice: data.sellingPrice,
-      supplierName: agentIdentity?.name || '',
-      supplierPhone: agentIdentity?.phone || '',
+      supplierName: data.supplierName,
+      supplierPhone: data.supplierPhone,
       cluster: agentIdentity?.cluster || 'Unassigned',
       status: 'AVAILABLE'
     };
@@ -720,15 +729,34 @@ const App: React.FC = () => {
           </div>
         </div>
         <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.map(p => (
-            <button 
-              key={p} 
-              onClick={() => setCurrentPortal(p)}
-              className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}
-            >
-              {p}
-            </button>
-          ))}
+          {availablePortals.map(p => {
+            if (p === 'MARKET') {
+              return (
+                <div key={p} className="relative group">
+                  <button className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
+                    Market <i className="fas fa-chevron-down ml-2 opacity-50"></i>
+                  </button>
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform group-hover:translate-y-0 translate-y-2">
+                    <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
+                      <i className="fas fa-shopping-cart mr-2"></i> Sales
+                    </button>
+                    <button onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}>
+                      <i className="fas fa-seedling mr-2"></i> Supplier
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <button 
+                key={p} 
+                onClick={() => setCurrentPortal(p)}
+                className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}
+              >
+                {p}
+              </button>
+            );
+          })}
         </nav>
       </header>
 
@@ -737,10 +765,10 @@ const App: React.FC = () => {
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <button onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                    <i className="fas fa-shopping-cart mr-2"></i> Sales Management
+                    <i className="fas fa-shopping-cart mr-2"></i> Sales Portal
                 </button>
                 <button onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                    <i className="fas fa-seedling mr-2"></i> Supplier Inventory
+                    <i className="fas fa-seedling mr-2"></i> Supplier Portal
                 </button>
             </div>
 
@@ -839,22 +867,23 @@ const App: React.FC = () => {
 
             {marketView === 'SUPPLIER' && (
               <div className="space-y-12">
-                {agentIdentity.role === SystemRole.SUPPLIER && (
+                {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (
                   <ProduceForm 
-                    supplierName={agentIdentity.name}
-                    supplierPhone={agentIdentity.phone}
+                    userRole={agentIdentity.role}
+                    defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined}
+                    defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined}
                     onSubmit={handleAddProduce}
                   />
                 )}
 
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
                    <div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div>
-                   <h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Supplier Produce Repository</h3>
+                   <h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Harvests Repository</h3>
                    
                    <div className="overflow-x-auto">
                      <table className="w-full text-left">
                         <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                          <tr><th className="pb-4">Supplier</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Price</th><th className="pb-4 text-right">Action</th></tr>
+                          <tr><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr>
                         </thead>
                         <tbody className="divide-y">
                            {produceListings.map(p => (
@@ -870,18 +899,19 @@ const App: React.FC = () => {
                                </td>
                                <td className="py-6">
                                   <p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p>
+                                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Est. Val: KSh {(p.sellingPrice * p.unitsAvailable).toLocaleString()}</p>
                                </td>
                                <td className="py-6 text-right">
                                   {agentIdentity.role !== SystemRole.SUPPLIER ? (
-                                    <button onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md">Pick Produce</button>
+                                    <button onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95">Initiate Sale</button>
                                   ) : (
-                                    <span className="text-[8px] font-black uppercase text-slate-300">Your Listing</span>
+                                    <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
                                   )}
                                </td>
                              </tr>
                            ))}
                            {produceListings.length === 0 && (
-                             <tr><td colSpan={5} className="py-10 text-center text-slate-400 font-black uppercase text-[10px]">No produce listed yet</td></tr>
+                             <tr><td colSpan={5} className="py-16 text-center text-slate-300 font-black uppercase text-[10px] italic">Zero harvest logs in repository</td></tr>
                            )}
                         </tbody>
                      </table>

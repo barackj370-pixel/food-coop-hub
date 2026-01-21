@@ -1,26 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, COMMODITY_CATEGORIES } from '../constants.ts';
+import { SystemRole } from '../types.ts';
 
 interface ProduceFormProps {
-  supplierName: string;
-  supplierPhone: string;
+  userRole: SystemRole;
+  defaultSupplierName?: string;
+  defaultSupplierPhone?: string;
   onSubmit: (data: {
     date: string;
     cropType: string;
     unitType: string;
     unitsAvailable: number;
     sellingPrice: number;
+    supplierName: string;
+    supplierPhone: string;
   }) => void;
 }
 
-const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, supplierName, supplierPhone }) => {
+const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSupplierName, defaultSupplierPhone }) => {
+  const isSupplier = userRole === SystemRole.SUPPLIER;
+  
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cropType: 'Maize',
     otherCropType: '',
     unitType: 'Bag',
     unitsAvailable: 0,
-    sellingPrice: 0
+    sellingPrice: 0,
+    supplierName: defaultSupplierName || '',
+    supplierPhone: defaultSupplierPhone || ''
   });
 
   useEffect(() => {
@@ -37,8 +45,8 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, supplierName, suppl
     
     const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
 
-    if (formData.unitsAvailable <= 0 || formData.sellingPrice <= 0 || (formData.cropType === 'Other' && !finalCropType)) {
-      alert("Validation Error: Please provide valid quantity, price, and details.");
+    if (formData.unitsAvailable <= 0 || formData.sellingPrice <= 0 || !formData.supplierName || !formData.supplierPhone || (formData.cropType === 'Other' && !finalCropType)) {
+      alert("Validation Error: Please provide valid quantity, price, supplier details, and commodity information.");
       return;
     }
     
@@ -49,7 +57,9 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, supplierName, suppl
       ...formData,
       otherCropType: '',
       unitsAvailable: 0,
-      sellingPrice: 0
+      sellingPrice: 0,
+      supplierName: isSupplier ? (defaultSupplierName || '') : '',
+      supplierPhone: isSupplier ? (defaultSupplierPhone || '') : ''
     });
   };
 
@@ -60,7 +70,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, supplierName, suppl
       <div className="flex flex-col lg:flex-row justify-between items-center mb-10 gap-8">
         <div className="text-center lg:text-left">
           <h3 className="text-xl font-black text-black uppercase tracking-tighter">New Supplies Entry</h3>
-          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">Listing Harvest for Cluster Agents</p>
+          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">Listing Harvest for Market Hub</p>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Estimated Market Value</span>
@@ -124,15 +134,31 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, supplierName, suppl
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Profile</label>
-          <div className="bg-slate-100/50 border border-slate-200 rounded-2xl p-4">
-             <p className="text-[11px] font-black text-black uppercase truncate">{supplierName}</p>
-             <p className="text-[9px] font-bold text-slate-500 font-mono">{supplierPhone}</p>
-          </div>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Name</label>
+          <input 
+            type="text" 
+            placeholder="Name..."
+            readOnly={isSupplier}
+            value={formData.supplierName}
+            onChange={(e) => setFormData({...formData, supplierName: e.target.value})}
+            className={`w-full border rounded-2xl text-[13px] font-bold text-black p-4 outline-none transition-all ${isSupplier ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
+          />
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Quantity Avail.</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Phone</label>
+          <input 
+            type="tel" 
+            placeholder="07..."
+            readOnly={isSupplier}
+            value={formData.supplierPhone}
+            onChange={(e) => setFormData({...formData, supplierPhone: e.target.value})}
+            className={`w-full border rounded-2xl text-[13px] font-bold text-black p-4 outline-none transition-all ${isSupplier ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Qty Available</label>
           <input 
             type="number" 
             placeholder="0"
