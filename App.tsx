@@ -145,7 +145,6 @@ const App: React.FC = () => {
   }, [agentIdentity, isSystemDev]);
 
   const loadCloudData = useCallback(async () => {
-    if (!agentIdentity) return;
     setIsSyncing(true);
     try {
       const [cloudUsers, cloudRecords, cloudOrders, cloudProduce] = await Promise.all([
@@ -196,25 +195,23 @@ const App: React.FC = () => {
     } finally {
       setIsSyncing(false);
     }
-  }, [agentIdentity]);
+  }, []);
 
   useEffect(() => {
     const savedUsers = persistence.get('coop_users');
     if (savedUsers) {
       try { setUsers(JSON.parse(savedUsers)); } catch (e) { }
     }
-    if (agentIdentity) {
-      loadCloudData();
-    }
-  }, [agentIdentity, loadCloudData]);
+    // Always sync cloud data on mount to ensure database state is current
+    loadCloudData();
+  }, [loadCloudData]);
 
   useEffect(() => {
-    if (!agentIdentity) return;
     const interval = setInterval(() => {
       loadCloudData();
     }, SYNC_POLLING_INTERVAL);
     return () => clearInterval(interval);
-  }, [agentIdentity, loadCloudData]);
+  }, [loadCloudData]);
 
   const filteredRecords = useMemo(() => {
     let base = records.filter(r => r.id && r.date);
@@ -447,15 +444,9 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setAgentIdentity(null);
-    setRecords([]); 
-    setUsers([]);
-    setMarketOrders([]);
-    setProduceListings([]);
     persistence.remove('agent_session');
-    persistence.remove('food_coop_data');
-    persistence.remove('coop_users');
-    persistence.remove('food_coop_orders');
-    persistence.remove('food_coop_produce');
+    // We don't necessarily clear records/users from local storage on log out 
+    // to allow offline views, but we reset the active session.
   };
 
   const handleExportSummaryCsv = () => {
@@ -537,7 +528,7 @@ const App: React.FC = () => {
         if (user) {
           setAgentIdentity(user);
           persistence.set('agent_session', JSON.stringify(user));
-        } else { alert("Authentication failed."); }
+        } else { alert("Authentication failed. Ensure your phone and PIN are correct."); }
       }
     } catch (err) { alert("System Auth Error."); } finally { setIsAuthLoading(false); }
   };
