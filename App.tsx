@@ -22,9 +22,6 @@ type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
-// Simplified, ultra-robust Green & White logo encoding
-const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIwIiBmaWxsPSIjMTZhMzRhIi8+PHBhdGggZD0iTTMwIDMwaDEwbDUgMzBoMzBsNS0yMEg0NSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSI1IiBmaWxsPSJub25lIi8+PGNpcmNsZSBjeD0iNDUiIGN5PSI3NSIgcj0iNSIgZmlsbD0id2hpdGUiLz48Y2lyY2xlIGN4PSI3NSIgY3k9Ijc1IiByPSI1IiBmaWxsPSJ3aGl0ZSIvPjwvc3ZnPg==";
-
 const persistence = {
   get: (key: string): string | null => {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -679,7 +676,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md overflow-hidden">
-             <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-16 h-16 object-contain" />
+             {/* Logo image removed */}
            </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">KPL Food Coop Market</h1>
            <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></p>
@@ -725,7 +722,7 @@ const App: React.FC = () => {
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
           <div className="flex items-center space-x-5">
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden">
-              <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-16 h-16 object-contain" />
+              {/* Logo image removed */}
             </div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
