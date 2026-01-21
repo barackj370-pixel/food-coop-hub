@@ -1,4 +1,3 @@
-
 import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from "../types.ts";
 import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 
