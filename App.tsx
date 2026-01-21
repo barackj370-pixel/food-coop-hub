@@ -179,7 +179,7 @@ const App: React.FC = () => {
 
       if (cloudOrders) {
         setMarketOrders(prev => {
-          const cloudIds = new Set(cloudOrders.map(o => o.id));
+          const cloudIds = new Set(cloudOrders.map(o => [o.id, o]));
           const localOnly = prev.filter(o => !cloudIds.has(o.id));
           const combined = [...localOnly, ...cloudOrders];
           persistence.set('food_coop_orders', JSON.stringify(combined));
