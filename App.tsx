@@ -18,7 +18,7 @@ type PortalType = 'SALES' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
-const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMDAwMDAwIiBkPSJNMTc2IDQxNmMtMjYuNSAwLTQ4IDIxLjUtNDggNDhzMjEuNSA0OCA0OCA0OCA0OCA0ZS0yMS41IDQ4LTQ4LTIxLjUtNDgtNDgtNDh6bTI1NiAwYy0yNi41IDAtNDggMjEuNS00OCA0OHMyMS41IDQ4IDQ4IDQ4IDQ4LTIxLjUgNDgtNDgtMjEuNS00OC00OC00OHpNNDQ2LjcgOTZIMTI1bC0xMC00OGgtODNjLTEzLjMgMC0yNCAxMC43LTI0IDI0czEwLjcgMjQgMjQgMjRoNDMuM2w0OC4yIDIyOWM0LjcgMjIgMjQgMzcuNyA0Ni41IDM3LjdINDE2YzIxLjggMCA0MC40LTE0LjggNDUuNS0zNmw0NS40LTE5Mi44YzMuMy0xNC4yLTcuNy0yNy45LTIyLjItMjcuOXonLz48cGF0aCBmaWxsPSIjMjJjNTVlIiBkPSJNNDgwIDMyYy02NCAwLTEyOCAzMi0xNjAgOTYgMzIgNjQgOTYgOTYgMTYwIDk2czY0LTMyIDY0LTk2LTMyLTk2LTY0LTk2eicgdHJhbnNmb3JtPSd0cmFuc2xhdGUoLTgwLCAtNDApIHNjYWxlKDAuNScpJy8+PGNpcmNsZSBmaWxsPSIjZGMyNjI2IiBjeD0iNDAwIiBjeT0iMTMwIiByPSIzMCIvPjwvc3ZnPg==";
+const LOGO_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjY0IiBmaWxsPSIjZmZmZmZmIi8+PHBhdGggZD0iTTEyOCAxNjBoNDhsMzIgMTYwaDE5MmwzMi0xMjhIMjI0IiBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMzIiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDgiIGN5PSI0MDAiIHI9IjMyIiBmaWxsPSIjMDAwMDAwIi8+PGNpcmNsZSBjeD0iMzY4IiBjeT0iNDAwIiByPSIzMiIgZmlsbD0iIzAwMDAwMCIvPjxwYXRoIGQ9Ik00MDAgOTZjMCA0MC00MCA2NC04MCA2NHMtODAtMjQtODAtNjQgNDAtNjQgODAtNjQgODAgMjQgODAgNjR6IiBmaWxsPSIjMjJjNTVlIi8+PGNpcmNsZSBjeD0iNDQ4IiBjeT0iOTYiIHI9IjMyIiBmaWxsPSIjZGMyNjI2Ii8+PC9zdmc+";
 
 const persistence = {
   get: (key: string): string | null => {
@@ -581,7 +581,7 @@ const App: React.FC = () => {
              <img src={LOGO_DATA_URI} alt="KPL Food Coop Logo" className="w-12 h-12 object-contain" />
            </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">KPL Food Coop Market</h1>
-           <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-black">Consumers</span></p>
+           <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></p>
         </div>
         <div className="w-full max-w-[360px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 z-10">
             <div className="flex justify-between items-end mb-2">
@@ -629,7 +629,7 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
               <div className="flex items-center space-x-2 mt-1.5">
-                <span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-black">Consumers</span></span>
+                <span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></span>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
