@@ -7,9 +7,11 @@ const boot = () => {
   if (!rootElement) return;
 
   // Service Worker registration enabled for PWA functionality
+  // Explicitly resolving the SW path against the current location to prevent origin mismatch errors
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').then(reg => {
+      const swUrl = new URL('sw.js', window.location.href).href;
+      navigator.serviceWorker.register(swUrl).then(reg => {
         console.log('PWA Service Worker registered:', reg);
       }).catch(err => {
         console.error("SW Registration Error:", err);
