@@ -1,12 +1,11 @@
-const CACHE_NAME = 'food-coop-hub-v2'; // Bumped version to force update
+const CACHE_NAME = 'food-coop-hub-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './index.tsx',
   'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://cdn-icons-png.flaticon.com/512/188/188333.png'
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
 
 self.addEventListener('install', (event) => {
@@ -32,7 +31,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // For development, we prioritize network for app logic to avoid stale state
   const isAppLogic = event.request.url.includes('.tsx') || event.request.url.includes('.ts');
   
   if (isAppLogic) {
