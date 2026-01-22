@@ -22,7 +22,6 @@ const formatDate = (dateVal: any): string => {
   }
 };
 
-// Sanitization helper to catch literal "undefined" strings
 const cleanStr = (val: any): string => {
   if (val === undefined || val === null) return "";
   const s = String(val).trim();
@@ -32,12 +31,9 @@ const cleanStr = (val: any): string => {
 
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
-
   const rawData = Array.isArray(records) ? records : [records];
   const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
-  
   if (filteredData.length === 0) return true; 
-
   const mappedRecords = filteredData.map(r => ({
     id: r.id,
     date: r.date,
@@ -57,24 +53,15 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     signature: r.signature,
     cluster: r.cluster
   }));
-
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'sync_records',
-        records: mappedRecords,
-        _t: Date.now()
-      }),
+      body: JSON.stringify({ action: 'sync_records', records: mappedRecords, _t: Date.now() }),
     });
-    const resultText = await response.text();
-    return response.ok || resultText.toLowerCase().includes('success');
-  } catch (error) {
-    console.error("Cloud Sync Error:", error);
-    return false;
-  }
+    return response.ok;
+  } catch (error) { return false; }
 };
 
 export const deleteRecordFromCloud = async (id: string): Promise<boolean> => {
@@ -84,18 +71,10 @@ export const deleteRecordFromCloud = async (id: string): Promise<boolean> => {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'delete_record',
-        id: id,
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'delete_record', id: id, _t: Date.now() })
     });
-    const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
-  } catch (error) {
-    console.error("Cloud Record Delete Error:", error);
-    return false;
-  }
+    return response.ok;
+  } catch (error) { return false; }
 };
 
 export const deleteUserFromCloud = async (phone: string): Promise<boolean> => {
@@ -105,18 +84,10 @@ export const deleteUserFromCloud = async (phone: string): Promise<boolean> => {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'delete_user',
-        phone: phone.trim(),
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'delete_user', phone: phone.trim(), _t: Date.now() })
     });
-    const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
-  } catch (error) {
-    console.error("Cloud User Delete Error:", error);
-    return false;
-  }
+    return response.ok;
+  } catch (error) { return false; }
 };
 
 export const deleteAllUsersFromCloud = async (): Promise<boolean> => {
@@ -126,17 +97,10 @@ export const deleteAllUsersFromCloud = async (): Promise<boolean> => {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'delete_all_users',
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'delete_all_users', _t: Date.now() })
     });
-    const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
-  } catch (error) {
-    console.error("Cloud User Purge Error:", error);
-    return false;
-  }
+    return response.ok;
+  } catch (error) { return false; }
 };
 
 export const deleteProduceFromCloud = async (id: string): Promise<boolean> => {
@@ -146,18 +110,10 @@ export const deleteProduceFromCloud = async (id: string): Promise<boolean> => {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'delete_produce',
-        id: id,
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'delete_produce', id: id, _t: Date.now() })
     });
-    const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
-  } catch (error) {
-    console.error("Cloud Produce Delete Error:", error);
-    return false;
-  }
+    return response.ok;
+  } catch (error) { return false; }
 };
 
 export const deleteAllProduceFromCloud = async (): Promise<boolean> => {
@@ -167,17 +123,23 @@ export const deleteAllProduceFromCloud = async (): Promise<boolean> => {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'delete_all_produce',
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'delete_all_produce', _t: Date.now() })
     });
-    const text = await response.text();
-    return response.ok || text.toLowerCase().includes('success');
-  } catch (error) {
-    console.error("Cloud Purge Error:", error);
-    return false;
-  }
+    return response.ok;
+  } catch (error) { return false; }
+};
+
+export const deleteAllOrdersFromCloud = async (): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'delete_all_orders', _t: Date.now() })
+    });
+    return response.ok;
+  } catch (error) { return false; }
 };
 
 export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
@@ -187,19 +149,13 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'get_records',
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'get_records', _t: Date.now() })
     });
     const text = await response.text();
-    const trimmed = text.trim();
-    if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
-      const rawData = JSON.parse(trimmed);
+    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+      const rawData = JSON.parse(text);
       const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || []);
-      return dataArray
-        .filter((r: any) => r && (r["ID"] || r["id"]))
-        .map((r: any) => ({
+      return dataArray.filter((r: any) => r && (r["ID"] || r["id"])).map((r: any) => ({
           id: cleanStr(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
           cropType: cleanStr(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
@@ -222,10 +178,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
         })) as SaleRecord[];
     }
     return null;
-  } catch (error) {
-    console.error("Fetch Error:", error);
-    return null;
-  }
+  } catch (error) { return null; }
 };
 
 export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => {
@@ -235,24 +188,10 @@ export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => 
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'sync_user',
-        user: {
-          name: user.name,
-          phone: user.phone,
-          role: user.role,
-          passcode: user.passcode,
-          cluster: user.cluster,
-          status: user.status
-        },
-        _t: Date.now()
-      }),
+      body: JSON.stringify({ action: 'sync_user', user, _t: Date.now() }),
     });
-    const resultText = await response.text();
-    return response.ok || resultText.toLowerCase().includes('success');
-  } catch (e) {
-    return false;
-  }
+    return response.ok;
+  } catch (e) { return false; }
 };
 
 export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => {
@@ -262,15 +201,11 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'get_users',
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'get_users', _t: Date.now() })
     });
     const text = await response.text();
-    const trimmed = text.trim();
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      const rawUsersRaw = JSON.parse(trimmed);
+    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+      const rawUsersRaw = JSON.parse(text);
       const rawUsers = Array.isArray(rawUsersRaw) ? rawUsersRaw : (rawUsersRaw.data || rawUsersRaw.records || []);
       return rawUsers.map((u: any) => ({
         name: cleanStr(u["Name"] || u["name"] || ""),
@@ -282,9 +217,7 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
       }));
     }
     return null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 export const syncOrderToCloud = async (order: MarketOrder): Promise<boolean> => {
@@ -294,28 +227,10 @@ export const syncOrderToCloud = async (order: MarketOrder): Promise<boolean> => 
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'sync_order',
-        order: {
-          id: order.id,
-          date: order.date,
-          cropType: order.cropType,
-          unitsRequested: order.unitsRequested,
-          unitType: order.unitType,
-          customerName: order.customerName,
-          customerPhone: order.customerPhone,
-          status: order.status,
-          agentPhone: order.agentPhone,
-          cluster: order.cluster
-        },
-        _t: Date.now()
-      }),
+      body: JSON.stringify({ action: 'sync_order', order, _t: Date.now() }),
     });
-    const resultText = await response.text();
-    return response.ok || resultText.toLowerCase().includes('success');
-  } catch (e) {
-    return false;
-  }
+    return response.ok;
+  } catch (e) { return false; }
 };
 
 export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
@@ -325,15 +240,11 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'get_orders',
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'get_orders', _t: Date.now() })
     });
     const text = await response.text();
-    const trimmed = text.trim();
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      const rawOrdersRaw = JSON.parse(trimmed);
+    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+      const rawOrdersRaw = JSON.parse(text);
       const rawOrders = Array.isArray(rawOrdersRaw) ? rawOrdersRaw : (rawOrdersRaw.data || rawOrdersRaw.records || []);
       return rawOrders.map((o: any) => ({
         id: cleanStr(o["ID"] || o["id"] || ""),
@@ -349,9 +260,7 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
       }));
     }
     return null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 export const syncProduceToCloud = async (produce: ProduceListing): Promise<boolean> => {
@@ -361,28 +270,10 @@ export const syncProduceToCloud = async (produce: ProduceListing): Promise<boole
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({
-        action: 'sync_produce',
-        produce: {
-          id: produce.id,
-          date: produce.date,
-          cropType: produce.cropType,
-          unitsAvailable: produce.unitsAvailable,
-          unitType: produce.unitType,
-          sellingPrice: produce.sellingPrice,
-          supplierName: produce.supplierName,
-          supplierPhone: produce.supplierPhone,
-          cluster: produce.cluster,
-          status: produce.status
-        },
-        _t: Date.now()
-      }),
+      body: JSON.stringify({ action: 'sync_produce', produce, _t: Date.now() }),
     });
-    const resultText = await response.text();
-    return response.ok || resultText.toLowerCase().includes('success');
-  } catch (e) {
-    return false;
-  }
+    return response.ok;
+  } catch (e) { return false; }
 };
 
 export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> => {
@@ -392,37 +283,25 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ 
-        action: 'get_produce',
-        _t: Date.now()
-      })
+      body: JSON.stringify({ action: 'get_produce', _t: Date.now() })
     });
     const text = await response.text();
-    const trimmed = text.trim();
-    if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
-      const rawData = JSON.parse(trimmed);
+    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+      const rawData = JSON.parse(text);
       const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || rawData.produce || []);
-      
-      return dataArray
-        .filter((p: any) => p && (p.id || p.ID))
-        .map((p: any) => {
-          return {
-            id: cleanStr(p.id || p.ID || ""),
-            date: formatDate(p.date || p.Date || p["Posted Date"]),
-            cropType: cleanStr(p.cropType || p["Crop Type"] || p.Commodity || ""),
-            unitsAvailable: safeNum(p.unitsAvailable || p["Units Available"] || p.Quantity || p.Units),
-            unitType: cleanStr(p.unitType || p["Unit Type"] || ""),
-            sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
-            supplierName: cleanStr(p.supplierName || p["Supplier Name"] || p.Name),
-            supplierPhone: cleanStr(p.supplierPhone || p["Supplier Phone"]),
-            cluster: cleanStr(p.cluster || p.Cluster || ""),
-            status: (cleanStr(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
-          };
-        });
+      return dataArray.filter((p: any) => p && (p.id || p.ID)).map((p: any) => ({
+          id: cleanStr(p.id || p.ID || ""),
+          date: formatDate(p.date || p.Date || p["Posted Date"]),
+          cropType: cleanStr(p.cropType || p["Crop Type"] || p.Commodity || ""),
+          unitsAvailable: safeNum(p.unitsAvailable || p["Units Available"] || p.Quantity || p.Units),
+          unitType: cleanStr(p.unitType || p["Unit Type"] || ""),
+          sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
+          supplierName: cleanStr(p.supplierName || p["Supplier Name"] || p.Name),
+          supplierPhone: cleanStr(p.supplierPhone || p["Supplier Phone"]),
+          cluster: cleanStr(p.cluster || p.Cluster || ""),
+          status: (cleanStr(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
+        }));
     }
     return null; 
-  } catch (e) {
-    console.error("Produce Fetch Error:", e);
-    return null;
-  }
+  } catch (e) { return null; }
 };

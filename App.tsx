@@ -11,7 +11,6 @@ import {
   fetchUsersFromCloud, 
   deleteRecordFromCloud,
   deleteUserFromCloud,
-  deleteAllUsersFromCloud,
   deleteProduceFromCloud,
   deleteAllProduceFromCloud,
   syncOrderToCloud,
@@ -24,7 +23,6 @@ type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
-const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23000000' d='M160 96c0-17.7-14.3-32-32-32H32C14.3 64 0 78.3 0 96s14.3 32 32 32h73.4l57.1 240.1c5.3 22.3 25.3 37.9 48.2 37.9H436c22.9 0 42.9-15.6 48.2-37.9l39.1-164.2c4.2-17.8-7-35.7-24.9-39.9s-35.7 7-39.9 24.9l-33.9 142.2H198.5l-57.1-240c-2.7-11.2-12.7-19-24.1-19H32z'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='448' r='48'/%3E%3Ccircle fill='%23dc2626' cx='416' cy='448' r='48'/%3E%3Cpath fill='%2322c55e' d='M448 32c-60 0-120 40-140 100-5-20-20-40-40-50 20 60 10 120-60 150 70 0 130-40 150-100 5 20 20 40 40 50-20-60-10-120 50-150z'/%3E%3C/svg%3E";
 
 const persistence = {
   get: (key: string): string | null => {
@@ -385,11 +383,7 @@ const App: React.FC = () => {
       unitType: order.unitType,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
-      orderId: order.id,
-      // Explicitly clear farmer details to ensure a clean form state
-      farmerName: '',
-      farmerPhone: '',
-      unitPrice: 0
+      orderId: order.id
     });
     window.scrollTo({ top: 400, behavior: 'smooth' });
   };
@@ -402,13 +396,9 @@ const App: React.FC = () => {
       farmerName: listing.supplierName,
       farmerPhone: listing.supplierPhone,
       unitPrice: listing.sellingPrice,
-      produceId: listing.id,
-      // Explicitly clear consumer details and reset quantity for a new sales entry
-      unitsSold: 0,
-      customerName: '',
-      customerPhone: ''
+      produceId: listing.id
     });
-    window.scrollTo({ top: 400, behavior: 'smooth' });
+    window.scrollTo({ top: 600, behavior: 'smooth' });
   };
 
   const handleDeleteProduce = async (id: string) => {
@@ -452,21 +442,6 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Global purge failed:", err);
       alert("Cloud purge failed. Local state cleared.");
-    }
-  };
-
-  const handleDeleteAllUsers = async () => {
-    if (!window.confirm("NUCLEAR ALERT: You are about to purge ALL registered users from the cloud. This action is irreversible and will delete every identity in the system. Proceed?")) return;
-    
-    setUsers([]);
-    persistence.set('coop_users', JSON.stringify([]));
-    
-    try {
-      await deleteAllUsersFromCloud();
-      alert("Cloud User Registry Purged Successfully.");
-    } catch (err) {
-      console.error("Global user purge failed:", err);
-      alert("Cloud user purge failed. Local state cleared.");
     }
   };
 
@@ -789,10 +764,9 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md overflow-hidden">
-              <img src={APP_LOGO} className="w-12 h-12 object-contain" alt="KPL Logo" />
            </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">KPL Food Coop Market</h1>
-           <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-red-600">Consumers</span> with <span className="text-green-600">Suppliers</span></p>
+           <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></p>
         </div>
         <div className="w-full max-w-[360px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 z-10">
             <div className="flex justify-between items-end mb-2">
@@ -835,12 +809,11 @@ const App: React.FC = () => {
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
           <div className="flex items-center space-x-5">
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden">
-               <img src={APP_LOGO} className="w-10 h-10 object-contain" alt="KPL Logo" />
             </div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
               <div className="flex items-center space-x-2 mt-1.5">
-                <span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-red-600">Consumers</span> with <span className="text-green-600">Suppliers</span></span>
+                <span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></span>
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
@@ -1229,14 +1202,6 @@ const App: React.FC = () => {
                         className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95 flex items-center gap-2"
                       >
                         <i className="fas fa-trash-can"></i> Purge Repository
-                      </button>
-                    )}
-                    {users.length > 0 && (
-                      <button 
-                        onClick={handleDeleteAllUsers}
-                        className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95 flex items-center gap-2"
-                      >
-                        <i className="fas fa-user-slash"></i> Purge Users
                       </button>
                     )}
                   </div>
