@@ -20,7 +20,7 @@ import {
   fetchProduceFromCloud
 } from './services/googleSheetsService.ts';
 
-type PortalType = 'HOME' | 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'ABOUT' | 'CONTACT' | 'NEWS';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
@@ -83,6 +83,7 @@ const App: React.FC = () => {
     return [];
   });
 
+  // Persistent blacklist to prevent deleted items from reappearing during background sync
   const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
     const saved = persistence.get('deleted_produce_blacklist');
     return saved ? JSON.parse(saved) : [];
@@ -94,7 +95,7 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : null;
   });
   
-  const [currentPortal, setCurrentPortal] = useState<PortalType>('HOME');
+  const [currentPortal, setCurrentPortal] = useState<PortalType>('MARKET');
   const [marketView, setMarketView] = useState<MarketView>(() => {
     const saved = persistence.get('agent_session');
     if (saved) {
@@ -110,10 +111,6 @@ const App: React.FC = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
-
-  // Contact Form State
-  const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
-  const [isContactSent, setIsContactSent] = useState(false);
 
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -205,10 +202,13 @@ const App: React.FC = () => {
 
       if (cloudProduce !== null) {
         setProduceListings(prev => {
+          // Sync Logic: Ignore cloud items that have been locally blacklisted (deleted)
           const blacklist = new Set(deletedProduceIds);
           const filteredCloud = cloudProduce.filter(cp => !blacklist.has(cp.id));
           const cloudIds = new Set(filteredCloud.map(p => p.id));
+          
           const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !blacklist.has(p.id));
+          
           const merged = filteredCloud.map(cp => {
             const localMatch = prev.find(p => p.id === cp.id);
             if (localMatch) {
@@ -225,6 +225,7 @@ const App: React.FC = () => {
             }
             return cp;
           });
+          
           const combined = [...localOnly, ...merged];
           persistence.set('food_coop_produce', JSON.stringify(combined));
           return combined;
@@ -312,6 +313,7 @@ const App: React.FC = () => {
       alert("Please enter customer name and quantity.");
       return;
     }
+
     const newOrder: MarketOrder = {
       id: 'ORD-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
       date: new Date().toISOString().split('T')[0],
@@ -324,16 +326,30 @@ const App: React.FC = () => {
       agentPhone: agentIdentity?.phone || '',
       cluster: agentIdentity?.cluster || 'Unassigned'
     };
+
     setMarketOrders(prev => {
         const updated = [newOrder, ...prev];
         persistence.set('food_coop_orders', JSON.stringify(updated));
         return updated;
     });
     setDemandForm({ ...demandForm, customerName: '', customerPhone: '', unitsRequested: 0 });
-    try { await syncOrderToCloud(newOrder); } catch (err) { console.error("Order sync failed:", err); }
+
+    try {
+      await syncOrderToCloud(newOrder);
+    } catch (err) {
+      console.error("Order sync failed:", err);
+    }
   };
 
-  const handleAddProduce = async (data: any) => {
+  const handleAddProduce = async (data: {
+    date: string;
+    cropType: string;
+    unitType: string;
+    unitsAvailable: number;
+    sellingPrice: number;
+    supplierName: string;
+    supplierPhone: string;
+  }) => {
     const clusterValue = agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa';
     const newListing: ProduceListing = {
       id: 'LST-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -347,12 +363,18 @@ const App: React.FC = () => {
       cluster: clusterValue,
       status: 'AVAILABLE'
     };
+
     setProduceListings(prev => {
         const updated = [newListing, ...prev];
         persistence.set('food_coop_produce', JSON.stringify(updated));
         return updated;
     });
-    try { await syncProduceToCloud(newListing); } catch (err) { console.error("Produce sync failed:", err); }
+
+    try {
+      await syncProduceToCloud(newListing);
+    } catch (err) {
+      console.error("Produce sync failed:", err);
+    }
   };
 
   const handleFulfillOrderClick = (order: MarketOrder) => {
@@ -364,6 +386,7 @@ const App: React.FC = () => {
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       orderId: order.id,
+      // Explicitly clear farmer details to ensure a clean form state
       farmerName: '',
       farmerPhone: '',
       unitPrice: 0
@@ -380,6 +403,7 @@ const App: React.FC = () => {
       farmerPhone: listing.supplierPhone,
       unitPrice: listing.sellingPrice,
       produceId: listing.id,
+      // Explicitly clear consumer details and reset quantity for a new sales entry
       unitsSold: 0,
       customerName: '',
       customerPhone: ''
@@ -388,16 +412,62 @@ const App: React.FC = () => {
   };
 
   const handleDeleteProduce = async (id: string) => {
-    if (!window.confirm("Action required: Permanent deletion of listing ID: " + id + ". Continue?")) return;
+    if (!window.confirm("Action required: NUCLEAR PERMANENT DELETION of harvest listing ID: " + id + ". Continue?")) return;
+    
+    // Add to persistent blacklist to prevent re-appearance during background sync
     const newBlacklist = [...deletedProduceIds, id];
     setDeletedProduceIds(newBlacklist);
     persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
+
+    // Instant local purge
     setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== id);
         persistence.set('food_coop_produce', JSON.stringify(updated));
         return updated;
     });
-    try { await deleteProduceFromCloud(id); } catch (err) { console.error("Produce deletion sync failed:", err); }
+
+    try {
+      await deleteProduceFromCloud(id);
+    } catch (err) {
+      console.error("Produce deletion sync failed:", err);
+    }
+  };
+
+  const handleDeleteAllProduce = async () => {
+    if (!window.confirm("CRITICAL ALERT: You are about to purge ALL produce listings from the entire system. This action is irreversible. Proceed?")) return;
+    
+    // Add all current IDs to blacklist
+    const currentIds = produceListings.map(p => p.id);
+    const newBlacklist = Array.from(new Set([...deletedProduceIds, ...currentIds]));
+    setDeletedProduceIds(newBlacklist);
+    persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
+
+    // Clear local state
+    setProduceListings([]);
+    persistence.set('food_coop_produce', JSON.stringify([]));
+
+    try {
+      await deleteAllProduceFromCloud();
+      alert("System Repository Purged Successfully.");
+    } catch (err) {
+      console.error("Global purge failed:", err);
+      alert("Cloud purge failed. Local state cleared.");
+    }
+  };
+
+  const handleDeleteAllUsers = async () => {
+    if (!window.confirm("NUCLEAR ALERT: You are about to purge ALL registered users from the cloud. This action is irreversible and will delete every identity in the system. Proceed?")) return;
+    
+    setUsers([]);
+    persistence.set('coop_users', JSON.stringify([]));
+    
+    try {
+      await deleteAllUsersFromCloud();
+      alert("Cloud User Registry Purged Successfully.");
+    } catch (err) {
+      console.error("Global user purge failed:", err);
+      alert("Cloud user purge failed. Local state cleared.");
+    }
   };
 
   const handleAddRecord = async (data: any) => {
@@ -440,9 +510,11 @@ const App: React.FC = () => {
     }
 
     if (data.produceId) {
+      // Mark as deleted in blacklist when converted to sale
       const newBlacklist = [...deletedProduceIds, data.produceId];
       setDeletedProduceIds(newBlacklist);
       persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
+
       setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== data.produceId);
         persistence.set('food_coop_produce', JSON.stringify(updated));
@@ -450,7 +522,9 @@ const App: React.FC = () => {
       });
       try { await deleteProduceFromCloud(data.produceId); } catch (e) { console.error("Produce removal failed:", e); }
     }
+
     setFulfillmentData(null);
+
     try {
       const success = await syncToGoogleSheets(newRecord);
       if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
@@ -493,7 +567,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteUser = async (phone: string) => {
-    if (!window.confirm(`Action required: Permanent deletion of user: ${phone}. Continue?`)) return;
+    if (!window.confirm(`Action required: Permanent deletion of user with phone: ${phone}. This cannot be undone. Continue?`)) return;
     setUsers(prev => {
         const updated = prev.filter(u => normalizePhone(u.phone) !== normalizePhone(phone));
         persistence.set('coop_users', JSON.stringify(updated));
@@ -502,63 +576,55 @@ const App: React.FC = () => {
     try { await deleteUserFromCloud(phone); } catch (e) { console.error("Cloud user deletion failed:", e); }
   };
 
-  // Fix: Implemented missing handleDeleteAllProduce function
-  const handleDeleteAllProduce = async () => {
-    if (!window.confirm("CRITICAL ACTION: Permanent deletion of ALL harvest listings in the cloud. Continue?")) return;
-    setIsSyncing(true);
-    try {
-      const success = await deleteAllProduceFromCloud();
-      if (success) {
-        setProduceListings([]);
-        persistence.set('food_coop_produce', JSON.stringify([]));
-        persistence.set('deleted_produce_blacklist', JSON.stringify([]));
-        setDeletedProduceIds([]);
-        alert("Success: All produce listings purged.");
-      } else {
-        alert("Error: Cloud purge failed.");
-      }
-    } catch (err) {
-      console.error("Purge Error:", err);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Fix: Implemented missing handleDeleteAllUsers function
-  const handleDeleteAllUsers = async () => {
-    if (!window.confirm("CRITICAL ACTION: Permanent deletion of ALL registered agents in the cloud. Continue?")) return;
-    setIsSyncing(true);
-    try {
-      const success = await deleteAllUsersFromCloud();
-      if (success) {
-        setUsers([]);
-        persistence.set('coop_users', JSON.stringify([]));
-        alert("Success: All users purged.");
-      } else {
-        alert("Error: Cloud purge failed.");
-      }
-    } catch (err) {
-      console.error("Purge Error:", err);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const handleLogout = () => {
     setAgentIdentity(null);
     persistence.remove('agent_session');
-    setCurrentPortal('HOME');
   };
 
-  const handleContactSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contactForm.name || !contactForm.email || !contactForm.message) {
-      alert("Please fill in all fields.");
+  const handleExportSummaryCsv = () => {
+    if (boardMetrics.clusterPerformance.length === 0) {
+      alert("No summary data to export.");
       return;
     }
-    setIsContactSent(true);
-    setContactForm({ name: '', email: '', message: '' });
-    setTimeout(() => setIsContactSent(false), 5000);
+    const headers = ["Food Coop Clusters", "Total Volume of Sales (Ksh)", "Total Gross Profit (Ksh)"];
+    const rows = boardMetrics.clusterPerformance.map(([cluster, stats]: [string, any]) => [
+      cluster, stats.volume, stats.profit
+    ]);
+    const totalVolume = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + (b[1] as any).volume, 0);
+    const totalProfit = boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + (b[1] as any).profit, 0);
+    rows.push(["TOTAL SYSTEM OUTPUT", totalVolume, totalProfit]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `kpl_coop_summary_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportDetailedCsv = () => {
+    if (filteredRecords.length === 0) {
+      alert("No detailed records to export.");
+      return;
+    }
+    const headers = ["ID", "Date", "Cluster", "Agent", "Agent Phone", "Supplier", "Supplier Phone", "Buyer", "Buyer Phone", "Commodity", "Units", "Unit Price", "Gross Total", "Coop Profit", "Status"];
+    const rows = filteredRecords.map(r => [
+      r.id, r.date, r.cluster, r.agentName, r.agentPhone, r.farmerName, r.farmerPhone, r.customerName, r.customerPhone, r.cropType, `${r.unitsSold} ${r.unitType}`, r.unitPrice, r.totalSale, r.coopProfit, r.status
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `kpl_detailed_audit_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -573,6 +639,7 @@ const App: React.FC = () => {
         const cloudPhones = new Set(latestCloudUsers.map(u => normalizePhone(u.phone)));
         users.forEach(u => { if (!cloudPhones.has(normalizePhone(u.phone))) currentUsers.push(u); });
       }
+
       if (isRegisterMode) {
         if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) {
             alert("Please select a cluster.");
@@ -587,7 +654,8 @@ const App: React.FC = () => {
           cluster: (authForm.role === SystemRole.SYSTEM_DEVELOPER || authForm.role === SystemRole.FINANCE_OFFICER || authForm.role === SystemRole.AUDITOR || authForm.role === SystemRole.MANAGER) ? '-' : (authForm.cluster || 'System'), 
           status: 'ACTIVE' 
         };
-        const updatedUsersList = [...currentUsers.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone)), newUser];
+        const filteredUsers = currentUsers.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone));
+        const updatedUsersList = [...filteredUsers, newUser];
         setUsers(updatedUsersList);
         persistence.set('coop_users', JSON.stringify(updatedUsersList));
         await syncUserToCloud(newUser);
@@ -673,10 +741,45 @@ const App: React.FC = () => {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="border-t-2 border-slate-100">
+                  <tr className="bg-slate-50/50">
+                    <td colSpan={3} className="py-6 px-4 text-[11px] font-black text-black uppercase tracking-widest">
+                      {cluster} Cluster Subtotal
+                    </td>
+                    <td className="py-6 text-[12px] font-black text-black">
+                      KSh {clusterTotalGross.toLocaleString()}
+                    </td>
+                    <td className="py-6 text-[12px] font-black text-green-600">
+                      KSh {clusterTotalComm.toLocaleString()}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           );
         })}
+        {data.length > 0 && (
+          <div className="bg-slate-900 text-white rounded-[2rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-chart-line text-8xl"></i></div>
+             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div>
+                   <p className="text-[10px] font-black uppercase tracking-tight text-red-500 mb-2">Aggregate System Audit</p>
+                   <h4 className="text-2xl font-black uppercase tracking-tight">Combined Universal Grand Totals</h4>
+                </div>
+                <div className="flex gap-12">
+                   <div className="text-center md:text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Trade Volume</p>
+                      <p className="text-2xl font-black text-white leading-none">KSh {grandTotals.gross.toLocaleString()}</p>
+                   </div>
+                   <div className="text-center md:text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Gross Commission</p>
+                      <p className="text-2xl font-black text-green-400 leading-none">KSh {grandTotals.comm.toLocaleString()}</p>
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -714,6 +817,12 @@ const App: React.FC = () => {
                 </>
               )}
               <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register Account' : 'Authenticate')}</button>
+              
+              <div className="flex justify-center space-x-2 mt-8">
+                <div className="w-10 h-1 rounded-full bg-green-500"></div>
+                <div className="w-10 h-1 rounded-full bg-black"></div>
+                <div className="w-10 h-1 rounded-full bg-red-600"></div>
+              </div>
             </form>
         </div>
       </div>
@@ -723,8 +832,8 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
-        <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-6 gap-6">
-          <div className="flex items-center space-x-5 cursor-pointer" onClick={() => setCurrentPortal('HOME')}>
+        <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
+          <div className="flex items-center space-x-5">
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden">
                <img src={APP_LOGO} className="w-10 h-10 object-contain" alt="KPL Logo" />
             </div>
@@ -735,27 +844,16 @@ const App: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                 <span className="text-black text-[9px] font-black uppercase tracking-[0.4em]">{agentIdentity.role}</span>
               </div>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{isSystemDev ? 'Master Node Access' : `${agentIdentity.name} - ${agentIdentity.cluster} Cluster`}</p>
             </div>
           </div>
           <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex flex-col justify-center">
             <div className="flex items-center justify-end space-x-6">
                <div className="text-right">
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Sync</p>
-                  <p className="text-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p>
+                  <p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p>
                </div>
                <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100 shadow-sm"><i className="fas fa-power-off text-sm"></i></button>
-            </div>
-            {/* NEW INFORMATIONAL MENU */}
-            <div className="flex justify-end gap-4 mt-3 pt-3 border-t border-slate-200/50">
-               {['HOME', 'ABOUT', 'CONTACT', 'NEWS'].map((item) => (
-                 <button 
-                  key={item} 
-                  onClick={() => setCurrentPortal(item as PortalType)}
-                  className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentPortal === item ? 'text-green-600' : 'text-slate-400 hover:text-black'}`}
-                 >
-                   {item === 'ABOUT' ? 'About Us' : item === 'CONTACT' ? 'Contact Us' : item}
-                 </button>
-               ))}
             </div>
           </div>
         </div>
@@ -766,7 +864,11 @@ const App: React.FC = () => {
                 <div key={p} className="relative">
                   <button 
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setCurrentPortal('MARKET'); setIsMarketMenuOpen(!isMarketMenuOpen); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentPortal('MARKET');
+                      setIsMarketMenuOpen(!isMarketMenuOpen);
+                    }}
                     className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
                     Market <i className={`fas fa-chevron-down opacity-50 transition-transform ${isMarketMenuOpen ? 'rotate-180' : ''}`}></i>
                   </button>
@@ -786,7 +888,11 @@ const App: React.FC = () => {
             return (
               <button 
                 key={p} 
-                onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }}
+                type="button"
+                onClick={() => {
+                  setCurrentPortal(p);
+                  setIsMarketMenuOpen(false);
+                }}
                 className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}
               >
                 {p}
@@ -797,165 +903,13 @@ const App: React.FC = () => {
       </header>
 
       <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
-        
-        {/* NEW PORTALS RENDERING */}
-        {currentPortal === 'HOME' && (
-          <div className="space-y-12 animate-in fade-in duration-500">
-             <div className="bg-slate-900 text-white rounded-[3rem] p-12 lg:p-20 relative overflow-hidden shadow-2xl border border-black">
-                <div className="absolute top-0 right-0 p-12 opacity-10"><i className="fas fa-seedling text-[12rem]"></i></div>
-                <div className="relative z-10 max-w-2xl">
-                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-red-600 mb-4">Central Hub Node</p>
-                   <h2 className="text-4xl lg:text-6xl font-black uppercase tracking-tighter leading-[0.9] mb-8">Empowering <br/><span className="text-green-500">Local Agriculture</span> through technology.</h2>
-                   <p className="text-slate-400 font-bold text-lg mb-10 leading-relaxed">Welcome back, {agentIdentity.name}. You are connected to the KPL Digital Network. Access market demand, track harvests, and manage cluster transactions with real-time audit integrity.</p>
-                   <div className="flex gap-4">
-                      <button onClick={() => setCurrentPortal('MARKET')} className="bg-white text-black px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-100 transition-all">Go to Market</button>
-                      <button onClick={() => setCurrentPortal('NEWS')} className="border border-slate-700 text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-800 transition-all">Latest News</button>
-                   </div>
-                </div>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                   <div className="w-12 h-12 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mb-6 text-xl"><i className="fas fa-bolt"></i></div>
-                   <h4 className="font-black uppercase text-sm mb-4">Market Trends</h4>
-                   <p className="text-slate-500 text-xs font-bold leading-relaxed">View live price fluctuations across all clusters. Currently, Maize and Beans show high demand in Mariwa and Mulo.</p>
-                </div>
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                   <div className="w-12 h-12 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mb-6 text-xl"><i className="fas fa-shield-alt"></i></div>
-                   <h4 className="font-black uppercase text-sm mb-4">Audit Integrity</h4>
-                   <p className="text-slate-500 text-xs font-bold leading-relaxed">Every transaction is hashed and signed. Our multi-layer validation ensures 100% financial transparency for the coop.</p>
-                </div>
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                   <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 text-xl"><i className="fas fa-users"></i></div>
-                   <h4 className="font-black uppercase text-sm mb-4">Cluster Network</h4>
-                   <p className="text-slate-500 text-xs font-bold leading-relaxed">Connecting 7 active clusters. Join community discussions and trade events hosted at our central hubs.</p>
-                </div>
-             </div>
-          </div>
-        )}
-
-        {currentPortal === 'ABOUT' && (
-          <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-500">
-             <div className="text-center">
-                <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Our Commitment</h2>
-                <div className="w-20 h-1 bg-red-600 mx-auto rounded-full"></div>
-             </div>
-             <div className="bg-white p-12 lg:p-16 rounded-[3rem] shadow-xl border border-slate-100 leading-relaxed text-slate-600 font-bold">
-                <p className="text-xl text-black font-black mb-8 italic">"Bridging the gap between rural harvest and urban demand through transparency and technology."</p>
-                <p className="mb-6">KPL Food Coop Market is a community-driven agricultural hub dedicated to empowering local farmers and providing consumers with high-quality, traceable produce. Established as a response to market inefficiencies, we leverage digital tools to provide farmers with fair pricing and consumers with fresh commodities.</p>
-                <p className="mb-8">Our platform serves as a central node for 7 regional clusters, managing everything from initial demand intake to final audit verification. By ensuring every sale is documented and verified, we build trust within our cooperative network.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12 pt-12 border-t border-slate-100">
-                   <div>
-                      <h4 className="text-black font-black uppercase text-xs mb-4 tracking-widest">Our Vision</h4>
-                      <p className="text-sm">To be the leading digital marketplace for agricultural cooperatives in East Africa, setting the standard for traceability and farmer profitability.</p>
-                   </div>
-                   <div>
-                      <h4 className="text-black font-black uppercase text-xs mb-4 tracking-widest">Our Mission</h4>
-                      <p className="text-sm">To provide a robust, transparent, and efficient trade infrastructure that empowers small-scale producers through cluster-based logistical support.</p>
-                   </div>
-                </div>
-             </div>
-          </div>
-        )}
-
-        {currentPortal === 'CONTACT' && (
-          <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 animate-in fade-in duration-500">
-             <div className="space-y-8">
-                <div>
-                   <h2 className="text-4xl font-black uppercase tracking-tighter mb-4">Get In Touch</h2>
-                   <p className="text-slate-500 font-bold">Have questions about cluster registration or market orders? Our support team is here to help.</p>
-                </div>
-                <div className="bg-black text-white p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-                   <div className="absolute -right-10 -bottom-10 opacity-10"><i className="fas fa-envelope text-9xl"></i></div>
-                   <div className="space-y-6 relative z-10">
-                      <div>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Official Email</p>
-                         <p className="text-lg font-black tracking-tight">info@kplfoocoopmarket.co.ke</p>
-                      </div>
-                      <div>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Central Hub</p>
-                         <p className="text-lg font-black tracking-tight">Mariwa Market Complex, Block A</p>
-                      </div>
-                      <div>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Operations</p>
-                         <p className="text-lg font-black tracking-tight">Mon - Sat: 08:00 - 18:00</p>
-                      </div>
-                   </div>
-                </div>
-             </div>
-             <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100">
-                {isContactSent ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center space-y-4 animate-in zoom-in duration-300">
-                     <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-2xl"><i className="fas fa-check"></i></div>
-                     <h3 className="text-xl font-black uppercase">Message Sent!</h3>
-                     <p className="text-slate-500 text-sm font-bold">We will get back to you within 24 hours.</p>
-                  </div>
-                ) : (
-                  <form onSubmit={handleContactSubmit} className="space-y-5">
-                    <div className="space-y-1.5">
-                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Your Name</label>
-                       <input type="text" required value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 font-bold outline-none focus:bg-white focus:border-red-600 transition-all" />
-                    </div>
-                    <div className="space-y-1.5">
-                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
-                       <input type="email" required value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 font-bold outline-none focus:bg-white focus:border-red-600 transition-all" />
-                    </div>
-                    <div className="space-y-1.5">
-                       <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Your Message</label>
-                       <textarea rows={4} required value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 font-bold outline-none focus:bg-white focus:border-red-600 transition-all resize-none"></textarea>
-                    </div>
-                    <button className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[11px] tracking-widest py-5 rounded-2xl shadow-xl transition-all active:scale-95">Send Dispatch</button>
-                  </form>
-                )}
-             </div>
-          </div>
-        )}
-
-        {currentPortal === 'NEWS' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-             <div className="flex justify-between items-end mb-4 px-4">
-                <h2 className="text-4xl font-black uppercase tracking-tighter">Cluster Bulletin</h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Updated Daily</p>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-md group hover:shadow-xl transition-all cursor-pointer">
-                   <div className="flex items-center gap-4 mb-6">
-                      <span className="bg-red-50 text-red-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">Update</span>
-                      <span className="text-slate-400 text-[10px] font-bold">24 Oct 2024</span>
-                   </div>
-                   <h3 className="text-xl font-black uppercase mb-4 group-hover:text-red-600 transition-colors">New Cluster Added: Kabarnet joins the Network</h3>
-                   <p className="text-slate-500 text-sm font-bold leading-relaxed mb-6">We are excited to welcome the Kabarnet farmers cluster to the KPL platform. This addition expands our network's capacity for honey and seasonal fruits by 15%.</p>
-                   <button className="text-[10px] font-black uppercase tracking-widest border-b-2 border-black pb-1">Read Article</button>
-                </div>
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-md group hover:shadow-xl transition-all cursor-pointer">
-                   <div className="flex items-center gap-4 mb-6">
-                      <span className="bg-green-50 text-green-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">Market</span>
-                      <span className="text-slate-400 text-[10px] font-bold">22 Oct 2024</span>
-                   </div>
-                   <h3 className="text-xl font-black uppercase mb-4 group-hover:text-green-600 transition-colors">Maize Price Stabilization Across Clusters</h3>
-                   <p className="text-slate-500 text-sm font-bold leading-relaxed mb-6">Analysis from the last 7 days shows that Maize prices have stabilized at KSh 140 per 2kg tin across Mariwa and Mulo. Supply remains steady.</p>
-                   <button className="text-[10px] font-black uppercase tracking-widest border-b-2 border-black pb-1">View Data</button>
-                </div>
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-md group hover:shadow-xl transition-all cursor-pointer">
-                   <div className="flex items-center gap-4 mb-6">
-                      <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">Award</span>
-                      <span className="text-slate-400 text-[10px] font-bold">18 Oct 2024</span>
-                   </div>
-                   <h3 className="text-xl font-black uppercase mb-4 group-hover:text-blue-600 transition-colors">KPL Recognized for Agricultural Innovation</h3>
-                   <p className="text-slate-500 text-sm font-bold leading-relaxed mb-6">The regional board has awarded KPL for our implementation of the digital audit registry, significantly reducing transaction friction for our agents.</p>
-                   <button className="text-[10px] font-black uppercase tracking-widest border-b-2 border-black pb-1">Full Report</button>
-                </div>
-             </div>
-          </div>
-        )}
-
-        {/* ORIGINAL PORTALS CONTENT (UNCHANGED LOGIC) */}
         {currentPortal === 'MARKET' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-8">
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg shadow-black/10 scale-105' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                     <i className="fas fa-shopping-cart"></i> Sales Portal
                 </button>
-                <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg shadow-black/10 scale-105' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                     <i className="fas fa-seedling"></i> Supplier Portal
                 </button>
             </div>
@@ -1037,6 +991,9 @@ const App: React.FC = () => {
                                </td>
                              </tr>
                            ))}
+                           {filteredOrders.filter(o => o.status === OrderStatus.OPEN).length === 0 && (
+                             <tr><td colSpan={4} className="py-4 text-[9px] font-bold text-slate-600 uppercase text-center">No unfulfilled demand logged</td></tr>
+                           )}
                         </tbody>
                      </table>
                    </div>
@@ -1048,7 +1005,7 @@ const App: React.FC = () => {
                 
                 <AuditLogTable 
                   data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} 
-                  title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log" : "Recent Integrity Logs"} 
+                  title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log (Privileged Access)" : "Recent Integrity Logs (Classified)"} 
                   onDelete={isSystemDev ? handleDeleteRecord : undefined} 
                 />
               </>
@@ -1121,6 +1078,9 @@ const App: React.FC = () => {
                                </td>
                              </tr>
                            ))}
+                           {produceListings.length === 0 && (
+                             <tr><td colSpan={7} className="py-16 text-center text-slate-300 font-black uppercase text-[10px] italic">Zero harvest logs in repository</td></tr>
+                           )}
                         </tbody>
                      </table>
                    </div>
@@ -1131,7 +1091,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'FINANCE' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-8">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
                <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3>
                <div className="overflow-x-auto">
@@ -1143,6 +1103,13 @@ const App: React.FC = () => {
                       {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
                         <tr key={r.id} className="hover:bg-slate-50/50">
                           <td className="py-6 font-bold">{r.date}</td>
+                          <td className="py-6">
+                            <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
+                              <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
+                              <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                              <p>Buyer: {r.customerName} ({r.customerPhone})</p>
+                            </div>
+                          </td>
                           <td className="py-6 uppercase font-bold">{r.cropType}</td>
                           <td className="py-6 font-black">KSh {Number(r.totalSale).toLocaleString()}</td>
                           <td className="py-6 text-right">
@@ -1156,21 +1123,38 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={filteredRecords} title="Full Financial Classified Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
         {currentPortal === 'AUDIT' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-8">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
                <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-black pl-4">Awaiting Approval & Verification</h3>
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-xs">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                      <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
+                    </thead>
                     <tbody className="divide-y">
                       {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
                         <tr key={r.id} className="hover:bg-slate-800/50">
-                          <td className="py-6 font-bold uppercase text-black">{r.cropType}</td>
-                          <td className="py-6 font-black text-black">Gross: KSh {Number(r.totalSale).toLocaleString()}</td>
+                          <td className="py-6">
+                             <p className="font-bold uppercase text-black">{r.cropType}</p>
+                             <p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p>
+                             <p className="text-[8px] font-mono mt-1 text-slate-300">{r.signature}</p>
+                          </td>
+                          <td className="py-6">
+                            <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
+                              <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
+                              <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                              <p>Buyer: {r.customerName} ({r.customerPhone})</p>
+                            </div>
+                          </td>
+                          <td className="py-6 font-black text-black">
+                            <p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p>
+                            <p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p>
+                          </td>
                           <td className="py-6 text-right">
                              {r.status === RecordStatus.PAID ? (
                                <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2 ml-auto">
@@ -1193,54 +1177,110 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'BOARD' && (
-          <div className="space-y-12 animate-in fade-in duration-500">
+          <div className="space-y-12">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
-               <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4 mb-8">Cluster Summary Trade Report</h3>
+               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
+                  <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">KPL Food Coops Summary Trade Report</h3>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Summary CSV</button>
+                    <button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 active:scale-95 transition-all"><i className="fas fa-download mr-2"></i> Detailed CSV Report</button>
+                  </div>
+               </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
                     <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                      <tr><th className="pb-6">Cluster</th><th className="pb-6">Volume</th><th className="pb-6">Profit</th></tr>
+                      <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Volume of Sales (Ksh)</th><th className="pb-6">Total Gross Profit (Ksh)</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
-                        <tr key={cluster} className="hover:bg-slate-50/50">
+                        <tr key={cluster} className="hover:bg-slate-50/50 transition-colors">
                           <td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td>
                           <td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td>
                           <td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td>
                         </tr>
                       ))}
+                      <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl">
+                        <td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td>
+                        <td className="py-6 font-black text-[11px]">KSh {(boardMetrics.clusterPerformance as any[]).reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td>
+                        <td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {(boardMetrics.clusterPerformance as any[]).reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td>
+                      </tr>
                     </tbody>
                  </table>
                </div>
             </div>
+            <AuditLogTable data={filteredRecords} title="Universal Trade Log (Classified by Cluster)" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
-          <div className="space-y-12 animate-in fade-in duration-500">
+          <div className="space-y-12">
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-database text-8xl"></i></div>
                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
-                  <div><h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4></div>
+                  <div>
+                     <p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-500 mb-2">Cloud Storage Node</p>
+                     <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
+                  </div>
                   <div className="flex flex-wrap gap-4">
                     <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:bg-green-700 active:scale-95 transition-all flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a>
-                    <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95">Purge Produce</button>
-                    <button onClick={handleDeleteAllUsers} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95">Purge Users</button>
+                    {produceListings.length > 0 && (
+                      <button 
+                        onClick={handleDeleteAllProduce}
+                        className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <i className="fas fa-trash-can"></i> Purge Repository
+                      </button>
+                    )}
+                    {users.length > 0 && (
+                      <button 
+                        onClick={handleDeleteAllUsers}
+                        className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <i className="fas fa-user-slash"></i> Purge Users
+                      </button>
+                    )}
                   </div>
                </div>
             </div>
             <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl">
-               <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Registered Agents</h3>
+               <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security (Registered Users)</h3>
                <div className="overflow-x-auto">
                  <table className="w-full text-left">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                      <tr><th className="pb-4">Name & Contact</th><th className="pb-4">Role / Node</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr>
+                    </thead>
                     <tbody className="divide-y">
                       {users.map(u => (
                         <tr key={u.phone} className="group hover:bg-slate-50/50">
-                          <td className="py-6"><p className="text-sm font-black uppercase text-black">{u.name}</p></td>
-                          <td className="py-6"><p className="text-[11px] font-black text-black uppercase">{u.role}</p></td>
+                          <td className="py-6">
+                            <p className="text-sm font-black uppercase text-black">{u.name}</p>
+                            <p className="text-[10px] font-bold text-slate-400">{u.phone}</p>
+                          </td>
+                          <td className="py-6">
+                            <p className="text-[11px] font-black text-black uppercase">{u.role}</p>
+                            <p className="text-[9px] text-slate-400 font-bold">
+                              {(u.role === SystemRole.SYSTEM_DEVELOPER || 
+                                u.role === SystemRole.FINANCE_OFFICER || 
+                                u.role === SystemRole.AUDITOR || 
+                                u.role === SystemRole.MANAGER) ? '-' : u.cluster}
+                            </p>
+                          </td>
+                          <td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td>
                           <td className="py-6 text-right">
                              <div className="flex items-center justify-end gap-3">
-                                <button type="button" onClick={() => handleToggleUserStatus(u.phone, u.status as any)} className={`bg-white border px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all shadow-sm ${u.status === 'ACTIVE' ? 'border-red-200 text-red-600 hover:bg-red-600 hover:text-white' : 'border-green-200 text-green-600 hover:bg-green-600 hover:text-white'}`}>{u.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
-                                <button onClick={() => handleDeleteUser(u.phone)} className="text-slate-300 hover:text-red-600 transition-colors p-2"><i className="fas fa-trash-alt text-[12px]"></i></button>
+                                {u.status === 'ACTIVE' ? (
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all shadow-sm">Deactivate</button>
+                                ) : (
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase hover:bg-green-600 transition-all shadow-md">Reactivate</button>
+                                )}
+                                <button 
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} 
+                                  className="text-slate-300 hover:text-red-600 transition-colors p-2" 
+                                  title="Delete user permanently"
+                                >
+                                  <i className="fas fa-trash-alt text-[12px]"></i>
+                                </button>
                              </div>
                           </td>
                         </tr>
@@ -1249,6 +1289,7 @@ const App: React.FC = () => {
                  </table>
                </div>
             </div>
+            <AuditLogTable data={filteredRecords} title="System-Wide Classified Universal Audit Log" onDelete={handleDeleteRecord} />
           </div>
         )}
       </main>
