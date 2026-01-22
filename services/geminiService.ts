@@ -7,7 +7,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
     return "API Key not configured. Please ensure process.env.API_KEY is available.";
   }
 
-  // Initialize the GoogleGenAI client with the API key as per guidelines
+  // Initialize the GoogleGenAI client with the API key right before use
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const salesSummary = records.map(r => ({
@@ -19,7 +19,8 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
     total: r.totalSale,
     farmer: `${r.farmerName} (${r.farmerPhone})`,
     customer: `${r.customerName} (${r.customerPhone})`,
-    // Fix: Removed reference to r.createdBy which is not present in SaleRecord type
+    // Fix: Including createdBy as it exists in SaleRecord type
+    createdBy: r.createdBy || "System"
   }));
 
   const prompt = `
@@ -38,7 +39,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
   `;
 
   try {
-    // Generate content using the recommended model and passing both model name and prompt directly
+    // Generate content using gemini-3-flash-preview for efficiency in summarization tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -48,7 +49,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
       },
     });
 
-    // Fix: Access .text property directly (not as a method)
+    // Fix: Access .text property directly (it's a getter, not a method)
     return response.text || "No analysis could be generated.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
