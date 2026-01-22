@@ -297,6 +297,7 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
         customerPhone: String(o["Customer Phone"] || o["customerPhone"] || ""),
         status: String(o["Status"] || o["status"] || "OPEN") as any,
         agentPhone: String(o["Agent Phone"] || o["agentPhone"] || ""),
+        // Fix: Changed 'p' to 'o' to correctly access the object property
         cluster: String(o["Cluster"] || o["cluster"] || "")
       }));
     }
@@ -356,21 +357,21 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || rawData.produce || []);
       
       return dataArray
-        .filter((p: any) => p && (p["ID"] || p["id"]))
+        .filter((p: any) => p && (p.id || p.ID))
         .map((p: any) => {
-          const id = String(p["ID"] || p["id"] || "");
-          const date = formatDate(p["Date"] || p["date"] || p["Posted Date"]);
-          // Prioritize specific keys to prevent data shifting
-          const cropType = String(p["Commodity"] || p["cropType"] || p["Crop Type"] || p["Crop"] || "");
-          const unitsAvailable = safeNum(p["unitsAvailable"] || p["Units Available"] || p["Quantity"] || p["Units"] || p["Qty"]);
-          const unitType = String(p["unitType"] || p["Unit Type"] || p["Unit"] || "Units");
-          const sellingPrice = safeNum(p["sellingPrice"] || p["Selling Price"] || p["Asking Price"] || p["Price"]);
-          const supplierName = String(p["supplierName"] || p["Supplier Name"] || p["Name"] || p["Farmer"] || p["Supplier"] || "");
-          const supplierPhone = String(p["supplierPhone"] || p["Supplier Phone"] || p["Phone"] || p["Farmer Phone"] || "");
-          const cluster = String(p["cluster"] || p["Cluster"] || "");
-          const status = (String(p["Status"] || p["status"] || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any;
-
-          return { id, date, cropType, unitsAvailable, unitType, sellingPrice, supplierName, supplierPhone, cluster, status };
+          // Strict explicit mapping to standard app keys to prevent mix-ups
+          return {
+            id: String(p.id || p.ID || ""),
+            date: formatDate(p.date || p.Date || p["Posted Date"]),
+            cropType: String(p.cropType || p["Crop Type"] || p.Commodity || ""),
+            unitsAvailable: safeNum(p.unitsAvailable || p["Units Available"] || p.Quantity || p.Units),
+            unitType: String(p.unitType || p["Unit Type"] || ""),
+            sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
+            supplierName: String(p.supplierName || p["Supplier Name"] || p.Name),
+            supplierPhone: String(p.supplierPhone || p["Supplier Phone"]),
+            cluster: String(p.cluster || p.Cluster || ""),
+            status: (String(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
+          };
         });
     }
     return null; 

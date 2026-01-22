@@ -200,25 +200,23 @@ const App: React.FC = () => {
       if (cloudProduce !== null) {
         setProduceListings(prev => {
           const delSet = new Set(deletedProduceIds);
-          // Only process cloud data that isn't blacklisted
+          // TRUTH MERGE: Preserve local entries for items not yet updated in cloud
           const validCloudProduce = cloudProduce.filter(cp => !delSet.has(cp.id));
           const cloudIds = new Set(validCloudProduce.map(p => p.id));
           
-          // Listings that only exist locally and aren't blacklisted
           const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !delSet.has(p.id));
           
           const merged = validCloudProduce.map(cp => {
             const localMatch = prev.find(p => p.id === cp.id);
             if (localMatch) {
-              // DATA INTEGRITY SHIELD: Preserve local "truth" if cloud returns zero/empty figures
+              // PRESERVE TRUTH: If cloud returns zero values (common sync error), keep local truth
               return {
                 ...cp,
-                cluster: cp.cluster || localMatch.cluster,
+                unitsAvailable: cp.unitsAvailable > 0 ? cp.unitsAvailable : localMatch.unitsAvailable,
+                sellingPrice: cp.sellingPrice > 0 ? cp.sellingPrice : localMatch.sellingPrice,
                 supplierName: cp.supplierName || localMatch.supplierName,
                 supplierPhone: cp.supplierPhone || localMatch.supplierPhone,
-                sellingPrice: (cp.sellingPrice > 0) ? cp.sellingPrice : localMatch.sellingPrice,
-                unitsAvailable: (cp.unitsAvailable > 0) ? cp.unitsAvailable : localMatch.unitsAvailable,
-                cropType: cp.cropType || localMatch.cropType,
+                cluster: cp.cluster || localMatch.cluster,
                 unitType: cp.unitType || localMatch.unitType
               };
             }
@@ -405,10 +403,10 @@ const App: React.FC = () => {
   const handleDeleteProduce = async (id: string) => {
     if (!window.confirm("Action required: NUCLEAR PERMANENT DELETION of harvest listing ID: " + id + ". Continue?")) return;
     
-    // Add to persistent blacklist to prevent re-appearance
-    const newDelList = [...deletedProduceIds, id];
-    setDeletedProduceIds(newDelList);
-    persistence.set('deleted_produce_ids', JSON.stringify(newDelList));
+    // Immediate Blacklist
+    const updatedBlacklist = [...deletedProduceIds, id];
+    setDeletedProduceIds(updatedBlacklist);
+    persistence.set('deleted_produce_ids', JSON.stringify(updatedBlacklist));
 
     // Instant local purge
     setProduceListings(prev => {
@@ -420,7 +418,7 @@ const App: React.FC = () => {
     try {
       await deleteProduceFromCloud(id);
     } catch (err) {
-      console.error("Produce deletion cloud sync failed:", err);
+      console.error("Produce deletion sync failed:", err);
     }
   };
 
@@ -464,10 +462,9 @@ const App: React.FC = () => {
     }
 
     if (data.produceId) {
-      // Nuclear delete from repository when converted to sale
-      const newDelList = [...deletedProduceIds, data.produceId];
-      setDeletedProduceIds(newDelList);
-      persistence.set('deleted_produce_ids', JSON.stringify(newDelList));
+      const updatedBlacklist = [...deletedProduceIds, data.produceId];
+      setDeletedProduceIds(updatedBlacklist);
+      persistence.set('deleted_produce_ids', JSON.stringify(updatedBlacklist));
 
       setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== data.produceId);
