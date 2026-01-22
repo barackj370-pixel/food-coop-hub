@@ -24,6 +24,8 @@ type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
+const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23000000' d='M160 96c0-17.7-14.3-32-32-32H32C14.3 64 0 78.3 0 96s14.3 32 32 32h73.4l57.1 240.1c5.3 22.3 25.3 37.9 48.2 37.9H436c22.9 0 42.9-15.6 48.2-37.9l39.1-164.2c4.2-17.8-7-35.7-24.9-39.9s-35.7 7-39.9 24.9l-33.9 142.2H198.5l-57.1-240c-2.7-11.2-12.7-19-24.1-19H32z'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='448' r='48'/%3E%3Ccircle fill='%23dc2626' cx='416' cy='448' r='48'/%3E%3Cpath fill='%2322c55e' d='M280 200c0 0-60 20-60 80 0 60 60 80 60 80s60-20 60-80c0-60-60-80-60-80zm0 100c-15 0-25-10-25-25s10-25 25-25 25 10 25 25-10 25-25 25z' transform='translate(70, 0)'/%3E%3C/svg%3E";
+
 const persistence = {
   get: (key: string): string | null => {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -764,6 +766,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 relative">
         <div className="mb-8 text-center z-10">
            <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-3xl mb-4 border border-slate-100 shadow-md overflow-hidden">
+             <img src={APP_LOGO} alt="KPL Logo" className="w-12 h-12 object-contain" />
            </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">KPL Food Coop Market</h1>
            <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></p>
@@ -809,6 +812,7 @@ const App: React.FC = () => {
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
           <div className="flex items-center space-x-5">
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden">
+              <img src={APP_LOGO} alt="KPL Logo" className="w-10 h-10 object-contain" />
             </div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
@@ -874,10 +878,12 @@ const App: React.FC = () => {
           })}
         </nav>
       </header>
-
+      {/* ... rest of component ... */}
       <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
+        {/* ... Market Portal Content ... */}
         {currentPortal === 'MARKET' && (
           <div className="space-y-8">
+            {/* ... rest of the main content logic ... */}
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                     <i className="fas fa-shopping-cart"></i> Sales Portal
@@ -1062,7 +1068,7 @@ const App: React.FC = () => {
             )}
           </div>
         )}
-
+        {/* ... the rest of the file content ... */}
         {currentPortal === 'FINANCE' && (
           <div className="space-y-8">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
