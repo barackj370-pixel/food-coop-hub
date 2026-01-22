@@ -103,8 +103,11 @@ const App: React.FC = () => {
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
 
-  // Blacklist for nuclear delete to prevent re-appearance during background sync delay
-  const deletedProduceIds = useRef<Set<string>>(new Set());
+  // Persistent Blacklist for nuclear delete to prevent re-appearance
+  const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
+    const saved = persistence.get('deleted_produce_ids');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -196,26 +199,33 @@ const App: React.FC = () => {
 
       if (cloudProduce !== null) {
         setProduceListings(prev => {
-          // Filtering out items in nuclear delete blacklist
-          const validCloudProduce = cloudProduce.filter(cp => !deletedProduceIds.current.has(cp.id));
+          const delSet = new Set(deletedProduceIds);
+          // Only process cloud data that isn't blacklisted
+          const validCloudProduce = cloudProduce.filter(cp => !delSet.has(cp.id));
           const cloudIds = new Set(validCloudProduce.map(p => p.id));
           
-          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !deletedProduceIds.current.has(p.id));
+          // Listings that only exist locally and aren't blacklisted
+          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !delSet.has(p.id));
           
-          const cloudVerified = validCloudProduce.map(cp => {
+          const merged = validCloudProduce.map(cp => {
             const localMatch = prev.find(p => p.id === cp.id);
             if (localMatch) {
+              // DATA INTEGRITY SHIELD: Preserve local "truth" if cloud returns zero/empty figures
               return {
                 ...cp,
                 cluster: cp.cluster || localMatch.cluster,
                 supplierName: cp.supplierName || localMatch.supplierName,
-                supplierPhone: cp.supplierPhone || localMatch.supplierPhone
+                supplierPhone: cp.supplierPhone || localMatch.supplierPhone,
+                sellingPrice: (cp.sellingPrice > 0) ? cp.sellingPrice : localMatch.sellingPrice,
+                unitsAvailable: (cp.unitsAvailable > 0) ? cp.unitsAvailable : localMatch.unitsAvailable,
+                cropType: cp.cropType || localMatch.cropType,
+                unitType: cp.unitType || localMatch.unitType
               };
             }
             return cp;
           });
           
-          const combined = [...localOnly, ...cloudVerified];
+          const combined = [...localOnly, ...merged];
           persistence.set('food_coop_produce', JSON.stringify(combined));
           return combined;
         });
@@ -228,7 +238,7 @@ const App: React.FC = () => {
       setIsSyncing(false);
       syncLock.current = false;
     }
-  }, []);
+  }, [deletedProduceIds]);
 
   useEffect(() => {
     const savedUsers = persistence.get('coop_users');
@@ -395,9 +405,12 @@ const App: React.FC = () => {
   const handleDeleteProduce = async (id: string) => {
     if (!window.confirm("Action required: NUCLEAR PERMANENT DELETION of harvest listing ID: " + id + ". Continue?")) return;
     
-    // Immediate blacklist to prevent reappearance during sync delay
-    deletedProduceIds.current.add(id);
+    // Add to persistent blacklist to prevent re-appearance
+    const newDelList = [...deletedProduceIds, id];
+    setDeletedProduceIds(newDelList);
+    persistence.set('deleted_produce_ids', JSON.stringify(newDelList));
 
+    // Instant local purge
     setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== id);
         persistence.set('food_coop_produce', JSON.stringify(updated));
@@ -407,7 +420,7 @@ const App: React.FC = () => {
     try {
       await deleteProduceFromCloud(id);
     } catch (err) {
-      console.error("Produce deletion sync failed:", err);
+      console.error("Produce deletion cloud sync failed:", err);
     }
   };
 
@@ -452,7 +465,10 @@ const App: React.FC = () => {
 
     if (data.produceId) {
       // Nuclear delete from repository when converted to sale
-      deletedProduceIds.current.add(data.produceId);
+      const newDelList = [...deletedProduceIds, data.produceId];
+      setDeletedProduceIds(newDelList);
+      persistence.set('deleted_produce_ids', JSON.stringify(newDelList));
+
       setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== data.produceId);
         persistence.set('food_coop_produce', JSON.stringify(updated));
