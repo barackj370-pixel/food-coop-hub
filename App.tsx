@@ -12,6 +12,7 @@ import {
   deleteRecordFromCloud,
   deleteUserFromCloud,
   deleteProduceFromCloud,
+  deleteAllProduceFromCloud,
   syncOrderToCloud,
   fetchOrdersFromCloud,
   syncProduceToCloud,
@@ -80,6 +81,12 @@ const App: React.FC = () => {
     return [];
   });
 
+  // Persistent blacklist to prevent deleted items from reappearing during background sync
+  const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
+    const saved = persistence.get('deleted_produce_blacklist');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
@@ -103,12 +110,6 @@ const App: React.FC = () => {
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
 
-  // Persistent Blacklist for nuclear delete to prevent re-appearance
-  const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
-    const saved = persistence.get('deleted_produce_ids');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
   const [authForm, setAuthForm] = useState({
     name: '',
     phone: '',
@@ -199,23 +200,23 @@ const App: React.FC = () => {
 
       if (cloudProduce !== null) {
         setProduceListings(prev => {
-          const delSet = new Set(deletedProduceIds);
-          // TRUTH MERGE: Preserve local entries for items not yet updated in cloud
-          const validCloudProduce = cloudProduce.filter(cp => !delSet.has(cp.id));
-          const cloudIds = new Set(validCloudProduce.map(p => p.id));
+          // Sync Logic: Ignore cloud items that have been locally blacklisted (deleted)
+          const blacklist = new Set(deletedProduceIds);
+          const filteredCloud = cloudProduce.filter(cp => !blacklist.has(cp.id));
+          const cloudIds = new Set(filteredCloud.map(p => p.id));
           
-          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !delSet.has(p.id));
+          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !blacklist.has(p.id));
           
-          const merged = validCloudProduce.map(cp => {
+          const merged = filteredCloud.map(cp => {
             const localMatch = prev.find(p => p.id === cp.id);
             if (localMatch) {
-              // PRESERVE TRUTH: If cloud returns zero values (common sync error), keep local truth
+              const isInvalid = (val: any) => !val || String(val).toLowerCase() === 'undefined' || String(val).toLowerCase() === 'null';
               return {
                 ...cp,
                 unitsAvailable: cp.unitsAvailable > 0 ? cp.unitsAvailable : localMatch.unitsAvailable,
                 sellingPrice: cp.sellingPrice > 0 ? cp.sellingPrice : localMatch.sellingPrice,
-                supplierName: cp.supplierName || localMatch.supplierName,
-                supplierPhone: cp.supplierPhone || localMatch.supplierPhone,
+                supplierName: isInvalid(cp.supplierName) ? localMatch.supplierName : cp.supplierName,
+                supplierPhone: isInvalid(cp.supplierPhone) ? localMatch.supplierPhone : cp.supplierPhone,
                 cluster: cp.cluster || localMatch.cluster,
                 unitType: cp.unitType || localMatch.unitType
               };
@@ -403,10 +404,10 @@ const App: React.FC = () => {
   const handleDeleteProduce = async (id: string) => {
     if (!window.confirm("Action required: NUCLEAR PERMANENT DELETION of harvest listing ID: " + id + ". Continue?")) return;
     
-    // Immediate Blacklist
-    const updatedBlacklist = [...deletedProduceIds, id];
-    setDeletedProduceIds(updatedBlacklist);
-    persistence.set('deleted_produce_ids', JSON.stringify(updatedBlacklist));
+    // Add to persistent blacklist to prevent re-appearance during background sync
+    const newBlacklist = [...deletedProduceIds, id];
+    setDeletedProduceIds(newBlacklist);
+    persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
 
     // Instant local purge
     setProduceListings(prev => {
@@ -419,6 +420,28 @@ const App: React.FC = () => {
       await deleteProduceFromCloud(id);
     } catch (err) {
       console.error("Produce deletion sync failed:", err);
+    }
+  };
+
+  const handleDeleteAllProduce = async () => {
+    if (!window.confirm("CRITICAL ALERT: You are about to purge ALL produce listings from the entire system. This action is irreversible. Proceed?")) return;
+    
+    // Add all current IDs to blacklist
+    const currentIds = produceListings.map(p => p.id);
+    const newBlacklist = Array.from(new Set([...deletedProduceIds, ...currentIds]));
+    setDeletedProduceIds(newBlacklist);
+    persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
+
+    // Clear local state
+    setProduceListings([]);
+    persistence.set('food_coop_produce', JSON.stringify([]));
+
+    try {
+      await deleteAllProduceFromCloud();
+      alert("System Repository Purged Successfully.");
+    } catch (err) {
+      console.error("Global purge failed:", err);
+      alert("Cloud purge failed. Local state cleared.");
     }
   };
 
@@ -462,9 +485,10 @@ const App: React.FC = () => {
     }
 
     if (data.produceId) {
-      const updatedBlacklist = [...deletedProduceIds, data.produceId];
-      setDeletedProduceIds(updatedBlacklist);
-      persistence.set('deleted_produce_ids', JSON.stringify(updatedBlacklist));
+      // Mark as deleted in blacklist when converted to sale
+      const newBlacklist = [...deletedProduceIds, data.produceId];
+      setDeletedProduceIds(newBlacklist);
+      persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
 
       setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== data.produceId);
@@ -973,7 +997,17 @@ const App: React.FC = () => {
 
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
                    <div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div>
-                   <h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3>
+                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                      <h3 className="text-sm font-black text-black uppercase tracking-widest">Available Products Repository</h3>
+                      {isPrivilegedRole(agentIdentity) && produceListings.length > 0 && (
+                        <button 
+                          onClick={handleDeleteAllProduce}
+                          className="bg-red-50 text-red-600 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm border border-red-100 flex items-center gap-2"
+                        >
+                          <i className="fas fa-trash-can"></i> Purge Repository
+                        </button>
+                      )}
+                   </div>
                    
                    <div className="overflow-x-auto">
                      <table className="w-full text-left">

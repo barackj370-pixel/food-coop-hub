@@ -22,6 +22,14 @@ const formatDate = (dateVal: any): string => {
   }
 };
 
+// Sanitization helper to catch literal "undefined" strings
+const cleanStr = (val: any): string => {
+  if (val === undefined || val === null) return "";
+  const s = String(val).trim();
+  if (s.toLowerCase() === "undefined" || s.toLowerCase() === "null") return "";
+  return s;
+};
+
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
 
@@ -132,6 +140,26 @@ export const deleteProduceFromCloud = async (id: string): Promise<boolean> => {
   }
 };
 
+export const deleteAllProduceFromCloud = async (): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'delete_all_produce',
+        _t: Date.now()
+      })
+    });
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
+  } catch (error) {
+    console.error("Cloud Purge Error:", error);
+    return false;
+  }
+};
+
 export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
   try {
@@ -152,25 +180,25 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       return dataArray
         .filter((r: any) => r && (r["ID"] || r["id"]))
         .map((r: any) => ({
-          id: String(r["ID"] || r["id"] || ""),
+          id: cleanStr(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
-          cropType: String(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
-          farmerName: String(r["Farmer"] || r["Farmer Name"] || r["farmerName"] || ""),
-          farmerPhone: String(r["Farmer Phone"] || r["farmerPhone"] || ""),
-          customerName: String(r["Customer"] || r["Customer Name"] || r["customerName"] || ""),
-          customerPhone: String(r["Customer Phone"] || r["customerPhone"] || ""),
+          cropType: cleanStr(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
+          farmerName: cleanStr(r["Farmer"] || r["Farmer Name"] || r["farmerName"] || ""),
+          farmerPhone: cleanStr(r["Farmer Phone"] || r["farmerPhone"] || ""),
+          customerName: cleanStr(r["Customer"] || r["Customer Name"] || r["customerName"] || ""),
+          customerPhone: cleanStr(r["Customer Phone"] || r["customerPhone"] || ""),
           unitsSold: safeNum(r["Units"] || r["Units Sold"] || r["unitsSold"]),
           unitPrice: safeNum(r["Unit Price"] || r["Price"] || r["unitPrice"]),
           totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["totalSale"]),
           coopProfit: safeNum(r["Commission"] || r["Coop Profit"] || r["coopProfit"]),
-          status: String(r["Status"] || r["status"] || "DRAFT") as any,
-          agentName: String(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
-          agentPhone: String(r["Agent Phone"] || r["agentPhone"] || ""),
-          cluster: String(r["Cluster"] || r["cluster"] || ""),
+          status: cleanStr(r["Status"] || r["status"] || "DRAFT") as any,
+          agentName: cleanStr(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
+          agentPhone: cleanStr(r["Agent Phone"] || r["agentPhone"] || ""),
+          cluster: cleanStr(r["Cluster"] || r["cluster"] || ""),
           createdAt: formatDate(r["Created At"] || r["createdAt"] || r["Date"]),
           synced: true,
-          signature: String(r["Signature"] || r["signature"] || ""),
-          unitType: String(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
+          signature: cleanStr(r["Signature"] || r["signature"] || ""),
+          unitType: cleanStr(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
         })) as SaleRecord[];
     }
     return null;
@@ -225,12 +253,12 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
       const rawUsersRaw = JSON.parse(trimmed);
       const rawUsers = Array.isArray(rawUsersRaw) ? rawUsersRaw : (rawUsersRaw.data || rawUsersRaw.records || []);
       return rawUsers.map((u: any) => ({
-        name: String(u["Name"] || u["name"] || ""),
-        phone: String(u["Phone"] || u["phone"] || ""),
-        role: String(u["Role"] || u["role"] || "") as any,
-        passcode: String(u["Passcode"] || u["passcode"] || ""),
-        cluster: String(u["Cluster"] || u["cluster"] || ""),
-        status: String(u["Status"] || u["status"] || "ACTIVE") as any
+        name: cleanStr(u["Name"] || u["name"] || ""),
+        phone: cleanStr(u["Phone"] || u["phone"] || ""),
+        role: cleanStr(u["Role"] || u["role"] || "") as any,
+        passcode: cleanStr(u["Passcode"] || u["passcode"] || ""),
+        cluster: cleanStr(u["Cluster"] || u["cluster"] || ""),
+        status: cleanStr(u["Status"] || u["status"] || "ACTIVE") as any
       }));
     }
     return null;
@@ -288,17 +316,16 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
       const rawOrdersRaw = JSON.parse(trimmed);
       const rawOrders = Array.isArray(rawOrdersRaw) ? rawOrdersRaw : (rawOrdersRaw.data || rawOrdersRaw.records || []);
       return rawOrders.map((o: any) => ({
-        id: String(o["ID"] || o["id"] || ""),
+        id: cleanStr(o["ID"] || o["id"] || ""),
         date: formatDate(o["Date"] || o["date"]),
-        cropType: String(o["Crop Type"] || o["cropType"] || ""),
+        cropType: cleanStr(o["Crop Type"] || o["cropType"] || ""),
         unitsRequested: safeNum(o["Units Requested"] || o["unitsRequested"]),
-        unitType: String(o["Unit Type"] || o["unitType"] || ""),
-        customerName: String(o["Customer Name"] || o["customerName"] || ""),
-        customerPhone: String(o["Customer Phone"] || o["customerPhone"] || ""),
-        status: String(o["Status"] || o["status"] || "OPEN") as any,
-        agentPhone: String(o["Agent Phone"] || o["agentPhone"] || ""),
-        // Fix: Changed 'p' to 'o' to correctly access the object property
-        cluster: String(o["Cluster"] || o["cluster"] || "")
+        unitType: cleanStr(o["Unit Type"] || o["unitType"] || ""),
+        customerName: cleanStr(o["Customer Name"] || o["customerName"] || ""),
+        customerPhone: cleanStr(o["Customer Phone"] || o["customerPhone"] || ""),
+        status: cleanStr(o["Status"] || o["status"] || "OPEN") as any,
+        agentPhone: cleanStr(o["Agent Phone"] || o["agentPhone"] || ""),
+        cluster: cleanStr(o["Cluster"] || o["cluster"] || "")
       }));
     }
     return null;
@@ -359,18 +386,17 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       return dataArray
         .filter((p: any) => p && (p.id || p.ID))
         .map((p: any) => {
-          // Strict explicit mapping to standard app keys to prevent mix-ups
           return {
-            id: String(p.id || p.ID || ""),
+            id: cleanStr(p.id || p.ID || ""),
             date: formatDate(p.date || p.Date || p["Posted Date"]),
-            cropType: String(p.cropType || p["Crop Type"] || p.Commodity || ""),
+            cropType: cleanStr(p.cropType || p["Crop Type"] || p.Commodity || ""),
             unitsAvailable: safeNum(p.unitsAvailable || p["Units Available"] || p.Quantity || p.Units),
-            unitType: String(p.unitType || p["Unit Type"] || ""),
+            unitType: cleanStr(p.unitType || p["Unit Type"] || ""),
             sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
-            supplierName: String(p.supplierName || p["Supplier Name"] || p.Name),
-            supplierPhone: String(p.supplierPhone || p["Supplier Phone"]),
-            cluster: String(p.cluster || p.Cluster || ""),
-            status: (String(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
+            supplierName: cleanStr(p.supplierName || p["Supplier Name"] || p.Name),
+            supplierPhone: cleanStr(p.supplierPhone || p["Supplier Phone"]),
+            cluster: cleanStr(p.cluster || p.Cluster || ""),
+            status: (cleanStr(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
           };
         });
     }
