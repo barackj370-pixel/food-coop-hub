@@ -102,6 +102,9 @@ const App: React.FC = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
+
+  // Blacklist for nuclear delete to prevent re-appearance during background sync delay
+  const deletedProduceIds = useRef<Set<string>>(new Set());
   
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -193,13 +196,15 @@ const App: React.FC = () => {
 
       if (cloudProduce !== null) {
         setProduceListings(prev => {
-          const cloudIds = new Set(cloudProduce.map(p => p.id));
-          // Smart merge: preserve local full objects if cloud mapping is partial or missing
-          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id));
-          const cloudVerified = cloudProduce.map(cp => {
+          // Filtering out items in nuclear delete blacklist
+          const validCloudProduce = cloudProduce.filter(cp => !deletedProduceIds.current.has(cp.id));
+          const cloudIds = new Set(validCloudProduce.map(p => p.id));
+          
+          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !deletedProduceIds.current.has(p.id));
+          
+          const cloudVerified = validCloudProduce.map(cp => {
             const localMatch = prev.find(p => p.id === cp.id);
             if (localMatch) {
-              // Ensure we don't lose cluster or supplier identity during merge if cloud response is brittle
               return {
                 ...cp,
                 cluster: cp.cluster || localMatch.cluster,
@@ -209,6 +214,7 @@ const App: React.FC = () => {
             }
             return cp;
           });
+          
           const combined = [...localOnly, ...cloudVerified];
           persistence.set('food_coop_produce', JSON.stringify(combined));
           return combined;
@@ -387,12 +393,17 @@ const App: React.FC = () => {
   };
 
   const handleDeleteProduce = async (id: string) => {
-    if (!window.confirm("Action required: Permanent deletion of harvest listing ID: " + id + ". Continue?")) return;
+    if (!window.confirm("Action required: NUCLEAR PERMANENT DELETION of harvest listing ID: " + id + ". Continue?")) return;
+    
+    // Immediate blacklist to prevent reappearance during sync delay
+    deletedProduceIds.current.add(id);
+
     setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== id);
         persistence.set('food_coop_produce', JSON.stringify(updated));
         return updated;
     });
+
     try {
       await deleteProduceFromCloud(id);
     } catch (err) {
@@ -440,6 +451,8 @@ const App: React.FC = () => {
     }
 
     if (data.produceId) {
+      // Nuclear delete from repository when converted to sale
+      deletedProduceIds.current.add(data.produceId);
       setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== data.produceId);
         persistence.set('food_coop_produce', JSON.stringify(updated));
@@ -947,28 +960,34 @@ const App: React.FC = () => {
 
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
                    <div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div>
-                   <h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Harvests Repository</h3>
+                   <h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3>
                    
                    <div className="overflow-x-auto">
                      <table className="w-full text-left">
                         <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                          <tr><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr>
+                          <tr>
+                            <th className="pb-4">Date Posted</th>
+                            <th className="pb-4">Supplier Identity</th>
+                            <th className="pb-4">Cluster</th>
+                            <th className="pb-4">Commodity</th>
+                            <th className="pb-4">Qty Available</th>
+                            <th className="pb-4">Asking Price</th>
+                            <th className="pb-4 text-right">Action</th>
+                          </tr>
                         </thead>
                         <tbody className="divide-y">
                            {produceListings.map(p => (
                              <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                               <td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td>
                                <td className="py-6">
-                                  <p className="text-[11px] font-black uppercase">{p.supplierName || 'Anonymous'}</p>
+                                  <p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p>
                                   <p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p>
                                </td>
                                <td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td>
-                               <td className="py-6">
-                                  <p className="text-[11px] font-black uppercase text-green-600">{p.cropType}</p>
-                                  <p className="text-[9px] text-slate-400 font-bold">{p.unitsAvailable} {p.unitType}</p>
-                               </td>
+                               <td className="py-6"><p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></td>
+                               <td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td>
                                <td className="py-6">
                                   <p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p>
-                                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Est. Val: KSh {(p.sellingPrice * p.unitsAvailable).toLocaleString()}</p>
                                </td>
                                <td className="py-6 text-right">
                                   <div className="flex items-center justify-end gap-3">
@@ -976,10 +995,10 @@ const App: React.FC = () => {
                                       <button 
                                         type="button" 
                                         onClick={(e) => { e.stopPropagation(); handleDeleteProduce(p.id); }} 
-                                        className="text-slate-300 hover:text-red-600 transition-colors p-2"
-                                        title="Delete listing permanently"
+                                        className="text-red-400 hover:text-red-700 transition-all p-2 bg-red-50 hover:bg-red-100 rounded-xl"
+                                        title="NUCLEAR DELETE: Permanent removal"
                                       >
-                                        <i className="fas fa-trash-alt text-[12px]"></i>
+                                        <i className="fas fa-trash-can text-[14px]"></i>
                                       </button>
                                     )}
                                     {agentIdentity.role !== SystemRole.SUPPLIER ? (
@@ -994,7 +1013,7 @@ const App: React.FC = () => {
                              </tr>
                            ))}
                            {produceListings.length === 0 && (
-                             <tr><td colSpan={5} className="py-16 text-center text-slate-300 font-black uppercase text-[10px] italic">Zero harvest logs in repository</td></tr>
+                             <tr><td colSpan={7} className="py-16 text-center text-slate-300 font-black uppercase text-[10px] italic">Zero harvest logs in repository</td></tr>
                            )}
                         </tbody>
                      </table>

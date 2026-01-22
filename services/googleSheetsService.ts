@@ -4,7 +4,7 @@ import { GOOGLE_SHEETS_WEBHOOK_URL } from "../constants.ts";
 const safeNum = (val: any): number => {
   if (typeof val === 'number') return val;
   if (!val) return 0;
-  const clean = String(val).replace(/[^\d.-]/g, '');
+  const clean = String(val).replace(/[^\d.]/g, '');
   const num = parseFloat(clean);
   return isNaN(num) ? 0 : num;
 };
@@ -357,18 +357,20 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       
       return dataArray
         .filter((p: any) => p && (p["ID"] || p["id"]))
-        .map((p: any) => ({
-          id: String(p["ID"] || p["id"] || ""),
-          date: formatDate(p["Date"] || p["date"]),
-          cropType: String(p["Crop Type"] || p["cropType"] || p["Commodity"] || p["Crop"] || ""),
-          unitsAvailable: safeNum(p["Units Available"] || p["unitsAvailable"] || p["Units"] || p["Qty"]),
-          unitType: String(p["Unit Type"] || p["unitType"] || p["Unit"] || ""),
-          sellingPrice: safeNum(p["Selling Price"] || p["sellingPrice"] || p["Price"] || p["Asking Price"]),
-          supplierName: String(p["Supplier Name"] || p["supplierName"] || p["Farmer"] || p["Supplier"] || ""),
-          supplierPhone: String(p["Supplier Phone"] || p["supplierPhone"] || p["Farmer Phone"] || p["Phone"] || ""),
-          cluster: String(p["Cluster"] || p["cluster"] || ""),
-          status: (String(p["Status"] || p["status"] || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
-        }));
+        .map((p: any) => {
+          const id = String(p["ID"] || p["id"] || "");
+          const date = formatDate(p["Date"] || p["date"] || p["Posted Date"]);
+          const cropType = String(p["Commodity"] || p["Crop Type"] || p["cropType"] || p["Crop"] || "");
+          const unitsAvailable = safeNum(p["Units Available"] || p["unitsAvailable"] || p["Quantity"] || p["Units"] || p["Qty"]);
+          const unitType = String(p["Unit Type"] || p["unitType"] || p["Unit"] || "");
+          const sellingPrice = safeNum(p["Selling Price"] || p["sellingPrice"] || p["Asking Price"] || p["Price"]);
+          const supplierName = String(p["Supplier Name"] || p["supplierName"] || p["Name"] || p["Farmer"] || p["Supplier"] || "");
+          const supplierPhone = String(p["Supplier Phone"] || p["supplierPhone"] || p["Phone"] || p["Farmer Phone"] || "");
+          const cluster = String(p["Cluster"] || p["cluster"] || "");
+          const status = (String(p["Status"] || p["status"] || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any;
+
+          return { id, date, cropType, unitsAvailable, unitType, sellingPrice, supplierName, supplierPhone, cluster, status };
+        });
     }
     return null; 
   } catch (e) {
