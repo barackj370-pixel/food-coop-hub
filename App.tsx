@@ -209,19 +209,15 @@ const App: React.FC = () => {
           const merged = validCloudProduce.map(cp => {
             const localMatch = prev.find(p => p.id === cp.id);
             if (localMatch) {
-              // Helper to check if a value is essentially 'undefined' or missing
-              const isInvalid = (val: any) => !val || String(val).toLowerCase() === 'undefined';
-              
-              // PRESERVE TRUTH: If cloud returns zero or 'undefined' values, keep local truth
+              // PRESERVE TRUTH: If cloud returns zero values (common sync error), keep local truth
               return {
                 ...cp,
                 unitsAvailable: cp.unitsAvailable > 0 ? cp.unitsAvailable : localMatch.unitsAvailable,
                 sellingPrice: cp.sellingPrice > 0 ? cp.sellingPrice : localMatch.sellingPrice,
-                supplierName: !isInvalid(cp.supplierName) ? cp.supplierName : localMatch.supplierName,
-                supplierPhone: !isInvalid(cp.supplierPhone) ? cp.supplierPhone : localMatch.supplierPhone,
-                cluster: !isInvalid(cp.cluster) ? cp.cluster : localMatch.cluster,
-                unitType: !isInvalid(cp.unitType) ? cp.unitType : localMatch.unitType,
-                cropType: !isInvalid(cp.cropType) ? cp.cropType : localMatch.cropType
+                supplierName: cp.supplierName || localMatch.supplierName,
+                supplierPhone: cp.supplierPhone || localMatch.supplierPhone,
+                cluster: cp.cluster || localMatch.cluster,
+                unitType: cp.unitType || localMatch.unitType
               };
             }
             return cp;
