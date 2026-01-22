@@ -1,7 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-// Fix: Use named import since App.tsx has no default export
-import { App } from './App.tsx';
+import App from './App.tsx';
 
 const boot = () => {
   const rootElement = document.getElementById('root');
@@ -12,7 +11,7 @@ const boot = () => {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       const swUrl = new URL('sw.js', window.location.href).href;
-      navigator.worker.register(swUrl).then(reg => {
+      navigator.serviceWorker.register(swUrl).then(reg => {
         console.log('PWA Service Worker registered:', reg);
       }).catch(err => {
         console.error("SW Registration Error:", err);
