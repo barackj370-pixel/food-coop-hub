@@ -385,7 +385,11 @@ const App: React.FC = () => {
       unitType: order.unitType,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
-      orderId: order.id
+      orderId: order.id,
+      // Explicitly clear farmer details to ensure a clean form state
+      farmerName: '',
+      farmerPhone: '',
+      unitPrice: 0
     });
     window.scrollTo({ top: 400, behavior: 'smooth' });
   };
@@ -398,9 +402,13 @@ const App: React.FC = () => {
       farmerName: listing.supplierName,
       farmerPhone: listing.supplierPhone,
       unitPrice: listing.sellingPrice,
-      produceId: listing.id
+      produceId: listing.id,
+      // Explicitly clear consumer details and reset quantity for a new sales entry
+      unitsSold: 0,
+      customerName: '',
+      customerPhone: ''
     });
-    window.scrollTo({ top: 600, behavior: 'smooth' });
+    window.scrollTo({ top: 400, behavior: 'smooth' });
   };
 
   const handleDeleteProduce = async (id: string) => {
@@ -1059,7 +1067,7 @@ const App: React.FC = () => {
                                         <i className="fas fa-trash-can text-[14px]"></i>
                                       </button>
                                     )}
-                                    {agentIdentity.role === SystemRole.FIELD_AGENT ? (
+                                    {agentIdentity.role !== SystemRole.SUPPLIER ? (
                                       <button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95 flex items-center justify-end gap-2">
                                         <i className="fas fa-plus"></i> Initiate Sale
                                       </button>

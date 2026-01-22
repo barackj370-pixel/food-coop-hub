@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
 
@@ -11,7 +10,6 @@ interface SaleFormProps {
     customerPhone?: string;
     orderId?: string;
     produceId?: string;
-    // Fix: Added missing optional fields to fix type errors at lines 53-55
     farmerName?: string;
     farmerPhone?: string;
     unitPrice?: number;
@@ -49,15 +47,16 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData }: SaleFormPr
     if (initialData) {
       setFormData(prev => ({
         ...prev,
-        cropType: initialData.cropType || prev.cropType,
-        unitsSold: initialData.unitsSold || prev.unitsSold,
-        unitType: initialData.unitType || prev.unitType,
-        customerName: initialData.customerName || prev.customerName,
-        customerPhone: initialData.customerPhone || prev.customerPhone,
-        // Fix: accessing now-available fields from initialData to resolve TS errors
-        farmerName: initialData.farmerName || prev.farmerName,
-        farmerPhone: initialData.farmerPhone || prev.farmerPhone,
-        unitPrice: initialData.unitPrice || prev.unitPrice
+        // Using nullish coalescing (??) instead of logical OR (||) 
+        // to ensure 0 and "" are correctly processed as intended values.
+        cropType: initialData.cropType ?? prev.cropType,
+        unitsSold: initialData.unitsSold ?? prev.unitsSold,
+        unitType: initialData.unitType ?? prev.unitType,
+        customerName: initialData.customerName ?? prev.customerName,
+        customerPhone: initialData.customerPhone ?? prev.customerPhone,
+        farmerName: initialData.farmerName ?? prev.farmerName,
+        farmerPhone: initialData.farmerPhone ?? prev.farmerPhone,
+        unitPrice: initialData.unitPrice ?? prev.unitPrice
       }));
     }
   }, [initialData]);
