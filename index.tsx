@@ -6,17 +6,8 @@ const boot = () => {
   const rootElement = document.getElementById('root');
   if (!rootElement) return;
 
-  // Service Worker registration enabled for PWA functionality
-  // Simplified registration to avoid "Invalid URL" errors in sandboxed preview environments
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').then(reg => {
-        console.log('PWA Service Worker registered:', reg);
-      }).catch(err => {
-        console.error("SW Registration Error:", err);
-      });
-    });
-  }
+  // Service Worker registration disabled to prevent origin mismatch errors in preview environments
+  // if ('serviceWorker' in navigator) { ... }
 
   try {
     const root = createRoot(rootElement);
