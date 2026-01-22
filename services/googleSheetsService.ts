@@ -359,7 +359,7 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       return dataArray
         .filter((p: any) => p && (p.id || p.ID))
         .map((p: any) => {
-          // Strict explicit mapping to standard app keys to prevent mix-ups
+          // Strict explicit mapping with empty string fallbacks to prevent "undefined" labels
           return {
             id: String(p.id || p.ID || ""),
             date: formatDate(p.date || p.Date || p["Posted Date"]),
@@ -367,8 +367,8 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
             unitsAvailable: safeNum(p.unitsAvailable || p["Units Available"] || p.Quantity || p.Units),
             unitType: String(p.unitType || p["Unit Type"] || ""),
             sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
-            supplierName: String(p.supplierName || p["Supplier Name"] || p.Name),
-            supplierPhone: String(p.supplierPhone || p["Supplier Phone"]),
+            supplierName: String(p.supplierName || p["Supplier Name"] || p.Name || ""),
+            supplierPhone: String(p.supplierPhone || p["Supplier Phone"] || p.Phone || p["Farmer Phone"] || ""),
             cluster: String(p.cluster || p.Cluster || ""),
             status: (String(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
           };

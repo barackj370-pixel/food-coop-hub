@@ -103,12 +103,6 @@ const App: React.FC = () => {
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
 
-  // Persistent Blacklist for nuclear delete to prevent re-appearance
-  const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
-    const saved = persistence.get('deleted_produce_ids');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
   const [authForm, setAuthForm] = useState({
     name: '',
     phone: '',
@@ -199,31 +193,24 @@ const App: React.FC = () => {
 
       if (cloudProduce !== null) {
         setProduceListings(prev => {
-          const delSet = new Set(deletedProduceIds);
-          // TRUTH MERGE: Preserve local entries for items not yet updated in cloud
-          const validCloudProduce = cloudProduce.filter(cp => !delSet.has(cp.id));
-          const cloudIds = new Set(validCloudProduce.map(p => p.id));
+          const cloudIds = new Set(cloudProduce.map(p => p.id));
+          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id));
           
-          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !delSet.has(p.id));
-          
-          const merged = validCloudProduce.map(cp => {
-            const localMatch = prev.find(p => p.id === cp.id);
-            if (localMatch) {
-              // PRESERVE TRUTH: If cloud returns zero values (common sync error), keep local truth
-              return {
-                ...cp,
-                unitsAvailable: cp.unitsAvailable > 0 ? cp.unitsAvailable : localMatch.unitsAvailable,
-                sellingPrice: cp.sellingPrice > 0 ? cp.sellingPrice : localMatch.sellingPrice,
-                supplierName: cp.supplierName || localMatch.supplierName,
-                supplierPhone: cp.supplierPhone || localMatch.supplierPhone,
-                cluster: cp.cluster || localMatch.cluster,
-                unitType: cp.unitType || localMatch.unitType
-              };
-            }
-            return cp;
+          // Identity Truth Merge: Do not let blank/undefined cloud data overwrite local valid data
+          const sanitizedCloud = cloudProduce.map(cp => {
+            const local = prev.find(lp => lp.id === cp.id);
+            if (!local) return cp;
+            
+            const isInvalid = (val: any) => !val || String(val).toLowerCase() === 'undefined' || String(val).toLowerCase() === 'null';
+            
+            return {
+              ...cp,
+              supplierName: isInvalid(cp.supplierName) ? local.supplierName : cp.supplierName,
+              supplierPhone: isInvalid(cp.supplierPhone) ? local.supplierPhone : cp.supplierPhone
+            };
           });
-          
-          const combined = [...localOnly, ...merged];
+
+          const combined = [...localOnly, ...sanitizedCloud];
           persistence.set('food_coop_produce', JSON.stringify(combined));
           return combined;
         });
@@ -236,7 +223,7 @@ const App: React.FC = () => {
       setIsSyncing(false);
       syncLock.current = false;
     }
-  }, [deletedProduceIds]);
+  }, []);
 
   useEffect(() => {
     const savedUsers = persistence.get('coop_users');
@@ -403,12 +390,6 @@ const App: React.FC = () => {
   const handleDeleteProduce = async (id: string) => {
     if (!window.confirm("Action required: NUCLEAR PERMANENT DELETION of harvest listing ID: " + id + ". Continue?")) return;
     
-    // Immediate Blacklist
-    const updatedBlacklist = [...deletedProduceIds, id];
-    setDeletedProduceIds(updatedBlacklist);
-    persistence.set('deleted_produce_ids', JSON.stringify(updatedBlacklist));
-
-    // Instant local purge
     setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== id);
         persistence.set('food_coop_produce', JSON.stringify(updated));
@@ -462,10 +443,6 @@ const App: React.FC = () => {
     }
 
     if (data.produceId) {
-      const updatedBlacklist = [...deletedProduceIds, data.produceId];
-      setDeletedProduceIds(updatedBlacklist);
-      persistence.set('deleted_produce_ids', JSON.stringify(updatedBlacklist));
-
       setProduceListings(prev => {
         const updated = prev.filter(p => p.id !== data.produceId);
         persistence.set('food_coop_produce', JSON.stringify(updated));
