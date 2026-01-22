@@ -119,6 +119,26 @@ export const deleteUserFromCloud = async (phone: string): Promise<boolean> => {
   }
 };
 
+export const deleteAllUsersFromCloud = async (): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ 
+        action: 'delete_all_users',
+        _t: Date.now()
+      })
+    });
+    const text = await response.text();
+    return response.ok || text.toLowerCase().includes('success');
+  } catch (error) {
+    console.error("Cloud User Purge Error:", error);
+    return false;
+  }
+};
+
 export const deleteProduceFromCloud = async (id: string): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {

@@ -11,6 +11,7 @@ import {
   fetchUsersFromCloud, 
   deleteRecordFromCloud,
   deleteUserFromCloud,
+  deleteAllUsersFromCloud,
   deleteProduceFromCloud,
   deleteAllProduceFromCloud,
   syncOrderToCloud,
@@ -442,6 +443,21 @@ const App: React.FC = () => {
     } catch (err) {
       console.error("Global purge failed:", err);
       alert("Cloud purge failed. Local state cleared.");
+    }
+  };
+
+  const handleDeleteAllUsers = async () => {
+    if (!window.confirm("NUCLEAR ALERT: You are about to purge ALL registered users from the cloud. This action is irreversible and will delete every identity in the system. Proceed?")) return;
+    
+    setUsers([]);
+    persistence.set('coop_users', JSON.stringify([]));
+    
+    try {
+      await deleteAllUsersFromCloud();
+      alert("Cloud User Registry Purged Successfully.");
+    } catch (err) {
+      console.error("Global user purge failed:", err);
+      alert("Cloud user purge failed. Local state cleared.");
     }
   };
 
@@ -1040,7 +1056,7 @@ const App: React.FC = () => {
                                         <i className="fas fa-trash-can text-[14px]"></i>
                                       </button>
                                     )}
-                                    {agentIdentity.role !== SystemRole.SUPPLIER ? (
+                                    {agentIdentity.role === SystemRole.FIELD_AGENT ? (
                                       <button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95 flex items-center justify-end gap-2">
                                         <i className="fas fa-plus"></i> Initiate Sale
                                       </button>
@@ -1202,6 +1218,14 @@ const App: React.FC = () => {
                         className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95 flex items-center gap-2"
                       >
                         <i className="fas fa-trash-can"></i> Purge Repository
+                      </button>
+                    )}
+                    {users.length > 0 && (
+                      <button 
+                        onClick={handleDeleteAllUsers}
+                        className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                      >
+                        <i className="fas fa-user-slash"></i> Purge Users
                       </button>
                     )}
                   </div>
