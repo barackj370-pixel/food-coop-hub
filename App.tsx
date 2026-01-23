@@ -577,46 +577,65 @@ const App: React.FC = () => {
         acc[cluster].push(r);
         return acc;
       }, {} as Record<string, SaleRecord[]>), [data]);
+    
     const grandTotals = useMemo(() => data.reduce((acc, r) => ({ gross: acc.gross + Number(r.totalSale), comm: acc.comm + Number(r.coopProfit) }), { gross: 0, comm: 0 }), [data]);
+    
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => (
-          <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
-            <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
-              <span><i className="fas fa-map-marker-alt mr-2"></i> Cluster: {cluster}</span>
-              <span className="text-slate-400 font-bold">{records.length} Transactions</span>
-            </h4>
-            <table className="w-full text-left">
-              <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                <tr><th className="pb-6">Date</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Gross Sale</th><th className="pb-6">Commission</th><th className="pb-6 text-right">Status</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {records.map(r => (
-                  <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
-                    <td className="py-6 text-slate-400">{r.date}</td>
-                    <td className="py-6">
-                      <div className="space-y-1">
-                        <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
-                        <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
-                        <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
-                      </div>
-                    </td>
-                    <td className="py-6 text-black uppercase">{r.cropType}</td>
-                    <td className="py-6 font-black text-black">KSh {Number(r.totalSale).toLocaleString()}</td>
-                    <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
-                    <td className="py-6 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{r.status}</span>
-                        {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1"><i className="fas fa-trash-alt text-[10px]"></i></button>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
+        {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
+          // Calculate cluster-specific totals
+          const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
+          const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+
+          return (
+            <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
+              <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
+                <span><i className="fas fa-map-marker-alt mr-2"></i> Cluster: {cluster}</span>
+                <span className="text-slate-400 font-bold">{records.length} Transactions</span>
+              </h4>
+              <table className="w-full text-left">
+                <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
+                  <tr><th className="pb-6">Date</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Gross Sale</th><th className="pb-6">Commission</th><th className="pb-6 text-right">Status</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {records.map(r => (
+                    <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
+                      <td className="py-6 text-slate-400">{r.date}</td>
+                      <td className="py-6">
+                        <div className="space-y-1">
+                          <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                          <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
+                        </div>
+                      </td>
+                      <td className="py-6 text-black uppercase">{r.cropType}</td>
+                      <td className="py-6 font-black text-black">KSh {Number(r.totalSale).toLocaleString()}</td>
+                      <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
+                      <td className="py-6 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{r.status}</span>
+                          {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1"><i className="fas fa-trash-alt text-[10px]"></i></button>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {/* Cluster Totals Summary Row */}
+              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-8">
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Volume</p>
+                  <p className="text-sm font-black text-black">KSh {clusterTotalGross.toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Commission</p>
+                  <p className="text-sm font-black text-green-600">KSh {clusterTotalComm.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
         {data.length > 0 && (
           <div className="bg-slate-900 text-white rounded-[2rem] p-10 border border-black shadow-2xl relative overflow-hidden">
              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
