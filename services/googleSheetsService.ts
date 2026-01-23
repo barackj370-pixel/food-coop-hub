@@ -45,27 +45,42 @@ const getFlexibleVal = (obj: any, keys: string[]): any => {
   return undefined;
 };
 
+// Resilient JSON extractor to handle cases where GAS might prepend or append non-JSON text
+const extractJson = (str: string): any => {
+  const trimmed = str.trim();
+  try { return JSON.parse(trimmed); } catch (e) {
+    // Try finding an array first
+    const startArr = trimmed.indexOf('[');
+    const endArr = trimmed.lastIndexOf(']');
+    if (startArr !== -1 && endArr !== -1 && endArr > startArr) {
+      try { return JSON.parse(trimmed.substring(startArr, endArr + 1)); } catch (err) {}
+    }
+    // Try finding an object
+    const startObj = trimmed.indexOf('{');
+    const endObj = trimmed.lastIndexOf('}');
+    if (startObj !== -1 && endObj !== -1 && endObj > startObj) {
+      try { return JSON.parse(trimmed.substring(startObj, endObj + 1)); } catch (err) {}
+    }
+    return null;
+  }
+};
+
 // Helper to find the first array in a response object (handles various GAS return formats)
 const findDataArray = (data: any): any[] | null => {
   if (Array.isArray(data)) return data;
   if (typeof data !== 'object' || data === null) return null;
   
-  // Order matters: check common data payload keys first
-  const keys = ['data', 'records', 'users', 'userList', 'members', 'rows', 'result', 'body'];
+  const keys = ['data', 'records', 'users', 'userList', 'members', 'rows', 'result', 'body', 'values'];
   for (const key of keys) {
     if (Array.isArray(data[key])) return data[key];
   }
   
-  // Fallback: search all keys for any array that isn't empty (if possible)
-  let firstArray: any[] | null = null;
   for (const key in data) {
     if (Array.isArray(data[key])) {
       if (data[key].length > 0) return data[key];
-      if (!firstArray) firstArray = data[key];
     }
   }
-  
-  return firstArray;
+  return null;
 };
 
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
@@ -207,8 +222,8 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       body: JSON.stringify({ action: 'get_records', _t: Date.now() })
     });
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawData = JSON.parse(text);
+    const rawData = extractJson(text);
+    if (rawData) {
       const dataArray = findDataArray(rawData);
       if (!dataArray) return null;
       return dataArray.filter((r: any) => r && (r["ID"] || r["id"])).map((r: any) => ({
@@ -268,18 +283,21 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
       body: JSON.stringify({ action: 'get_users', _t: Date.now() })
     });
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawUsersRaw = JSON.parse(text);
+    const rawUsersRaw = extractJson(text);
+    if (rawUsersRaw) {
       const dataArray = findDataArray(rawUsersRaw);
       if (!dataArray) return null;
-      return dataArray.map((u: any) => ({
-        name: cleanStr(getFlexibleVal(u, ["Name", "name", "Full Name", "Agent Name", "Farmer Name", "Agent"])),
-        phone: cleanStr(getFlexibleVal(u, ["Phone", "phone", "Phone Number", "Contact", "Farmer Phone", "Agent Phone", "Agent Phone "])),
-        role: cleanStr(getFlexibleVal(u, ["Role", "role", "System Role", "Designation"])) as any,
-        passcode: cleanStr(getFlexibleVal(u, ["Passcode", "passcode", "Pin", "Password", "Access Code"])),
-        cluster: cleanStr(getFlexibleVal(u, ["Cluster", "cluster", "Node", "Zone", "Area"])),
-        status: cleanStr(getFlexibleVal(u, ["Status", "status", "Account Status"])) as any || "ACTIVE"
-      }));
+      // Filter out rows that are clearly not users (missing phone)
+      return dataArray
+        .filter((u: any) => u && getFlexibleVal(u, ["Phone", "phone", "Phone Number", "Contact"]))
+        .map((u: any) => ({
+          name: cleanStr(getFlexibleVal(u, ["Name", "name", "Full Name", "Agent Name", "Farmer Name", "Agent"])),
+          phone: cleanStr(getFlexibleVal(u, ["Phone", "phone", "Phone Number", "Contact", "Farmer Phone", "Agent Phone", "Agent Phone "])),
+          role: cleanStr(getFlexibleVal(u, ["Role", "role", "System Role", "Designation"])) as any,
+          passcode: cleanStr(getFlexibleVal(u, ["Passcode", "passcode", "Pin", "Password", "Access Code"])),
+          cluster: cleanStr(getFlexibleVal(u, ["Cluster", "cluster", "Node", "Zone", "Area"])),
+          status: cleanStr(getFlexibleVal(u, ["Status", "status", "Account Status"])) as any || "ACTIVE"
+        }));
     }
     return null;
   } catch (e) { return null; }
@@ -320,8 +338,8 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
       body: JSON.stringify({ action: 'get_orders', _t: Date.now() })
     });
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawOrdersRaw = JSON.parse(text);
+    const rawOrdersRaw = extractJson(text);
+    if (rawOrdersRaw) {
       const dataArray = findDataArray(rawOrdersRaw);
       if (!dataArray) return null;
       return dataArray.map((o: any) => ({
@@ -376,8 +394,8 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       body: JSON.stringify({ action: 'get_produce', _t: Date.now() })
     });
     const text = await response.text();
-    if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-      const rawData = JSON.parse(text);
+    const rawData = extractJson(text);
+    if (rawData) {
       const dataArray = findDataArray(rawData);
       if (!dataArray) return null;
       return dataArray.filter((p: any) => p && (p.id || p["ID"])).map((p: any) => ({

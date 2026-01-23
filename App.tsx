@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -542,21 +543,30 @@ const App: React.FC = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
-    const targetPhoneNormalized = normalizePhone(authForm.phone);
-    const targetPasscode = authForm.passcode.replace(/\D/g, '');
     
+    // Normalize user input immediately
+    const targetPhoneNormalized = normalizePhone(authForm.phone);
+    const targetPasscode = authForm.passcode.trim().replace(/\D/g, '');
+    
+    if (targetPhoneNormalized.length < 8) {
+      alert("Invalid Phone: Please enter a valid phone number.");
+      setIsAuthLoading(false);
+      return;
+    }
+
     try {
-      // Always perform a fresh fetch from cloud on login attempt to handle new devices
+      // Force a fresh fetch from cloud database
       const latestCloudUsers = await fetchUsersFromCloud();
       
-      // Update state if we got anything valid
+      // Update local cache if cloud data is valid
       if (latestCloudUsers && latestCloudUsers.length > 0) {
         setUsers(latestCloudUsers);
         persistence.set('coop_users', JSON.stringify(latestCloudUsers));
       }
 
-      // Final pool of users to check against
-      const currentUsers = (latestCloudUsers && latestCloudUsers.length > 0) ? latestCloudUsers : users;
+      // Determine the set of users to authenticate against
+      // On new devices, 'users' state is empty, so we must rely on 'latestCloudUsers'
+      const authPool = (latestCloudUsers && latestCloudUsers.length > 0) ? latestCloudUsers : users;
 
       if (isRegisterMode) {
         if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) { 
@@ -574,36 +584,42 @@ const App: React.FC = () => {
           status: 'ACTIVE' 
         };
         
-        const updatedUsersList = [...currentUsers.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone)), newUser];
+        // Prevent duplicate registration in local state
+        const updatedUsersList = [...authPool.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone)), newUser];
         setUsers(updatedUsersList);
         persistence.set('coop_users', JSON.stringify(updatedUsersList));
-        await syncUserToCloud(newUser);
+        
+        const syncSuccess = await syncUserToCloud(newUser);
+        if (!syncSuccess) {
+           alert("Warning: Account created locally, but failed to sync with cloud. Please ensure you have an active internet connection.");
+        }
+        
         setAgentIdentity(newUser);
         persistence.set('agent_session', JSON.stringify(newUser));
       } else {
-        // Robust Matching: always normalize both sides during comparison
-        const user = currentUsers.find(u => {
+        // High-Integrity Matching
+        const matchedUser = authPool.find(u => {
           const cloudPhoneNorm = normalizePhone(u.phone);
-          const cloudPassNorm = String(u.passcode || '').replace(/\D/g, '');
+          const cloudPassNorm = String(u.passcode || '').trim().replace(/\D/g, '');
           return cloudPhoneNorm === targetPhoneNormalized && cloudPassNorm === targetPasscode;
         });
         
-        if (user) { 
-          setAgentIdentity(user); 
-          persistence.set('agent_session', JSON.stringify(user)); 
+        if (matchedUser) { 
+          setAgentIdentity(matchedUser); 
+          persistence.set('agent_session', JSON.stringify(matchedUser)); 
         } else {
           let errMsg = "Authentication Failed: Account not found or passcode is incorrect.";
-          if (latestCloudUsers === null) {
-            errMsg = "Connection Error: Could not reach the cloud database. Please verify your internet connection.";
-          } else if (latestCloudUsers.length === 0 && users.length === 0) {
-            errMsg = "System Error: No registered members found in the cloud repository. Please use the Register option if you are a new member.";
+          if (latestCloudUsers === null && users.length === 0) {
+            errMsg = "Connectivity Error: Unable to reach the member database. Please check your internet connection and try again.";
+          } else if (latestCloudUsers && latestCloudUsers.length === 0 && users.length === 0) {
+            errMsg = "System Notice: No registered accounts found in the repository. If you are new, please use the Register option.";
           }
           alert(errMsg); 
         }
       }
     } catch (err) { 
-      console.error("Critical Authentication Error:", err);
-      alert("System Error: An unexpected failure occurred during authentication. Please check your connection and try again."); 
+      console.error("Critical Auth Error:", err);
+      alert("System Error: A failure occurred during authentication. Please refresh the page and try again."); 
     } finally { 
       setIsAuthLoading(false); 
     }
@@ -701,6 +717,7 @@ const App: React.FC = () => {
               <input type="password" placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none transition-all" />
               {isRegisterMode && (
                 <><select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">{Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}</select>
+                {/* Corrected SystemRole typo: FINANCE_OFF_ICER -> FINANCE_OFFICER */}
                 {authForm.role !== SystemRole.SYSTEM_DEVELOPER && authForm.role !== SystemRole.FINANCE_OFFICER && authForm.role !== SystemRole.AUDITOR && authForm.role !== SystemRole.MANAGER && (<select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none"><option value="" disabled>Select Cluster</option>{CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}</select>)}</>
               )}
               <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register Account' : 'Authenticate')}</button>
