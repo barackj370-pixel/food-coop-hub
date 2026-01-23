@@ -35,14 +35,12 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
   if (filteredData.length === 0) return true; 
   
-  // Map keys to match the EXACT headers provided by the user including trailing spaces
-  // Target: ID, Date, Commodity, Unit, Farmer , Farmer Phone, Customer, Customer Phone, Units Sold, Price per unit, Total Gross, Commission, Status, Agent, Agent Phone , Signature, Cluster, Created At
   const mappedRecords = filteredData.map(r => ({
     "ID": r.id,
     "Date": r.date,
     "Commodity": r.cropType,
     "Unit": r.unitType,
-    "Farmer ": r.farmerName, // Exact header with space
+    "Farmer ": r.farmerName, 
     "Farmer Phone": r.farmerPhone || "",
     "Customer": r.customerName || "",
     "Customer Phone": r.customerPhone || "",
@@ -52,7 +50,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     "Commission": r.coopProfit,
     "Status": r.status,
     "Agent": r.agentName || "System Agent",
-    "Agent Phone ": r.agentPhone || "", // Exact header with space
+    "Agent Phone ": r.agentPhone || "", 
     "Signature": r.signature,
     "Cluster": r.cluster,
     "Created At": r.createdAt
@@ -340,16 +338,17 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
       const rawData = JSON.parse(text);
       const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || rawData.produce || []);
       return dataArray.filter((p: any) => p && (p.id || p.ID)).map((p: any) => ({
-          id: cleanStr(p.id || p.ID || ""),
-          date: formatDate(p.date || p.Date || p["Posted Date"]),
-          cropType: cleanStr(p.cropType || p["Crop Type"] || p.Commodity || ""),
-          unitsAvailable: safeNum(p.unitsAvailable || p["Units Available"] || p.Quantity || p.Units),
-          unitType: cleanStr(p.unitType || p["Unit Type"] || p.Unit || ""),
-          sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"] || p.Price),
-          supplierName: cleanStr(p.supplierName || p["Supplier Name"] || p["Supplier"] || p.Name),
-          supplierPhone: cleanStr(p.supplierPhone || p["Supplier Phone"]),
-          cluster: cleanStr(p.cluster || p.Cluster || ""),
-          status: (cleanStr(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
+          id: cleanStr(p["ID"] || p.id || ""),
+          date: formatDate(p["Date"] || p.date || p["Posted Date"]),
+          cropType: cleanStr(p["Commodity"] || p.cropType || p["Crop Type"] || ""),
+          // Priority to exact key to avoid quantity duplication in unit type
+          unitsAvailable: safeNum(p["Units Available"] || p.unitsAvailable || p.Quantity),
+          unitType: cleanStr(p["Unit"] || p.unitType || p["Unit Type"] || "Units"),
+          sellingPrice: safeNum(p["Price"] || p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
+          supplierName: cleanStr(p["Supplier"] || p.supplierName || p["Supplier Name"] || p.Name),
+          supplierPhone: cleanStr(p["Supplier Phone"] || p.supplierPhone),
+          cluster: cleanStr(p["Cluster"] || p.cluster || ""),
+          status: (cleanStr(p["Status"] || p.status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
         }));
     }
     return null; 
