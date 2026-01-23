@@ -518,6 +518,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setAgentIdentity(null);
     persistence.remove('agent_session');
+    setCurrentPortal('HOME');
   };
 
   const handleExportSummaryCsv = () => {
@@ -605,6 +606,7 @@ const App: React.FC = () => {
         
         setAgentIdentity(newUser);
         persistence.set('agent_session', JSON.stringify(newUser));
+        setCurrentPortal('HOME');
       } else {
         // High-Integrity Matching using robust normalization on both target and pool
         const matchedUser = authPool.find(u => {
@@ -616,6 +618,7 @@ const App: React.FC = () => {
         if (matchedUser) { 
           setAgentIdentity(matchedUser); 
           persistence.set('agent_session', JSON.stringify(matchedUser)); 
+          setCurrentPortal('HOME');
         } else {
           let errMsg = "Authentication Failed: Account not found or passcode is incorrect.";
           if (latestCloudUsers === null && users.length === 0) {
