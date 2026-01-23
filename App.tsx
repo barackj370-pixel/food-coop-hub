@@ -671,7 +671,7 @@ const App: React.FC = () => {
                  <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Sync</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
                  <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
             </div>
-            {/* New Menus below Security Sync */}
+            {/* Navigation Menus */}
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
@@ -852,11 +852,46 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'FINANCE' && (
-          <div className="space-y-8 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date</th><th className="pb-4">Participants</th><th className="pb-4">Commodity</th><th className="pb-4">Gross</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
-            {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
-              <tr key={r.id} className="hover:bg-slate-50/50"><td className="py-6 font-bold">{r.date}</td><td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td><td className="py-6 uppercase font-bold">{r.cropType}</td><td className="py-6 font-black">KSh {Number(r.totalSale).toLocaleString()}</td><td className="py-6 text-right"><button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto"><i className="fas fa-check"></i> Confirm Receipt</button></td></tr>
-            ))}
-          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /></div>
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
+              <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                    <tr>
+                      <th className="pb-4">Date</th>
+                      <th className="pb-4">Participants</th>
+                      <th className="pb-4">Commodity</th>
+                      <th className="pb-4">Commission</th>
+                      <th className="pb-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
+                      <tr key={r.id} className="hover:bg-slate-50/50">
+                        <td className="py-6 font-bold">{r.date}</td>
+                        <td className="py-6">
+                          <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
+                            <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
+                            <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                            <p>Buyer: {r.customerName} ({r.customerPhone})</p>
+                          </div>
+                        </td>
+                        <td className="py-6 uppercase font-bold">{r.cropType}</td>
+                        <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
+                        <td className="py-6 text-right">
+                          <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
+                            <i className="fas fa-check"></i> Confirm Receipt
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <AuditLogTable data={filteredRecords} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+          </div>
         )}
 
         {currentPortal === 'AUDIT' && (
@@ -886,10 +921,18 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap gap-4">
                   <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a>
-                  <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-warehouse"></i> Purge Harvests</button>
-                  <button onClick={handlePurgeAuditLog} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-file-invoice-dollar"></i> Purge Ledger</button>
-                  <button onClick={handlePurgeOrders} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-shopping-basket"></i> Purge Orders</button>
-                  <button onClick={handlePurgeUsers} className="bg-red-600/80 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-users-slash"></i> Purge Users</button>
+                  <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-warehouse"></i> Purge Repository
+                  </button>
+                  <button onClick={handlePurgeAuditLog} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-file-invoice-dollar"></i> Purge Ledger
+                  </button>
+                  <button onClick={handlePurgeOrders} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-shopping-basket"></i> Purge Orders
+                  </button>
+                  <button onClick={handlePurgeUsers} className="bg-red-600/80 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-users-slash"></i> Purge Users
+                  </button>
                 </div>
               </div>
             </div>
