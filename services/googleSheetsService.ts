@@ -24,7 +24,9 @@ const formatDate = (dateVal: any): string => {
 
 const cleanStr = (val: any): string => {
   if (val === undefined || val === null) return "";
-  const s = String(val).trim();
+  let s = String(val).trim();
+  // Handle decimal artifacts (e.g., "7890.0")
+  if (s.includes('.') && /^\d+(\.\d+)?$/.test(s)) s = s.split('.')[0];
   if (s.toLowerCase() === "undefined" || s.toLowerCase() === "null") return "";
   return s;
 };
@@ -294,7 +296,7 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
           name: cleanStr(getFlexibleVal(u, ["Name", "name", "Full Name", "Agent Name", "Farmer Name", "Agent"])),
           phone: cleanStr(getFlexibleVal(u, ["Phone", "phone", "Phone Number", "Contact", "Farmer Phone", "Agent Phone", "Agent Phone "])),
           role: cleanStr(getFlexibleVal(u, ["Role", "role", "System Role", "Designation"])) as any,
-          passcode: cleanStr(getFlexibleVal(u, ["Passcode", "passcode", "Pin", "Password", "Access Code"])),
+          passcode: cleanStr(getFlexibleVal(u, ["Passcode", "Passcode ", "passcode", "Pin", "Password", "Access Code"])),
           cluster: cleanStr(getFlexibleVal(u, ["Cluster", "cluster", "Node", "Zone", "Area"])),
           status: cleanStr(getFlexibleVal(u, ["Status", "status", "Account Status"])) as any || "ACTIVE"
         }));

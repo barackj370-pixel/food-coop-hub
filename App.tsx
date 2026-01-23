@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -44,8 +43,19 @@ const persistence = {
 
 // Global robust normalization function
 const normalizePhone = (p: any) => {
-  const clean = String(p || '').replace(/\D/g, '');
+  let s = String(p || '').trim();
+  // Strip decimals (e.g. "123.0" -> "123")
+  if (s.includes('.')) s = s.split('.')[0];
+  const clean = s.replace(/\D/g, '');
   return clean.length >= 9 ? clean.slice(-9) : clean;
+};
+
+// Robust passcode normalization
+const normalizePasscode = (p: any) => {
+  let s = String(p || '').trim();
+  // Strip decimals (e.g. "7890.0" -> "7890")
+  if (s.includes('.')) s = s.split('.')[0];
+  return s.replace(/\D/g, '');
 };
 
 const computeHash = async (record: any): Promise<string> => {
@@ -544,9 +554,9 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsAuthLoading(true);
     
-    // Normalize user input immediately
+    // Normalize user input immediately using robust helper
     const targetPhoneNormalized = normalizePhone(authForm.phone);
-    const targetPasscode = authForm.passcode.trim().replace(/\D/g, '');
+    const targetPasscode = normalizePasscode(authForm.passcode);
     
     if (targetPhoneNormalized.length < 8) {
       alert("Invalid Phone: Please enter a valid phone number.");
@@ -565,7 +575,6 @@ const App: React.FC = () => {
       }
 
       // Determine the set of users to authenticate against
-      // On new devices, 'users' state is empty, so we must rely on 'latestCloudUsers'
       const authPool = (latestCloudUsers && latestCloudUsers.length > 0) ? latestCloudUsers : users;
 
       if (isRegisterMode) {
@@ -597,10 +606,10 @@ const App: React.FC = () => {
         setAgentIdentity(newUser);
         persistence.set('agent_session', JSON.stringify(newUser));
       } else {
-        // High-Integrity Matching
+        // High-Integrity Matching using robust normalization on both target and pool
         const matchedUser = authPool.find(u => {
           const cloudPhoneNorm = normalizePhone(u.phone);
-          const cloudPassNorm = String(u.passcode || '').trim().replace(/\D/g, '');
+          const cloudPassNorm = normalizePasscode(u.passcode);
           return cloudPhoneNorm === targetPhoneNormalized && cloudPassNorm === targetPasscode;
         });
         
@@ -717,7 +726,6 @@ const App: React.FC = () => {
               <input type="password" placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none transition-all" />
               {isRegisterMode && (
                 <><select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">{Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}</select>
-                {/* Corrected SystemRole typo: FINANCE_OFF_ICER -> FINANCE_OFFICER */}
                 {authForm.role !== SystemRole.SYSTEM_DEVELOPER && authForm.role !== SystemRole.FINANCE_OFFICER && authForm.role !== SystemRole.AUDITOR && authForm.role !== SystemRole.MANAGER && (<select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none"><option value="" disabled>Select Cluster</option>{CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}</select>)}</>
               )}
               <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register Account' : 'Authenticate')}</button>
