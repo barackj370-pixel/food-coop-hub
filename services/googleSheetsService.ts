@@ -34,25 +34,29 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   const rawData = Array.isArray(records) ? records : [records];
   const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
   if (filteredData.length === 0) return true; 
+  
+  // Explicitly map keys to match the Detailed CSV report headers
   const mappedRecords = filteredData.map(r => ({
-    id: r.id,
-    date: r.date,
-    cropType: r.cropType,
-    unitType: r.unitType,
-    farmerName: r.farmerName,
-    farmerPhone: r.farmerPhone || "", 
-    customerName: r.customerName || "",
-    customerPhone: r.customerPhone || "",
-    unitsSold: r.unitsSold,
-    unitPrice: r.unitPrice, 
-    totalSale: r.totalSale,
-    coopProfit: r.coopProfit,
-    status: r.status,
-    agentName: r.agentName || "System Agent",
-    agentPhone: r.agentPhone || "",
-    signature: r.signature,
-    cluster: r.cluster
+    "ID": r.id,
+    "Date": r.date,
+    "Cluster": r.cluster,
+    "Agent": r.agentName || "System Agent",
+    "Agent Phone": r.agentPhone || "",
+    "Supplier": r.farmerName,
+    "Supplier Phone": r.farmerPhone || "", 
+    "Buyer": r.customerName || "",
+    "Buyer Phone": r.customerPhone || "",
+    "Commodity": r.cropType,
+    "Units": r.unitsSold,
+    "Unit Type": r.unitType,
+    "Unit Price": r.unitPrice, 
+    "Gross Total": r.totalSale,
+    "Coop Profit": r.coopProfit,
+    "Status": r.status,
+    "Signature": r.signature,
+    "Created At": r.createdAt
   }));
+
   try {
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
@@ -172,14 +176,14 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
           id: cleanStr(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
           cropType: cleanStr(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
-          farmerName: cleanStr(r["Farmer"] || r["Farmer Name"] || r["farmerName"] || ""),
-          farmerPhone: cleanStr(r["Farmer Phone"] || r["farmerPhone"] || ""),
-          customerName: cleanStr(r["Customer"] || r["Customer Name"] || r["customerName"] || ""),
-          customerPhone: cleanStr(r["Customer Phone"] || r["customerPhone"] || ""),
+          farmerName: cleanStr(r["Supplier"] || r["Farmer"] || r["Farmer Name"] || r["farmerName"] || ""),
+          farmerPhone: cleanStr(r["Supplier Phone"] || r["Farmer Phone"] || r["farmerPhone"] || ""),
+          customerName: cleanStr(r["Buyer"] || r["Customer"] || r["Customer Name"] || r["customerName"] || ""),
+          customerPhone: cleanStr(r["Buyer Phone"] || r["Customer Phone"] || r["customerPhone"] || ""),
           unitsSold: safeNum(r["Units"] || r["Units Sold"] || r["unitsSold"]),
           unitPrice: safeNum(r["Unit Price"] || r["Price"] || r["unitPrice"]),
-          totalSale: safeNum(r["Total Gross"] || r["Total Sale"] || r["totalSale"]),
-          coopProfit: safeNum(r["Commission"] || r["Coop Profit"] || r["coopProfit"]),
+          totalSale: safeNum(r["Gross Total"] || r["Total Gross"] || r["Total Sale"] || r["totalSale"]),
+          coopProfit: safeNum(r["Coop Profit"] || r["Commission"] || r["coopProfit"]),
           status: cleanStr(r["Status"] || r["status"] || "DRAFT") as any,
           agentName: cleanStr(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
           agentPhone: cleanStr(r["Agent Phone"] || r["agentPhone"] || ""),
@@ -187,7 +191,7 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
           createdAt: formatDate(r["Created At"] || r["createdAt"] || r["Date"]),
           synced: true,
           signature: cleanStr(r["Signature"] || r["signature"] || ""),
-          unitType: cleanStr(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
+          unitType: cleanStr(r["Unit Type"] || r["Unit"] || r["unitType"] || "Kg"),
         })) as SaleRecord[];
     }
     return null;
@@ -197,11 +201,19 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
 export const syncUserToCloud = async (user: AgentIdentity): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
+    const mappedUser = {
+      "Name": user.name,
+      "Phone": user.phone,
+      "Role": user.role,
+      "Passcode": user.passcode,
+      "Cluster": user.cluster,
+      "Status": user.status || "ACTIVE"
+    };
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sync_user', user, _t: Date.now() }),
+      body: JSON.stringify({ action: 'sync_user', user: mappedUser, _t: Date.now() }),
     });
     return response.ok;
   } catch (e) { return false; }
@@ -236,11 +248,23 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
 export const syncOrderToCloud = async (order: MarketOrder): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
+    const mappedOrder = {
+      "ID": order.id,
+      "Date": order.date,
+      "Cluster": order.cluster,
+      "Commodity": order.cropType,
+      "Units Requested": order.unitsRequested,
+      "Unit Type": order.unitType,
+      "Customer Name": order.customerName,
+      "Customer Phone": order.customerPhone,
+      "Status": order.status,
+      "Agent Phone": order.agentPhone
+    };
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sync_order', order, _t: Date.now() }),
+      body: JSON.stringify({ action: 'sync_order', order: mappedOrder, _t: Date.now() }),
     });
     return response.ok;
   } catch (e) { return false; }
@@ -262,9 +286,9 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
       return rawOrders.map((o: any) => ({
         id: cleanStr(o["ID"] || o["id"] || ""),
         date: formatDate(o["Date"] || o["date"]),
-        cropType: cleanStr(o["Crop Type"] || o["cropType"] || ""),
+        cropType: cleanStr(o["Commodity"] || o["Crop Type"] || o["cropType"] || ""),
         unitsRequested: safeNum(o["Units Requested"] || o["unitsRequested"]),
-        unitType: cleanStr(o["Unit Type"] || o["unitType"] || ""),
+        unitType: cleanStr(o["Unit Type"] || o["Unit"] || o["unitType"] || ""),
         customerName: cleanStr(o["Customer Name"] || o["customerName"] || ""),
         customerPhone: cleanStr(o["Customer Phone"] || o["customerPhone"] || ""),
         status: cleanStr(o["Status"] || o["status"] || "OPEN") as any,
@@ -279,11 +303,23 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
 export const syncProduceToCloud = async (produce: ProduceListing): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
+    const mappedProduce = {
+      "ID": produce.id,
+      "Date": produce.date,
+      "Cluster": produce.cluster,
+      "Commodity": produce.cropType,
+      "Units Available": produce.unitsAvailable,
+      "Unit Type": produce.unitType,
+      "Selling Price": produce.sellingPrice,
+      "Supplier Name": produce.supplierName,
+      "Supplier Phone": produce.supplierPhone,
+      "Status": produce.status
+    };
     const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'sync_produce', produce, _t: Date.now() }),
+      body: JSON.stringify({ action: 'sync_produce', produce: mappedProduce, _t: Date.now() }),
     });
     return response.ok;
   } catch (e) { return false; }
@@ -307,9 +343,9 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
           date: formatDate(p.date || p.Date || p["Posted Date"]),
           cropType: cleanStr(p.cropType || p["Crop Type"] || p.Commodity || ""),
           unitsAvailable: safeNum(p.unitsAvailable || p["Units Available"] || p.Quantity || p.Units),
-          unitType: cleanStr(p.unitType || p["Unit Type"] || ""),
-          sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
-          supplierName: cleanStr(p.supplierName || p["Supplier Name"] || p.Name),
+          unitType: cleanStr(p.unitType || p["Unit Type"] || p.Unit || ""),
+          sellingPrice: safeNum(p.sellingPrice || p["Selling Price"] || p["Asking Price"] || p.Price),
+          supplierName: cleanStr(p.supplierName || p["Supplier Name"] || p["Supplier"] || p.Name),
           supplierPhone: cleanStr(p.supplierPhone || p["Supplier Phone"]),
           cluster: cleanStr(p.cluster || p.Cluster || ""),
           status: (cleanStr(p.status || p.Status || "AVAILABLE").toUpperCase() === "SOLD_OUT" ? "SOLD_OUT" : "AVAILABLE") as any,
