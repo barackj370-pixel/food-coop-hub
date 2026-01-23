@@ -9,7 +9,7 @@ import {
   fetchFromGoogleSheets, 
   syncUserToCloud, 
   fetchUsersFromCloud, 
-  deleteRecordFromCloud,
+  deleteRecordFromCloud, 
   deleteUserFromCloud,
   deleteAllUsersFromCloud,
   deleteProduceFromCloud,
@@ -22,12 +22,12 @@ import {
   deleteAllRecordsFromCloud
 } from './services/googleSheetsService.ts';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
-const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23000000' d='M160 96c0-17.7-14.3-32-32-32H32C14.3 64 0 78.3 0 96s14.3 32 32 32h73.4l57.1 240.1c5.3 22.3 25.3 37.9 48.2 37.9H436c22.9 0 42.9-15.6 48.2-37.9l39.1-164.2c4.2-17.8-7-35.7-24.9-39.9s-35.7 7-39.9 24.9l-33.9 142.2H198.5l-57.1-240c-2.7-11.2-12.7-19-24.1-19H32z'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='448' r='48'/%3E%3Ccircle fill='%23dc2626' cx='416' cy='448' r='48'/%3E%3Cpath fill='%2322c55e' d='M280 200c0 0-60 20-60 80 0 60 60 80 60 80s60-20 60-80c0-60-60-80-60-80zm0 100c-15 0-25-10-25-25s10-25 25-25 25 10 25 25-10 25-25 25z' transform='translate(100, -20)'/%3E%3C/svg%3E";
+const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23000000' d='M160 96c0-17.7-14.3-32-32-32H32C14.3 64 0 78.3 0 96s14.3 32 32 32h73.4l57.1 240.1c5.3 22.3 25.3 37.9 48.2 37.9H436c22.9 0 42.9-15.6 48.2-37.9l39.1-164.2c4.2-17.8-7-35.7-24.9-39.9s-35.7 7-39.9 24.9l-33.9 142.2H198.5l-57.1-240c-2.7-11.2-12.7-19-24.1-19H32z'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='448' r='48'/%3E%3Ccircle fill='%23dc2626' cx='416' cy='448' r='48'/%3E%3Cpath fill='%2322c55e' d='M340 120 C 340 120, 260 140, 260 220 C 260 300, 340 320, 340 320 S 420 300, 420 220 C 420 140, 340 120, 340 120 Z' transform='translate(0, -30)'/%3E%3Cpath fill='white' d='M340 150 L 340 290' stroke='white' stroke-width='4' stroke-linecap='round' transform='translate(0, -30)'/%3E%3C/svg%3E";
 
 const persistence = {
   get: (key: string): string | null => {
@@ -97,7 +97,7 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : null;
   });
   
-  const [currentPortal, setCurrentPortal] = useState<PortalType>('MARKET');
+  const [currentPortal, setCurrentPortal] = useState<PortalType>('HOME');
   const [marketView, setMarketView] = useState<MarketView>(() => {
     const saved = persistence.get('agent_session');
     if (saved) {
@@ -113,6 +113,13 @@ const App: React.FC = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
+
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
 
   const [authForm, setAuthForm] = useState({
     name: '',
@@ -147,13 +154,13 @@ const App: React.FC = () => {
 
   const availablePortals = useMemo<PortalType[]>(() => {
     if (!agentIdentity) return [];
-    if (isSystemDev) return ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
-    if (agentIdentity.role === SystemRole.SUPPLIER) return ['MARKET'];
-    const portals: PortalType[] = ['MARKET'];
-    if (agentIdentity.role === SystemRole.FINANCE_OFFICER) portals.push('FINANCE');
-    else if (agentIdentity.role === SystemRole.AUDITOR) portals.push('AUDIT');
-    else if (agentIdentity.role === SystemRole.MANAGER) portals.push('FINANCE', 'AUDIT', 'BOARD');
-    return portals;
+    const base: PortalType[] = ['HOME', 'ABOUT', 'MARKET', 'CONTACT'];
+    if (isSystemDev) return [...base, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+    if (agentIdentity.role === SystemRole.SUPPLIER) return base;
+    if (agentIdentity.role === SystemRole.FINANCE_OFFICER) base.splice(3, 0, 'FINANCE');
+    else if (agentIdentity.role === SystemRole.AUDITOR) base.splice(3, 0, 'AUDIT');
+    else if (agentIdentity.role === SystemRole.MANAGER) base.splice(3, 0, 'FINANCE', 'AUDIT', 'BOARD');
+    return base;
   }, [agentIdentity, isSystemDev]);
 
   const loadCloudData = useCallback(async () => {
@@ -343,6 +350,7 @@ const App: React.FC = () => {
   };
 
   const handleFulfillOrderClick = (order: MarketOrder) => {
+    setCurrentPortal('MARKET');
     setMarketView('SALES');
     setFulfillmentData({
       cropType: order.cropType, unitsSold: order.unitsRequested, unitType: order.unitType,
@@ -352,6 +360,7 @@ const App: React.FC = () => {
   };
 
   const handleUseProduceListing = (listing: ProduceListing) => {
+    setCurrentPortal('MARKET');
     setMarketView('SALES');
     setFulfillmentData({
       cropType: listing.cropType, unitType: listing.unitType, farmerName: listing.supplierName,
@@ -523,6 +532,12 @@ const App: React.FC = () => {
     link.click();
   };
 
+  const handleContactSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    alert("Thank you for your message. Our team will get back to you shortly at info@kplfoodcoopmarket.co.ke");
+    setContactForm({ name: '', email: '', subject: '', message: '' });
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
@@ -642,7 +657,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
-        <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
+        <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-4 gap-6">
           <div className="flex items-center space-x-5">
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden"><img src={APP_LOGO} alt="KPL Logo" className="w-10 h-10 object-contain" /></div>
             <div>
@@ -651,13 +666,21 @@ const App: React.FC = () => {
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{isSystemDev ? 'Master Node Access' : `${agentIdentity.name} - ${agentIdentity.cluster} Cluster`}</p>
             </div>
           </div>
-          <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6">
-               <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Sync</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
-               <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
+          <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
+            <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6">
+                 <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Sync</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
+                 <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
+            </div>
+            {/* New Menus below Security Sync */}
+            <div className="flex gap-4">
+              <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
+              <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
+              <button onClick={() => setCurrentPortal('CONTACT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'CONTACT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Contact Us</button>
+            </div>
           </div>
         </div>
         <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.map(p => {
+          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT'].includes(p)).map(p => {
             if (p === 'MARKET') {
               return (
                 <div key={p} className="relative">
@@ -677,8 +700,118 @@ const App: React.FC = () => {
       </header>
 
       <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
+        {currentPortal === 'HOME' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
+              <div className="flex-1 space-y-6">
+                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">Welcome to the KPL Cooperative Hub</h2>
+                <p className="text-slate-600 font-medium leading-relaxed">
+                  Our platform is designed to empower local farmers and consumers through a transparent, high-integrity marketplace. We leverage agroecological principles to ensure sustainable growth for our community.
+                </p>
+                <div className="flex gap-4">
+                  <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button>
+                  <button onClick={() => setCurrentPortal('ABOUT')} className="bg-slate-100 text-black px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all">Learn More</button>
+                </div>
+              </div>
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div className="bg-green-50 p-8 rounded-3xl border border-green-100 text-center">
+                  <p className="text-3xl font-black text-green-600">{users.length}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Members</p>
+                </div>
+                <div className="bg-red-50 p-8 rounded-3xl border border-red-100 text-center">
+                  <p className="text-3xl font-black text-red-600">{records.length}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed Trades</p>
+                </div>
+                <div className="bg-slate-900 p-8 rounded-3xl border border-black text-center col-span-2">
+                  <p className="text-2xl font-black text-white">KSh {boardMetrics.clusterPerformance.reduce((a, b: any) => a + b[1].volume, 0).toLocaleString()}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total Trade Volume</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <i className="fas fa-bullhorn text-2xl text-red-600"></i>
+                <h4 className="text-lg font-black uppercase tracking-tight">Cooperative News</h4>
+                <p className="text-xs text-slate-500 font-medium">New harvest cycles starting in Mariwa cluster. Members are encouraged to list their produce early.</p>
+              </div>
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <i className="fas fa-hand-holding-heart text-2xl text-green-600"></i>
+                <h4 className="text-lg font-black uppercase tracking-tight">Community Pulse</h4>
+                <p className="text-xs text-slate-500 font-medium">98% customer satisfaction rate across all clusters this month. Quality of maize has reached record highs.</p>
+              </div>
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <i className="fas fa-shield-halved text-2xl text-slate-900"></i>
+                <h4 className="text-lg font-black uppercase tracking-tight">Audit Updates</h4>
+                <p className="text-xs text-slate-500 font-medium">All financial systems synchronized. High-integrity trade signatures verified for 1,200+ transactions.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'ABOUT' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-8">
+              <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center">Connecting <span className="text-red-600">Consumers</span> with <span className="text-green-600">Suppliers</span></h2>
+              <div className="space-y-6 text-slate-600 font-medium leading-relaxed">
+                <p>
+                  KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-y border-slate-100">
+                  <div className="space-y-4">
+                    <h4 className="text-black font-black uppercase tracking-widest text-[11px]">Our Mission</h4>
+                    <p className="text-sm">To empower smallholder farmers by providing direct access to premium markets while ensuring consumers receive high-quality, eco-friendly food products at fair prices.</p>
+                  </div>
+                  <div className="space-y-4">
+                    <h4 className="text-black font-black uppercase tracking-widest text-[11px]">The Agroecology Core</h4>
+                    <p className="text-sm">We believe in farming that works with nature. Our green leaf symbol represents our commitment to agroecological practices that preserve soil health and biodiversity.</p>
+                  </div>
+                </div>
+                <p>
+                  Every transaction on our platform is secured by high-integrity digital signatures and verified by a multi-tier audit process, ensuring that every cent of profit reaches the intended recipients.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'CONTACT' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto flex flex-col md:flex-row gap-12">
+              <div className="flex-1 space-y-8">
+                <h2 className="text-3xl font-black uppercase tracking-tight text-black">Get in Touch</h2>
+                <p className="text-slate-500 font-medium text-sm">Have questions about our marketplace or want to join as a supplier? Reach out to us directly.</p>
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-red-600 border border-slate-100"><i className="fas fa-envelope"></i></div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Email Support</p>
+                      <p className="text-sm font-black text-black">info@kplfoodcoopmarket.co.ke</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-green-600 border border-slate-100"><i className="fas fa-map-marker-alt"></i></div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Headquarters</p>
+                      <p className="text-sm font-black text-black">KPL Central Hub, Nairobi, Kenya</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                <form onSubmit={handleContactSubmit} className="space-y-4">
+                  <input type="text" placeholder="Your Name" required value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
+                  <input type="email" placeholder="Email Address" required value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
+                  <input type="text" placeholder="Subject" required value={contactForm.subject} onChange={e => setContactForm({...contactForm, subject: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
+                  <textarea placeholder="Your Message..." required rows={4} value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all resize-none"></textarea>
+                  <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-slate-800 transition-all">Send Message</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
         {currentPortal === 'MARKET' && (
-          <div className="space-y-8">
+          <div className="space-y-8 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-shopping-cart"></i> Sales Portal</button>
                 <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-seedling"></i> Supplier Portal</button>
@@ -719,7 +852,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'FINANCE' && (
-          <div className="space-y-8"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date</th><th className="pb-4">Participants</th><th className="pb-4">Commodity</th><th className="pb-4">Gross</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
+          <div className="space-y-8 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date</th><th className="pb-4">Participants</th><th className="pb-4">Commodity</th><th className="pb-4">Gross</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
             {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
               <tr key={r.id} className="hover:bg-slate-50/50"><td className="py-6 font-bold">{r.date}</td><td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td><td className="py-6 uppercase font-bold">{r.cropType}</td><td className="py-6 font-black">KSh {Number(r.totalSale).toLocaleString()}</td><td className="py-6 text-right"><button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto"><i className="fas fa-check"></i> Confirm Receipt</button></td></tr>
             ))}
@@ -727,7 +860,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'AUDIT' && (
-          <div className="space-y-8"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-black pl-4">Awaiting Approval & Verification</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
+          <div className="space-y-8 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-black pl-4">Awaiting Approval & Verification</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
             {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
               <tr key={r.id} className="hover:bg-slate-800/50"><td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td><td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td><td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td><td className="py-6 text-right">{r.status === RecordStatus.PAID ? (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-search"></i> Verify</button>) : (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Audit Seal</button>)}</td></tr>
             ))}
@@ -735,7 +868,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'BOARD' && (
-          <div className="space-y-12"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden"><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4"><h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3><div className="flex gap-2"><button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest">Summary CSV</button><button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl"><i className="fas fa-download mr-2"></i> Detailed CSV</button></div></div><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50"><tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr></thead><tbody className="divide-y divide-slate-50">
+          <div className="space-y-12 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden"><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4"><h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3><div className="flex gap-2"><button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest">Summary CSV</button><button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl"><i className="fas fa-download mr-2"></i> Detailed CSV</button></div></div><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50"><tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr></thead><tbody className="divide-y divide-slate-50">
             {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
               <tr key={cluster} className="hover:bg-slate-50/50"><td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td><td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td><td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td></tr>
             ))}
@@ -744,7 +877,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
-          <div className="space-y-12">
+          <div className="space-y-12 animate-in fade-in duration-300">
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
