@@ -11,6 +11,7 @@ import {
   fetchUsersFromCloud, 
   deleteRecordFromCloud,
   deleteUserFromCloud,
+  deleteAllUsersFromCloud,
   deleteProduceFromCloud,
   deleteAllProduceFromCloud,
   syncOrderToCloud,
@@ -447,6 +448,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handlePurgeUsers = async () => {
+    if (!window.confirm("CRITICAL SECURITY ALERT: You are about to purge ALL registered users/agents from the system. This will lock out everyone except those who re-register. Proceed?")) return;
+    
+    setUsers([]);
+    persistence.set('coop_users', JSON.stringify([]));
+
+    try {
+      await deleteAllUsersFromCloud();
+      alert("User Registry Purged Successfully.");
+    } catch (err) {
+      console.error("Global user purge failed:", err);
+      alert("Cloud purge failed. Local state cleared.");
+    }
+  };
+
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
@@ -769,7 +785,7 @@ const App: React.FC = () => {
              <img src={APP_LOGO} alt="KPL Logo" className="w-12 h-12 object-contain" />
            </div>
            <h1 className="text-3xl font-black text-black uppercase tracking-tighter">KPL Food Coop Market</h1>
-           <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-red-600">Consumers</span> with <span className="text-green-600">Suppliers</span></p>
+           <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-2 italic">Connecting <span className="text-green-600">Consumers</span> with <span className="text-green-600">Suppliers</span></p>
         </div>
         <div className="w-full max-w-[360px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 z-10">
             <div className="flex justify-between items-end mb-2">
@@ -878,12 +894,10 @@ const App: React.FC = () => {
           })}
         </nav>
       </header>
-      {/* ... rest of component ... */}
+
       <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
-        {/* ... Market Portal Content ... */}
         {currentPortal === 'MARKET' && (
           <div className="space-y-8">
-            {/* ... rest of the main content logic ... */}
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                     <i className="fas fa-shopping-cart"></i> Sales Portal
@@ -1068,7 +1082,7 @@ const App: React.FC = () => {
             )}
           </div>
         )}
-        {/* ... rest of component ... */}
+
         {currentPortal === 'FINANCE' && (
           <div className="space-y-8">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
@@ -1210,6 +1224,12 @@ const App: React.FC = () => {
                         <i className="fas fa-trash-can"></i> Purge Repository
                       </button>
                     )}
+                    <button 
+                      onClick={handlePurgeUsers}
+                      className="bg-red-600/80 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                    >
+                      <i className="fas fa-users-slash"></i> Purge Users
+                    </button>
                   </div>
                </div>
             </div>
