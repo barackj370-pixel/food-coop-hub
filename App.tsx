@@ -543,20 +543,35 @@ const App: React.FC = () => {
     setIsAuthLoading(true);
     const targetPhoneNormalized = normalizePhone(authForm.phone);
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
+    
     try {
+      // Always fetch the freshest user list from cloud for authentication
       const latestCloudUsers = await fetchUsersFromCloud();
-      let currentUsers = latestCloudUsers ? [...latestCloudUsers] : [...users];
+      
+      // Update local state and persistence if we got cloud data
       if (latestCloudUsers) {
-        const cloudPhones = new Set(latestCloudUsers.map(u => normalizePhone(u.phone)));
-        users.forEach(u => { if (!cloudPhones.has(normalizePhone(u.phone))) currentUsers.push(u); });
+        setUsers(latestCloudUsers);
+        persistence.set('coop_users', JSON.stringify(latestCloudUsers));
       }
+
+      const currentUsers = latestCloudUsers || users;
+
       if (isRegisterMode) {
-        if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) { alert("Please select a cluster."); setIsAuthLoading(false); return; }
+        if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) { 
+          alert("Please select a cluster."); 
+          setIsAuthLoading(false); 
+          return; 
+        }
+        
         const newUser: AgentIdentity = { 
-          name: authForm.name.trim(), phone: authForm.phone.trim(), passcode: targetPasscode, role: authForm.role, 
+          name: authForm.name.trim(), 
+          phone: authForm.phone.trim(), 
+          passcode: targetPasscode, 
+          role: authForm.role, 
           cluster: (authForm.role === SystemRole.SYSTEM_DEVELOPER || authForm.role === SystemRole.FINANCE_OFFICER || authForm.role === SystemRole.AUDITOR || authForm.role === SystemRole.MANAGER) ? '-' : (authForm.cluster || 'System'), 
           status: 'ACTIVE' 
         };
+        
         const updatedUsersList = [...currentUsers.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone)), newUser];
         setUsers(updatedUsersList);
         persistence.set('coop_users', JSON.stringify(updatedUsersList));
@@ -564,10 +579,24 @@ const App: React.FC = () => {
         setAgentIdentity(newUser);
         persistence.set('agent_session', JSON.stringify(newUser));
       } else {
-        const user = currentUsers.find(u => normalizePhone(u.phone) === targetPhoneNormalized && String(u.passcode).replace(/\D/g, '') === targetPasscode);
-        if (user) { setAgentIdentity(user); persistence.set('agent_session', JSON.stringify(user)); } else { alert("Authentication failed."); }
+        const user = currentUsers.find(u => 
+          normalizePhone(u.phone) === targetPhoneNormalized && 
+          String(u.passcode).replace(/\D/g, '') === targetPasscode
+        );
+        
+        if (user) { 
+          setAgentIdentity(user); 
+          persistence.set('agent_session', JSON.stringify(user)); 
+        } else { 
+          alert("Authentication failed. Ensure your phone and passcode are correct. If you are a new member, please Register first."); 
+        }
       }
-    } catch (err) { alert("Auth Error."); } finally { setIsAuthLoading(false); }
+    } catch (err) { 
+      console.error("Auth Failure:", err);
+      alert("Authentication Service Error. Please check your internet connection and try again."); 
+    } finally { 
+      setIsAuthLoading(false); 
+    }
   };
 
   const AuditLogTable = ({ data, title, onDelete }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void }) => {

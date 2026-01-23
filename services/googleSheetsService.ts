@@ -29,6 +29,23 @@ const cleanStr = (val: any): string => {
   return s;
 };
 
+// Robust helper to find values in an object using multiple possible keys (case-insensitive and trimmed)
+const getFlexibleVal = (obj: any, keys: string[]): any => {
+  if (!obj) return undefined;
+  // Create a normalized map of the object's keys for fast lookups
+  const objKeys = Object.keys(obj);
+  const normalizedMap = new Map<string, string>();
+  objKeys.forEach(k => normalizedMap.set(k.trim().toLowerCase(), k));
+
+  for (const k of keys) {
+    const searchKey = k.trim().toLowerCase();
+    if (normalizedMap.has(searchKey)) {
+      return obj[normalizedMap.get(searchKey)!];
+    }
+  }
+  return undefined;
+};
+
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   const rawData = Array.isArray(records) ? records : [records];
@@ -230,14 +247,14 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
       const rawUsersRaw = JSON.parse(text);
-      const rawUsers = Array.isArray(rawUsersRaw) ? rawUsersRaw : (rawUsersRaw.data || rawUsersRaw.records || []);
+      const rawUsers = Array.isArray(rawUsersRaw) ? rawUsersRaw : (rawUsersRaw.data || rawUsersRaw.records || rawUsersRaw.users || []);
       return rawUsers.map((u: any) => ({
-        name: cleanStr(u["Name"] || u["name"] || ""),
-        phone: cleanStr(u["Phone"] || u["phone"] || ""),
-        role: cleanStr(u["Role"] || u["role"] || "") as any,
-        passcode: cleanStr(u["Passcode"] || u["passcode"] || ""),
-        cluster: cleanStr(u["Cluster"] || u["cluster"] || ""),
-        status: cleanStr(u["Status"] || u["status"] || "ACTIVE") as any
+        name: cleanStr(getFlexibleVal(u, ["Name", "name", "Full Name", "Agent Name"])),
+        phone: cleanStr(getFlexibleVal(u, ["Phone", "phone", "Phone Number", "Contact"])),
+        role: cleanStr(getFlexibleVal(u, ["Role", "role", "System Role"])) as any,
+        passcode: cleanStr(getFlexibleVal(u, ["Passcode", "passcode", "Pin", "Password"])),
+        cluster: cleanStr(getFlexibleVal(u, ["Cluster", "cluster", "Node"])),
+        status: cleanStr(getFlexibleVal(u, ["Status", "status"])) as any || "ACTIVE"
       }));
     }
     return null;
@@ -341,7 +358,6 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
           id: cleanStr(p["ID"] || p.id || ""),
           date: formatDate(p["Date"] || p.date || p["Posted Date"]),
           cropType: cleanStr(p["Commodity"] || p.cropType || p["Crop Type"] || ""),
-          // Priority to exact key to avoid quantity duplication in unit type
           unitsAvailable: safeNum(p["Units Available"] || p.unitsAvailable || p.Quantity),
           unitType: cleanStr(p["Unit"] || p.unitType || p["Unit Type"] || "Units"),
           sellingPrice: safeNum(p["Price"] || p.sellingPrice || p["Selling Price"] || p["Asking Price"]),
