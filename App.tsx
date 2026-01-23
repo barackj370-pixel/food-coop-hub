@@ -41,6 +41,12 @@ const persistence = {
   }
 };
 
+// Global robust normalization function
+const normalizePhone = (p: any) => {
+  const clean = String(p || '').replace(/\D/g, '');
+  return clean.length >= 9 ? clean.slice(-9) : clean;
+};
+
 const computeHash = async (record: any): Promise<string> => {
   const normalizedUnits = Number(record.unitsSold).toString();
   const normalizedPrice = Number(record.unitPrice).toString();
@@ -137,11 +143,6 @@ const App: React.FC = () => {
     customerPhone: ''
   });
 
-  const normalizePhone = (p: string) => {
-    const clean = p.replace(/\D/g, '');
-    return clean.length >= 9 ? clean.slice(-9) : clean;
-  };
-
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.name === 'Barack James';
 
   const isPrivilegedRole = (agent: AgentIdentity | null) => {
@@ -175,7 +176,7 @@ const App: React.FC = () => {
         fetchProduceFromCloud()
       ]);
       
-      if (cloudUsers) {
+      if (cloudUsers && cloudUsers.length > 0) {
         setUsers(prev => {
           const userMap = new Map<string, AgentIdentity>();
           cloudUsers.forEach(u => { userMap.set(normalizePhone(u.phone), u); });
@@ -545,20 +546,21 @@ const App: React.FC = () => {
     const targetPasscode = authForm.passcode.replace(/\D/g, '');
     
     try {
-      // Always fetch the freshest user list from cloud for authentication
+      // Always perform a fresh fetch from cloud on login attempt to handle new devices
       const latestCloudUsers = await fetchUsersFromCloud();
       
-      // Update local state and persistence if we got cloud data
-      if (latestCloudUsers) {
+      // Update state if we got anything valid
+      if (latestCloudUsers && latestCloudUsers.length > 0) {
         setUsers(latestCloudUsers);
         persistence.set('coop_users', JSON.stringify(latestCloudUsers));
       }
 
-      const currentUsers = latestCloudUsers || users;
+      // Final pool of users to check against
+      const currentUsers = (latestCloudUsers && latestCloudUsers.length > 0) ? latestCloudUsers : users;
 
       if (isRegisterMode) {
         if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) { 
-          alert("Please select a cluster."); 
+          alert("Registration Error: Cluster selection is mandatory."); 
           setIsAuthLoading(false); 
           return; 
         }
@@ -579,21 +581,29 @@ const App: React.FC = () => {
         setAgentIdentity(newUser);
         persistence.set('agent_session', JSON.stringify(newUser));
       } else {
-        const user = currentUsers.find(u => 
-          normalizePhone(u.phone) === targetPhoneNormalized && 
-          String(u.passcode).replace(/\D/g, '') === targetPasscode
-        );
+        // Robust Matching: always normalize both sides during comparison
+        const user = currentUsers.find(u => {
+          const cloudPhoneNorm = normalizePhone(u.phone);
+          const cloudPassNorm = String(u.passcode || '').replace(/\D/g, '');
+          return cloudPhoneNorm === targetPhoneNormalized && cloudPassNorm === targetPasscode;
+        });
         
         if (user) { 
           setAgentIdentity(user); 
           persistence.set('agent_session', JSON.stringify(user)); 
-        } else { 
-          alert("Authentication failed. Ensure your phone and passcode are correct. If you are a new member, please Register first."); 
+        } else {
+          let errMsg = "Authentication Failed: Account not found or passcode is incorrect.";
+          if (latestCloudUsers === null) {
+            errMsg = "Connection Error: Could not reach the cloud database. Please verify your internet connection.";
+          } else if (latestCloudUsers.length === 0 && users.length === 0) {
+            errMsg = "System Error: No registered members found in the cloud repository. Please use the Register option if you are a new member.";
+          }
+          alert(errMsg); 
         }
       }
     } catch (err) { 
-      console.error("Auth Failure:", err);
-      alert("Authentication Service Error. Please check your internet connection and try again."); 
+      console.error("Critical Authentication Error:", err);
+      alert("System Error: An unexpected failure occurred during authentication. Please check your connection and try again."); 
     } finally { 
       setIsAuthLoading(false); 
     }
@@ -613,7 +623,6 @@ const App: React.FC = () => {
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
         {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
-          // Calculate cluster-specific totals
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
           const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
 
@@ -651,7 +660,6 @@ const App: React.FC = () => {
                   ))}
                 </tbody>
               </table>
-              {/* Cluster Totals Summary Row */}
               <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-8">
                 <div className="text-right">
                   <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Volume</p>
@@ -697,7 +705,6 @@ const App: React.FC = () => {
               )}
               <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register Account' : 'Authenticate')}</button>
               
-              {/* Decorative lines below authentication */}
               <div className="flex justify-center gap-1.5 mt-8 opacity-40">
                 <div className="w-12 h-1 rounded-full bg-red-600"></div>
                 <div className="w-12 h-1 rounded-full bg-black"></div>
@@ -726,7 +733,6 @@ const App: React.FC = () => {
                  <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Sync</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
                  <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
             </div>
-            {/* Navigation Menus */}
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>

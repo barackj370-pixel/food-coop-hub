@@ -32,7 +32,6 @@ const cleanStr = (val: any): string => {
 // Robust helper to find values in an object using multiple possible keys (case-insensitive and trimmed)
 const getFlexibleVal = (obj: any, keys: string[]): any => {
   if (!obj) return undefined;
-  // Create a normalized map of the object's keys for fast lookups
   const objKeys = Object.keys(obj);
   const normalizedMap = new Map<string, string>();
   objKeys.forEach(k => normalizedMap.set(k.trim().toLowerCase(), k));
@@ -44,6 +43,29 @@ const getFlexibleVal = (obj: any, keys: string[]): any => {
     }
   }
   return undefined;
+};
+
+// Helper to find the first array in a response object (handles various GAS return formats)
+const findDataArray = (data: any): any[] | null => {
+  if (Array.isArray(data)) return data;
+  if (typeof data !== 'object' || data === null) return null;
+  
+  // Order matters: check common data payload keys first
+  const keys = ['data', 'records', 'users', 'userList', 'members', 'rows', 'result', 'body'];
+  for (const key of keys) {
+    if (Array.isArray(data[key])) return data[key];
+  }
+  
+  // Fallback: search all keys for any array that isn't empty (if possible)
+  let firstArray: any[] | null = null;
+  for (const key in data) {
+    if (Array.isArray(data[key])) {
+      if (data[key].length > 0) return data[key];
+      if (!firstArray) firstArray = data[key];
+    }
+  }
+  
+  return firstArray;
 };
 
 export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Promise<boolean> => {
@@ -187,7 +209,8 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
       const rawData = JSON.parse(text);
-      const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || []);
+      const dataArray = findDataArray(rawData);
+      if (!dataArray) return null;
       return dataArray.filter((r: any) => r && (r["ID"] || r["id"])).map((r: any) => ({
           id: cleanStr(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
@@ -247,14 +270,15 @@ export const fetchUsersFromCloud = async (): Promise<AgentIdentity[] | null> => 
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
       const rawUsersRaw = JSON.parse(text);
-      const rawUsers = Array.isArray(rawUsersRaw) ? rawUsersRaw : (rawUsersRaw.data || rawUsersRaw.records || rawUsersRaw.users || []);
-      return rawUsers.map((u: any) => ({
-        name: cleanStr(getFlexibleVal(u, ["Name", "name", "Full Name", "Agent Name"])),
-        phone: cleanStr(getFlexibleVal(u, ["Phone", "phone", "Phone Number", "Contact"])),
-        role: cleanStr(getFlexibleVal(u, ["Role", "role", "System Role"])) as any,
-        passcode: cleanStr(getFlexibleVal(u, ["Passcode", "passcode", "Pin", "Password"])),
-        cluster: cleanStr(getFlexibleVal(u, ["Cluster", "cluster", "Node"])),
-        status: cleanStr(getFlexibleVal(u, ["Status", "status"])) as any || "ACTIVE"
+      const dataArray = findDataArray(rawUsersRaw);
+      if (!dataArray) return null;
+      return dataArray.map((u: any) => ({
+        name: cleanStr(getFlexibleVal(u, ["Name", "name", "Full Name", "Agent Name", "Farmer Name", "Agent"])),
+        phone: cleanStr(getFlexibleVal(u, ["Phone", "phone", "Phone Number", "Contact", "Farmer Phone", "Agent Phone", "Agent Phone "])),
+        role: cleanStr(getFlexibleVal(u, ["Role", "role", "System Role", "Designation"])) as any,
+        passcode: cleanStr(getFlexibleVal(u, ["Passcode", "passcode", "Pin", "Password", "Access Code"])),
+        cluster: cleanStr(getFlexibleVal(u, ["Cluster", "cluster", "Node", "Zone", "Area"])),
+        status: cleanStr(getFlexibleVal(u, ["Status", "status", "Account Status"])) as any || "ACTIVE"
       }));
     }
     return null;
@@ -298,8 +322,9 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
       const rawOrdersRaw = JSON.parse(text);
-      const rawOrders = Array.isArray(rawOrdersRaw) ? rawOrdersRaw : (rawOrdersRaw.data || rawOrdersRaw.records || []);
-      return rawOrders.map((o: any) => ({
+      const dataArray = findDataArray(rawOrdersRaw);
+      if (!dataArray) return null;
+      return dataArray.map((o: any) => ({
         id: cleanStr(o["ID"] || o["id"] || ""),
         date: formatDate(o["Date"] || o["date"]),
         cropType: cleanStr(o["Commodity"] || o["cropType"] || ""),
@@ -353,8 +378,9 @@ export const fetchProduceFromCloud = async (): Promise<ProduceListing[] | null> 
     const text = await response.text();
     if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
       const rawData = JSON.parse(text);
-      const dataArray = Array.isArray(rawData) ? rawData : (rawData.data || rawData.records || rawData.produce || []);
-      return dataArray.filter((p: any) => p && (p.id || p.ID)).map((p: any) => ({
+      const dataArray = findDataArray(rawData);
+      if (!dataArray) return null;
+      return dataArray.filter((p: any) => p && (p.id || p["ID"])).map((p: any) => ({
           id: cleanStr(p["ID"] || p.id || ""),
           date: formatDate(p["Date"] || p.date || p["Posted Date"]),
           cropType: cleanStr(p["Commodity"] || p.cropType || p["Crop Type"] || ""),
