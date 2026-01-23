@@ -142,6 +142,19 @@ export const deleteAllOrdersFromCloud = async (): Promise<boolean> => {
   } catch (error) { return false; }
 };
 
+export const deleteAllRecordsFromCloud = async (): Promise<boolean> => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
+  try {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'delete_all_records', _t: Date.now() })
+    });
+    return response.ok;
+  } catch (error) { return false; }
+};
+
 export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return null;
   try {

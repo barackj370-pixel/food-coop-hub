@@ -17,7 +17,9 @@ import {
   syncOrderToCloud,
   fetchOrdersFromCloud,
   syncProduceToCloud,
-  fetchProduceFromCloud
+  fetchProduceFromCloud,
+  deleteAllOrdersFromCloud,
+  deleteAllRecordsFromCloud
 } from './services/googleSheetsService.ts';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM';
@@ -25,7 +27,7 @@ type MarketView = 'SALES' | 'SUPPLIER';
 
 const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
-const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23000000' d='M160 96c0-17.7-14.3-32-32-32H32C14.3 64 0 78.3 0 96s14.3 32 32 32h73.4l57.1 240.1c5.3 22.3 25.3 37.9 48.2 37.9H436c22.9 0 42.9-15.6 48.2-37.9l39.1-164.2c4.2-17.8-7-35.7-24.9-39.9s-35.7 7-39.9 24.9l-33.9 142.2H198.5l-57.1-240c-2.7-11.2-12.7-19-24.1-19H32z'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='448' r='48'/%3E%3Ccircle fill='%23dc2626' cx='416' cy='448' r='48'/%3E%3Cpath fill='%2322c55e' d='M352 112c-35.3 0-64 28.7-64 64 0 35.3 28.7 64 64 64s64-28.7 64-64c0-35.3-28.7-64-64-64zm0 104c-22.1 0-40-17.9-40-40s17.9-40 40-40 40 17.9 40 40-17.9 40-40 40z'/%3E%3C/svg%3E";
+const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23000000' d='M160 96c0-17.7-14.3-32-32-32H32C14.3 64 0 78.3 0 96s14.3 32 32 32h73.4l57.1 240.1c5.3 22.3 25.3 37.9 48.2 37.9H436c22.9 0 42.9-15.6 48.2-37.9l39.1-164.2c4.2-17.8-7-35.7-24.9-39.9s-35.7 7-39.9 24.9l-33.9 142.2H198.5l-57.1-240c-2.7-11.2-12.7-19-24.1-19H32z'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='448' r='48'/%3E%3Ccircle fill='%23dc2626' cx='416' cy='448' r='48'/%3E%3Cpath fill='%2322c55e' d='M280 200c0 0-60 20-60 80 0 60 60 80 60 80s60-20 60-80c0-60-60-80-60-80zm0 100c-15 0-25-10-25-25s10-25 25-25 25 10 25 25-10 25-25 25z' transform='translate(100, -20)'/%3E%3C/svg%3E";
 
 const persistence = {
   get: (key: string): string | null => {
@@ -389,6 +391,20 @@ const App: React.FC = () => {
     try { await deleteAllUsersFromCloud(); alert("User Registry Purged."); } catch (err) { console.error("User purge failed:", err); }
   };
 
+  const handlePurgeAuditLog = async () => {
+    if (!window.confirm("CRITICAL AUDIT ALERT: You are about to wipe ALL transaction history records from the system. This action is permanent. Proceed?")) return;
+    setRecords([]);
+    persistence.set('food_coop_data', JSON.stringify([]));
+    try { await deleteAllRecordsFromCloud(); alert("Trade Ledger Purged Successfully."); } catch (err) { console.error("Trade ledger purge failed:", err); }
+  };
+
+  const handlePurgeOrders = async () => {
+    if (!window.confirm("CRITICAL MARKET ALERT: You are about to purge ALL market demand orders (unfulfilled). This action is permanent. Proceed?")) return;
+    setMarketOrders([]);
+    persistence.set('food_coop_orders', JSON.stringify([]));
+    try { await deleteAllOrdersFromCloud(); alert("Order Repository Purged Successfully."); } catch (err) { console.error("Order purge failed:", err); }
+  };
+
   const handleAddRecord = async (data: any) => {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase();
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
@@ -728,7 +744,23 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && (
-          <div className="space-y-12"><div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden"><div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8"><div><p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-500 mb-2">Cloud Storage Node</p><h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4></div><div className="flex flex-wrap gap-4"><a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a><button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-trash-can"></i> Purge Repository</button><button onClick={handlePurgeUsers} className="bg-red-600/80 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-users-slash"></i> Purge Users</button></div></div></div><div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Name & Contact</th><th className="pb-4">Role / Node</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr></thead><tbody className="divide-y">
+          <div className="space-y-12">
+            <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-500 mb-2">Cloud Storage Node</p>
+                  <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a>
+                  <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-warehouse"></i> Purge Harvests</button>
+                  <button onClick={handlePurgeAuditLog} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-file-invoice-dollar"></i> Purge Ledger</button>
+                  <button onClick={handlePurgeOrders} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-shopping-basket"></i> Purge Orders</button>
+                  <button onClick={handlePurgeUsers} className="bg-red-600/80 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2"><i className="fas fa-users-slash"></i> Purge Users</button>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Name & Contact</th><th className="pb-4">Role / Node</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr></thead><tbody className="divide-y">
             {users.map(u => (
               <tr key={u.phone} className="group hover:bg-slate-50/50"><td className="py-6"><p className="text-sm font-black uppercase text-black">{u.name}</p><p className="text-[10px] font-bold text-slate-400">{u.phone}</p></td><td className="py-6"><p className="text-[11px] font-black text-black uppercase">{u.role}</p><p className="text-[9px] text-slate-400 font-bold">{(u.role === SystemRole.SYSTEM_DEVELOPER || u.role === SystemRole.FINANCE_OFFICER || u.role === SystemRole.AUDITOR || u.role === SystemRole.MANAGER) ? '-' : u.cluster}</p></td><td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td></tr>
             ))}
