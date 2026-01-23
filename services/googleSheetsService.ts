@@ -35,14 +35,14 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
   const filteredData = rawData.filter(r => r.cluster && r.cluster !== 'Unassigned');
   if (filteredData.length === 0) return true; 
   
-  // Map keys to match the EXACT headers and order provided:
-  // ID, Date, Commodity, Unit, Farmer, Farmer Phone, Customer, Customer Phone, Units Sold, Price per unit, Total Gross, Commission, Status, Agent, Agent Phone, Signature, Cluster, Created At
+  // Map keys to match the EXACT headers provided by the user including trailing spaces
+  // Target: ID, Date, Commodity, Unit, Farmer , Farmer Phone, Customer, Customer Phone, Units Sold, Price per unit, Total Gross, Commission, Status, Agent, Agent Phone , Signature, Cluster, Created At
   const mappedRecords = filteredData.map(r => ({
     "ID": r.id,
     "Date": r.date,
     "Commodity": r.cropType,
     "Unit": r.unitType,
-    "Farmer": r.farmerName,
+    "Farmer ": r.farmerName, // Exact header with space
     "Farmer Phone": r.farmerPhone || "",
     "Customer": r.customerName || "",
     "Customer Phone": r.customerPhone || "",
@@ -52,7 +52,7 @@ export const syncToGoogleSheets = async (records: SaleRecord | SaleRecord[]): Pr
     "Commission": r.coopProfit,
     "Status": r.status,
     "Agent": r.agentName || "System Agent",
-    "Agent Phone": r.agentPhone || "",
+    "Agent Phone ": r.agentPhone || "", // Exact header with space
     "Signature": r.signature,
     "Cluster": r.cluster,
     "Created At": r.createdAt
@@ -176,23 +176,23 @@ export const fetchFromGoogleSheets = async (): Promise<SaleRecord[] | null> => {
       return dataArray.filter((r: any) => r && (r["ID"] || r["id"])).map((r: any) => ({
           id: cleanStr(r["ID"] || r["id"] || ""),
           date: formatDate(r["Date"] || r["date"]),
-          cropType: cleanStr(r["Commodity"] || r["Crop Type"] || r["cropType"] || ""),
-          farmerName: cleanStr(r["Farmer"] || r["Supplier"] || r["farmerName"] || ""),
-          farmerPhone: cleanStr(r["Farmer Phone"] || r["Supplier Phone"] || r["farmerPhone"] || ""),
-          customerName: cleanStr(r["Customer"] || r["Buyer"] || r["customerName"] || ""),
-          customerPhone: cleanStr(r["Customer Phone"] || r["Buyer Phone"] || r["customerPhone"] || ""),
-          unitsSold: safeNum(r["Units Sold"] || r["Units"] || r["unitsSold"]),
-          unitPrice: safeNum(r["Price per unit"] || r["Unit Price"] || r["unitPrice"]),
-          totalSale: safeNum(r["Total Gross"] || r["Gross Total"] || r["totalSale"]),
-          coopProfit: safeNum(r["Commission"] || r["Coop Profit"] || r["coopProfit"]),
+          cropType: cleanStr(r["Commodity"] || r["cropType"] || ""),
+          farmerName: cleanStr(r["Farmer "] || r["Farmer"] || r["farmerName"] || ""),
+          farmerPhone: cleanStr(r["Farmer Phone"] || r["farmerPhone"] || ""),
+          customerName: cleanStr(r["Customer"] || r["customerName"] || ""),
+          customerPhone: cleanStr(r["Customer Phone"] || r["customerPhone"] || ""),
+          unitsSold: safeNum(r["Units Sold"] || r["unitsSold"]),
+          unitPrice: safeNum(r["Price per unit"] || r["unitPrice"]),
+          totalSale: safeNum(r["Total Gross"] || r["totalSale"]),
+          coopProfit: safeNum(r["Commission"] || r["coopProfit"]),
           status: cleanStr(r["Status"] || r["status"] || "DRAFT") as any,
-          agentName: cleanStr(r["Agent"] || r["Agent Name"] || r["agentName"] || ""),
-          agentPhone: cleanStr(r["Agent Phone"] || r["agentPhone"] || ""),
+          agentName: cleanStr(r["Agent"] || r["agentName"] || ""),
+          agentPhone: cleanStr(r["Agent Phone "] || r["Agent Phone"] || r["agentPhone"] || ""),
           cluster: cleanStr(r["Cluster"] || r["cluster"] || ""),
           createdAt: formatDate(r["Created At"] || r["createdAt"] || r["Date"]),
           synced: true,
           signature: cleanStr(r["Signature"] || r["signature"] || ""),
-          unitType: cleanStr(r["Unit"] || r["Unit Type"] || r["unitType"] || "Kg"),
+          unitType: cleanStr(r["Unit"] || r["unitType"] || "Kg"),
         })) as SaleRecord[];
     }
     return null;
@@ -287,9 +287,9 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
       return rawOrders.map((o: any) => ({
         id: cleanStr(o["ID"] || o["id"] || ""),
         date: formatDate(o["Date"] || o["date"]),
-        cropType: cleanStr(o["Commodity"] || o["Crop Type"] || o["cropType"] || ""),
+        cropType: cleanStr(o["Commodity"] || o["cropType"] || ""),
         unitsRequested: safeNum(o["Units Requested"] || o["unitsRequested"]),
-        unitType: cleanStr(o["Unit Type"] || o["Unit"] || o["unitType"] || ""),
+        unitType: cleanStr(o["Unit Type"] || o["unitType"] || ""),
         customerName: cleanStr(o["Customer Name"] || o["customerName"] || ""),
         customerPhone: cleanStr(o["Customer Phone"] || o["customerPhone"] || ""),
         status: cleanStr(o["Status"] || o["status"] || "OPEN") as any,
@@ -304,7 +304,6 @@ export const fetchOrdersFromCloud = async (): Promise<MarketOrder[] | null> => {
 export const syncProduceToCloud = async (produce: ProduceListing): Promise<boolean> => {
   if (!GOOGLE_SHEETS_WEBHOOK_URL) return false;
   try {
-    // Standardizing Produce Listing headers for compatibility
     const mappedProduce = {
       "ID": produce.id,
       "Date": produce.date,
