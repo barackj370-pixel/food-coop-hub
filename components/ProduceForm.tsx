@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, COMMODITY_CATEGORIES } from '../constants.ts';
 import { SystemRole } from '../types.ts';
 
 interface ProduceFormProps {
   userRole: SystemRole;
+  cluster: string;
   defaultSupplierName?: string;
   defaultSupplierPhone?: string;
   onSubmit: (data: {
@@ -14,12 +16,11 @@ interface ProduceFormProps {
     sellingPrice: number;
     supplierName: string;
     supplierPhone: string;
+    cluster: string;
   }) => void;
 }
 
-const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSupplierName, defaultSupplierPhone }) => {
-  const isSupplier = userRole === SystemRole.SUPPLIER;
-  
+const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, cluster, defaultSupplierName, defaultSupplierPhone }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cropType: 'Maize',
@@ -28,7 +29,8 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     unitsAvailable: 0,
     sellingPrice: 0,
     supplierName: defaultSupplierName || '',
-    supplierPhone: defaultSupplierPhone || ''
+    supplierPhone: defaultSupplierPhone || '',
+    cluster: cluster
   });
 
   useEffect(() => {
@@ -54,17 +56,42 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
 
   return (
     <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 mb-12">
-      <h3 className="text-xl font-black mb-6">New Supplies Entry</h3>
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="bg-slate-50 p-4 rounded-2xl border" />
-        <select value={formData.cropType} onChange={e => setFormData({...formData, cropType: e.target.value})} className="bg-slate-50 p-4 rounded-2xl border">
-          {Object.entries(COMMODITY_CATEGORIES).map(([cat, items]) => (
-            <optgroup key={cat} label={cat}>{items.map(i => <option key={i} value={i}>{i}</option>)}</optgroup>
-          ))}
-        </select>
-        <input type="number" placeholder="Qty" value={formData.unitsAvailable || ''} onChange={e => setFormData({...formData, unitsAvailable: parseFloat(e.target.value)})} className="bg-slate-50 p-4 rounded-2xl border" />
-        <input type="number" placeholder="Price" value={formData.sellingPrice || ''} onChange={e => setFormData({...formData, sellingPrice: parseFloat(e.target.value)})} className="bg-slate-50 p-4 rounded-2xl border" />
-        <button type="submit" className="bg-green-600 text-white p-4 rounded-2xl font-bold">Post Product</button>
+      <div className="flex justify-between items-center mb-10">
+        <div>
+          <h3 className="text-xl font-black text-black uppercase tracking-tighter">New Supplies Entry</h3>
+          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">Direct from Cluster: {cluster}</p>
+        </div>
+      </div>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Date</label>
+          <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 text-[13px] font-bold" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Commodity</label>
+          <select value={formData.cropType} onChange={e => setFormData({...formData, cropType: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 text-[13px] font-bold">
+            {Object.entries(COMMODITY_CATEGORIES).map(([cat, items]) => (
+              <optgroup key={cat} label={cat}>{items.map(i => <option key={i} value={i}>{i}</option>)}</optgroup>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Qty</label>
+          <input type="number" placeholder="0" value={formData.unitsAvailable || ''} onChange={e => setFormData({...formData, unitsAvailable: parseFloat(e.target.value)})} className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 text-[13px] font-bold" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Unit</label>
+          <select value={formData.unitType} onChange={e => setFormData({...formData, unitType: e.target.value})} className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 text-[13px] font-bold">
+            {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Unit Price (KSh)</label>
+          <input type="number" placeholder="0.00" value={formData.sellingPrice || ''} onChange={e => setFormData({...formData, sellingPrice: parseFloat(e.target.value)})} className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-100 text-[13px] font-bold" />
+        </div>
+        <div className="flex items-end">
+          <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg transition-all active:scale-95">Post Product</button>
+        </div>
       </form>
     </div>
   );

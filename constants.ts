@@ -1,3 +1,4 @@
+
 export const COMMODITY_CATEGORIES = {
   'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Other'],
   'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano', 'Other'],
@@ -34,3 +35,6 @@ export const SYNC_POLLING_INTERVAL = 30000;
 export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxiRiDCXNVJfn1TAqd-pDHXf0UMIjaALOXazob8jciLpHf8wbxeskSbjLY4XWNqFEM9AQ/exec";
 
 export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1WL6yQY6AkRJy18pdxJAoYVGdLyZZUoQIsZlZew7oY6Y/edit?gid=1771130545#gid=1771130545";
+
+// Added missing CLUSTERS export required by App.tsx
+export const CLUSTERS = ['Mariwa', 'Kanyamkago', 'South Kamagambo', 'North Kamagambo', 'Central Kamagambo'];

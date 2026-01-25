@@ -1,11 +1,9 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { SaleRecord } from "../types.ts";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
-  if (!process.env.API_KEY) {
-    return "API Key not configured. Please ensure process.env.API_KEY is available.";
-  }
-
+  // API key is obtained directly from process.env.API_KEY as per guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const salesSummary = records.map(r => ({
@@ -44,6 +42,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
       },
     });
 
+    // Directly access the .text property from GenerateContentResponse
     return response.text || "No analysis could be generated.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);

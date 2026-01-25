@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
@@ -11,7 +12,6 @@ const boot = () => {
     
     const Bootstrap = () => {
       React.useEffect(() => {
-        // Immediate call to hide loader once the wrapper is ready
         if ((window as any).hideHubLoader) {
           (window as any).hideHubLoader();
         }
