@@ -146,14 +146,6 @@ const App: React.FC = () => {
     cluster: ''
   });
 
-  const [demandForm, setDemandForm] = useState({
-    cropType: 'Maize',
-    unitsRequested: 0,
-    unitType: '2kg Tin',
-    customerName: '',
-    customerPhone: ''
-  });
-
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.name === 'Barack James';
 
   const isPrivilegedRole = (agent: AgentIdentity | null) => {
@@ -284,14 +276,6 @@ const App: React.FC = () => {
     return base;
   }, [records, isSystemDev, agentIdentity]);
 
-  const filteredOrders = useMemo(() => {
-    let base = marketOrders;
-    if (agentIdentity && !isSystemDev && agentIdentity.role === SystemRole.FIELD_AGENT) {
-      base = base.filter(o => normalizePhone(o.agentPhone) === normalizePhone(agentIdentity.phone));
-    }
-    return base;
-  }, [marketOrders, isSystemDev, agentIdentity]);
-
   const stats = useMemo(() => {
     const relevantRecords = filteredRecords;
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
@@ -313,33 +297,6 @@ const App: React.FC = () => {
     const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit) as [string, { volume: number, profit: number }][];
     return { clusterPerformance };
   }, [filteredRecords]);
-
-  const handleAddOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!demandForm.customerName || demandForm.unitsRequested <= 0) {
-      alert("Please enter customer name and quantity.");
-      return;
-    }
-    const newOrder: MarketOrder = {
-      id: 'ORD-' + Math.random().toString(36).substring(2, 6).toUpperCase(),
-      date: new Date().toISOString().split('T')[0],
-      cropType: demandForm.cropType,
-      unitsRequested: demandForm.unitsRequested,
-      unitType: demandForm.unitType,
-      customerName: demandForm.customerName,
-      customerPhone: demandForm.customerPhone,
-      status: OrderStatus.OPEN,
-      agentPhone: agentIdentity?.phone || '',
-      cluster: agentIdentity?.cluster || 'Unassigned'
-    };
-    setMarketOrders(prev => {
-        const updated = [newOrder, ...prev];
-        persistence.set('food_coop_orders', JSON.stringify(updated));
-        return updated;
-    });
-    setDemandForm({ ...demandForm, customerName: '', customerPhone: '', unitsRequested: 0 });
-    try { await syncOrderToCloud(newOrder); } catch (err) { console.error("Order sync failed:", err); }
-  };
 
   const handleAddProduce = async (data: {
     date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string;
@@ -363,16 +320,6 @@ const App: React.FC = () => {
         return updated;
     });
     try { await syncProduceToCloud(newListing); } catch (err) { console.error("Produce sync failed:", err); }
-  };
-
-  const handleFulfillOrderClick = (order: MarketOrder) => {
-    setCurrentPortal('MARKET');
-    setMarketView('SALES');
-    setFulfillmentData({
-      cropType: order.cropType, unitsSold: order.unitsRequested, unitType: order.unitType,
-      customerName: order.customerName, customerPhone: order.customerPhone, orderId: order.id
-    });
-    window.scrollTo({ top: 400, behavior: 'smooth' });
   };
 
   const handleUseProduceListing = (listing: ProduceListing) => {
@@ -916,22 +863,6 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
-                <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 p-8 opacity-10"><i className="fas fa-shopping-basket text-8xl"></i></div><div className="relative z-10"><h3 className="text-sm font-black uppercase tracking-widest text-red-500 mb-6">Market Demand Intake</h3>
-                  {agentIdentity.role !== SystemRole.SUPPLIER && (
-                    <form onSubmit={handleAddOrder} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                      <div className="space-y-1"><label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Commodity</label><select value={demandForm.cropType} onChange={e => setDemandForm({...demandForm, cropType: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none">{Object.values(COMMODITY_CATEGORIES).flat().map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                      <div className="space-y-1"><label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Quantity Required</label><div className="flex gap-2"><input type="number" value={demandForm.unitsRequested || ''} onChange={e => setDemandForm({...demandForm, unitsRequested: parseFloat(e.target.value) || 0})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" /><select value={demandForm.unitType} onChange={e => setDemandForm({...demandForm, unitType: e.target.value})} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-[10px] font-black text-white outline-none">{CROP_CONFIG[demandForm.cropType as keyof typeof CROP_CONFIG]?.map(u => <option key={u} value={u}>{u}</option>) || <option value="Kg">Kg</option>}</select></div></div>
-                      <div className="space-y-1"><label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Name</label><input type="text" placeholder="..." value={demandForm.customerName} onChange={e => setDemandForm({...demandForm, customerName: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" /></div>
-                      <div className="space-y-1"><label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2">Consumer Contact</label><input type="tel" placeholder="07..." value={demandForm.customerPhone} onChange={e => setDemandForm({...demandForm, customerPhone: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs font-bold text-white outline-none" /></div>
-                      <div className="flex items-end"><button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[10px] py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"><i className="fas fa-save"></i> Log Demand</button></div>
-                    </form>
-                  )}</div>
-                  <div className="mt-10 overflow-x-auto"><table className="w-full text-left"><thead className="text-[9px] font-black text-slate-500 uppercase border-b border-slate-800"><tr><th className="pb-4">Order ID</th><th className="pb-4">Consumer</th><th className="pb-4">Demand Details</th><th className="pb-4">Action</th></tr></thead><tbody className="divide-y divide-slate-800">
-                    {filteredOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
-                      <tr key={o.id} className="hover:bg-slate-800/50"><td className="py-4 font-mono text-[10px] text-slate-500">{o.id}</td><td className="py-4"><p className="text-[11px] font-black uppercase">{o.customerName}</p><p className="text-[9px] text-slate-400 font-mono">{o.customerPhone}</p></td><td className="py-4"><p className="text-[11px] font-black uppercase text-green-400">{o.cropType}</p><p className="text-[9px] text-slate-400 font-bold">{o.unitsRequested} {o.unitType}</p></td><td className="py-4">{agentIdentity.role !== SystemRole.SUPPLIER && (<button type="button" onClick={(e) => { e.stopPropagation(); handleFulfillOrderClick(o); }} className="bg-white text-black px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-md flex items-center gap-2"><i className="fas fa-check-circle"></i> Fulfill Sale</button>)}</td></tr>
-                    ))}
-                  </tbody></table></div>
-                </div>
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm onSubmit={handleAddRecord} initialData={fulfillmentData} />}
                 <AuditLogTable data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log" : "Recent Integrity Logs"} onDelete={isSystemDev ? handleDeleteRecord : undefined} />
               </>
