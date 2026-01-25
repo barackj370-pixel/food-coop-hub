@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { SaleRecord } from "../types.ts";
 
@@ -19,7 +20,6 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
     total: r.totalSale,
     farmer: `${r.farmerName} (${r.farmerPhone})`,
     customer: `${r.customerName} (${r.customerPhone})`,
-    // Fix: Removed reference to r.createdBy which is not present in SaleRecord type
   }));
 
   const prompt = `
@@ -38,9 +38,9 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
   `;
 
   try {
-    // Generate content using the recommended model and passing both model name and prompt directly
+    // Generate content using gemini-3-pro-preview for complex reasoning tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         temperature: 0.7,
@@ -48,7 +48,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
       },
     });
 
-    // Fix: Access .text property directly (not as a method)
+    // Access .text property directly as per guidelines
     return response.text || "No analysis could be generated.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
