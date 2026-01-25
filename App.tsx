@@ -343,7 +343,7 @@ const App: React.FC = () => {
         persistence.set('food_coop_produce', JSON.stringify(updated));
         return updated;
     });
-    try { await deleteProduceFromCloud(id); } catch (err) { console.error("Produce deletion sync failed:", err); }
+    try { await deleteRecordFromCloud(id); } catch (err) { console.error("Produce deletion sync failed:", err); }
   };
 
   const handleDeleteAllProduce = async () => {
@@ -691,7 +691,7 @@ const App: React.FC = () => {
             )}
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
-              <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News/Blog</button>
+              <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
               <button onClick={() => setCurrentPortal('CONTACT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'CONTACT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Contact Us</button>
             </div>
