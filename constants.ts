@@ -1,4 +1,3 @@
-
 export const COMMODITY_CATEGORIES = {
   'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Other'],
   'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano', 'Other'],
@@ -6,6 +5,7 @@ export const COMMODITY_CATEGORIES = {
 } as const;
 
 export const CROP_CONFIG = {
+  // Farm Food Products
   'Tomatoes': ['Crate', 'Box', 'Kg'],
   'Onions': ['Bag', 'Kg'],
   'Vegetables': ['Bundle', 'Kg'],
@@ -13,16 +13,19 @@ export const CROP_CONFIG = {
   'Maize': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
   'Millet': ['2kg Tin', '1kg Tin', 'Kg'],
   'Beans': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
+  // Food Products
   'Sugar': ['Kg', 'Packet'],
   'Salt': ['Packet', 'Kg'],
   'Cooking Oil': ['Litre', 'Bottle'],
   'Milk': ['Litre', 'Packet'],
   'Bread': ['Loaf'],
   'Ngano': ['Kg', 'Packet'],
+  // Non-food Products
   'Books': ['Piece'],
   'Cloths': ['Piece'],
   'Soap': ['Piece', 'Bar'],
   'Farm tools': ['Piece'],
+  // Default for Other
   'Other': ['Units', 'Kg', 'Bag', 'Litre', 'Piece', 'Packet']
 } as const;
 
@@ -30,11 +33,17 @@ export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
 export const PROFIT_MARGIN = 0.10; // 10% coop margin
 
+// Background Sync Polling Interval (30 Seconds)
 export const SYNC_POLLING_INTERVAL = 30000;
 
+/**
+ * CONFIGURATION: 
+ * Update this URL with your unique Google Apps Script Web App URL from Step 3.
+ */
 export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxiRiDCXNVJfn1TAqd-pDHXf0UMIjaALOXazob8jciLpHf8wbxeskSbjLY4XWNqFEM9AQ/exec";
 
+/**
+ * VIEW URL: 
+ * Update this with your actual Google Sheet browser URL.
+ */
 export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1WL6yQY6AkRJy18pdxJAoYVGdLyZZUoQIsZlZew7oY6Y/edit?gid=1771130545#gid=1771130545";
-
-// Added missing CLUSTERS export required by App.tsx
-export const CLUSTERS = ['Mariwa', 'Kanyamkago', 'South Kamagambo', 'North Kamagambo', 'Central Kamagambo'];
