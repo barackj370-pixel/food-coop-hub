@@ -22,7 +22,7 @@ import {
   deleteAllRecordsFromCloud
 } from './services/googleSheetsService.ts';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
@@ -157,17 +157,17 @@ const App: React.FC = () => {
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
-    const guestPortals: PortalType[] = ['HOME', 'ABOUT', 'CONTACT'];
+    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
     if (!agentIdentity) return guestPortals;
     
-    const loggedInBase: PortalType[] = ['HOME', 'ABOUT', 'MARKET', 'CONTACT'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
     let base = [...loggedInBase];
-    if (agentIdentity.role === SystemRole.FINANCE_OFFICER) base.splice(3, 0, 'FINANCE');
-    else if (agentIdentity.role === SystemRole.AUDITOR) base.splice(3, 0, 'AUDIT');
-    else if (agentIdentity.role === SystemRole.MANAGER) base.splice(3, 0, 'FINANCE', 'AUDIT', 'BOARD');
+    if (agentIdentity.role === SystemRole.FINANCE_OFFICER) base.splice(4, 0, 'FINANCE');
+    else if (agentIdentity.role === SystemRole.AUDITOR) base.splice(4, 0, 'AUDIT');
+    else if (agentIdentity.role === SystemRole.MANAGER) base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD');
     return base;
   }, [agentIdentity, isSystemDev]);
 
@@ -674,7 +674,7 @@ const App: React.FC = () => {
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden"><img src={APP_LOGO} alt="KPL Logo" className="w-10 h-10 object-contain" /></div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
-              <div className="flex items-center space-x-2 mt-1.5"><span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-red-600">Consumers</span> with <span className="text-green-600">Suppliers</span></span></div>
+              <div className="flex items-center space-x-2 mt-1.5"><span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></span></div>
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{agentIdentity ? (isSystemDev ? 'Master Node Access' : `${agentIdentity.name} - ${agentIdentity.cluster} Cluster`) : 'Guest Hub Access'}</p>
             </div>
           </div>
@@ -691,13 +691,14 @@ const App: React.FC = () => {
             )}
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
+              <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News/Blog</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
               <button onClick={() => setCurrentPortal('CONTACT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'CONTACT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Contact Us</button>
             </div>
           </div>
         </div>
         <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT'].includes(p)).map(p => {
+          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS'].includes(p)).map(p => {
             if (p === 'MARKET') {
               return (
                 <div key={p} className="relative">
@@ -795,10 +796,66 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {currentPortal === 'NEWS' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center">Cooperative News & Updates</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
+                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
+                  <i className="fas fa-seedling text-5xl"></i>
+                </div>
+                <div className="p-8 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <span className="px-4 py-1.5 bg-green-50 text-green-600 rounded-full text-[9px] font-black uppercase tracking-widest">Agricultural Insights</span>
+                    <h3 className="text-xl font-black text-black leading-tight">Improving Maize Yields in Nyamagagana Cluster</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">Discover the new organic fertilization methods shared by our lead agronomists this week.</p>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 24, 2023</span>
+                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
+                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
+                  <i className="fas fa-users text-5xl"></i>
+                </div>
+                <div className="p-8 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <span className="px-4 py-1.5 bg-red-50 text-red-600 rounded-full text-[9px] font-black uppercase tracking-widest">Community</span>
+                    <h3 className="text-xl font-black text-black leading-tight">Success Story: Mariwa Cluster's Expansion</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">How a small group of 10 farmers transformed into a cluster serving over 500 consumers monthly.</p>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 22, 2023</span>
+                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
+                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
+                  <i className="fas fa-chart-line text-5xl"></i>
+                </div>
+                <div className="p-8 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <span className="px-4 py-1.5 bg-slate-50 text-slate-600 rounded-full text-[9px] font-black uppercase tracking-widest">Market Analysis</span>
+                    <h3 className="text-xl font-black text-black leading-tight">Q4 Market Demand Forecast</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">Analyzing current trends to prepare our suppliers for the high demand expected this holiday season.</p>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 19, 2023</span>
+                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {currentPortal === 'ABOUT' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-8">
-              <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center">Connecting <span className="text-red-600">Consumers</span> with <span className="text-green-600">Suppliers</span></h2>
+              <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></h2>
               <div className="space-y-6 text-slate-600 font-medium leading-relaxed">
                 <p>
                   KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
