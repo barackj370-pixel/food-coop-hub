@@ -81,5 +81,5 @@ export interface SaleRecord {
   agentName?: string;
   cluster?: string;
   synced?: boolean;
-  orderId?: string; // Optional link to the original market order
+  orderId?: string;
 }

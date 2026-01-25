@@ -6,8 +6,6 @@ const boot = () => {
   const rootElement = document.getElementById('root');
   if (!rootElement) return;
 
-  // Service Worker registration removed to avoid cross-origin script errors in cloud preview environments.
-
   try {
     const root = createRoot(rootElement);
     
@@ -30,7 +28,6 @@ const boot = () => {
   }
 };
 
-// Use an immediate execution pattern
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', boot);
 } else {
