@@ -23,7 +23,7 @@ import {
 } from './services/googleSheetsService.ts';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS';
-type MarketView = 'SALES' | 'SUPPLIER' | 'CONSUMER';
+type MarketView = 'SALES' | 'SUPPLIER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
@@ -41,15 +41,19 @@ const persistence = {
   }
 };
 
+// Global robust normalization function
 const normalizePhone = (p: any) => {
   let s = String(p || '').trim();
+  // Strip decimals (e.g. "123.0" -> "123")
   if (s.includes('.')) s = s.split('.')[0];
   const clean = s.replace(/\D/g, '');
   return clean.length >= 9 ? clean.slice(-9) : clean;
 };
 
+// Robust passcode normalization
 const normalizePasscode = (p: any) => {
   let s = String(p || '').trim();
+  // Strip decimals (e.g. "7890.0" -> "7890")
   if (s.includes('.')) s = s.split('.')[0];
   return s.replace(/\D/g, '');
 };
@@ -115,8 +119,7 @@ const App: React.FC = () => {
     const saved = persistence.get('agent_session');
     if (saved) {
       const agent = JSON.parse(saved);
-      if (agent.role === SystemRole.CUSTOMER) return 'CONSUMER';
-      return 'SUPPLIER';
+      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'SUPPLIER';
     }
     return 'SUPPLIER';
   });
@@ -159,7 +162,7 @@ const App: React.FC = () => {
     
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
-    if (agentIdentity.role === SystemRole.SUPPLIER || agentIdentity.role === SystemRole.CUSTOMER) return loggedInBase;
+    if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
     let base = [...loggedInBase];
     if (agentIdentity.role === SystemRole.FINANCE_OFFICER) base.splice(4, 0, 'FINANCE');
@@ -330,51 +333,6 @@ const App: React.FC = () => {
     window.scrollTo({ top: 600, behavior: 'smooth' });
   };
 
-  const handlePlaceOrder = async (listing: ProduceListing, qty: number) => {
-    if (!agentIdentity) return;
-    const newOrder: MarketOrder = {
-      id: 'ORD-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-      date: new Date().toISOString().split('T')[0],
-      cropType: listing.cropType,
-      unitsRequested: qty,
-      unitType: listing.unitType,
-      customerName: agentIdentity.name,
-      customerPhone: agentIdentity.phone,
-      status: OrderStatus.OPEN,
-      agentPhone: '', 
-      cluster: agentIdentity.cluster,
-      selectedProduceId: listing.id,
-      selectedSupplierName: listing.supplierName,
-      selectedSupplierPhone: listing.supplierPhone,
-      unitPrice: listing.sellingPrice
-    };
-    setMarketOrders(prev => {
-      const updated = [newOrder, ...prev];
-      persistence.set('food_coop_orders', JSON.stringify(updated));
-      return updated;
-    });
-    try { await syncOrderToCloud(newOrder); alert("Order placed successfully! A field agent will contact you for delivery."); } catch (err) { console.error("Order sync failed:", err); }
-  };
-
-  const handleFulfillOrder = (order: MarketOrder) => {
-    setCurrentPortal('MARKET');
-    setMarketView('SALES');
-    setFulfillmentData({
-      cropType: order.cropType,
-      unitsSold: order.unitsRequested,
-      unitType: order.unitType,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      orderId: order.id,
-      produceId: order.selectedProduceId,
-      farmerName: order.selectedSupplierName,
-      farmerPhone: order.selectedSupplierPhone,
-      unitPrice: order.unitPrice,
-      cluster: order.cluster
-    });
-    window.scrollTo({ top: 400, behavior: 'smooth' });
-  };
-
   const handleDeleteProduce = async (id: string) => {
     if (!window.confirm("Action required: Permanent deletion of harvest listing ID: " + id + ". Continue?")) return;
     const newBlacklist = [...deletedProduceIds, id];
@@ -425,6 +383,7 @@ const App: React.FC = () => {
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
+    // Use the cluster provided from the form (customer's cluster) or fallback to agent's cluster
     const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
     const newRecord: SaleRecord = {
       ...data, id, totalSale, coopProfit, status: RecordStatus.DRAFT, signature,
@@ -443,7 +402,7 @@ const App: React.FC = () => {
       });
       try {
         const order = marketOrders.find(o => o.id === data.orderId);
-        if (order) await syncOrderToCloud({ ...order, status: OrderStatus.FULFILLED, agentPhone: agentIdentity?.phone || '' });
+        if (order) await syncOrderToCloud({ ...order, status: OrderStatus.FULFILLED });
       } catch (err) { console.error("Order fulfillment sync failed:", err); }
     }
     if (data.produceId) {
@@ -548,26 +507,37 @@ const App: React.FC = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
+    
+    // Normalize user input immediately using robust helper
     const targetPhoneNormalized = normalizePhone(authForm.phone);
     const targetPasscode = normalizePasscode(authForm.passcode);
+    
     if (targetPhoneNormalized.length < 8) {
       alert("Invalid Phone: Please enter a valid phone number.");
       setIsAuthLoading(false);
       return;
     }
+
     try {
+      // Force a fresh fetch from cloud database
       const latestCloudUsers = await fetchUsersFromCloud();
+      
+      // Update local cache if cloud data is valid
       if (latestCloudUsers && latestCloudUsers.length > 0) {
         setUsers(latestCloudUsers);
         persistence.set('coop_users', JSON.stringify(latestCloudUsers));
       }
+
+      // Determine the set of users to authenticate against
       const authPool = (latestCloudUsers && latestCloudUsers.length > 0) ? latestCloudUsers : users;
+
       if (isRegisterMode) {
-        if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && authForm.role !== SystemRole.FINANCE_OFFICER && authForm.role !== SystemRole.AUDITOR && authForm.role !== SystemRole.MANAGER && !authForm.cluster) { 
-          alert("Registration Error: Region/Cluster selection is mandatory."); 
+        if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) { 
+          alert("Registration Error: Cluster selection is mandatory."); 
           setIsAuthLoading(false); 
           return; 
         }
+        
         const newUser: AgentIdentity = { 
           name: authForm.name.trim(), 
           phone: authForm.phone.trim(), 
@@ -576,31 +546,45 @@ const App: React.FC = () => {
           cluster: (authForm.role === SystemRole.SYSTEM_DEVELOPER || authForm.role === SystemRole.FINANCE_OFFICER || authForm.role === SystemRole.AUDITOR || authForm.role === SystemRole.MANAGER) ? '-' : (authForm.cluster || 'System'), 
           status: 'ACTIVE' 
         };
+        
+        // Prevent duplicate registration in local state
         const updatedUsersList = [...authPool.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone)), newUser];
         setUsers(updatedUsersList);
         persistence.set('coop_users', JSON.stringify(updatedUsersList));
-        await syncUserToCloud(newUser);
+        
+        const syncSuccess = await syncUserToCloud(newUser);
+        if (!syncSuccess) {
+           alert("Warning: Account created locally, but failed to sync with cloud. Please ensure you have an active internet connection.");
+        }
+        
         setAgentIdentity(newUser);
         persistence.set('agent_session', JSON.stringify(newUser));
         setCurrentPortal('HOME');
-        if (newUser.role === SystemRole.CUSTOMER) setMarketView('CONSUMER');
       } else {
+        // High-Integrity Matching using robust normalization on both target and pool
         const matchedUser = authPool.find(u => {
           const cloudPhoneNorm = normalizePhone(u.phone);
           const cloudPassNorm = normalizePasscode(u.passcode);
           return cloudPhoneNorm === targetPhoneNormalized && cloudPassNorm === targetPasscode;
         });
+        
         if (matchedUser) { 
           setAgentIdentity(matchedUser); 
           persistence.set('agent_session', JSON.stringify(matchedUser)); 
           setCurrentPortal('HOME');
-          if (matchedUser.role === SystemRole.CUSTOMER) setMarketView('CONSUMER');
         } else {
-          alert("Authentication Failed: Account not found or passcode is incorrect."); 
+          let errMsg = "Authentication Failed: Account not found or passcode is incorrect.";
+          if (latestCloudUsers === null && users.length === 0) {
+            errMsg = "Connectivity Error: Unable to reach the member database. Please check your internet connection and try again.";
+          } else if (latestCloudUsers && latestCloudUsers.length === 0 && users.length === 0) {
+            errMsg = "System Notice: No registered accounts found in the repository. If you are new, please use the Register option.";
+          }
+          alert(errMsg); 
         }
       }
     } catch (err) { 
-      alert("System Error: A failure occurred during authentication."); 
+      console.error("Critical Auth Error:", err);
+      alert("System Error: A failure occurred during authentication. Please refresh the page and try again."); 
     } finally { 
       setIsAuthLoading(false); 
     }
@@ -613,13 +597,16 @@ const App: React.FC = () => {
         acc[cluster].push(r);
         return acc;
       }, {} as Record<string, SaleRecord[]>), [data]);
+    
     const grandTotals = useMemo(() => data.reduce((acc, r) => ({ gross: acc.gross + Number(r.totalSale), comm: acc.comm + Number(r.coopProfit) }), { gross: 0, comm: 0 }), [data]);
+    
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
         {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
           const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+
           return (
             <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
               <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
@@ -667,6 +654,14 @@ const App: React.FC = () => {
             </div>
           );
         })}
+        {data.length > 0 && (
+          <div className="bg-slate-900 text-white rounded-[2rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div><p className="text-[10px] font-black uppercase tracking-tight text-red-500 mb-2">Aggregate System Audit</p><h4 className="text-2xl font-black uppercase tracking-tight">Combined Universal Grand Totals</h4></div>
+                <div className="flex gap-12"><div className="text-center md:text-right"><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Trade Volume</p><p className="text-2xl font-black text-white leading-none">KSh {grandTotals.gross.toLocaleString()}</p></div><div className="text-center md:text-right"><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Gross Commission</p><p className="text-2xl font-black text-green-400 leading-none">KSh {grandTotals.comm.toLocaleString()}</p></div></div>
+             </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -710,15 +705,8 @@ const App: React.FC = () => {
                   <button type="button" onClick={(e) => { e.stopPropagation(); setCurrentPortal('MARKET'); setIsMarketMenuOpen(!isMarketMenuOpen); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>Market <i className={`fas fa-chevron-down opacity-50 transition-transform ${isMarketMenuOpen ? 'rotate-180' : ''}`}></i></button>
                   {isMarketMenuOpen && (
                     <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                      {agentIdentity?.role !== SystemRole.CUSTOMER && (
-                        <>
-                          <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
-                          <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
-                        </>
-                      )}
-                      {(agentIdentity?.role === SystemRole.CUSTOMER || isSystemDev || agentIdentity?.role === SystemRole.MANAGER) && (
-                        <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('CONSUMER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'CONSUMER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-basket mr-2"></i> Customer Portal</button>
-                      )}
+                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
+                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
                     </div>
                   )}
                 </div>
@@ -743,118 +731,207 @@ const App: React.FC = () => {
                 <input type="password" placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none transition-all" />
                 {isRegisterMode && (
                   <><select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">{Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}</select>
-                  {authForm.role !== SystemRole.SYSTEM_DEVELOPER && authForm.role !== SystemRole.FINANCE_OFFICER && authForm.role !== SystemRole.AUDITOR && authForm.role !== SystemRole.MANAGER && (
-                    <select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">
-                      <option value="" disabled>{authForm.role === SystemRole.CUSTOMER ? 'Select Region/Cluster' : 'Select Cluster'}</option>
-                      {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  )}</>
+                  {authForm.role !== SystemRole.SYSTEM_DEVELOPER && authForm.role !== SystemRole.FINANCE_OFFICER && authForm.role !== SystemRole.AUDITOR && authForm.role !== SystemRole.MANAGER && (<select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none"><option value="" disabled>Select Cluster</option>{CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}</select>)}</>
                 )}
                 <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register Account' : 'Authenticate')}</button>
+                <div className="flex justify-center gap-1.5 mt-8 opacity-40">
+                  <div className="w-12 h-1 rounded-full bg-red-600"></div>
+                  <div className="w-12 h-1 rounded-full bg-black"></div>
+                  <div className="w-12 h-1 rounded-full bg-green-500"></div>
+                </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'HOME' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
+              <div className="flex-1 space-y-6">
+                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">Welcome to the KPL Cooperative Hub</h2>
+                <p className="text-slate-600 font-medium leading-relaxed">
+                  Our platform is designed to empower local farmers and consumers through a transparent, high-integrity marketplace. We leverage agroecological principles to ensure sustainable growth for our community.
+                </p>
+                <div className="flex gap-4">
+                  {agentIdentity ? (
+                    <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button>
+                  ) : (
+                    <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Get Started</button>
+                  )}
+                  <button onClick={() => setCurrentPortal('ABOUT')} className="bg-slate-100 text-black px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all">Learn More</button>
+                </div>
+              </div>
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <div className="bg-green-50 p-8 rounded-3xl border border-green-100 text-center">
+                  <p className="text-3xl font-black text-green-600">{users.length}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Members</p>
+                </div>
+                <div className="bg-red-50 p-8 rounded-3xl border border-red-100 text-center">
+                  <p className="text-3xl font-black text-red-600">{records.length}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed Trades</p>
+                </div>
+                <div className="bg-slate-900 p-8 rounded-3xl border border-black text-center col-span-2">
+                  <p className="text-2xl font-black text-white">KSh {boardMetrics.clusterPerformance.reduce((a, b: any) => a + b[1].volume, 0).toLocaleString()}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total Trade Volume</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <i className="fas fa-bullhorn text-2xl text-red-600"></i>
+                <h4 className="text-lg font-black uppercase tracking-tight">Cooperative News</h4>
+                <p className="text-xs text-slate-500 font-medium">New harvest cycles starting in Mariwa cluster. Members are encouraged to list their produce early.</p>
+              </div>
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <i className="fas fa-hand-holding-heart text-2xl text-green-600"></i>
+                <h4 className="text-lg font-black uppercase tracking-tight">Community Pulse</h4>
+                <p className="text-xs text-slate-500 font-medium">98% customer satisfaction rate across all clusters this month. Quality of maize has reached record highs.</p>
+              </div>
+              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <i className="fas fa-shield-halved text-2xl text-slate-900"></i>
+                <h4 className="text-lg font-black uppercase tracking-tight">Audit Updates</h4>
+                <p className="text-xs text-slate-500 font-medium">All financial systems synchronized. High-integrity trade signatures verified for 1,200+ transactions.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'NEWS' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center">Cooperative News & Updates</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
+                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
+                  <i className="fas fa-seedling text-5xl"></i>
+                </div>
+                <div className="p-8 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <span className="px-4 py-1.5 bg-green-50 text-green-600 rounded-full text-[9px] font-black uppercase tracking-widest">Agricultural Insights</span>
+                    <h3 className="text-xl font-black text-black leading-tight">Improving Maize Yields in Nyamagagana Cluster</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">Discover the new organic fertilization methods shared by our lead agronomists this week.</p>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 24, 2023</span>
+                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
+                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
+                  <i className="fas fa-users text-5xl"></i>
+                </div>
+                <div className="p-8 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <span className="px-4 py-1.5 bg-red-50 text-red-600 rounded-full text-[9px] font-black uppercase tracking-widest">Community</span>
+                    <h3 className="text-xl font-black text-black leading-tight">Success Story: Mariwa Cluster's Expansion</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">How a small group of 10 farmers transformed into a cluster serving over 500 consumers monthly.</p>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 22, 2023</span>
+                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
+                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
+                  <i className="fas fa-chart-line text-5xl"></i>
+                </div>
+                <div className="p-8 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <span className="px-4 py-1.5 bg-slate-50 text-slate-600 rounded-full text-[9px] font-black uppercase tracking-widest">Market Analysis</span>
+                    <h3 className="text-xl font-black text-black leading-tight">Q4 Market Demand Forecast</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">Analyzing current trends to prepare our suppliers for the high demand expected this holiday season.</p>
+                  </div>
+                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 19, 2023</span>
+                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'ABOUT' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-8">
+              <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></h2>
+              <div className="space-y-6 text-slate-600 font-medium leading-relaxed">
+                <p>
+                  KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-y border-slate-100">
+                  <div className="space-y-4">
+                    <h4 className="text-black font-black uppercase tracking-widest text-[11px]">Our Mission</h4>
+                    <p className="text-sm">To empower smallholder farmers by providing direct access to premium markets while ensuring consumers receive high-quality, eco-friendly food products at fair prices.</p>
+                  </div>
+                  <div className="space-y-4">
+                    <h4 className="text-black font-black uppercase tracking-widest text-[11px]">The Agroecology Core</h4>
+                    <p className="text-sm">We believe in farming that works with nature. Our green leaf symbol represents our commitment to agroecological practices that preserve soil health and biodiversity.</p>
+                  </div>
+                </div>
+                <p>
+                  Every transaction on our platform is secured by high-integrity digital signatures and verified by a multi-tier audit process, ensuring that every cent of profit reaches the intended recipients.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'CONTACT' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto flex flex-col md:flex-row gap-12">
+              <div className="flex-1 space-y-8">
+                <h2 className="text-3xl font-black uppercase tracking-tight text-black">Get in Touch</h2>
+                <p className="text-slate-500 font-medium text-sm">Have questions about our marketplace or want to join as a supplier? Reach out to us directly.</p>
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-red-600 border border-slate-100"><i className="fas fa-envelope"></i></div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Email Support</p>
+                      <p className="text-sm font-black text-black">info@kplfoodcoopmarket.co.ke</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-green-600 border border-slate-100"><i className="fas fa-map-marker-alt"></i></div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Headquarters</p>
+                      <p className="text-sm font-black text-black">KPL Central Hub, Nairobi, Kenya</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                <form onSubmit={handleContactSubmit} className="space-y-4">
+                  <input type="text" placeholder="Your Name" required value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
+                  <input type="email" placeholder="Email Address" required value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
+                  <input type="text" placeholder="Subject" required value={contactForm.subject} onChange={e => setContactForm({...contactForm, subject: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
+                  <textarea placeholder="Your Message..." required rows={4} value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all resize-none"></textarea>
+                  <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-slate-800 transition-all">Send Message</button>
+                </form>
+              </div>
             </div>
           </div>
         )}
 
         {currentPortal === 'MARKET' && agentIdentity && (
           <div className="space-y-8 animate-in fade-in duration-300">
-            {agentIdentity.role !== SystemRole.CUSTOMER && (
-              <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                  <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-seedling"></i> Supplier Portal</button>
-                  <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-shopping-cart"></i> Sales Portal</button>
-                  {(isSystemDev || agentIdentity?.role === SystemRole.MANAGER) && (
-                    <button type="button" onClick={() => setMarketView('CONSUMER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'CONSUMER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-shopping-basket"></i> Customer Portal</button>
-                  )}
-              </div>
-            )}
-
-            {marketView === 'CONSUMER' && (
-              <div className="space-y-12">
-                <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
-                  <div className="relative z-10">
-                    <h2 className="text-3xl font-black uppercase tracking-tight mb-2">Region Shop: {agentIdentity.cluster}</h2>
-                    <p className="text-slate-400 text-sm font-medium">Browse fresh produce available in your area. Payment on delivery to our field agents.</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {produceListings
-                    .filter(p => p.cluster === agentIdentity.cluster && p.status === 'AVAILABLE' && p.unitsAvailable > 0)
-                    .sort((a, b) => a.sellingPrice - b.sellingPrice)
-                    .map(p => (
-                      <div key={p.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden hover:shadow-2xl transition-all group p-8 space-y-6">
-                        <div className="flex justify-between items-start">
-                          <span className="px-4 py-1.5 bg-green-50 text-green-600 rounded-full text-[9px] font-black uppercase tracking-widest">Fresh Local Produce</span>
-                          <i className="fas fa-leaf text-green-500 opacity-20 group-hover:opacity-100 transition-opacity"></i>
-                        </div>
-                        <div>
-                          <h3 className="text-2xl font-black text-black uppercase tracking-tight mb-1">{p.cropType}</h3>
-                          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Supplier: {p.supplierName}</p>
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-3xl font-black text-black">KSh {p.sellingPrice.toLocaleString()}</span>
-                          <span className="text-slate-400 text-xs font-bold uppercase">/ {p.unitType}</span>
-                        </div>
-                        <div className="pt-6 border-t border-slate-50 flex items-center justify-between gap-4">
-                          <div className="text-[10px] font-bold text-slate-500">
-                            <p className="uppercase tracking-widest opacity-50 mb-1">Available</p>
-                            <p className="text-black font-black">{p.unitsAvailable} {p.unitType}</p>
-                          </div>
-                          <button 
-                            onClick={() => {
-                              const qty = parseInt(prompt(`Order quantity (${p.unitType}):`, '1') || '0');
-                              if (qty > 0 && qty <= p.unitsAvailable) handlePlaceOrder(p, qty);
-                              else if (qty > p.unitsAvailable) alert("Requested quantity exceeds stock.");
-                            }}
-                            className="bg-black text-white px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-slate-800 transition-all"
-                          >
-                            Order Now
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
+            <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-seedling"></i> Supplier Portal</button>
+                <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-shopping-cart"></i> Sales Portal</button>
+            </div>
             {marketView === 'SALES' && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
-                
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl mb-8">
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-sm font-black text-black uppercase tracking-widest border-l-4 border-red-600 pl-4">Pending Consumer Orders</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                        <tr><th>Date</th><th>Customer</th><th>Cluster</th><th>Requirement</th><th className="text-right">Action</th></tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {marketOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
-                          <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-6 font-bold text-xs">{o.date}</td>
-                            <td className="py-6"><p className="text-xs font-black uppercase text-black">{o.customerName}</p><p className="text-[10px] text-slate-400">{o.customerPhone}</p></td>
-                            <td className="py-6 text-xs font-bold text-slate-600">{o.cluster}</td>
-                            <td className="py-6"><p className="text-xs font-black text-green-600 uppercase">{o.cropType}</p><p className="text-[10px] text-slate-400 font-bold">{o.unitsRequested} {o.unitType}</p></td>
-                            <td className="py-6 text-right"><button onClick={() => handleFulfillOrder(o)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md">Fulfill Order</button></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData} />
-                <AuditLogTable data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} title={isPrivilegedRole(agentIdentity) ? "Universal Audit Log" : "Recent Logs"} onDelete={isSystemDev ? handleDeleteRecord : undefined} />
+              <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
+                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData} />}
+                <AuditLogTable data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log" : "Recent Integrity Logs"} onDelete={isSystemDev ? handleDeleteRecord : undefined} />
               </>
             )}
-
             {marketView === 'SUPPLIER' && (
               <div className="space-y-12">
                 {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (<ProduceForm userRole={agentIdentity.role} defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} onSubmit={handleAddProduce} />)}
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
                   {produceListings.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteProduce(p.id); }} className="text-red-400 hover:text-red-700 transition-all p-2 bg-red-50 hover:bg-red-100 rounded-xl"><i className="fas fa-trash-can text-[14px]"></i></button>)}{agentIdentity.role !== SystemRole.SUPPLIER && agentIdentity.role !== SystemRole.CUSTOMER ? (<button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2"><i className="fas fa-plus"></i> Initiate Sale</button>) : (<span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>)}</div></td></tr>
+                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteProduce(p.id); }} className="text-red-400 hover:text-red-700 transition-all p-2 bg-red-50 hover:bg-red-100 rounded-xl"><i className="fas fa-trash-can text-[14px]"></i></button>)}{agentIdentity.role !== SystemRole.SUPPLIER ? (<button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2"><i className="fas fa-plus"></i> Initiate Sale</button>) : (<span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>)}</div></td></tr>
                   ))}
                 </tbody></table></div></div>
               </div>
@@ -862,19 +939,96 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* ... Rest of components (HOME, ABOUT, NEWS, etc.) remain unchanged based on strict update request ... */}
-        {currentPortal === 'HOME' && (
-          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
-              <div className="flex-1 space-y-6">
-                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">Welcome to the KPL Cooperative Hub</h2>
-                <p className="text-slate-600 font-medium leading-relaxed">Our platform is designed to empower local farmers and consumers through a transparent marketplace.</p>
-                <div className="flex gap-4">
-                  {agentIdentity ? <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button> : <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Get Started</button>}
+        {currentPortal === 'FINANCE' && agentIdentity && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
+              <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                    <tr>
+                      <th className="pb-4">Date</th>
+                      <th className="pb-4">Participants</th>
+                      <th className="pb-4">Commodity</th>
+                      <th className="pb-4">Commission</th>
+                      <th className="pb-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
+                      <tr key={r.id} className="hover:bg-slate-50/50">
+                        <td className="py-6 font-bold">{r.date}</td>
+                        <td className="py-6">
+                          <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
+                            <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
+                            <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
+                            <p>Buyer: {r.customerName} ({r.customerPhone})</p>
+                          </div>
+                        </td>
+                        <td className="py-6 uppercase font-bold">{r.cropType}</td>
+                        <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
+                        <td className="py-6 text-right">
+                          <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
+                            <i className="fas fa-check"></i> Confirm Receipt
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <AuditLogTable data={filteredRecords} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+          </div>
+        )}
+
+        {currentPortal === 'AUDIT' && agentIdentity && (
+          <div className="space-y-8 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-black pl-4">Awaiting Approval & Verification</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
+            {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
+              <tr key={r.id} className="hover:bg-slate-800/50"><td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td><td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td><td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td><td className="py-6 text-right">{r.status === RecordStatus.PAID ? (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-search"></i> Verify</button>) : (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Audit Seal</button>)}</td></tr>
+            ))}
+          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /></div>
+        )}
+
+        {currentPortal === 'BOARD' && agentIdentity && (
+          <div className="space-y-12 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden"><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4"><h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3><div className="flex gap-2"><button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest">Summary CSV</button><button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl"><i className="fas fa-download mr-2"></i> Detailed CSV</button></div></div><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50"><tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr></thead><tbody className="divide-y divide-slate-50">
+            {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
+              <tr key={cluster} className="hover:bg-slate-50/50"><td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td><td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td><td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td></tr>
+            ))}
+            <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl"><td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td><td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td><td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td></tr>
+          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /></div>
+        )}
+
+        {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
+          <div className="space-y-12 animate-in fade-in duration-300">
+            <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
+              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-500 mb-2">Cloud Storage Node</p>
+                  <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a>
+                  <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-warehouse"></i> Purge Repository
+                  </button>
+                  <button onClick={handlePurgeAuditLog} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-file-invoice-dollar"></i> Purge Ledger
+                  </button>
+                  <button onClick={handlePurgeOrders} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-shopping-basket"></i> Purge Orders
+                  </button>
+                  <button onClick={handlePurgeUsers} className="bg-red-600/80 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
+                    <i className="fas fa-users-slash"></i> Purge Users
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
+            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Name & Contact</th><th className="pb-4">Role / Node</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr></thead><tbody className="divide-y">
+            {users.map(u => (
+              <tr key={u.phone} className="group hover:bg-slate-50/50"><td className="py-6"><p className="text-sm font-black uppercase text-black">{u.name}</p><p className="text-[10px] font-bold text-slate-400">{u.phone}</p></td><td className="py-6"><p className="text-[11px] font-black text-black uppercase">{u.role}</p><p className="text-[9px] text-slate-400 font-bold">{(u.role === SystemRole.SYSTEM_DEVELOPER || u.role === SystemRole.FINANCE_OFFICER || u.role === SystemRole.AUDITOR || u.role === SystemRole.MANAGER) ? '-' : u.cluster}</p></td><td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td></tr>
+            ))}
+          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="System-Wide Audit Log" onDelete={handleDeleteRecord} /></div>
         )}
       </main>
     </div>

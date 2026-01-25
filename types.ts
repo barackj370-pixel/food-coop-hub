@@ -17,8 +17,7 @@ export enum SystemRole {
   AUDITOR = 'Audit Officer',
   MANAGER = 'Director',
   SYSTEM_DEVELOPER = 'System Developer',
-  SUPPLIER = 'Supplier',
-  CUSTOMER = 'Customer'
+  SUPPLIER = 'Supplier'
 }
 
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
@@ -45,10 +44,6 @@ export interface MarketOrder {
   status: OrderStatus;
   agentPhone: string;
   cluster: string;
-  selectedProduceId?: string;
-  selectedSupplierName?: string;
-  selectedSupplierPhone?: string;
-  unitPrice?: number;
 }
 
 export interface ProduceListing {
