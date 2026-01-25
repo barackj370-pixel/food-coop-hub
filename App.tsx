@@ -25,7 +25,7 @@ import {
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN';
 type MarketView = 'SALES' | 'SUPPLIER';
 
-const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
+export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
 const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23000000' d='M160 96c0-17.7-14.3-32-32-32H32C14.3 64 0 78.3 0 96s14.3 32 32 32h73.4l57.1 240.1c5.3 22.3 25.3 37.9 48.2 37.9H436c22.9 0 42.9-15.6 48.2-37.9l39.1-164.2c4.2-17.8-7-35.7-24.9-39.9s-35.7 7-39.9 24.9l-33.9 142.2H198.5l-57.1-240c-2.7-11.2-12.7-19-24.1-19H32z'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='448' r='48'/%3E%3Ccircle fill='%23dc2626' cx='416' cy='448' r='48'/%3E%3Cpath fill='%2322c55e' d='M340 120 C 340 120, 260 140, 260 220 C 260 300, 340 320, 340 320 S 420 300, 420 220 C 420 140, 340 120, 340 120 Z' transform='translate(0, -30)'/%3E%3Cpath fill='none' stroke='%2322c55e' stroke-width='12' stroke-linecap='round' d='M340 320 L 340 360' transform='translate(0, -30)'/%3E%3Cpath fill='white' d='M340 150 L 340 290' stroke='white' stroke-width='4' stroke-linecap='round' transform='translate(0, -30)'/%3E%3C/svg%3E";
 
@@ -327,7 +327,8 @@ const App: React.FC = () => {
     setMarketView('SALES');
     setFulfillmentData({
       cropType: listing.cropType, unitType: listing.unitType, farmerName: listing.supplierName,
-      farmerPhone: listing.supplierPhone, unitPrice: listing.sellingPrice, produceId: listing.id
+      farmerPhone: listing.supplierPhone, unitPrice: listing.sellingPrice, produceId: listing.id,
+      cluster: listing.cluster
     });
     window.scrollTo({ top: 600, behavior: 'smooth' });
   };
@@ -382,7 +383,8 @@ const App: React.FC = () => {
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
-    const cluster = agentIdentity?.cluster || 'Unassigned';
+    // Use the cluster provided from the form (customer's cluster) or fallback to agent's cluster
+    const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
     const newRecord: SaleRecord = {
       ...data, id, totalSale, coopProfit, status: RecordStatus.DRAFT, signature,
       createdAt: new Date().toISOString(), agentPhone: agentIdentity?.phone, agentName: agentIdentity?.name, cluster, synced: false
@@ -863,7 +865,7 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
-                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm onSubmit={handleAddRecord} initialData={fulfillmentData} />}
+                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData} />}
                 <AuditLogTable data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log" : "Recent Integrity Logs"} onDelete={isSystemDev ? handleDeleteRecord : undefined} />
               </>
             )}
