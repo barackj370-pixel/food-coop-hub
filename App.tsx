@@ -982,13 +982,7 @@ const App: React.FC = () => {
                           </button>
                         </>
                       )}
-                      {agentIdentity.role !== SystemRole.SUPPLIER ? (
-                        <button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2">
-                          <i className="fas fa-plus"></i> Initiate Sale
-                        </button>
-                      ) : (
-                        <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
-                      )}
+                      <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
                     </div></td></tr>
                   ))}
                 </tbody></table></div></div>
