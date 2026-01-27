@@ -3,29 +3,68 @@ import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types
 
 /**
  * Standard request wrapper for Google Apps Script Web App interactions.
+ * Includes exponential backoff retry logic for resilience against 'Failed to fetch' errors.
  */
-const request = async (action: string, method: 'GET' | 'POST' = 'GET', data?: any) => {
-  try {
-    const url = new URL(GOOGLE_SHEETS_WEBHOOK_URL);
-    
-    if (method === 'GET') {
-      url.searchParams.append('action', action);
-      const res = await fetch(url.toString());
-      if (!res.ok) return null;
-      return await res.json();
-    } else {
-      const res = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
-        method: 'POST',
-        // Using text/plain to avoid preflight CORS checks in GAS while still sending JSON
-        body: JSON.stringify({ action, ...data }),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-      });
-      return res.ok;
-    }
-  } catch (e) {
-    console.error(`Google Sheets Service Error [${action}]:`, e);
+const request = async (action: string, method: 'GET' | 'POST' = 'GET', data?: any, maxRetries = 3) => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL || GOOGLE_SHEETS_WEBHOOK_URL.trim() === "") {
+    console.warn(`Google Sheets Service: Webhook URL is missing. Action [${action}] aborted.`);
     return null;
   }
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const url = new URL(GOOGLE_SHEETS_WEBHOOK_URL);
+      const options: RequestInit = {
+        method,
+        // GAS Web Apps return a 302 redirect to a temporary Google user content URL.
+        // Explicitly following ensure the browser handles this hop.
+        redirect: 'follow', 
+      };
+
+      if (method === 'GET') {
+        url.searchParams.append('action', action);
+        // Append additional data as query params if provided for GET
+        if (data && typeof data === 'object') {
+          Object.entries(data).forEach(([key, val]) => {
+            if (val !== undefined && val !== null) {
+              url.searchParams.append(key, String(val));
+            }
+          });
+        }
+      } else {
+        // For POST, we use text/plain to avoid preflight CORS checks (no-cors style)
+        // while still passing our JSON payload.
+        options.body = JSON.stringify({ action, ...data });
+        options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+      }
+
+      const res = await fetch(url.toString(), options);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      // GET requests to GAS generally return JSON. 
+      // POST requests might just return 200 OK.
+      if (method === 'GET') {
+        return await res.json();
+      }
+      
+      return true;
+    } catch (e) {
+      const isLastAttempt = attempt === maxRetries;
+      const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s...
+
+      if (isLastAttempt) {
+        console.error(`Google Sheets Service Critical Failure [${action}] after ${maxRetries + 1} attempts:`, e);
+        return null;
+      }
+
+      console.warn(`Google Sheets Service Retry [${action}] - Attempt ${attempt + 1} failed. Retrying in ${delay}ms...`, e);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  return null;
 };
 
 // Sale Record Operations
