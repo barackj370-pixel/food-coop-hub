@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CROP_CONFIG, COMMODITY_CATEGORIES } from '../constants.ts';
+import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN } from '../constants.ts';
 import { SystemRole } from '../types.ts';
 
 interface ProduceFormProps {
@@ -26,7 +26,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     otherCropType: '',
     unitType: 'Bag',
     unitsAvailable: 0,
-    sellingPrice: 0,
+    sellingPrice: 0, // Treated as the "Base Price" entered by the user
     supplierName: defaultSupplierName || '',
     supplierPhone: defaultSupplierPhone || ''
   });
@@ -38,7 +38,9 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     }
   }, [formData.cropType]);
 
-  const totalValue = formData.unitsAvailable * formData.sellingPrice;
+  // Calculate the final market price including the coop commission
+  const marketPrice = formData.sellingPrice * (1 + PROFIT_MARGIN);
+  const totalValue = formData.unitsAvailable * marketPrice;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +52,15 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
       return;
     }
     
-    const { otherCropType, ...submissionData } = formData;
-    onSubmit({ ...submissionData, cropType: finalCropType });
+    const { otherCropType, sellingPrice, ...submissionData } = formData;
+    // The submitted sellingPrice now includes the 10% commission
+    const finalSellingPrice = sellingPrice * (1 + PROFIT_MARGIN);
+    
+    onSubmit({ 
+      ...submissionData, 
+      cropType: finalCropType, 
+      sellingPrice: finalSellingPrice 
+    });
     
     setFormData({
       ...formData,
@@ -73,9 +82,9 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
           <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">Listing Harvest for Market Hub</p>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Estimated Market Value</span>
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Estimated Market Value (Incl. 10% Fee)</span>
            <p className="text-[13px] font-black text-white uppercase tracking-tight">
-             Subtotal: <span className="text-green-400">KSh {totalValue.toLocaleString()}</span>
+             Subtotal: <span className="text-green-400">KSh {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
            </p>
         </div>
       </div>
@@ -169,7 +178,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Asking Price (KSh)</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Asking Price (Base)</label>
           <input 
             type="number" 
             step="0.01"
@@ -178,6 +187,12 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
             onChange={(e) => setFormData({...formData, sellingPrice: parseFloat(e.target.value) || 0})}
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
           />
+          {formData.sellingPrice > 0 && (
+            <div className="px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 animate-in fade-in duration-300">
+               <p className="text-[9px] font-black text-green-700 uppercase tracking-tight">Market Price: KSh {marketPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+               <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mt-0.5">Incl. 10% Coop Fee</p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-end">
