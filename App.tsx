@@ -229,7 +229,7 @@ const App: React.FC = () => {
               const isInvalid = (val: any) => !val || String(val).toLowerCase() === 'undefined' || String(val).toLowerCase() === 'null';
               return {
                 ...cp,
-                unitsAvailable: cp.unitsAvailable > 0 ? cp.unitsAvailable : localMatch.unitsAvailable,
+                unitsAvailable: cp.unitsAvailable >= 0 ? cp.unitsAvailable : localMatch.unitsAvailable,
                 sellingPrice: cp.sellingPrice > 0 ? cp.sellingPrice : localMatch.sellingPrice,
                 supplierName: isInvalid(cp.supplierName) ? localMatch.supplierName : cp.supplierName,
                 supplierPhone: isInvalid(cp.supplierPhone) ? localMatch.supplierPhone : cp.supplierPhone,
@@ -322,6 +322,24 @@ const App: React.FC = () => {
     try { await syncProduceToCloud(newListing); } catch (err) { console.error("Produce sync failed:", err); }
   };
 
+  const handleUpdateProduceStock = async (id: string, newUnits: number) => {
+    const listing = produceListings.find(p => p.id === id);
+    if (!listing) return;
+    const updated = { 
+      ...listing, 
+      unitsAvailable: newUnits, 
+      status: newUnits <= 0 ? 'SOLD_OUT' : 'AVAILABLE' 
+    } as ProduceListing;
+    
+    setProduceListings(prev => {
+      const updatedList = prev.map(p => p.id === id ? updated : p);
+      persistence.set('food_coop_produce', JSON.stringify(updatedList));
+      return updatedList;
+    });
+    
+    try { await syncProduceToCloud(updated); } catch (err) { console.error("Stock update sync failed:", err); }
+  };
+
   const handleUseProduceListing = (listing: ProduceListing) => {
     setCurrentPortal('MARKET');
     setMarketView('SALES');
@@ -405,17 +423,30 @@ const App: React.FC = () => {
         if (order) await syncOrderToCloud({ ...order, status: OrderStatus.FULFILLED });
       } catch (err) { console.error("Order fulfillment sync failed:", err); }
     }
+    
+    // Inventory Management: Deduct quantity sold from available stock
     if (data.produceId) {
-      const newBlacklist = [...deletedProduceIds, data.produceId];
-      setDeletedProduceIds(newBlacklist);
-      persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
       setProduceListings(prev => {
-        const updated = prev.filter(p => p.id !== data.produceId);
-        persistence.set('food_coop_produce', JSON.stringify(updated));
-        return updated;
+        const target = prev.find(p => p.id === data.produceId);
+        if (target) {
+          const remaining = Math.max(0, target.unitsAvailable - data.unitsSold);
+          const updated = { 
+            ...target, 
+            unitsAvailable: remaining,
+            status: remaining <= 0 ? 'SOLD_OUT' : 'AVAILABLE'
+          } as ProduceListing;
+          
+          const newList = prev.map(p => p.id === data.produceId ? updated : p);
+          persistence.set('food_coop_produce', JSON.stringify(newList));
+          
+          // Sync update instead of delete
+          syncProduceToCloud(updated).catch(e => console.error("Inventory sync failed:", e));
+          return newList;
+        }
+        return prev;
       });
-      try { await deleteProduceFromCloud(data.produceId); } catch (e) { }
     }
+
     setFulfillmentData(null);
     try {
       const success = await syncToGoogleSheets(newRecord);
@@ -933,7 +964,32 @@ const App: React.FC = () => {
                 {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (<ProduceForm userRole={agentIdentity.role} defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} onSubmit={handleAddProduce} />)}
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
                   {produceListings.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteProduce(p.id); }} className="text-red-400 hover:text-red-700 transition-all p-2 bg-red-50 hover:bg-red-100 rounded-xl"><i className="fas fa-trash-can text-[14px]"></i></button>)}{agentIdentity.role !== SystemRole.SUPPLIER ? (<button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2"><i className="fas fa-plus"></i> Initiate Sale</button>) : (<span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>)}</div></td></tr>
+                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">
+                      {(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (
+                        <>
+                          <button type="button" onClick={() => {
+                            const input = window.prompt(`Enter new stock quantity for ${p.cropType} (Available: ${p.unitsAvailable} ${p.unitType})`, String(p.unitsAvailable));
+                            if (input !== null) {
+                              const val = parseFloat(input);
+                              if (!isNaN(val)) handleUpdateProduceStock(p.id, val);
+                            }
+                          }} className="text-blue-500 hover:text-blue-700 transition-all p-2 bg-blue-50 hover:bg-blue-100 rounded-xl flex items-center gap-1.5 px-3">
+                            <i className="fas fa-boxes-stacked text-[12px]"></i>
+                            <span className="text-[9px] font-black uppercase tracking-tighter">Update Stock</span>
+                          </button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteProduce(p.id); }} className="text-red-400 hover:text-red-700 transition-all p-2 bg-red-50 hover:bg-red-100 rounded-xl">
+                            <i className="fas fa-trash-can text-[14px]"></i>
+                          </button>
+                        </>
+                      )}
+                      {agentIdentity.role !== SystemRole.SUPPLIER ? (
+                        <button type="button" onClick={() => handleUseProduceListing(p)} className="bg-black text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center justify-end gap-2">
+                          <i className="fas fa-plus"></i> Initiate Sale
+                        </button>
+                      ) : (
+                        <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
+                      )}
+                    </div></td></tr>
                   ))}
                 </tbody></table></div></div>
               </div>
