@@ -615,7 +615,7 @@ const App: React.FC = () => {
               </h4>
               <table className="w-full text-left">
                 <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                  <tr><th className="pb-6">Date</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Gross Sale</th><th className="pb-6">Commission</th><th className="pb-6 text-right">Status</th></tr>
+                  <tr><th className="pb-6">Date</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Commission</th><th className="pb-6 text-right">Status</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {records.map(r => (
@@ -629,6 +629,8 @@ const App: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-6 text-black uppercase">{r.cropType}</td>
+                      <td className="py-6 text-black font-medium">{r.unitsSold} {r.unitType}</td>
+                      <td className="py-6 text-black font-medium">KSh {Number(r.unitPrice).toLocaleString()}</td>
                       <td className="py-6 font-black text-black">KSh {Number(r.totalSale).toLocaleString()}</td>
                       <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
                       <td className="py-6 text-right">
