@@ -23,7 +23,7 @@ import {
 } from './services/googleSheetsService.ts';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS';
-type MarketView = 'SALES' | 'SUPPLIER';
+type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
@@ -119,9 +119,9 @@ const App: React.FC = () => {
     const saved = persistence.get('agent_session');
     if (saved) {
       const agent = JSON.parse(saved);
-      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'SUPPLIER';
+      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'CUSTOMER';
     }
-    return 'SUPPLIER';
+    return 'CUSTOMER';
   });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -349,6 +349,69 @@ const App: React.FC = () => {
       cluster: listing.cluster
     });
     window.scrollTo({ top: 600, behavior: 'smooth' });
+  };
+
+  const handleFulfillOrder = (order: MarketOrder) => {
+    const listing = produceListings.find(p => p.cropType === order.cropType && p.cluster === order.cluster && p.status === 'AVAILABLE');
+    setCurrentPortal('MARKET');
+    setMarketView('SALES');
+    setFulfillmentData({
+      cropType: order.cropType,
+      unitsSold: order.unitsRequested,
+      unitType: order.unitType,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      orderId: order.id,
+      produceId: listing?.id,
+      farmerName: listing?.supplierName || 'Food Coop',
+      farmerPhone: listing?.supplierPhone || 'COOP-INTERNAL',
+      unitPrice: listing?.sellingPrice || 0,
+      cluster: order.cluster
+    });
+    window.scrollTo({ top: 600, behavior: 'smooth' });
+  };
+
+  const handlePlaceOrder = async (listing: ProduceListing) => {
+    if (!agentIdentity) {
+      alert("Authentication Required: Please login to place an order.");
+      setCurrentPortal('LOGIN');
+      return;
+    }
+
+    const qty = window.prompt(`How many ${listing.unitType} of ${listing.cropType} would you like to order? (Available: ${listing.unitsAvailable})`, "1");
+    if (qty === null) return;
+    const units = parseFloat(qty);
+    if (isNaN(units) || units <= 0 || units > listing.unitsAvailable) {
+      alert("Invalid Quantity: Please enter a number between 1 and " + listing.unitsAvailable);
+      return;
+    }
+
+    const newOrder: MarketOrder = {
+      id: 'ORD-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+      date: new Date().toISOString().split('T')[0],
+      cropType: listing.cropType,
+      unitsRequested: units,
+      unitType: listing.unitType,
+      customerName: agentIdentity.name,
+      customerPhone: agentIdentity.phone,
+      status: OrderStatus.OPEN,
+      agentPhone: '', // Filled by fulfilling agent
+      cluster: listing.cluster
+    };
+
+    setMarketOrders(prev => {
+      const updated = [newOrder, ...prev];
+      persistence.set('food_coop_orders', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await syncOrderToCloud(newOrder);
+      alert("Order Successful: Your request for " + units + " " + listing.unitType + " of " + listing.cropType + " has been placed. Payment is on delivery.");
+    } catch (err) {
+      console.error("Order sync failed:", err);
+      alert("Sync Error: Order placed locally but failed to reach the server. Please check your connection.");
+    }
   };
 
   const handleDeleteProduce = async (id: string) => {
@@ -740,6 +803,7 @@ const App: React.FC = () => {
                     <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                       <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
                       <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
+                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('CUSTOMER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'CUSTOMER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-user mr-2"></i> Customer Portal</button>
                     </div>
                   )}
                 </div>
@@ -952,10 +1016,51 @@ const App: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-seedling"></i> Supplier Portal</button>
                 <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-shopping-cart"></i> Sales Portal</button>
+                <button type="button" onClick={() => setMarketView('CUSTOMER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'CUSTOMER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-user"></i> Customer Portal</button>
             </div>
             {marketView === 'SALES' && (
               <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData} />}
+                
+                {/* Pending Orders Repository */}
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden mt-12 relative">
+                  <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-6">
+                    <div>
+                      <h3 className="text-sm font-black text-black uppercase tracking-widest">Market Demand Hub</h3>
+                      <p className="text-[9px] font-black text-red-600 uppercase tracking-[0.2em] mt-1">Pending Customer Requests</p>
+                    </div>
+                    <span className="bg-red-50 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">
+                      {marketOrders.filter(o => o.status === OrderStatus.OPEN).length} Orders Open
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                        <tr><th className="pb-4">Order Ref</th><th className="pb-4">Customer Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Requested</th><th className="pb-4 text-right">Action</th></tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {marketOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
+                          <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-6"><span className="text-[10px] font-black text-slate-400">{o.id}</span></td>
+                            <td className="py-6"><p className="text-[11px] font-black uppercase text-black">{o.customerName}</p><p className="text-[9px] text-slate-400 font-mono">{o.customerPhone}</p></td>
+                            <td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{o.cluster}</span></td>
+                            <td className="py-6"><p className="text-[11px] font-black uppercase text-red-600">{o.cropType}</p></td>
+                            <td className="py-6"><p className="text-[11px] font-black text-slate-700">{o.unitsRequested} {o.unitType}</p></td>
+                            <td className="py-6 text-right">
+                              <button onClick={() => handleFulfillOrder(o)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center gap-2 ml-auto">
+                                <i className="fas fa-file-contract"></i> Fulfill Sale
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {marketOrders.filter(o => o.status === OrderStatus.OPEN).length === 0 && (
+                          <tr><td colSpan={6} className="py-12 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest italic">No pending market demand orders at this time.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <AuditLogTable data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log" : "Recent Integrity Logs"} onDelete={isSystemDev ? handleDeleteRecord : undefined} />
               </>
             )}
@@ -986,6 +1091,69 @@ const App: React.FC = () => {
                     </div></td></tr>
                   ))}
                 </tbody></table></div></div>
+              </div>
+            )}
+            {marketView === 'CUSTOMER' && (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+                    <div>
+                      <h3 className="text-sm font-black text-black uppercase tracking-widest">Coop Customer Storefront</h3>
+                      <p className="text-[9px] font-black text-green-600 uppercase tracking-[0.2em] mt-1">Fresh Harvest Directly from Farmers</p>
+                    </div>
+                    <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-3">
+                      <i className="fas fa-map-marker-alt text-red-600"></i>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Cluster: {agentIdentity?.cluster || 'Unassigned'}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => {
+                      const isSameCluster = p.cluster === agentIdentity?.cluster;
+                      return (
+                        <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group">
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-start">
+                              <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isSameCluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                                {p.cluster} {isSameCluster && ' (Local)'}
+                              </span>
+                              <i className="fas fa-basket-shopping text-slate-200 group-hover:text-green-500 transition-colors"></i>
+                            </div>
+                            <div>
+                              <p className="text-xl font-black text-black uppercase leading-tight">{p.cropType}</p>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{p.unitsAvailable} {p.unitType} in stock</p>
+                            </div>
+                            <div className="pt-4 border-t border-slate-100">
+                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Listing Price</p>
+                              <p className="text-lg font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => handlePlaceOrder(p)}
+                            className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                          >
+                            <i className="fas fa-shopping-cart"></i> Order Now
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).length === 0 && (
+                      <div className="col-span-full py-20 text-center">
+                        <i className="fas fa-warehouse text-4xl text-slate-200 mb-4 block"></i>
+                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No active harvest listings found. Check back later.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-shield-check text-green-600"></i> Quality Verified & Price Stabilized by KPL Audit Node
+                    </p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-truck text-red-600"></i> Payment strictly on delivery to Cluster Hub
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
