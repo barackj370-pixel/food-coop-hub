@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -684,6 +685,70 @@ const App: React.FC = () => {
     }
   };
 
+  const renderCustomerPortal = () => (
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 mt-12">
+      <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+          <div>
+            <h3 className="text-sm font-black text-black uppercase tracking-widest">Coop Customer Storefront</h3>
+            <p className="text-[9px] font-black text-green-600 uppercase tracking-[0.2em] mt-1">Fresh Harvest Directly from Farmers</p>
+          </div>
+          <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-3">
+            <i className="fas fa-map-marker-alt text-red-600"></i>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Cluster: {agentIdentity?.cluster || 'Unassigned'}</span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => {
+            const isSameCluster = p.cluster === agentIdentity?.cluster;
+            return (
+              <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-start">
+                    <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isSameCluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                      {p.cluster} {isSameCluster && ' (Local)'}
+                    </span>
+                    <i className="fas fa-basket-shopping text-slate-200 group-hover:text-green-500 transition-colors"></i>
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-black uppercase leading-tight">{p.cropType}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{p.unitsAvailable} {p.unitType} in stock</p>
+                  </div>
+                  <div className="pt-4 border-t border-slate-100">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Listing Price</p>
+                    <p className="text-lg font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => handlePlaceOrder(p)}
+                  className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <i className="fas fa-shopping-cart"></i> Order Now
+                </button>
+              </div>
+            );
+          })}
+          {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).length === 0 && (
+            <div className="col-span-full py-20 text-center">
+              <i className="fas fa-warehouse text-4xl text-slate-200 mb-4 block"></i>
+              <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No active harvest listings found. Check back later.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            <i className="fas fa-shield-check text-green-600"></i> Quality Verified & Price Stabilized by KPL Audit Node
+          </p>
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            <i className="fas fa-truck text-red-600"></i> Payment strictly on delivery to Cluster Hub
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   const AuditLogTable = ({ data, title, onDelete }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void }) => {
     const groupedData = useMemo(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
         const cluster = r.cluster || 'Unassigned';
@@ -1093,69 +1158,7 @@ const App: React.FC = () => {
                 </tbody></table></div></div>
               </div>
             )}
-            {marketView === 'CUSTOMER' && (
-              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
-                  <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-                    <div>
-                      <h3 className="text-sm font-black text-black uppercase tracking-widest">Coop Customer Storefront</h3>
-                      <p className="text-[9px] font-black text-green-600 uppercase tracking-[0.2em] mt-1">Fresh Harvest Directly from Farmers</p>
-                    </div>
-                    <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-                      <i className="fas fa-map-marker-alt text-red-600"></i>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Cluster: {agentIdentity?.cluster || 'Unassigned'}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => {
-                      const isSameCluster = p.cluster === agentIdentity?.cluster;
-                      return (
-                        <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group">
-                          <div className="space-y-4">
-                            <div className="flex justify-between items-start">
-                              <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isSameCluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
-                                {p.cluster} {isSameCluster && ' (Local)'}
-                              </span>
-                              <i className="fas fa-basket-shopping text-slate-200 group-hover:text-green-500 transition-colors"></i>
-                            </div>
-                            <div>
-                              <p className="text-xl font-black text-black uppercase leading-tight">{p.cropType}</p>
-                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{p.unitsAvailable} {p.unitType} in stock</p>
-                            </div>
-                            <div className="pt-4 border-t border-slate-100">
-                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Listing Price</p>
-                              <p className="text-lg font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => handlePlaceOrder(p)}
-                            className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
-                          >
-                            <i className="fas fa-shopping-cart"></i> Order Now
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).length === 0 && (
-                      <div className="col-span-full py-20 text-center">
-                        <i className="fas fa-warehouse text-4xl text-slate-200 mb-4 block"></i>
-                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No active harvest listings found. Check back later.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <i className="fas fa-shield-check text-green-600"></i> Quality Verified & Price Stabilized by KPL Audit Node
-                    </p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <i className="fas fa-truck text-red-600"></i> Payment strictly on delivery to Cluster Hub
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+            {marketView === 'CUSTOMER' && renderCustomerPortal()}
           </div>
         )}
 
@@ -1199,24 +1202,68 @@ const App: React.FC = () => {
               </div>
             </div>
             <AuditLogTable data={filteredRecords} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            {renderCustomerPortal()}
           </div>
         )}
 
         {currentPortal === 'AUDIT' && agentIdentity && (
-          <div className="space-y-8 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-black pl-4">Awaiting Approval & Verification</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
-            {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
-              <tr key={r.id} className="hover:bg-slate-800/50"><td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td><td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td><td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td><td className="py-6 text-right">{r.status === RecordStatus.PAID ? (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-search"></i> Verify</button>) : (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Audit Seal</button>)}</td></tr>
-            ))}
-          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /></div>
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
+              <h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-black pl-4">Awaiting Approval & Verification</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
+                    <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
+                      <tr key={r.id} className="hover:bg-slate-800/50">
+                        <td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td>
+                        <td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td>
+                        <td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td>
+                        <td className="py-6 text-right">{r.status === RecordStatus.PAID ? (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-search"></i> Verify</button>) : (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Audit Seal</button>)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <AuditLogTable data={filteredRecords} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            {renderCustomerPortal()}
+          </div>
         )}
 
         {currentPortal === 'BOARD' && agentIdentity && (
-          <div className="space-y-12 animate-in fade-in duration-300"><div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden"><div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4"><h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3><div className="flex gap-2"><button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest">Summary CSV</button><button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl"><i className="fas fa-download mr-2"></i> Detailed CSV</button></div></div><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50"><tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr></thead><tbody className="divide-y divide-slate-50">
-            {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
-              <tr key={cluster} className="hover:bg-slate-50/50"><td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td><td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td><td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td></tr>
-            ))}
-            <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl"><td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td><td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td><td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td></tr>
-          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /></div>
+          <div className="space-y-12 animate-in fade-in duration-300">
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
+                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3>
+                <div className="flex gap-2">
+                  <button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest">Summary CSV</button>
+                  <button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl"><i className="fas fa-download mr-2"></i> Detailed CSV</button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
+                    <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
+                      <tr key={cluster} className="hover:bg-slate-50/50"><td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td><td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td><td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td></tr>
+                    ))}
+                    <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl">
+                      <td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td>
+                      <td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td>
+                      <td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <AuditLogTable data={filteredRecords} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            {renderCustomerPortal()}
+          </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
