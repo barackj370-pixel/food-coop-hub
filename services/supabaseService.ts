@@ -1,86 +1,134 @@
-import { supabase } from './supabaseClient.ts';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types.ts';
+import { supabase } from './supabaseClient';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types';
 
-// Sale Record Operations
-export const syncToGoogleSheets = async (record: SaleRecord) => {
-  const { error } = await supabase.from('records').upsert(record);
-  if (error) console.error("Record sync error:", error);
-  return !error;
+/* =======================
+   SALE RECORDS
+======================= */
+
+export const saveRecord = async (record: SaleRecord) => {
+  const { error } = await supabase
+    .from('records')
+    .upsert(record, { onConflict: 'id' });
+
+  if (error) {
+    console.error('Save record error:', error);
+    return false;
+  }
+  return true;
 };
 
-export const fetchFromGoogleSheets = async () => {
-  const { data, error } = await supabase.from('records').select('*').order('createdAt', { ascending: false });
-  if (error) return null;
+export const fetchRecords = async () => {
+  const { data, error } = await supabase
+    .from('records')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Fetch records error:', error);
+    return [];
+  }
+
   return data as SaleRecord[];
 };
 
-export const deleteRecordFromCloud = async (id: string) => {
+export const deleteRecord = async (id: string) => {
   const { error } = await supabase.from('records').delete().eq('id', id);
   return !error;
 };
 
-export const deleteAllRecordsFromCloud = async () => {
-  const { error } = await supabase.from('records').delete().neq('id', '0'); // Clear all
-  return !error;
+/* =======================
+   USERS
+======================= */
+
+export const saveUser = async (user: AgentIdentity) => {
+  const { error } = await supabase
+    .from('users')
+    .upsert(user, { onConflict: 'phone' });
+
+  if (error) {
+    console.error('Save user error:', error);
+    return false;
+  }
+  return true;
 };
 
-// User Operations
-export const syncUserToCloud = async (user: AgentIdentity) => {
-  const { error } = await supabase.from('users').upsert(user);
-  return !error;
-};
-
-export const fetchUsersFromCloud = async () => {
+export const fetchUsers = async () => {
   const { data, error } = await supabase.from('users').select('*');
-  if (error) return null;
+
+  if (error) {
+    console.error('Fetch users error:', error);
+    return [];
+  }
+
   return data as AgentIdentity[];
 };
 
-export const deleteUserFromCloud = async (phone: string) => {
+export const deleteUser = async (phone: string) => {
   const { error } = await supabase.from('users').delete().eq('phone', phone);
   return !error;
 };
 
-export const deleteAllUsersFromCloud = async () => {
-  const { error } = await supabase.from('users').delete().neq('phone', '0');
-  return !error;
+/* =======================
+   ORDERS
+======================= */
+
+export const saveOrder = async (order: MarketOrder) => {
+  const { error } = await supabase
+    .from('orders')
+    .upsert(order, { onConflict: 'id' });
+
+  if (error) {
+    console.error('Save order error:', error);
+    return false;
+  }
+  return true;
 };
 
-// Market Order Operations
-export const syncOrderToCloud = async (order: MarketOrder) => {
-  const { error } = await supabase.from('orders').upsert(order);
-  return !error;
-};
+export const fetchOrders = async () => {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-export const fetchOrdersFromCloud = async () => {
-  const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
-  if (error) return null;
+  if (error) {
+    console.error('Fetch orders error:', error);
+    return [];
+  }
+
   return data as MarketOrder[];
 };
 
-export const deleteAllOrdersFromCloud = async () => {
-  const { error } = await supabase.from('orders').delete().neq('id', '0');
-  return !error;
+/* =======================
+   PRODUCE
+======================= */
+
+export const saveProduce = async (produce: ProduceListing) => {
+  const { error } = await supabase
+    .from('produce')
+    .upsert(produce, { onConflict: 'id' });
+
+  if (error) {
+    console.error('Save produce error:', error);
+    return false;
+  }
+  return true;
 };
 
-// Produce Listing Operations
-export const syncProduceToCloud = async (produce: ProduceListing) => {
-  const { error } = await supabase.from('produce').upsert(produce);
-  return !error;
-};
+export const fetchProduce = async () => {
+  const { data, error } = await supabase
+    .from('produce')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-export const fetchProduceFromCloud = async () => {
-  const { data, error } = await supabase.from('produce').select('*').order('date', { ascending: false });
-  if (error) return null;
+  if (error) {
+    console.error('Fetch produce error:', error);
+    return [];
+  }
+
   return data as ProduceListing[];
 };
 
-export const deleteProduceFromCloud = async (id: string) => {
+export const deleteProduce = async (id: string) => {
   const { error } = await supabase.from('produce').delete().eq('id', id);
-  return !error;
-};
-
-export const deleteAllProduceFromCloud = async () => {
-  const { error } = await supabase.from('produce').delete().neq('id', '0');
   return !error;
 };

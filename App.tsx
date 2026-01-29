@@ -6,22 +6,20 @@ import ProduceForm from './components/ProduceForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
 import { 
-  syncToGoogleSheets, 
-  fetchFromGoogleSheets, 
-  syncUserToCloud, 
-  fetchUsersFromCloud, 
-  deleteRecordFromCloud, 
-  deleteUserFromCloud,
-  deleteAllUsersFromCloud,
-  deleteProduceFromCloud,
-  deleteAllProduceFromCloud,
-  syncOrderToCloud,
-  fetchOrdersFromCloud,
-  syncProduceToCloud,
-  fetchProduceFromCloud,
-  deleteAllOrdersFromCloud,
-  deleteAllRecordsFromCloud
-} from './services/googleSheetsService.ts';
+  import {
+  saveRecord,
+  fetchRecords,
+  saveUser,
+  fetchUsers,
+  deleteRecord,
+  deleteUser,
+  saveOrder,
+  fetchOrders,
+  saveProduce,
+  fetchProduce,
+  deleteProduce
+} from './services/supabaseServices';
+
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
