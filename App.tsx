@@ -762,70 +762,6 @@ const App: React.FC = () => {
     );
   };
 
-  const CustomerStorefront = () => (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-          <div>
-            <h3 className="text-sm font-black text-black uppercase tracking-widest">Coop Customer Storefront</h3>
-            <p className="text-[9px] font-black text-green-600 uppercase tracking-[0.2em] mt-1">Fresh Harvest Directly from Farmers</p>
-          </div>
-          <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-            <i className="fas fa-map-marker-alt text-red-600"></i>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Cluster: {agentIdentity?.cluster || 'Unassigned'}</span>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => {
-            const isSameCluster = p.cluster === agentIdentity?.cluster;
-            return (
-              <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isSameCluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
-                      {p.cluster} {isSameCluster && ' (Local)'}
-                    </span>
-                    <i className="fas fa-basket-shopping text-slate-200 group-hover:text-green-500 transition-colors"></i>
-                  </div>
-                  <div>
-                    <p className="text-xl font-black text-black uppercase leading-tight">{p.cropType}</p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{p.unitsAvailable} {p.unitType} in stock</p>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Listing Price</p>
-                    <p className="text-lg font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => handlePlaceOrder(p)}
-                  className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <i className="fas fa-shopping-cart"></i> Order Now
-                </button>
-              </div>
-            );
-          })}
-          {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).length === 0 && (
-            <div className="col-span-full py-20 text-center">
-              <i className="fas fa-warehouse text-4xl text-slate-200 mb-4 block"></i>
-              <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No active harvest listings found. Check back later.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <i className="fas fa-shield-check text-green-600"></i> Quality Verified & Price Stabilized by KPL Audit Node
-          </p>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <i className="fas fa-truck text-red-600"></i> Payment strictly on delivery to Cluster Hub
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
@@ -1157,7 +1093,69 @@ const App: React.FC = () => {
                 </tbody></table></div></div>
               </div>
             )}
-            {marketView === 'CUSTOMER' && <CustomerStorefront />}
+            {marketView === 'CUSTOMER' && (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
+                    <div>
+                      <h3 className="text-sm font-black text-black uppercase tracking-widest">Coop Customer Storefront</h3>
+                      <p className="text-[9px] font-black text-green-600 uppercase tracking-[0.2em] mt-1">Fresh Harvest Directly from Farmers</p>
+                    </div>
+                    <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-3">
+                      <i className="fas fa-map-marker-alt text-red-600"></i>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Cluster: {agentIdentity?.cluster || 'Unassigned'}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => {
+                      const isSameCluster = p.cluster === agentIdentity?.cluster;
+                      return (
+                        <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group">
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-start">
+                              <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isSameCluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
+                                {p.cluster} {isSameCluster && ' (Local)'}
+                              </span>
+                              <i className="fas fa-basket-shopping text-slate-200 group-hover:text-green-500 transition-colors"></i>
+                            </div>
+                            <div>
+                              <p className="text-xl font-black text-black uppercase leading-tight">{p.cropType}</p>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{p.unitsAvailable} {p.unitType} in stock</p>
+                            </div>
+                            <div className="pt-4 border-t border-slate-100">
+                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Listing Price</p>
+                              <p className="text-lg font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => handlePlaceOrder(p)}
+                            className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                          >
+                            <i className="fas fa-shopping-cart"></i> Order Now
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).length === 0 && (
+                      <div className="col-span-full py-20 text-center">
+                        <i className="fas fa-warehouse text-4xl text-slate-200 mb-4 block"></i>
+                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No active harvest listings found. Check back later.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-shield-check text-green-600"></i> Quality Verified & Price Stabilized by KPL Audit Node
+                    </p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <i className="fas fa-truck text-red-600"></i> Payment strictly on delivery to Cluster Hub
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1201,7 +1199,6 @@ const App: React.FC = () => {
               </div>
             </div>
             <AuditLogTable data={filteredRecords} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
-            <CustomerStorefront />
           </div>
         )}
 
@@ -1210,7 +1207,7 @@ const App: React.FC = () => {
             {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
               <tr key={r.id} className="hover:bg-slate-800/50"><td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td><td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td><td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td><td className="py-6 text-right">{r.status === RecordStatus.PAID ? (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-search"></i> Verify</button>) : (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Audit Seal</button>)}</td></tr>
             ))}
-          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /><CustomerStorefront /></div>
+          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /></div>
         )}
 
         {currentPortal === 'BOARD' && agentIdentity && (
@@ -1219,7 +1216,7 @@ const App: React.FC = () => {
               <tr key={cluster} className="hover:bg-slate-50/50"><td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td><td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td><td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td></tr>
             ))}
             <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl"><td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td><td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td><td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td></tr>
-          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /><CustomerStorefront /></div>
+          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} /></div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
