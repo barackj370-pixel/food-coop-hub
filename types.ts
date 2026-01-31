@@ -1,4 +1,3 @@
-
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
@@ -37,7 +36,7 @@ export interface AgentIdentity {
 export interface MarketOrder {
   id: string;
   date: string;
-  productType: string;
+  cropType: string;
   unitsRequested: number;
   unitType: string;
   customerName: string;
@@ -50,7 +49,7 @@ export interface MarketOrder {
 export interface ProduceListing {
   id: string;
   date: string;
-  productType: string;
+  cropType: string;
   unitsAvailable: number;
   unitType: string;
   sellingPrice: number;
@@ -63,7 +62,7 @@ export interface ProduceListing {
 export interface SaleRecord {
   id: string;
   date: string;
-  productType: string;
+  cropType: string;
   unitType: string;
   farmerName: string;
   farmerPhone: string;
@@ -82,5 +81,5 @@ export interface SaleRecord {
   agentName?: string;
   cluster?: string;
   synced?: boolean;
-  orderId?: string;
+  orderId?: string; // Optional link to the original market order
 }

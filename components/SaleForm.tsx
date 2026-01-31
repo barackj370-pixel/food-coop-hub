@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
-import { PRODUCT_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
+import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
 import { ProduceListing } from '../types.ts';
 
 interface SaleFormProps {
   clusters: string[];
   produceListings: ProduceListing[];
   initialData?: {
-    productType?: string;
+    cropType?: string;
     unitsSold?: number;
     unitType?: string;
     customerName?: string;
@@ -21,7 +20,7 @@ interface SaleFormProps {
   };
   onSubmit: (data: {
     date: string;
-    productType: string;
+    cropType: string;
     unitType: string;
     farmerName: string;
     farmerPhone: string;
@@ -38,8 +37,8 @@ interface SaleFormProps {
 const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, produceListings }: SaleFormProps) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
-    productType: 'Maize',
-    otherProductType: '',
+    cropType: 'Maize',
+    otherCropType: '',
     unitType: '2kg Tin',
     farmerName: '',
     farmerPhone: '',
@@ -52,22 +51,26 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
 
   const [isAutoFilled, setIsAutoFilled] = useState(false);
 
+  // Auto-fill logic based on Cluster, Commodity, and Quantity
   useEffect(() => {
-    const currentProductType = formData.productType === 'Other' ? formData.otherProductType.trim() : formData.productType;
+    // Determine the current commodity type
+    const currentCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
     
-    if (!currentProductType || formData.unitsSold <= 0) {
+    if (!currentCropType || formData.unitsSold <= 0) {
       setIsAutoFilled(false);
       return;
     }
 
+    // Search for matching suppliers in the SAME cluster
     const matches = produceListings.filter(p => 
       p.cluster === formData.cluster && 
-      p.productType === currentProductType &&
+      p.cropType === currentCropType &&
       p.unitsAvailable >= formData.unitsSold &&
       p.status === 'AVAILABLE'
     );
 
     if (matches.length > 0) {
+      // Pick the best (lowest) price
       const bestMatch = matches.sort((a, b) => a.sellingPrice - b.sellingPrice)[0];
       setFormData(prev => ({
         ...prev,
@@ -78,21 +81,25 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
       }));
       setIsAutoFilled(true);
     } else {
+      // No supplier in cluster: Default to Food Coop
       setFormData(prev => ({
         ...prev,
         farmerName: 'Food Coop',
         farmerPhone: 'COOP-INTERNAL',
+        // Don't overwrite unitPrice here if the user is already typing it, 
+        // but if it was previously auto-filled, reset it.
         unitPrice: isAutoFilled ? 0 : prev.unitPrice
       }));
       setIsAutoFilled(false);
     }
-  }, [formData.cluster, formData.productType, formData.otherProductType, formData.unitsSold, produceListings]);
+  }, [formData.cluster, formData.cropType, formData.otherCropType, formData.unitsSold, produceListings]);
 
+  // Handle manual field synchronization from initialData (e.g. when fulfilling an order)
   useEffect(() => {
     if (initialData) {
       setFormData(prev => ({
         ...prev,
-        productType: initialData.productType || prev.productType,
+        cropType: initialData.cropType || prev.cropType,
         unitsSold: initialData.unitsSold || prev.unitsSold,
         unitType: initialData.unitType || prev.unitType,
         customerName: initialData.customerName || prev.customerName,
@@ -106,11 +113,11 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
   }, [initialData]);
 
   useEffect(() => {
-    const availableUnits = PRODUCT_CONFIG[formData.productType as keyof typeof PRODUCT_CONFIG] as readonly string[];
+    const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] as readonly string[];
     if (availableUnits && !availableUnits.includes(formData.unitType)) {
       setFormData(prev => ({ ...prev, unitType: availableUnits[0] }));
     }
-  }, [formData.productType]);
+  }, [formData.cropType]);
 
   const totalSale = formData.unitsSold * formData.unitPrice;
   const ourShare = totalSale * PROFIT_MARGIN;
@@ -118,24 +125,24 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const finalProductType = formData.productType === 'Other' ? formData.otherProductType.trim() : formData.productType;
+    const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
 
-    if (!formData.farmerName || !formData.customerName || formData.unitsSold <= 0 || formData.unitPrice <= 0 || (formData.productType === 'Other' && !finalProductType)) {
+    if (!formData.farmerName || !formData.customerName || formData.unitsSold <= 0 || formData.unitPrice <= 0 || (formData.cropType === 'Other' && !finalCropType)) {
       alert("Validation Error: Please complete all required fields including a valid price.");
       return;
     }
     
-    const { otherProductType, ...submissionData } = formData;
+    const { otherCropType, ...submissionData } = formData;
     onSubmit({ 
       ...submissionData, 
-      productType: finalProductType, 
+      cropType: finalCropType, 
       orderId: initialData?.orderId,
       produceId: initialData?.produceId 
     });
     
     setFormData({
       ...formData,
-      otherProductType: '',
+      otherCropType: '',
       farmerName: '',
       farmerPhone: '',
       customerName: '',
@@ -146,7 +153,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
     setIsAutoFilled(false);
   };
 
-  const availableUnits = PRODUCT_CONFIG[formData.productType as keyof typeof PRODUCT_CONFIG] || ['Units'];
+  const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] || ['Units'];
 
   return (
     <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden relative">
@@ -164,6 +171,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
       </div>
       
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        {/* Sales Agent Inputs */}
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Trade Date</label>
           <input 
@@ -186,10 +194,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         </div>
         
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Product Type</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity</label>
           <select 
-            value={formData.productType}
-            onChange={(e) => setFormData({...formData, productType: e.target.value})}
+            value={formData.cropType}
+            onChange={(e) => setFormData({...formData, cropType: e.target.value})}
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
           >
             {Object.entries(COMMODITY_CATEGORIES).map(([category, items]) => (
@@ -202,14 +210,14 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
           </select>
         </div>
 
-        {formData.productType === 'Other' && (
+        {formData.cropType === 'Other' && (
           <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
             <label className="text-[10px] font-black text-red-600 uppercase ml-2 tracking-widest">Details</label>
             <input 
               type="text" 
               placeholder="..."
-              value={formData.otherProductType}
-              onChange={(e) => setFormData({...formData, otherProductType: e.target.value})}
+              value={formData.otherCropType}
+              onChange={(e) => setFormData({...formData, otherCropType: e.target.value})}
               className="w-full bg-red-50/30 border border-red-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-red-400 outline-none transition-all shadow-sm"
               required
             />
@@ -260,6 +268,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
           />
         </div>
 
+        {/* Auto-filled / Conditional Inputs */}
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Name</label>
           <input 

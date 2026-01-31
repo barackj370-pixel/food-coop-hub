@@ -1,12 +1,27 @@
+
 import { supabase } from './supabaseClient';
 import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types';
+
+/**
+ * Utility to check if the Supabase client is configured and ready.
+ * Provides a helpful warning if environment variables are missing.
+ */
+const isClientReady = (): boolean => {
+  if (!supabase) {
+    console.warn("Supabase client is not initialized. Please ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in your environment variables.");
+    return false;
+  }
+  return true;
+};
 
 /* =======================
    SALE RECORDS
 ======================= */
 
 export const saveRecord = async (record: SaleRecord) => {
-  const { error } = await supabase
+  if (!isClientReady()) return false;
+  
+  const { error } = await supabase!
     .from('records')
     .upsert(record, { onConflict: 'id' });
 
@@ -18,10 +33,12 @@ export const saveRecord = async (record: SaleRecord) => {
 };
 
 export const fetchRecords = async () => {
-  const { data, error } = await supabase
+  if (!isClientReady()) return [];
+
+  const { data, error } = await supabase!
     .from('records')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('createdAt', { ascending: false });
 
   if (error) {
     console.error('Fetch records error:', error);
@@ -32,7 +49,8 @@ export const fetchRecords = async () => {
 };
 
 export const deleteRecord = async (id: string) => {
-  const { error } = await supabase.from('records').delete().eq('id', id);
+  if (!isClientReady()) return false;
+  const { error } = await supabase!.from('records').delete().eq('id', id);
   return !error;
 };
 
@@ -41,7 +59,9 @@ export const deleteRecord = async (id: string) => {
 ======================= */
 
 export const saveUser = async (user: AgentIdentity) => {
-  const { error } = await supabase
+  if (!isClientReady()) return false;
+  
+  const { error } = await supabase!
     .from('users')
     .upsert(user, { onConflict: 'phone' });
 
@@ -53,7 +73,9 @@ export const saveUser = async (user: AgentIdentity) => {
 };
 
 export const fetchUsers = async () => {
-  const { data, error } = await supabase.from('users').select('*');
+  if (!isClientReady()) return [];
+  
+  const { data, error } = await supabase!.from('users').select('*');
 
   if (error) {
     console.error('Fetch users error:', error);
@@ -64,7 +86,8 @@ export const fetchUsers = async () => {
 };
 
 export const deleteUser = async (phone: string) => {
-  const { error } = await supabase.from('users').delete().eq('phone', phone);
+  if (!isClientReady()) return false;
+  const { error } = await supabase!.from('users').delete().eq('phone', phone);
   return !error;
 };
 
@@ -73,7 +96,9 @@ export const deleteUser = async (phone: string) => {
 ======================= */
 
 export const saveOrder = async (order: MarketOrder) => {
-  const { error } = await supabase
+  if (!isClientReady()) return false;
+
+  const { error } = await supabase!
     .from('orders')
     .upsert(order, { onConflict: 'id' });
 
@@ -85,10 +110,12 @@ export const saveOrder = async (order: MarketOrder) => {
 };
 
 export const fetchOrders = async () => {
-  const { data, error } = await supabase
+  if (!isClientReady()) return [];
+
+  const { data, error } = await supabase!
     .from('orders')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('date', { ascending: false });
 
   if (error) {
     console.error('Fetch orders error:', error);
@@ -103,7 +130,9 @@ export const fetchOrders = async () => {
 ======================= */
 
 export const saveProduce = async (produce: ProduceListing) => {
-  const { error } = await supabase
+  if (!isClientReady()) return false;
+
+  const { error } = await supabase!
     .from('produce')
     .upsert(produce, { onConflict: 'id' });
 
@@ -115,10 +144,12 @@ export const saveProduce = async (produce: ProduceListing) => {
 };
 
 export const fetchProduce = async () => {
-  const { data, error } = await supabase
+  if (!isClientReady()) return [];
+
+  const { data, error } = await supabase!
     .from('produce')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('date', { ascending: false });
 
   if (error) {
     console.error('Fetch produce error:', error);
@@ -129,6 +160,7 @@ export const fetchProduce = async () => {
 };
 
 export const deleteProduce = async (id: string) => {
-  const { error } = await supabase.from('produce').delete().eq('id', id);
+  if (!isClientReady()) return false;
+  const { error } = await supabase!.from('produce').delete().eq('id', id);
   return !error;
 };

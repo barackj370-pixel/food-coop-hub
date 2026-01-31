@@ -1,11 +1,10 @@
-
 export const COMMODITY_CATEGORIES = {
   'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Other'],
   'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano', 'Other'],
   'Non-food Products': ['Books', 'Cloths', 'Soap', 'Farm tools', 'Other']
 } as const;
 
-export const PRODUCT_CONFIG = {
+export const CROP_CONFIG = {
   // Farm Food Products
   'Tomatoes': ['Crate', 'Box', 'Kg'],
   'Onions': ['Bag', 'Kg'],
@@ -30,12 +29,17 @@ export const PRODUCT_CONFIG = {
   'Other': ['Units', 'Kg', 'Bag', 'Litre', 'Piece', 'Packet']
 } as const;
 
-export const PRODUCT_TYPES = Object.keys(PRODUCT_CONFIG);
+export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
 export const PROFIT_MARGIN = 0.10; // 10% coop margin
 
 // Background Sync Polling Interval (30 Seconds)
 export const SYNC_POLLING_INTERVAL = 30000;
+
+/**
+ * CONFIGURATION: 
+ * Update this URL with your unique Google Apps Script Web App URL from Step 3.
+ */
 
 export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1HiMWDqPQi_uzHDKUr_wJAWUDPeWQofyYd4IU6esNq5w/edit?gid=0#gid=0"; // Placeholder URL
 

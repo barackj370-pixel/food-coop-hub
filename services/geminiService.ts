@@ -1,29 +1,29 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { SaleRecord } from "../types.ts";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
-  // Check if API_KEY is available in the environment
+  // Ensure the API key is present
   if (!process.env.API_KEY) {
     return "API Key not configured. Please ensure process.env.API_KEY is available.";
   }
 
-  // Fix: Initializing GoogleGenAI instance right before the API call using a named parameter.
+  // Initialize the GoogleGenAI client with the API key as per guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const salesSummary = records.map(r => ({
     date: r.date,
-    product: r.productType,
+    crop: r.cropType,
     qty: r.unitsSold,
     unit: r.unitType,
     price: r.unitPrice,
     total: r.totalSale,
     farmer: `${r.farmerName} (${r.farmerPhone})`,
     customer: `${r.customerName} (${r.customerPhone})`,
+    // Fix: Removed reference to r.createdBy which is not present in SaleRecord type
   }));
 
   const prompt = `
-    Analyze the following agricultural and product sales records from our cooperative.
+    Analyze the following agricultural sales records from our cooperative.
     
     In your report:
     1. Transaction Performance: Audit pricing consistency and volume for the recorded sales.
@@ -38,9 +38,9 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
   `;
 
   try {
-    // Fix: Using 'gemini-3-pro-preview' for the complex reasoning task of auditing sales data.
+    // Generate content using the recommended model and passing both model name and prompt directly
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         temperature: 0.7,
@@ -48,7 +48,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
       },
     });
 
-    // Fix: Directly accessing the .text property from GenerateContentResponse as per guidelines.
+    // Fix: Access .text property directly (not as a method)
     return response.text || "No analysis could be generated.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
