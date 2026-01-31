@@ -5,6 +5,7 @@ import SaleForm from './components/SaleForm.tsx';
 import ProduceForm from './components/ProduceForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
+import { analyzeSalesData } from './services/geminiService.ts';
 import { 
   syncToGoogleSheets, 
   fetchFromGoogleSheets, 
@@ -24,7 +25,7 @@ import {
 } from './services/googleSheetsService.ts';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS';
-type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
+type MarketView = 'SUPPLIER' | 'SALES' | 'CUSTOMER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
@@ -42,71 +43,21 @@ const persistence = {
   }
 };
 
-// Global robust normalization function
 const normalizePhone = (p: any) => {
   let s = String(p || '').trim();
-  if (s.includes('.')) s = s.split('.')[0];
   const clean = s.replace(/\D/g, '');
   return clean.length >= 9 ? clean.slice(-9) : clean;
 };
 
-// Robust passcode normalization
 const normalizePasscode = (p: any) => {
   let s = String(p || '').trim();
-  if (s.includes('.')) s = s.split('.')[0];
   return s.replace(/\D/g, '');
 };
 
-const computeHash = async (record: any): Promise<string> => {
-  const normalizedUnits = Number(record.unitsSold).toString();
-  const normalizedPrice = Number(record.unitPrice).toString();
-  const msg = `${record.id}-${record.date}-${normalizedUnits}-${normalizedPrice}`;
-  const encoder = new TextEncoder();
-  const data = encoder.encode(msg);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
-};
-
 const App: React.FC = () => {
-  const [records, setRecords] = useState<SaleRecord[]>(() => {
-    const saved = persistence.get('food_coop_data');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) { return []; }
-    }
-    return [];
-  });
-
-  const [marketOrders, setMarketOrders] = useState<MarketOrder[]>(() => {
-    const saved = persistence.get('food_coop_orders');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) { return []; }
-    }
-    return [];
-  });
-
-  const [produceListings, setProduceListings] = useState<ProduceListing[]>(() => {
-    const saved = persistence.get('food_coop_produce');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) { return []; }
-    }
-    return [];
-  });
-
-  const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
-    const saved = persistence.get('deleted_produce_blacklist');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [records, setRecords] = useState<SaleRecord[]>([]);
+  const [marketOrders, setMarketOrders] = useState<MarketOrder[]>([]);
+  const [produceListings, setProduceListings] = useState<ProduceListing[]>([]);
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
@@ -114,54 +65,20 @@ const App: React.FC = () => {
   });
   
   const [currentPortal, setCurrentPortal] = useState<PortalType>('HOME');
-  const [marketView, setMarketView] = useState<MarketView>(() => {
-    const saved = persistence.get('agent_session');
-    if (saved) {
-      const agent = JSON.parse(saved);
-      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'CUSTOMER';
-    }
-    return 'CUSTOMER';
-  });
+  const [marketView, setMarketView] = useState<MarketView>('SUPPLIER');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const syncLock = useRef(false);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const [aiReport, setAiReport] = useState<string | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
-  const [fulfillmentData, setFulfillmentData] = useState<any>(null);
-  const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
-
-  const [contactForm, setContactForm] = useState({
-    name: '', email: '', subject: '', message: ''
-  });
+  const syncLock = useRef(false);
 
   const [authForm, setAuthForm] = useState({
     name: '', phone: '', passcode: '', role: SystemRole.FIELD_AGENT, cluster: ''
   });
 
-  const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.name === 'Barack James';
-
-  const isPrivilegedRole = (agent: AgentIdentity | null) => {
-    if (!agent) return false;
-    return isSystemDev || 
-           agent.role === SystemRole.MANAGER || 
-           agent.role === SystemRole.FINANCE_OFFICER || 
-           agent.role === SystemRole.AUDITOR;
-  };
-
-  const availablePortals = useMemo<PortalType[]>(() => {
-    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
-    if (!agentIdentity) return guestPortals;
-    
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
-    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
-    if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
-    
-    let base = [...loggedInBase];
-    if (agentIdentity.role === SystemRole.FINANCE_OFFICER) base.splice(4, 0, 'FINANCE');
-    else if (agentIdentity.role === SystemRole.AUDITOR) base.splice(4, 0, 'AUDIT');
-    else if (agentIdentity.role === SystemRole.MANAGER) base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD');
-    return base;
-  }, [agentIdentity, isSystemDev]);
+  const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
 
   const loadCloudData = useCallback(async () => {
     if (syncLock.current) return;
@@ -175,404 +92,513 @@ const App: React.FC = () => {
         fetchProduceFromCloud()
       ]);
       
-      if (cloudUsers && cloudUsers.length > 0) {
-        setUsers(cloudUsers);
-        persistence.set('coop_users', JSON.stringify(cloudUsers));
-      }
-
-      if (cloudRecords !== null) {
-        setRecords(cloudRecords);
-        persistence.set('food_coop_data', JSON.stringify(cloudRecords));
-      }
-
-      if (cloudOrders !== null) {
-        setMarketOrders(cloudOrders);
-        persistence.set('food_coop_orders', JSON.stringify(cloudOrders));
-      }
-
-      if (cloudProduce !== null) {
-        const blacklist = new Set(deletedProduceIds);
-        const filteredCloud = cloudProduce.filter(cp => !blacklist.has(cp.id));
-        setProduceListings(filteredCloud);
-        persistence.set('food_coop_produce', JSON.stringify(filteredCloud));
-      }
+      if (cloudUsers) setUsers(cloudUsers);
+      if (cloudRecords) setRecords(cloudRecords);
+      if (cloudOrders) setMarketOrders(cloudOrders);
+      if (cloudProduce) setProduceListings(cloudProduce);
+      
       setLastSyncTime(new Date());
-    } catch (e) { console.error("Global Sync failed:", e); } finally {
+    } catch (e) { 
+      console.error("Global Sync failed:", e); 
+    } finally {
       setIsSyncing(false);
       syncLock.current = false;
     }
-  }, [deletedProduceIds]);
+  }, []);
 
-  useEffect(() => {
-    const savedUsers = persistence.get('coop_users');
-    if (savedUsers) { try { setUsers(JSON.parse(savedUsers)); } catch (e) { } }
-    loadCloudData();
-  }, [loadCloudData]);
+  useEffect(() => { loadCloudData(); }, [loadCloudData]);
 
   useEffect(() => {
     const interval = setInterval(() => { loadCloudData(); }, SYNC_POLLING_INTERVAL);
     return () => clearInterval(interval);
   }, [loadCloudData]);
 
-  const filteredRecords = useMemo(() => {
-    let base = records.filter(r => r.id && r.date);
-    if (agentIdentity) {
-      if (!isPrivilegedRole(agentIdentity)) {
-        base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity.phone || ''));
-      }
-    }
-    return base;
-  }, [records, agentIdentity]);
-
   const stats = useMemo(() => {
-    const relevantRecords = filteredRecords;
-    const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + Number(b.coopProfit), 0);
-    return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
-  }, [filteredRecords]);
-
-  const boardMetrics = useMemo(() => {
-    const clusterMap = filteredRecords.reduce((acc: Record<string, { volume: number, profit: number }>, r) => {
-      const cluster = r.cluster || 'Unknown';
-      if (!acc[cluster]) acc[cluster] = { volume: 0, profit: 0 };
-      acc[cluster].volume += Number(r.totalSale);
-      acc[cluster].profit += Number(r.coopProfit);
-      return acc;
-    }, {} as Record<string, { volume: number, profit: number }>);
-    return { clusterPerformance: Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit) as [string, { volume: number, profit: number }][] };
-  }, [filteredRecords]);
+    const totalVolume = records.reduce((a, b) => a + Number(b.totalSale), 0);
+    const totalProfit = records.reduce((a, b) => a + Number(b.coopProfit), 0);
+    const verified = records.filter(r => r.status === RecordStatus.VERIFIED).length;
+    const pending = records.filter(r => r.status !== RecordStatus.VERIFIED).length;
+    return { totalVolume, totalProfit, verified, pending };
+  }, [records]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthLoading(true);
-    
-    const targetPhoneNormalized = normalizePhone(authForm.phone);
-    const targetPasscode = normalizePasscode(authForm.passcode);
-    
-    if (targetPhoneNormalized.length < 8) {
-      alert("Invalid Phone: Please enter a valid phone number.");
-      setIsAuthLoading(false);
-      return;
-    }
+    const targetPhone = normalizePhone(authForm.phone);
+    const targetPass = normalizePasscode(authForm.passcode);
 
     try {
-      const latestCloudUsers = await fetchUsersFromCloud();
-      if (latestCloudUsers && latestCloudUsers.length > 0) {
-        setUsers(latestCloudUsers);
-        persistence.set('coop_users', JSON.stringify(latestCloudUsers));
-      }
-
-      const authPool = latestCloudUsers || users;
-
+      const authPool = await fetchUsersFromCloud() || users;
       if (isRegisterMode) {
-        if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) { 
-          alert("Registration Error: Cluster selection is mandatory."); 
-          setIsAuthLoading(false); 
-          return; 
-        }
-        
-        const newUser: AgentIdentity = { 
-          name: authForm.name.trim(), 
-          phone: authForm.phone.trim(), 
-          passcode: targetPasscode, 
-          role: authForm.role, 
-          cluster: (authForm.role === SystemRole.SYSTEM_DEVELOPER || authForm.role === SystemRole.FINANCE_OFFICER || authForm.role === SystemRole.AUDITOR || authForm.role === SystemRole.MANAGER) ? '-' : (authForm.cluster || 'System'), 
-          status: 'ACTIVE' 
+        const newUser: AgentIdentity = {
+          name: authForm.name,
+          phone: authForm.phone,
+          passcode: targetPass,
+          role: authForm.role,
+          cluster: authForm.cluster || 'N/A',
+          status: 'ACTIVE'
         };
-        
-        const syncSuccess = await syncUserToCloud(newUser);
-        if (!syncSuccess) {
-           alert("Warning: Account created locally, but failed to sync with cloud. Please ensure you have an active internet connection.");
-        }
-        
+        await syncUserToCloud(newUser);
         setAgentIdentity(newUser);
         persistence.set('agent_session', JSON.stringify(newUser));
         setCurrentPortal('HOME');
       } else {
-        const matchedUser = authPool.find(u => {
-          const cloudPhoneNorm = normalizePhone(u.phone);
-          const cloudPassNorm = normalizePasscode(u.passcode);
-          return cloudPhoneNorm === targetPhoneNormalized && cloudPassNorm === targetPasscode;
-        });
-        
-        if (matchedUser) { 
-          setAgentIdentity(matchedUser); 
-          persistence.set('agent_session', JSON.stringify(matchedUser)); 
+        const user = authPool.find(u => normalizePhone(u.phone) === targetPhone && normalizePasscode(u.passcode) === targetPass);
+        if (user) {
+          setAgentIdentity(user);
+          persistence.set('agent_session', JSON.stringify(user));
           setCurrentPortal('HOME');
         } else {
-          alert("Authentication Failed: Account not found or passcode is incorrect."); 
+          alert("Invalid credentials.");
         }
       }
-    } catch (err) { 
-      console.error("Critical Auth Error:", err);
-      alert("System Error: A failure occurred during authentication."); 
-    } finally { 
-      setIsAuthLoading(false); 
+    } catch (err) {
+      alert("Authentication error.");
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    setAgentIdentity(null);
-    persistence.remove('agent_session');
-    setCurrentPortal('HOME');
+  const runAiAudit = async () => {
+    setIsAiAnalyzing(true);
+    try {
+      const report = await analyzeSalesData(records);
+      setAiReport(report);
+    } catch (e) {
+      setAiReport("Failed to generate AI audit.");
+    } finally {
+      setIsAiAnalyzing(false);
+    }
   };
 
-  const renderCustomerPortal = () => (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 mt-12">
-      <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-          <div>
-            <h3 className="text-sm font-black text-black uppercase tracking-widest">Coop Storefront</h3>
-            <p className="text-[9px] font-black text-green-600 uppercase tracking-[0.2em] mt-1">Direct from Local Farmers</p>
+  const renderHome = () => (
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
+        <div className="flex-1 space-y-6">
+          <div className="inline-block bg-green-50 px-4 py-2 rounded-full border border-green-100">
+            <p className="text-[10px] font-black text-green-700 uppercase tracking-widest">Bridging the Agricultural Gap</p>
           </div>
-          <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-            <i className="fas fa-map-marker-alt text-red-600"></i>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Cluster: {agentIdentity?.cluster || 'Unassigned'}</span>
+          <h2 className="text-5xl font-black uppercase tracking-tight text-black leading-none">Connecting Suppliers with Consumers</h2>
+          <p className="text-slate-600 font-medium leading-relaxed text-lg">
+            KPL Food Coop Market is a next-generation platform empowering local clusters with real-time trade tools, 
+            secure financial auditing, and AI-driven market intelligence.
+          </p>
+          <div className="flex gap-4 pt-4">
+            <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-2xl hover:bg-slate-800 transition-all">Enter Market</button>
+            <button onClick={() => setCurrentPortal('ABOUT')} className="bg-white text-black border border-slate-200 px-10 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-50 transition-all">Learn More</button>
           </div>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => (
-              <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${p.cluster === agentIdentity?.cluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
-                      {p.cluster} {p.cluster === agentIdentity?.cluster && ' (Local)'}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-xl font-black text-black uppercase leading-tight">{p.cropType}</p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{p.unitsAvailable} {p.unitType} in stock</p>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100">
-                    <p className="text-lg font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => {/* Order logic */}}
-                  className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <i className="fas fa-shopping-cart"></i> Order Now
-                </button>
-              </div>
-          ))}
+        <div className="flex-1 grid grid-cols-2 gap-6 w-full">
+           <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
+              <p className="text-4xl font-black text-black">{users.length}</p>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-2">Active Members</p>
+           </div>
+           <div className="bg-red-50 p-8 rounded-[2.5rem] border border-red-100">
+              <p className="text-4xl font-black text-red-600">{records.length}</p>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-2">Trade Records</p>
+           </div>
+           <div className="bg-green-50 p-8 rounded-[2.5rem] border border-green-100 col-span-2">
+              <p className="text-4xl font-black text-green-600">KSh {stats.totalVolume.toLocaleString()}</p>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-2">Gross Trade Volume</p>
+           </div>
         </div>
       </div>
     </div>
   );
 
-  const AuditLogTable = ({ data, title, onDelete }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void }) => {
-    const groupedData = data.reduce((acc: Record<string, SaleRecord[]>, r) => {
-        const cluster = r.cluster || 'Unassigned';
-        if (!acc[cluster]) acc[cluster] = [];
-        acc[cluster].push(r);
-        return acc;
-      }, {} as Record<string, SaleRecord[]>);
-    
-    return (
-      <div className="space-y-12">
-        <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {Object.entries(groupedData).map(([cluster, records]) => (
-            <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
-              <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3">
-                <i className="fas fa-map-marker-alt mr-2"></i> Cluster: {cluster}
-              </h4>
-              <table className="w-full text-left">
-                <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                  <tr><th className="pb-6">Date</th><th className="pb-6">Details</th><th className="pb-6">Commodity</th><th className="pb-6">Gross Sale</th><th className="pb-6 text-right">Status</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {records.map(r => (
-                    <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
-                      <td className="py-6 text-slate-400">{r.date}</td>
-                      <td className="py-6">
-                        <div className="space-y-1">
-                          <p className="text-black font-black uppercase text-[10px]">Buyer: {r.customerName}</p>
-                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName}</p>
-                        </div>
-                      </td>
-                      <td className="py-6 text-black uppercase">{r.cropType}</td>
-                      <td className="py-6 font-black text-black">KSh {Number(r.totalSale).toLocaleString()}</td>
-                      <td className="py-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{r.status}</span>
-                          {onDelete && <button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-600 transition-colors p-1"><i className="fas fa-trash-alt text-[10px]"></i></button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+  const renderNews = () => (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <h2 className="text-3xl font-black uppercase tracking-tight text-black">Coop Feed & Updates</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {[
+          { date: 'Oct 24, 2023', title: 'New Maize Pricing Guidelines', content: 'The cooperative board has released new floor prices for grade 1 maize in the Mariwa cluster.' },
+          { date: 'Oct 22, 2023', title: 'Audit Portal v2.5 Released', content: 'Our new AI-driven anomaly detection is now live for all Audit Officers.' },
+          { date: 'Oct 20, 2023', title: 'Expansion to Kabarnet', content: 'Welcome our newest cluster! Kabarnet suppliers can now list produce on the storefront.' }
+        ].map((news, i) => (
+          <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+            <p className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-3">{news.date}</p>
+            <h3 className="text-xl font-black text-black uppercase mb-3">{news.title}</h3>
+            <p className="text-slate-500 font-medium leading-relaxed">{news.content}</p>
+          </div>
         ))}
       </div>
-    );
-  };
+    </div>
+  );
+
+  const renderAbout = () => (
+    <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-500 py-12">
+      <div className="text-center space-y-4">
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-black">Our Mission</h2>
+        <div className="w-20 h-1.5 bg-green-500 mx-auto rounded-full"></div>
+      </div>
+      <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 space-y-8">
+        <p className="text-xl font-medium text-slate-700 leading-loose">
+          KPL Food Coop Market was founded to eliminate the inefficiencies in rural agricultural trade. By providing direct digital links between 
+          local small-holder farmers and regional consumers, we ensure that producers get fair prices and buyers get the freshest quality.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
+          <div className="space-y-3">
+             <i className="fas fa-shield-alt text-3xl text-red-600"></i>
+             <h4 className="font-black uppercase text-sm">Integrity</h4>
+             <p className="text-slate-500 text-sm font-medium">Every transaction is audited and verified for absolute transparency.</p>
+          </div>
+          <div className="space-y-3">
+             <i className="fas fa-bolt text-3xl text-green-500"></i>
+             <h4 className="font-black uppercase text-sm">Efficiency</h4>
+             <p className="text-slate-500 text-sm font-medium">Instant trade committed to cloud storage with zero paperwork.</p>
+          </div>
+          <div className="space-y-3">
+             <i className="fas fa-users text-3xl text-black"></i>
+             <h4 className="font-black uppercase text-sm">Community</h4>
+             <p className="text-slate-500 text-sm font-medium">Owned and operated by the very clusters it serves.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderContact = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 animate-in fade-in duration-500">
+      <div className="space-y-8">
+        <h2 className="text-4xl font-black uppercase tracking-tighter text-black">Get in Touch</h2>
+        <p className="text-lg font-medium text-slate-500">Questions about joining a cluster or using the auditing tools? Our team is here to help.</p>
+        <div className="space-y-6">
+           <div className="flex items-center gap-6">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm text-black"><i className="fas fa-map-marker-alt"></i></div>
+              <div><p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Office</p><p className="font-bold">Mariwa Market Complex, Unit 4</p></div>
+           </div>
+           <div className="flex items-center gap-6">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm text-black"><i className="fas fa-phone"></i></div>
+              <div><p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Phone</p><p className="font-bold">+254 700 000 000</p></div>
+           </div>
+        </div>
+      </div>
+      <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-xl">
+         <form className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
+               <input type="text" placeholder="Your Name" className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none focus:bg-white focus:border-black transition-all font-bold" />
+               <input type="email" placeholder="Email Address" className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none focus:bg-white focus:border-black transition-all font-bold" />
+            </div>
+            <textarea placeholder="Message..." rows={4} className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none focus:bg-white focus:border-black transition-all font-bold"></textarea>
+            <button type="button" className="w-full bg-black text-white py-5 rounded-2xl font-black uppercase tracking-widest text-[11px] hover:bg-slate-800 transition-all shadow-xl">Send Message</button>
+         </form>
+      </div>
+    </div>
+  );
+
+  const renderMarket = () => (
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+        <button onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400'}`}>1. Supplier Hub</button>
+        <button onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400'}`}>2. Sales Records</button>
+        <button onClick={() => setMarketView('CUSTOMER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${marketView === 'CUSTOMER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400'}`}>3. Customer Hub</button>
+      </div>
+
+      {marketView === 'SUPPLIER' && (
+        <div className="space-y-8 animate-in fade-in">
+          <ProduceForm userRole={agentIdentity?.role || SystemRole.FIELD_AGENT} onSubmit={(data) => {
+            const newProduce: ProduceListing = { ...data, id: `PRO-${Date.now()}`, status: 'AVAILABLE', cluster: agentIdentity?.cluster || 'Unassigned' };
+            syncProduceToCloud(newProduce).then(loadCloudData);
+          }} />
+          <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm">
+             <h4 className="text-sm font-black uppercase mb-6 tracking-tight">Your Active Listings</h4>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {produceListings.filter(p => p.supplierPhone === agentIdentity?.phone).map(p => (
+                   <div key={p.id} className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-xs font-black uppercase">{p.cropType}</p>
+                      <p className="text-[10px] font-bold text-slate-400 mt-1">{p.unitsAvailable} {p.unitType} @ KSh {p.sellingPrice}/ea</p>
+                   </div>
+                ))}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {marketView === 'SALES' && (
+        <div className="space-y-8 animate-in fade-in">
+          <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={(data) => {
+            const totalSale = data.unitsSold * data.unitPrice;
+            const newRecord: SaleRecord = { 
+              ...data, 
+              id: `SAL-${Date.now()}`, 
+              totalSale, 
+              coopProfit: totalSale * PROFIT_MARGIN, 
+              status: RecordStatus.DRAFT,
+              createdAt: new Date().toISOString(),
+              signature: 'SIGNED-OFF',
+              agentPhone: agentIdentity?.phone,
+              agentName: agentIdentity?.name
+            };
+            syncToGoogleSheets(newRecord).then(loadCloudData);
+          }} />
+          <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-200 overflow-x-auto">
+            <h3 className="text-sm font-black uppercase mb-8 tracking-widest">Recent Sales Ledger</h3>
+            <table className="w-full text-left">
+              <thead className="border-b border-slate-100 text-[9px] font-black uppercase text-slate-400">
+                <tr><th className="pb-6">Date</th><th className="pb-6">Commodity</th><th className="pb-6">Buyer</th><th className="pb-6">Total</th><th className="pb-6 text-right">Status</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {records.slice(0, 10).map(r => (
+                  <tr key={r.id} className="text-[11px] font-bold">
+                    <td className="py-6 text-slate-400">{r.date}</td>
+                    <td className="py-6 text-black uppercase">{r.cropType}</td>
+                    <td className="py-6">{r.customerName}</td>
+                    <td className="py-6 font-black">KSh {r.totalSale.toLocaleString()}</td>
+                    <td className="py-6 text-right"><span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{r.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {marketView === 'CUSTOMER' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 animate-in fade-in">
+          {produceListings.filter(p => p.status === 'AVAILABLE').map(p => (
+            <div key={p.id} className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-lg flex flex-col justify-between hover:scale-[1.02] transition-all">
+              <div className="space-y-4">
+                <span className="bg-green-50 text-green-700 text-[8px] font-black uppercase px-3 py-1 rounded-full">{p.cluster}</span>
+                <h3 className="text-xl font-black text-black uppercase leading-none">{p.cropType}</h3>
+                <p className="text-2xl font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supplier: {p.supplierName}</p>
+              </div>
+              <button className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-green-600 transition-all">Order Now</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderFinance = () => (
+    <div className="space-y-12 animate-in fade-in duration-500">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <StatCard label="Gross Volume" value={`KSh ${stats.totalVolume.toLocaleString()}`} icon="fa-coins" color="bg-white" accent="text-black" />
+        <StatCard label="Coop Commissions" value={`KSh ${stats.totalProfit.toLocaleString()}`} icon="fa-percentage" color="bg-white" accent="text-green-600" />
+        <StatCard label="Pending Payouts" value={`KSh ${(stats.totalProfit * 0.4).toLocaleString()}`} icon="fa-wallet" color="bg-white" accent="text-red-600" />
+      </div>
+      <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-200">
+         <h3 className="text-sm font-black uppercase mb-8">Commission Ledger</h3>
+         <div className="space-y-4">
+            {records.filter(r => r.coopProfit > 0).slice(0, 10).map(r => (
+               <div key={r.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="text-[11px] font-black uppercase">{r.cropType} Sale</p>
+                    <p className="text-[9px] font-bold text-slate-400">{r.date}</p>
+                  </div>
+                  <p className="text-[13px] font-black text-green-600">+ KSh {r.coopProfit.toLocaleString()}</p>
+               </div>
+            ))}
+         </div>
+      </div>
+    </div>
+  );
+
+  const renderAudit = () => (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-black uppercase tracking-tight text-black">Audit Verification Desk</h2>
+        <button 
+          onClick={runAiAudit} 
+          disabled={isAiAnalyzing}
+          className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-3 disabled:opacity-50"
+        >
+          {isAiAnalyzing ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-robot"></i>}
+          AI Anomaly Check
+        </button>
+      </div>
+
+      {aiReport && (
+        <div className="bg-slate-900 text-white p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
+          <button onClick={() => setAiReport(null)} className="absolute top-6 right-6 text-slate-500 hover:text-white"><i className="fas fa-times"></i></button>
+          <div className="flex items-center gap-4 mb-6">
+             <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center text-black shadow-lg"><i className="fas fa-brain"></i></div>
+             <h3 className="font-black uppercase text-sm tracking-widest">Gemini AI Audit Report</h3>
+          </div>
+          <div className="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-medium">
+            {aiReport}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-200">
+         <h3 className="text-sm font-black uppercase mb-8">Pending Verification ({stats.pending})</h3>
+         <div className="divide-y divide-slate-100">
+            {records.filter(r => r.status !== RecordStatus.VERIFIED).map(r => (
+               <div key={r.id} className="py-6 flex justify-between items-center group">
+                  <div className="space-y-1">
+                     <p className="text-[12px] font-black uppercase text-black">{r.cropType} @ KSh {r.totalSale.toLocaleString()}</p>
+                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Agent: {r.agentName || 'System'} | Cluster: {r.cluster}</p>
+                  </div>
+                  <button onClick={() => {
+                    const updated = { ...r, status: RecordStatus.VERIFIED };
+                    syncToGoogleSheets(updated).then(loadCloudData);
+                  }} className="bg-green-50 text-green-700 px-6 py-3 rounded-xl font-black uppercase text-[9px] hover:bg-green-600 hover:text-white transition-all">Verify Trade</button>
+               </div>
+            ))}
+         </div>
+      </div>
+    </div>
+  );
+
+  const renderBoard = () => (
+    <div className="space-y-12 animate-in fade-in duration-500">
+      <div className="text-center space-y-2">
+         <h2 className="text-4xl font-black uppercase tracking-tighter text-black">Strategic Hub</h2>
+         <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em]">Quarterly Performance Analytics</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+         <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-200">
+            <h3 className="text-sm font-black uppercase mb-8 tracking-widest">Cluster Rankings</h3>
+            <div className="space-y-6">
+               {CLUSTERS.map((c, i) => {
+                 const clusterVolume = records.filter(r => r.cluster === c).reduce((a, b) => a + Number(b.totalSale), 0);
+                 const maxVolume = Math.max(...CLUSTERS.map(cl => records.filter(r => r.cluster === cl).reduce((a, b) => a + Number(b.totalSale), 0)), 1);
+                 const perc = (clusterVolume / maxVolume) * 100;
+                 return (
+                   <div key={c} className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-black uppercase">
+                        <span>{i+1}. {c}</span>
+                        <span>KSh {clusterVolume.toLocaleString()}</span>
+                      </div>
+                      <div className="h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100">
+                         <div className="h-full bg-black transition-all duration-1000" style={{ width: `${perc}%` }}></div>
+                      </div>
+                   </div>
+                 );
+               })}
+            </div>
+         </div>
+         <div className="bg-slate-900 text-white p-12 rounded-[3.5rem] shadow-2xl flex flex-col justify-center items-center text-center space-y-6">
+            <i className="fas fa-chart-line text-5xl text-green-500"></i>
+            <h3 className="text-2xl font-black uppercase leading-tight">Projected Annual Growth</h3>
+            <p className="text-slate-400 font-medium">Based on current trade velocity across {CLUSTERS.length} active clusters.</p>
+            <p className="text-5xl font-black text-green-400">+ 18.4%</p>
+         </div>
+      </div>
+    </div>
+  );
+
+  const renderSystem = () => (
+    <div className="space-y-12 animate-in fade-in duration-500">
+      <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-200">
+        <div className="flex justify-between items-center mb-10">
+           <h3 className="text-sm font-black uppercase tracking-widest">User Directory ({users.length})</h3>
+           <button onClick={() => { if(confirm("Purge all users?")) deleteAllUsersFromCloud().then(loadCloudData); }} className="text-red-600 font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl transition-all"><i className="fas fa-trash-alt"></i> Purge Users</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+           {users.map(u => (
+              <div key={u.phone} className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-start">
+                 <div>
+                    <p className="text-sm font-black uppercase">{u.name}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{u.role} | {u.cluster}</p>
+                 </div>
+                 <button onClick={() => deleteUserFromCloud(u.phone).then(loadCloudData)} className="text-slate-300 hover:text-red-600 transition-all"><i className="fas fa-times-circle"></i></button>
+              </div>
+           ))}
+        </div>
+      </div>
+      
+      <div className="bg-red-50 border border-red-100 p-12 rounded-[3.5rem] flex flex-col md:flex-row items-center gap-12">
+         <div className="flex-1 space-y-4">
+            <h3 className="text-2xl font-black text-red-600 uppercase tracking-tight">System Maintenance</h3>
+            <p className="text-red-700 font-medium opacity-80">Perform critical database operations and cloud resets. These actions are irreversible.</p>
+         </div>
+         <div className="flex gap-4">
+            <button onClick={() => { if(confirm("Reset all sales records?")) deleteAllRecordsFromCloud().then(loadCloudData); }} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-700 shadow-xl transition-all">Clear Trade Data</button>
+            <button onClick={() => { if(confirm("Purge all market listings?")) deleteAllProduceFromCloud().then(loadCloudData); }} className="bg-white text-red-600 border border-red-200 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-50 transition-all">Flush Storefront</button>
+         </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
         <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-4 gap-6">
-          <div className="flex items-center space-x-5">
-            <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden">
-              <img src={APP_LOGO} alt="KPL Logo" className="w-10 h-10 object-contain" />
+          <div className="flex items-center space-x-6">
+            <div className="bg-white w-20 h-20 rounded-[2rem] flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden">
+              <img src={APP_LOGO} alt="KPL Logo" className="w-12 h-12 object-contain" />
             </div>
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop</h1>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{agentIdentity ? `${agentIdentity.name} - ${agentIdentity.cluster}` : 'Guest Hub'}</p>
+              <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
+              <p className="text-green-600 text-[10px] font-black uppercase tracking-[0.3em] mt-2">Connecting Suppliers with Consumers</p>
             </div>
           </div>
           <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
             {agentIdentity ? (
               <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6">
                    <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Sync</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
-                   <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
+                   <div className="w-10 h-10 bg-black text-white rounded-2xl flex items-center justify-center text-[10px] font-black">{agentIdentity.name.charAt(0)}</div>
+                   <button onClick={() => { setAgentIdentity(null); persistence.remove('agent_session'); setCurrentPortal('HOME'); }} className="text-slate-400 hover:text-red-600 transition-all"><i className="fas fa-power-off"></i></button>
               </div>
             ) : (
               <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center gap-3">
                 <i className="fas fa-user-shield"></i> Member Login
               </button>
             )}
-            <div className="flex gap-4">
+            <div className="flex gap-6 mt-2">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black'}`}>Home</button>
+              <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black'}`}>News</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black'}`}>About</button>
               <button onClick={() => setCurrentPortal('CONTACT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'CONTACT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black'}`}>Contact</button>
             </div>
           </div>
         </div>
-        <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN'].includes(p)).map(p => (
-            <button key={p} type="button" onClick={() => setCurrentPortal(p)} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>{p}</button>
-          ))}
-        </nav>
+        {agentIdentity && (
+          <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
+            {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN'].includes(p)).map(p => (
+              <button key={p} onClick={() => setCurrentPortal(p)} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>{p}</button>
+            ))}
+          </nav>
+        )}
       </header>
 
-      <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12">
+      <main className="container mx-auto px-6 -mt-8 relative z-20">
+        {currentPortal === 'HOME' && renderHome()}
+        {currentPortal === 'NEWS' && renderNews()}
+        {currentPortal === 'ABOUT' && renderAbout()}
+        {currentPortal === 'CONTACT' && renderContact()}
+        {currentPortal === 'MARKET' && renderMarket()}
+        {currentPortal === 'FINANCE' && renderFinance()}
+        {currentPortal === 'AUDIT' && renderAudit()}
+        {currentPortal === 'BOARD' && renderBoard()}
+        {currentPortal === 'SYSTEM' && renderSystem()}
+
         {currentPortal === 'LOGIN' && !agentIdentity && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center py-20">
             <div className="w-full max-w-[450px] bg-white border border-slate-200 rounded-[3rem] shadow-2xl p-12 space-y-8">
               <div className="text-center space-y-2">
-                <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-                  <i className={`fas ${isRegisterMode ? 'fa-user-plus' : 'fa-lock'} text-2xl`}></i>
-                </div>
-                <h2 className="text-2xl font-black text-black uppercase tracking-tight">{isRegisterMode ? 'Create Account' : 'Welcome Back'}</h2>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{isRegisterMode ? 'Join the cooperative network' : 'Secure access to market hub'}</p>
+                <div className="w-16 h-16 bg-black text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl"><i className={`fas ${isRegisterMode ? 'fa-user-plus' : 'fa-lock'}`}></i></div>
+                <h2 className="text-2xl font-black text-black uppercase tracking-tight">{isRegisterMode ? 'Join Coop' : 'Welcome Back'}</h2>
               </div>
-
               <form onSubmit={handleAuth} className="space-y-4">
+                {isRegisterMode && <input type="text" placeholder="Full Name" value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none font-bold" />}
+                <input type="tel" placeholder="Phone (07...)" value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none font-bold" />
+                <input type="password" placeholder="Passcode" maxLength={4} value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value})} className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none font-bold text-center tracking-[0.5em] text-2xl" />
                 {isRegisterMode && (
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4">Full Name</label>
-                    <input type="text" placeholder="..." required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-black transition-all" />
-                  </div>
+                  <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as SystemRole})} className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none font-bold">
+                     {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
                 )}
-                
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4">Phone Number</label>
-                  <input type="tel" placeholder="07..." required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-black transition-all" />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4">4-Digit Passcode</label>
-                  <input type="password" placeholder="****" required maxLength={4} value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black text-center text-xl tracking-[0.5em] outline-none focus:bg-white focus:border-black transition-all" />
-                </div>
-
                 {isRegisterMode && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4">Member Role</label>
-                      <select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none">
-                        {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    </div>
-                    {![SystemRole.SYSTEM_DEVELOPER, SystemRole.FINANCE_OFFICER, SystemRole.AUDITOR, SystemRole.MANAGER].includes(authForm.role) && (
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-4">Cluster</label>
-                        <select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none">
-                          <option value="" disabled>Select...</option>
-                          {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                    )}
-                  </div>
+                   <select value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 p-5 rounded-2xl border border-slate-100 outline-none font-bold">
+                      <option value="">Select Cluster</option>
+                      {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
+                   </select>
                 )}
-
-                <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95 mt-6">
-                  {isAuthLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : (isRegisterMode ? 'Complete Registration' : 'Secure Login')}
-                </button>
+                <button type="submit" className="w-full bg-black text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl transition-all active:scale-95">{isAuthLoading ? '...' : (isRegisterMode ? 'Register' : 'Login')}</button>
               </form>
-
-              <div className="pt-6 border-t border-slate-50 text-center">
-                <button onClick={() => { setIsRegisterMode(!isRegisterMode); }} className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-black transition-colors">
-                  {isRegisterMode ? 'Already have an account? Login' : "Don't have an account? Create one"}
-                </button>
-              </div>
+              <button onClick={() => setIsRegisterMode(!isRegisterMode)} className="w-full text-[10px] font-black uppercase text-slate-400 hover:text-black">{isRegisterMode ? 'Back to Login' : 'Create New Member Account'}</button>
             </div>
-          </div>
-        )}
-
-        {currentPortal === 'HOME' && (
-          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
-              <div className="flex-1 space-y-6">
-                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">Empowering Rural Trade</h2>
-                <p className="text-slate-600 font-medium leading-relaxed">
-                  Join the most efficient agricultural cooperative platform in the region. Connect with fresh produce, manage sales, and leverage AI insights for growth.
-                </p>
-                <div className="flex gap-4">
-                  {!agentIdentity ? (
-                    <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Get Started</button>
-                  ) : (
-                    <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Go to Market</button>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div className="bg-green-50 p-8 rounded-3xl border border-green-100 text-center">
-                  <p className="text-3xl font-black text-green-600">{users.length}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Members</p>
-                </div>
-                <div className="bg-red-50 p-8 rounded-3xl border border-red-100 text-center">
-                  <p className="text-3xl font-black text-red-600">{records.length}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Trades</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentPortal === 'MARKET' && agentIdentity && (
-          <div className="space-y-8 animate-in fade-in duration-300">
-            <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <button type="button" onClick={() => setMarketView('CUSTOMER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'CUSTOMER' ? 'bg-black text-white' : 'bg-slate-50 text-slate-400'}`}>Customer Hub</button>
-                <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white' : 'bg-slate-50 text-slate-400'}`}>Supplier Hub</button>
-                <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white' : 'bg-slate-50 text-slate-400'}`}>Sales Records</button>
-            </div>
-            
-            {marketView === 'CUSTOMER' && renderCustomerPortal()}
-            
-            {marketView === 'SUPPLIER' && (
-              <div className="space-y-12">
-                <ProduceForm userRole={agentIdentity.role} defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} onSubmit={() => {}} />
-              </div>
-            )}
-
-            {marketView === 'SALES' && (
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <StatCard label="Pending" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" />
-                  <StatCard label="Verified" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" />
-                </div>
-                <AuditLogTable data={filteredRecords} title="Recent Activity" />
-              </div>
-            )}
           </div>
         )}
       </main>
     </div>
   );
 };
+
+const availablePortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT', 'MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
 
 export default App;
