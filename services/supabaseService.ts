@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types';
 
@@ -54,12 +53,6 @@ export const deleteRecord = async (id: string) => {
   return !error;
 };
 
-export const deleteAllRecords = async () => {
-  if (!isClientReady()) return false;
-  const { error } = await supabase!.from('records').delete().neq('id', 'placeholder_to_match_all');
-  return !error;
-};
-
 /* =======================
    USERS
 ======================= */
@@ -97,12 +90,6 @@ export const deleteUser = async (phone: string) => {
   return !error;
 };
 
-export const deleteAllUsers = async () => {
-  if (!isClientReady()) return false;
-  const { error } = await supabase!.from('users').delete().neq('phone', 'placeholder_to_match_all');
-  return !error;
-};
-
 /* =======================
    ORDERS
 ======================= */
@@ -135,12 +122,6 @@ export const fetchOrders = async () => {
   }
 
   return data as MarketOrder[];
-};
-
-export const deleteAllOrders = async () => {
-  if (!isClientReady()) return false;
-  const { error } = await supabase!.from('orders').delete().neq('id', 'placeholder_to_match_all');
-  return !error;
 };
 
 /* =======================
@@ -182,19 +163,11 @@ export const deleteProduce = async (id: string) => {
   const { error } = await supabase!.from('produce').delete().eq('id', id);
   return !error;
 };
-
-export const deleteAllProduce = async () => {
-  if (!isClientReady()) return false;
-  const { error } = await supabase!.from('produce').delete().neq('id', 'placeholder_to_match_all');
-  return !error;
-};
-
 export const getCurrentUserProfile = async () => {
-  if (!isClientReady()) return null;
-  const { data: session } = await supabase!.auth.getSession();
+  const { data: session } = await supabase.auth.getSession();
   if (!session.session) return null;
 
-  const { data, error } = await supabase!
+  const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', session.session.user.id)
