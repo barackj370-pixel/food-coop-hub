@@ -164,3 +164,17 @@ export const deleteProduce = async (id: string) => {
   const { error } = await supabase!.from('produce').delete().eq('id', id);
   return !error;
 };
+export const getCurrentUserProfile = async () => {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) return null;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', session.session.user.id)
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
