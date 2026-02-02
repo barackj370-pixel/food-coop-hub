@@ -12,13 +12,14 @@ export enum OrderStatus {
 }
 
 export enum SystemRole {
-  FIELD_AGENT = 'Field Agent',
+ export enum SystemRole {
+  SALES_AGENT = 'Sales Agent',
   FINANCE_OFFICER = 'Finance Officer',
-  AUDITOR = 'Audit Officer',
-  MANAGER = 'Director',
+  AUDIT_OFFICER = 'Audit Officer',
+  DIRECTOR = 'Director',
   SYSTEM_DEVELOPER = 'System Developer',
-  SUPPLIER = 'Supplier'
 }
+
 
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
 
