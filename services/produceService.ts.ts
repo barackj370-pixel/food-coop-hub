@@ -14,3 +14,4 @@ USING (
 CREATE POLICY "produce_insert"
 ON produce FOR INSERT
 WITH CHECK (agent_id = auth.uid());
+
