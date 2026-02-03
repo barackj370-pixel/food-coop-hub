@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole } from '../types';
 
+/* ───────── CLUSTERS ───────── */
 const CLUSTERS = [
   'Mariwa',
   'Rabolo',
@@ -24,16 +25,16 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<SystemRole | ''>('');
   const [cluster, setCluster] = useState('');
-  const [passcode, setPasscode] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const normalizePhone = (input: string) => {
+  /* ───────── PHONE NORMALIZATION (KE) ───────── */
+  const normalizePhone = (input: string): string => {
     const cleaned = input.replace(/\D/g, '');
-    if (cleaned.length < 9) return null;
     return `+254${cleaned.slice(-9)}`;
   };
 
+  /* ───────── LOAD INVITED USER ───────── */
   useEffect(() => {
     const loadProfile = async () => {
       const { data } = await supabase.auth.getUser();
@@ -45,7 +46,8 @@ export default function LoginPage() {
         .eq('id', data.user.id)
         .single();
 
-      if (profile?.status === 'INVITED' || !profile?.role) {
+      // Invited OR incomplete profile
+      if (!profile || profile.status === 'INVITED' || !profile.role) {
         setIsCompletingProfile(true);
         setFullName(data.user.user_metadata?.full_name ?? '');
         setPhone(data.user.phone ?? '');
@@ -55,67 +57,123 @@ export default function LoginPage() {
     loadProfile();
   }, []);
 
+  /* ───────── FINALIZE PROFILE ───────── */
   const finalizeProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     if (!role) {
-      setError('Select a role');
+      setError('Please select a role.');
       setLoading(false);
       return;
     }
 
-    if (CLUSTER_ROLES.includes(role as SystemRole) && !cluster) {
-      setError('Select a cluster');
+    if (CLUSTER_ROLES.includes(role) && !cluster) {
+      setError('Please select a cluster.');
       setLoading(false);
       return;
     }
 
     const { data } = await supabase.auth.getUser();
-    if (!data.user) return;
+    if (!data.user) {
+      setError('No active session.');
+      setLoading(false);
+      return;
+    }
 
-    const normalized = normalizePhone(phone);
+    const normalizedPhone = normalizePhone(phone);
 
     const { error } = await supabase
       .from('profiles')
       .update({
-        name: fullName,
-        phone: normalized,
+        name: fullName.trim(),
+        phone: normalizedPhone,
         role,
-        cluster: CLUSTER_ROLES.includes(role as SystemRole) ? cluster : null,
+        cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
         status: 'ACTIVE',
       })
       .eq('id', data.user.id);
 
-    if (error) setError(error.message);
-    else window.location.reload();
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
 
-    setLoading(false);
+    window.location.reload();
   };
 
+  /* ───────── FINALIZE PROFILE UI ───────── */
   if (isCompletingProfile) {
     return (
-      <form onSubmit={finalizeProfile}>
-        <input value={fullName} onChange={e => setFullName(e.target.value)} required />
-        <input value={phone} onChange={e => setPhone(e.target.value)} required />
-        <select value={role} onChange={e => setRole(e.target.value as SystemRole)} required>
-          <option value="" disabled>Select role</option>
-          {Object.values(SystemRole).map(r => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
-        {CLUSTER_ROLES.includes(role as SystemRole) && (
-          <select value={cluster} onChange={e => setCluster(e.target.value)} required>
-            <option value="" disabled>Select cluster</option>
-            {CLUSTERS.map(c => <option key={c}>{c}</option>)}
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+        <form
+          onSubmit={finalizeProfile}
+          className="w-full max-w-md space-y-4 p-8 bg-white/5 rounded-3xl"
+        >
+          <h1 className="text-xl font-bold text-center">
+            Complete Your Profile
+          </h1>
+
+          <input
+            required
+            placeholder="Full name"
+            value={fullName}
+            onChange={e => setFullName(e.target.value)}
+            className="w-full p-3 rounded bg-white/10"
+          />
+
+          <input
+            required
+            placeholder="Phone (07…)"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            className="w-full p-3 rounded bg-white/10"
+          />
+
+          <select
+            required
+            value={role}
+            onChange={e => setRole(e.target.value as SystemRole)}
+            className="w-full p-3 rounded bg-white/10"
+          >
+            <option value="" disabled>Select role</option>
+            {Object.values(SystemRole).map(r => (
+              <option key={r} value={r} className="text-black">
+                {r.replace('_', ' ')}
+              </option>
+            ))}
           </select>
-        )}
-        <button disabled={loading}>Finalize</button>
-        {error && <p>{error}</p>}
-      </form>
+
+          {role && CLUSTER_ROLES.includes(role) && (
+            <select
+              required
+              value={cluster}
+              onChange={e => setCluster(e.target.value)}
+              className="w-full p-3 rounded bg-white/10"
+            >
+              <option value="" disabled>Select cluster</option>
+              {CLUSTERS.map(c => (
+                <option key={c} value={c} className="text-black">
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          <button
+            disabled={loading}
+            className="w-full bg-green-600 py-3 rounded font-bold"
+          >
+            {loading ? 'Saving…' : 'Finalize Profile'}
+          </button>
+        </form>
+      </div>
     );
   }
 
-  return null; // handled elsewhere
+  return null;
 }
