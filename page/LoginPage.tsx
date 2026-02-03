@@ -13,6 +13,7 @@ const CLUSTERS = [
   'Apuoyo',
 ];
 
+/* Roles that must select a cluster */
 const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.FIELD_AGENT,
   SystemRole.SUPPLIER,
@@ -26,12 +27,11 @@ const LoginPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [passcode, setPasscode] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<SystemRole | null>(null);
+  const [role, setRole] = useState<SystemRole | ''>('');
   const [cluster, setCluster] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   /* ───────── PHONE NORMALIZATION (KE) ───────── */
   const normalizePhone = (input: string): string | null => {
@@ -40,40 +40,43 @@ const LoginPage: React.FC = () => {
     return `+254${cleaned.slice(-9)}`;
   };
 
-  /* ───────── CHECK EXISTING SESSION ───────── */
+  /* ───────── CHECK SESSION & PROFILE ───────── */
   useEffect(() => {
-    const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return;
+    const init = async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return;
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
+        .select('id, name, role')
+        .eq('id', auth.user.id)
         .single();
 
-      if (!profile) {
+      if (!profile?.role || !profile?.name) {
         setIsCompletingProfile(true);
-        setFullName(data.user.user_metadata?.full_name || '');
-        if (data.user.phone) setPhone(data.user.phone);
+        setFullName(auth.user.user_metadata?.full_name || '');
+        if (auth.user.phone) setPhone(auth.user.phone);
       }
     };
 
-    checkUser();
+    init();
   }, []);
 
   /* ───────── GOOGLE LOGIN ───────── */
   const handleGoogleLogin = async () => {
     setLoading(true);
+    setError(null);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
     });
+
     if (error) setError(error.message);
     setLoading(false);
   };
 
-  /* ───────── COMPLETE PROFILE ───────── */
+  /* ───────── COMPLETE PROFILE (INVITE / OAUTH) ───────── */
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -91,23 +94,32 @@ const LoginPage: React.FC = () => {
       return;
     }
 
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
       setError('No active session.');
       setLoading(false);
       return;
     }
 
-    const normalized = normalizePhone(phone) || data.user.phone;
+    const provider =
+      auth.user.app_metadata?.provider ||
+      auth.user.app_metadata?.providers?.[0] ||
+      'invite';
 
-    const { error } = await supabase.from('profiles').upsert({
-      id: data.user.id,
-      name: fullName,
-      role,
-      cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
-      phone: normalized,
-      updated_at: new Date().toISOString(),
-    });
+    const normalizedPhone =
+      normalizePhone(phone) || auth.user.phone || null;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: fullName,
+        role,
+        cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+        phone: normalizedPhone,
+        provider,
+        status: 'active',
+      })
+      .eq('id', auth.user.id);
 
     if (error) {
       setError(error.message);
@@ -118,12 +130,11 @@ const LoginPage: React.FC = () => {
     setLoading(false);
   };
 
-  /* ───────── SIGN UP / LOGIN ───────── */
+  /* ───────── LOGIN / SIGNUP (PHONE) ───────── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setMessage(null);
 
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
@@ -133,45 +144,12 @@ const LoginPage: React.FC = () => {
     }
 
     if (isSignUp) {
-      if (!role) {
-        setError('Please select a role.');
-        setLoading(false);
-        return;
-      }
-
-      if (CLUSTER_ROLES.includes(role) && !cluster) {
-        setError('Please select a cluster.');
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         phone: normalizedPhone,
         password: passcode,
-        options: {
-          data: { full_name: fullName, role },
-        },
       });
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-
-      if (data.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          name: fullName,
-          role,
-          cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
-          phone: normalizedPhone,
-          updated_at: new Date().toISOString(),
-        });
-      }
-
-      setMessage('Account created. Please log in.');
-      setIsSignUp(false);
+      if (error) setError(error.message);
     } else {
       const { error } = await supabase.auth.signInWithPassword({
         phone: normalizedPhone,
@@ -187,9 +165,16 @@ const LoginPage: React.FC = () => {
   /* ───────── UI ───────── */
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-      <form onSubmit={isCompletingProfile ? handleCompleteProfile : handleSubmit} className="w-full max-w-md space-y-4 p-8 bg-white/5 rounded-3xl">
+      <form
+        onSubmit={isCompletingProfile ? handleCompleteProfile : handleSubmit}
+        className="w-full max-w-md space-y-4 p-8 bg-white/5 rounded-3xl"
+      >
         <h1 className="text-2xl font-bold text-center">
-          {isCompletingProfile ? 'Finalize Profile' : isSignUp ? 'Create Account' : 'Login'}
+          {isCompletingProfile
+            ? 'Complete Profile'
+            : isSignUp
+            ? 'Create Account'
+            : 'Login'}
         </h1>
 
         {(isSignUp || isCompletingProfile) && (
@@ -204,12 +189,14 @@ const LoginPage: React.FC = () => {
 
             <select
               required
-              value={role ?? ''}
+              value={role}
               onChange={(e) => setRole(e.target.value as SystemRole)}
               className="w-full p-3 rounded bg-white/10"
             >
-              <option value="" disabled>Select role</option>
-              {Object.values(SystemRole).map(r => (
+              <option value="" disabled>
+                Select role
+              </option>
+              {Object.values(SystemRole).map((r) => (
                 <option key={r} value={r} className="text-black">
                   {r.replace('_', ' ')}
                 </option>
@@ -223,9 +210,13 @@ const LoginPage: React.FC = () => {
                 onChange={(e) => setCluster(e.target.value)}
                 className="w-full p-3 rounded bg-white/10"
               >
-                <option value="" disabled>Select cluster</option>
-                {CLUSTERS.map(c => (
-                  <option key={c} value={c} className="text-black">{c}</option>
+                <option value="" disabled>
+                  Select cluster
+                </option>
+                {CLUSTERS.map((c) => (
+                  <option key={c} value={c} className="text-black">
+                    {c}
+                  </option>
                 ))}
               </select>
             )}
@@ -250,7 +241,6 @@ const LoginPage: React.FC = () => {
         />
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
-        {message && <p className="text-green-400 text-sm">{message}</p>}
 
         <button className="w-full bg-green-600 py-3 rounded font-bold">
           {loading ? 'Please wait…' : isCompletingProfile ? 'Save Profile' : isSignUp ? 'Register' : 'Login'}
