@@ -59,50 +59,75 @@ export default function LoginPage() {
 
   /* ───────── FINALIZE PROFILE ───────── */
   const finalizeProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
 
-    if (!role) {
-      setError('Please select a role.');
-      setLoading(false);
-      return;
-    }
+  if (!role) {
+    setError('Please select a role.');
+    setLoading(false);
+    return;
+  }
 
-    if (CLUSTER_ROLES.includes(role) && !cluster) {
-      setError('Please select a cluster.');
-      setLoading(false);
-      return;
-    }
+  if (CLUSTER_ROLES.includes(role) && !cluster) {
+    setError('Please select a cluster.');
+    setLoading(false);
+    return;
+  }
 
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
-      setError('No active session.');
-      setLoading(false);
-      return;
-    }
+  const { data: authData, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !authData.user) {
+    setError('No active session.');
+    setLoading(false);
+    return;
+  }
 
-    const normalizedPhone = normalizePhone(phone);
+  const normalizedPhone = normalizePhone(phone);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        name: fullName.trim(),
-        phone: normalizedPhone,
-        role,
-        cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
-        status: 'ACTIVE',
-      })
-      .eq('id', data.user.id);
+  /* ================================
+     1️⃣ UPDATE AUTH USER METADATA
+     THIS IS THE MOST IMPORTANT STEP
+     ================================ */
+  const { error: authUpdateError } = await supabase.auth.updateUser({
+    phone: normalizedPhone,
+    data: {
+      full_name: fullName.trim(),
+      phone: normalizedPhone,
+      role,
+      cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+      provider_type: 'phone',
+    },
+  });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
+  if (authUpdateError) {
+    setError(authUpdateError.message);
+    setLoading(false);
+    return;
+  }
 
-    window.location.reload();
-  };
+  /* ================================
+     2️⃣ UPDATE PROFILES TABLE
+     (NOW RLS + TRIGGER WILL WORK)
+     ================================ */
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      name: fullName.trim(),
+      phone: normalizedPhone,
+      role,
+      cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+      status: 'ACTIVE',
+    })
+    .eq('id', authData.user.id);
+
+  if (profileError) {
+    setError(profileError.message);
+    setLoading(false);
+    return;
+  }
+
+  window.location.reload();
+};
 
   /* ───────── FINALIZE PROFILE UI ───────── */
   if (isCompletingProfile) {
@@ -177,3 +202,4 @@ export default function LoginPage() {
 
   return null;
 }
+
