@@ -109,16 +109,20 @@ export default function LoginPage() {
      2️⃣ UPDATE PROFILES TABLE
      (NOW RLS + TRIGGER WILL WORK)
      ================================ */
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({
+  const { error } = await supabase
+  .from('profiles')
+  .upsert(
+    {
+      id: data.user.id,              // REQUIRED
       name: fullName.trim(),
       phone: normalizedPhone,
       role,
       cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
       status: 'ACTIVE',
-    })
-    .eq('id', authData.user.id);
+    },
+    { onConflict: 'id' }
+  );
+
 
   if (profileError) {
     setError(profileError.message);
@@ -202,4 +206,5 @@ export default function LoginPage() {
 
   return null;
 }
+
 
