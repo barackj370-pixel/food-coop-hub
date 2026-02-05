@@ -84,13 +84,14 @@ export default function LoginPage() {
 
   const normalizedPhone = normalizePhone(phone);
 
-  /* 1️⃣ UPDATE AUTH METADATA */
+  /* 1️⃣ Update auth metadata */
   const { error: authUpdateError } = await supabase.auth.updateUser({
     data: {
       full_name: fullName.trim(),
       phone: normalizedPhone,
       role,
       cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+      provider_type: 'phone',
     },
   });
 
@@ -100,7 +101,7 @@ export default function LoginPage() {
     return;
   }
 
-  /* 2️⃣ UPSERT PROFILE ROW (THIS FIXES NULLS) */
+  /* 2️⃣ Upsert profile */
   const { error: profileError } = await supabase
     .from('profiles')
     .upsert(
@@ -123,6 +124,7 @@ export default function LoginPage() {
 
   window.location.reload();
 };
+
 
 
   /* ───────── FINALIZE PROFILE UI ───────── */
@@ -198,6 +200,7 @@ export default function LoginPage() {
 
   return null;
 }
+
 
 
 
