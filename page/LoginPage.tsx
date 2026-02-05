@@ -111,17 +111,14 @@ export default function LoginPage() {
      ================================ */
   const { error } = await supabase
   .from('profiles')
-  .upsert(
-    {
-      id: data.user.id,              // REQUIRED
-      name: fullName.trim(),
-      phone: normalizedPhone,
-      role,
-      cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
-      status: 'ACTIVE',
-    },
-    { onConflict: 'id' }
-  );
+.upsert({
+  id: data.user.id,
+  name: fullName.trim(),
+  phone: normalizedPhone,
+  role,
+  cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+  status: 'ACTIVE',
+}, { onConflict: 'id' });
 
 
   if (profileError) {
@@ -206,5 +203,6 @@ export default function LoginPage() {
 
   return null;
 }
+
 
 
