@@ -84,18 +84,13 @@ export default function LoginPage() {
 
   const normalizedPhone = normalizePhone(phone);
 
-  /* ================================
-     1️⃣ UPDATE AUTH USER METADATA
-     THIS IS THE MOST IMPORTANT STEP
-     ================================ */
+  /* 1️⃣ UPDATE AUTH METADATA */
   const { error: authUpdateError } = await supabase.auth.updateUser({
-    phone: normalizedPhone,
     data: {
       full_name: fullName.trim(),
       phone: normalizedPhone,
       role,
       cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
-      provider_type: 'phone',
     },
   });
 
@@ -105,21 +100,20 @@ export default function LoginPage() {
     return;
   }
 
-  /* ================================
-     2️⃣ UPDATE PROFILES TABLE
-     (NOW RLS + TRIGGER WILL WORK)
-     ================================ */
-  const { error } = await supabase
-  .from('profiles')
-.upsert({
-  id: data.user.id,
-  name: fullName.trim(),
-  phone: normalizedPhone,
-  role,
-  cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
-  status: 'ACTIVE',
-}, { onConflict: 'id' });
-
+  /* 2️⃣ UPSERT PROFILE ROW (THIS FIXES NULLS) */
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: authData.user.id,
+        name: fullName.trim(),
+        phone: normalizedPhone,
+        role,
+        cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+        status: 'ACTIVE',
+      },
+      { onConflict: 'id' }
+    );
 
   if (profileError) {
     setError(profileError.message);
@@ -129,6 +123,7 @@ export default function LoginPage() {
 
   window.location.reload();
 };
+
 
   /* ───────── FINALIZE PROFILE UI ───────── */
   if (isCompletingProfile) {
@@ -203,6 +198,7 @@ export default function LoginPage() {
 
   return null;
 }
+
 
 
 
