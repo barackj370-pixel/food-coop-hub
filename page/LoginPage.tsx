@@ -14,7 +14,7 @@ const CLUSTERS = [
 ];
 
 const CLUSTER_ROLES: SystemRole[] = [
-  SystemRole.FIELD_AGENT,
+  SystemRole.SALES_AGENT,
   SystemRole.SUPPLIER,
   SystemRole.CUSTOMER,
 ];
@@ -200,6 +200,7 @@ export default function LoginPage() {
 
   return null;
 }
+
 
 
 
