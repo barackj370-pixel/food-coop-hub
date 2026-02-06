@@ -12,12 +12,13 @@ export enum OrderStatus {
 }
 
 export enum SystemRole {
-  SALES_AGENT = 'SALES_AGENT',
-  SUPPLIER = 'SUPPLIER',
-  CUSTOMER = 'CUSTOMER',
-  FINANCE_OFFICER = 'FINANCE_OFFICER',
-  AUDIT_OFFICER = 'AUDIT_OFFICER',
-  SYSTEM_DEVELOPER = 'SYSTEM_DEVELOPER',
+  SALES_AGENT = 'Sales Agent',
+  SUPPLIER = 'Supplier',
+  CUSTOMER = 'Customer',
+  FINANCE_OFFICER = 'Finance Officer',
+  AUDIT_OFFICER = 'Audit Officer',
+  DIRECTOR = 'Director',
+  SYSTEM_DEVELOPER = 'System Developer',
 }
 
 
