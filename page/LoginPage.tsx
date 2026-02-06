@@ -182,29 +182,26 @@ if (CLUSTER_ROLES.includes(role) && !cluster) {
   <option value={SystemRole.DIRECTOR}>Director</option>
   <option value={SystemRole.SYSTEM_DEVELOPER}>System Developer</option>
 </select>
-
-
-
-       {role && CLUSTER_ROLES.includes(role) && (
-  <select
-    required
-    value={cluster}
-    onChange={(e) => setCluster(e.target.value)}
-    className="w-full p-3 rounded bg-white/10"
-  >
-    <option value="" disabled>
-      Select cluster
-    </option>
-
-    {CLUSTERS.map((c) => (
-      <option key={c} value={c} className="text-black">
-        {c}
+      {(role === SystemRole.SALES_AGENT ||
+  role === SystemRole.SUPPLIER ||
+  role === SystemRole.CUSTOMER) && (
+    <select
+      required
+      value={cluster}
+      onChange={(e) => setCluster(e.target.value)}
+      className="w-full p-3 rounded bg-white/10"
+    >
+      <option value="" disabled>
+        Select cluster
       </option>
-    ))}
-  </select>
+
+      {CLUSTERS.map((c) => (
+        <option key={c} value={c} className="text-black">
+          {c}
+        </option>
+      ))}
+    </select>
 )}
-
-
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
         <button
@@ -217,6 +214,7 @@ if (CLUSTER_ROLES.includes(role) && !cluster) {
     </div>
   );
 }
+
 
 
 
