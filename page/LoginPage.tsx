@@ -168,7 +168,10 @@ export default function LoginPage() {
   onChange={(e) => setRole(e.target.value as SystemRole)}
   className="w-full p-3 rounded bg-white/10"
 >
-  <option value="" disabled>Select role</option>
+  <option value="" disabled>
+    Select role
+  </option>
+
   <option value={SystemRole.SALES_AGENT}>Sales Agent</option>
   <option value={SystemRole.SUPPLIER}>Supplier</option>
   <option value={SystemRole.CUSTOMER}>Customer</option>
@@ -177,6 +180,7 @@ export default function LoginPage() {
   <option value={SystemRole.DIRECTOR}>Director</option>
   <option value={SystemRole.SYSTEM_DEVELOPER}>System Developer</option>
 </select>
+
 
 
        {role && CLUSTER_ROLES.includes(role) && (
@@ -206,6 +210,7 @@ export default function LoginPage() {
     </div>
   );
 }
+
 
 
 
