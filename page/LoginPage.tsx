@@ -20,15 +20,17 @@ const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.CUSTOMER,
 ];
 
-const requiresCluster = (role: SystemRole | '') =>
-  !!role && CLUSTER_ROLES.includes(role as SystemRole);
-
 export default function LoginPage() {
-  const [isCompletingProfile, setIsCompletingProfile] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  /* 🔑 IMPORTANT: DEFAULT ROLE IS SALES_AGENT */
+  const [role, setRole] = useState<SystemRole>(SystemRole.SALES_AGENT);
+  const [cluster, setCluster] = useState('');
+
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
- const [role, setRole] = useState<SystemRole>(SystemRole.SALES_AGENT);
-  const [cluster, setCluster] = useState('');
+  const [passcode, setPasscode] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,122 +41,115 @@ export default function LoginPage() {
     return `+254${cleaned.slice(-9)}`;
   };
 
-  /* ───────── LOAD INVITED / INCOMPLETE USER ───────── */
-  useEffect(() => {
-    const loadProfile = async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return;
+  /* ───────── ROLE CHANGE HANDLER ───────── */
+  const handleRoleChange = (newRole: SystemRole) => {
+    setRole(newRole);
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, role, status')
-        .eq('id', auth.user.id)
-        .single();
-
-      if (!profile || profile.status === 'INVITED' || !profile.role) {
-        setIsCompletingProfile(true);
-        setFullName(auth.user.user_metadata?.full_name ?? '');
-        setPhone(auth.user.phone ?? '');
-      }
-    };
-
-    loadProfile();
-  }, []);
-
-  /* ───────── FINALIZE PROFILE ───────── */
-  const finalizeProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    if (!role) {
-  setError('Please select a role.');
-  setLoading(false);
-  return;
-}
-
-if (CLUSTER_ROLES.includes(role) && !cluster) {
-  setError('Please select a cluster.');
-  setLoading(false);
-  return;
-}
-
-
-
-
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) {
-      setError('No active session.');
-      setLoading(false);
-      return;
+    // Clear cluster immediately if role does NOT require it
+    if (!CLUSTER_ROLES.includes(newRole)) {
+      setCluster('');
     }
+  };
+
+  /* ───────── SIGN UP / LOGIN ───────── */
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
 
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
-      setError('Invalid phone number.');
+      setError('Enter a valid Kenyan phone number.');
       setLoading(false);
       return;
     }
 
-    /* 1️⃣ UPDATE AUTH METADATA (SOURCE OF TRUTH) */
-    const { error: authErr } = await supabase.auth.updateUser({
-      phone: normalizedPhone,
-      data: {
-        full_name: fullName.trim(),
+    // 🔒 STRICT CLUSTER ENFORCEMENT
+    if (CLUSTER_ROLES.includes(role) && !cluster) {
+      setError('Please select a cluster.');
+      setLoading(false);
+      return;
+    }
+
+    if (isSignUp) {
+      const { error } = await supabase.auth.signUp({
         phone: normalizedPhone,
-        role,
-        cluster: requiresCluster(role) ? cluster : null,
-        provider_type: 'phone',
-      },
-    });
+        password: passcode,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            role,
+            cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+          },
+        },
+      });
 
-    if (authErr) {
-      setError(authErr.message);
-      setLoading(false);
-      return;
-    }
-
-    /* 2️⃣ UPDATE PROFILES TABLE */
-    const { error: profileErr } = await supabase
-      .from('profiles')
-      .update({
-        name: fullName.trim(),
+      if (error) setError(error.message);
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({
         phone: normalizedPhone,
-        role,
-        cluster: requiresCluster(role) ? cluster : null,
-        status: 'ACTIVE',
-      })
-      .eq('id', auth.user.id);
+        password: passcode,
+      });
 
-    if (profileErr) {
-      setError(profileErr.message);
-      setLoading(false);
-      return;
+      if (error) setError(error.message);
     }
 
-    window.location.reload();
+    setLoading(false);
   };
 
   /* ───────── UI ───────── */
-  if (!isCompletingProfile) return null;
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
       <form
-        onSubmit={finalizeProfile}
+        onSubmit={handleSubmit}
         className="w-full max-w-md space-y-4 p-8 bg-white/5 rounded-3xl"
       >
-        <h1 className="text-xl font-bold text-center">
-          Complete Your Profile
+        <h1 className="text-2xl font-bold text-center">
+          {isSignUp ? 'Create Account' : 'Login'}
         </h1>
 
-        <input
-          required
-          placeholder="Full name"
-          value={fullName}
-          onChange={e => setFullName(e.target.value)}
-          className="w-full p-3 rounded bg-white/10"
-        />
+        {isSignUp && (
+          <>
+            <input
+              required
+              placeholder="Full name"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              className="w-full p-3 rounded bg-white/10"
+            />
+
+            <select
+              value={role}
+              onChange={e => handleRoleChange(e.target.value as SystemRole)}
+              className="w-full p-3 rounded bg-white/10"
+            >
+              {Object.values(SystemRole).map(r => (
+                <option key={r} value={r} className="text-black">
+                  {r}
+                </option>
+              ))}
+            </select>
+
+            {/* ✅ CLUSTER SHOWS ONLY FOR SALES_AGENT, SUPPLIER, CUSTOMER */}
+            {CLUSTER_ROLES.includes(role) && (
+              <select
+                required
+                value={cluster}
+                onChange={e => setCluster(e.target.value)}
+                className="w-full p-3 rounded bg-white/10"
+              >
+                <option value="" disabled>
+                  Select cluster
+                </option>
+                {CLUSTERS.map(c => (
+                  <option key={c} value={c} className="text-black">
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
+        )}
 
         <input
           required
@@ -164,51 +159,34 @@ if (CLUSTER_ROLES.includes(role) && !cluster) {
           className="w-full p-3 rounded bg-white/10"
         />
 
-       <select
-  required
-  value={role}
-  onChange={(e) => setRole(e.target.value as SystemRole)}
-  className="w-full p-3 rounded bg-white/10"
->
-  <option value={SystemRole.SALES_AGENT}>Sales Agent</option>
-  <option value={SystemRole.SUPPLIER}>Supplier</option>
-  <option value={SystemRole.CUSTOMER}>Customer</option>
-  <option value={SystemRole.FINANCE_OFFICER}>Finance Officer</option>
-  <option value={SystemRole.AUDIT_OFFICER}>Audit Officer</option>
-  <option value={SystemRole.DIRECTOR}>Director</option>
-  <option value={SystemRole.SYSTEM_DEVELOPER}>System Developer</option>
-</select>
+        <input
+          required
+          type="password"
+          placeholder="Passcode"
+          value={passcode}
+          onChange={e => setPasscode(e.target.value)}
+          className="w-full p-3 rounded bg-white/10"
+        />
 
-      {(role === SystemRole.SALES_AGENT ||
-  role === SystemRole.SUPPLIER ||
-  role === SystemRole.CUSTOMER) && (
-    <select
-      required
-      value={cluster}
-      onChange={(e) => setCluster(e.target.value)}
-      className="w-full p-3 rounded bg-white/10"
-    >
-      <option value="" disabled>
-        Select cluster
-      </option>
-
-      {CLUSTERS.map((c) => (
-        <option key={c} value={c} className="text-black">
-          {c}
-        </option>
-      ))}
-    </select>
-)}
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
         <button
           disabled={loading}
           className="w-full bg-green-600 py-3 rounded font-bold"
         >
-          {loading ? 'Saving…' : 'Finalize Profile'}
+          {loading ? 'Please wait…' : isSignUp ? 'Register' : 'Login'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsSignUp(!isSignUp)}
+          className="text-xs text-slate-400 w-full"
+        >
+          {isSignUp ? 'Already registered? Login' : 'New user? Register'}
         </button>
       </form>
     </div>
   );
 }
+
 
