@@ -162,18 +162,21 @@ export default function LoginPage() {
         />
 
         <select
-          required
-          value={role}
-          onChange={e => setRole(e.target.value as SystemRole)}
-          className="w-full p-3 rounded bg-white/10"
-        >
-          <option value="" disabled>Select role</option>
-          {Object.values(SystemRole).map(r => (
-            <option key={r} value={r} className="text-black">
-              {r}
-            </option>
-          ))}
-        </select>
+  required
+  value={role}
+  onChange={(e) => setRole(e.target.value as SystemRole)}
+  className="w-full p-3 rounded bg-white/10"
+>
+  <option value="" disabled>Select role</option>
+  <option value={SystemRole.SALES_AGENT}>Sales Agent</option>
+  <option value={SystemRole.SUPPLIER}>Supplier</option>
+  <option value={SystemRole.CUSTOMER}>Customer</option>
+  <option value={SystemRole.FINANCE_OFFICER}>Finance Officer</option>
+  <option value={SystemRole.AUDIT_OFFICER}>Audit Officer</option>
+  <option value={SystemRole.DIRECTOR}>Director</option>
+  <option value={SystemRole.SYSTEM_DEVELOPER}>System Developer</option>
+</select>
+
 
         {requiresCluster(role) && (
           <select
@@ -203,4 +206,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
 
