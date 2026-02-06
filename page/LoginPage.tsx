@@ -68,16 +68,18 @@ export default function LoginPage() {
     setError(null);
 
     if (!role) {
-      setError('Please select a role.');
-      setLoading(false);
-      return;
-    }
+  setError('Please select a role.');
+  setLoading(false);
+  return;
+}
 
-    if (CLUSTER_ROLES.includes(role) && !cluster) {
+if (CLUSTER_ROLES.includes(role) && !cluster) {
   setError('Please select a cluster.');
   setLoading(false);
   return;
 }
+
+
 
 
     const { data: auth } = await supabase.auth.getUser();
@@ -215,6 +217,7 @@ export default function LoginPage() {
     </div>
   );
 }
+
 
 
 
