@@ -27,7 +27,7 @@ export default function LoginPage() {
   const [isCompletingProfile, setIsCompletingProfile] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<SystemRole | ''>('');
+ const [role, setRole] = useState<SystemRole>(SystemRole.SALES_AGENT);
   const [cluster, setCluster] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -217,6 +217,7 @@ if (CLUSTER_ROLES.includes(role) && !cluster) {
     </div>
   );
 }
+
 
 
 
