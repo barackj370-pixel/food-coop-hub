@@ -164,16 +164,12 @@ if (CLUSTER_ROLES.includes(role) && !cluster) {
           className="w-full p-3 rounded bg-white/10"
         />
 
-        <select
+       <select
   required
   value={role}
   onChange={(e) => setRole(e.target.value as SystemRole)}
   className="w-full p-3 rounded bg-white/10"
 >
-  <option value="" disabled>
-    Select role
-  </option>
-
   <option value={SystemRole.SALES_AGENT}>Sales Agent</option>
   <option value={SystemRole.SUPPLIER}>Supplier</option>
   <option value={SystemRole.CUSTOMER}>Customer</option>
@@ -182,6 +178,7 @@ if (CLUSTER_ROLES.includes(role) && !cluster) {
   <option value={SystemRole.DIRECTOR}>Director</option>
   <option value={SystemRole.SYSTEM_DEVELOPER}>System Developer</option>
 </select>
+
       {(role === SystemRole.SALES_AGENT ||
   role === SystemRole.SUPPLIER ||
   role === SystemRole.CUSTOMER) && (
@@ -214,6 +211,7 @@ if (CLUSTER_ROLES.includes(role) && !cluster) {
     </div>
   );
 }
+
 
 
 
