@@ -190,9 +190,14 @@ export default function LoginPage() {
     onChange={(e) => setCluster(e.target.value)}
     className="w-full p-3 rounded bg-white/10"
   >
-    <option value="" disabled>Select cluster</option>
-    {CLUSTERS.map(c => (
-      <option key={c} value={c} className="text-black">{c}</option>
+    <option value="" disabled>
+      Select cluster
+    </option>
+
+    {CLUSTERS.map((c) => (
+      <option key={c} value={c} className="text-black">
+        {c}
+      </option>
     ))}
   </select>
 )}
@@ -210,6 +215,7 @@ export default function LoginPage() {
     </div>
   );
 }
+
 
 
 
