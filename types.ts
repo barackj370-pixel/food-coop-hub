@@ -1,4 +1,5 @@
 
+
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
@@ -86,4 +87,5 @@ export interface SaleRecord {
   cluster?: string;
   synced?: boolean;
   orderId?: string;
+  produceId?: string;
 }

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -34,17 +35,26 @@ const persistence = {
   }
 };
 
-const normalizePhone = (p: any) => {
+const normalizePhone = (p: string | undefined | null) => {
   let s = String(p || '').trim();
   if (s.includes('.')) s = s.split('.')[0];
   const clean = s.replace(/\D/g, '');
   return clean.length >= 9 ? clean.slice(-9) : clean;
 };
 
-const computeHash = async (record: any): Promise<string> => {
+// Interface for the data passed to computeHash
+interface HashableRecord {
+  id?: string;
+  date: string;
+  unitsSold: number;
+  unitPrice: number;
+  [key: string]: unknown; 
+}
+
+const computeHash = async (record: HashableRecord): Promise<string> => {
   const normalizedUnits = Number(record.unitsSold).toString();
   const normalizedPrice = Number(record.unitPrice).toString();
-  const msg = `${record.id}-${record.date}-${normalizedUnits}-${normalizedPrice}`;
+  const msg = `${record.id || ''}-${record.date}-${normalizedUnits}-${normalizedPrice}`;
   const encoder = new TextEncoder();
   const data = encoder.encode(msg);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -53,7 +63,7 @@ const computeHash = async (record: any): Promise<string> => {
 };
 
 // Helper: Merge cloud data with local data, preserving local-only records
-const mergeData = (cloudItems: any[], localItems: any[]) => {
+const mergeData = <T extends { id: string, date?: string, createdAt?: string }>(cloudItems: T[], localItems: T[]): T[] => {
   const cloudMap = new Map(cloudItems.map(i => [i.id, i]));
   const merged = [...cloudItems];
   
@@ -69,6 +79,21 @@ const mergeData = (cloudItems: any[], localItems: any[]) => {
     return dateB.localeCompare(dateA);
   });
 };
+
+interface SaleFormSubmission {
+  date: string;
+  cropType: string;
+  unitType: string;
+  farmerName: string;
+  farmerPhone: string;
+  customerName: string;
+  customerPhone: string;
+  unitsSold: number;
+  unitPrice: number;
+  cluster: string;
+  orderId?: string;
+  produceId?: string;
+}
 
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
@@ -118,7 +143,7 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const syncLock = useRef(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  const [fulfillmentData, setFulfillmentData] = useState<any>(null);
+  const [fulfillmentData, setFulfillmentData] = useState<Partial<SaleFormSubmission> | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
 
@@ -176,7 +201,6 @@ const App: React.FC = () => {
     const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
     if (!agentIdentity) return guestPortals;
     
-    // Removed INVITE from here, it will be nested in SYSTEM for admins
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
@@ -199,7 +223,6 @@ const App: React.FC = () => {
         // 1. Sync Records
         for (const r of records) {
            const toSave = { ...r };
-           // Attach current agent info if missing (ownership claim for local data)
            if (!toSave.agentPhone) toSave.agentPhone = agentIdentity.phone;
            if (!toSave.agentName) toSave.agentName = agentIdentity.name;
            if (!toSave.cluster || toSave.cluster === 'Unassigned') toSave.cluster = agentIdentity.cluster;
@@ -217,7 +240,6 @@ const App: React.FC = () => {
             await saveOrder(o);
         }
         
-        // Force refresh to consolidate state
         await loadCloudData();
       } catch (err) {
         console.error("Legacy Data Sync Failed:", err);
@@ -229,7 +251,7 @@ const App: React.FC = () => {
     if (agentIdentity) {
       performLegacySync();
     }
-  }, [agentIdentity]); // Runs once when user logs in
+  }, [agentIdentity, records, produceListings, marketOrders]);
 
   const loadCloudData = useCallback(async () => {
     if (syncLock.current) return;
@@ -248,7 +270,6 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(sbUsers));
       }
 
-      // MERGE STRATEGY: Combine Cloud + Local (Preserve unsynced local data)
       if (sbRecords && sbRecords.length > 0) {
         setRecords(prev => {
           const merged = mergeData(sbRecords, prev);
@@ -289,11 +310,7 @@ const App: React.FC = () => {
   }, [loadCloudData]);
 
   useEffect(() => {
-    // 1. POLLING FALLBACK
     const interval = setInterval(() => { loadCloudData(); }, SYNC_POLLING_INTERVAL);
-
-    // 2. REALTIME SUBSCRIPTION
-    // This allows instant updates when Finance/Audit officers change status
     const channel = supabase.channel('global_changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
         console.log('Realtime update detected, refreshing data...');
@@ -307,7 +324,6 @@ const App: React.FC = () => {
     };
   }, [loadCloudData]);
 
-  // Filtered Records (for stats calculation or restricted views)
   const filteredRecords = useMemo(() => {
     let base = records.filter(r => r.id && r.date);
     if (agentIdentity) {
@@ -316,13 +332,12 @@ const App: React.FC = () => {
                            agentIdentity.role === SystemRole.FINANCE_OFFICER ||
                            agentIdentity.role === SystemRole.AUDITOR;
       if (!isPrivileged) {
-        base = base.filter(r => normalizePhone(r.agentPhone || '') === normalizePhone(agentIdentity.phone || ''));
+        base = base.filter(r => normalizePhone(r.agentPhone) === normalizePhone(agentIdentity.phone));
       }
     }
     return base;
   }, [records, isSystemDev, agentIdentity]);
 
-  // Stats use filtered records (my performance)
   const stats = useMemo(() => {
     const relevantRecords = filteredRecords;
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
@@ -332,17 +347,19 @@ const App: React.FC = () => {
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
 
-  // Board Metrics use GLOBAL records
+  type ClusterMetric = { volume: number, profit: number };
+
   const boardMetrics = useMemo(() => {
-    const rLog = records; // Use ALL records for Board/Cluster stats
-    const clusterMap = rLog.reduce((acc: Record<string, { volume: number, profit: number }>, r) => {
+    const rLog = records; 
+    const clusterMap = rLog.reduce((acc, r) => {
       const cluster = r.cluster || 'Unknown';
       if (!acc[cluster]) acc[cluster] = { volume: 0, profit: 0 };
       acc[cluster].volume += Number(r.totalSale);
       acc[cluster].profit += Number(r.coopProfit);
       return acc;
-    }, {} as Record<string, { volume: number, profit: number }>);
-    const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit) as [string, { volume: number, profit: number }][];
+    }, {} as Record<string, ClusterMetric>);
+    
+    const clusterPerformance = Object.entries(clusterMap).sort((a: [string, ClusterMetric], b: [string, ClusterMetric]) => b[1].profit - a[1].profit);
     return { clusterPerformance };
   }, [records]);
 
@@ -427,7 +444,8 @@ const App: React.FC = () => {
       farmerPhone: record.farmerPhone,
       unitPrice: record.unitPrice,
       cluster: record.cluster,
-      orderId: record.orderId
+      orderId: record.orderId,
+      produceId: record.produceId
     });
     setCurrentPortal('MARKET');
     setMarketView('SALES');
@@ -522,7 +540,7 @@ const App: React.FC = () => {
     try { await deleteAllOrders(); alert("Order Repository Purged Successfully."); } catch (err) { console.error("Order purge failed:", err); }
   };
 
-  const handleAddRecord = async (data: any) => {
+  const handleAddRecord = async (data: SaleFormSubmission) => {
     if (editingId) {
       // UPDATE EXISTING RECORD
       const existing = records.find(r => r.id === editingId);
@@ -665,12 +683,6 @@ const App: React.FC = () => {
     hasSyncedLegacyData.current = false;
   };
 
-  const handleContactSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert("Thank you for your message. Our team will get back to you shortly at info@kplfoodcoopmarket.co.ke");
-    setContactForm({ name: '', email: '', subject: '', message: '' });
-  };
-
   const renderExportButtons = () => (
     <div className="flex gap-2">
       <button type="button" className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors">Summary CSV</button>
@@ -697,13 +709,12 @@ const App: React.FC = () => {
             const isSameCluster = p.cluster === agentIdentity?.cluster;
             return (
               <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group overflow-hidden">
-                {/* Image Display */}
                 {p.images && p.images.length > 0 ? (
                   <div className="w-full h-40 mb-6 rounded-2xl overflow-hidden relative">
                      <img src={p.images[0]} alt={p.cropType} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                      {p.images.length > 1 && (
                        <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[8px] font-bold px-2 py-1 rounded-full backdrop-blur-sm">
-                         +1 more
+                         +{p.images.length - 1} more
                        </div>
                      )}
                   </div>
@@ -751,14 +762,11 @@ const App: React.FC = () => {
         return acc;
       }, {} as Record<string, SaleRecord[]>), [data]);
     
-    const grandTotals = useMemo(() => data.reduce((acc, r) => ({ gross: acc.gross + Number(r.totalSale), comm: acc.comm + Number(r.coopProfit) }), { gross: 0, comm: 0 }), [data]);
-    
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
+        {(Object.entries(groupedData)).map(([cluster, records]) => {
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
-          const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
 
           return (
             <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
@@ -790,14 +798,12 @@ const App: React.FC = () => {
                         <div className="flex items-center justify-end gap-3">
                           <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{r.status}</span>
                           
-                          {/* Edit Button: Visible to System Devs OR Record Owner if DRAFT */}
                           {onEdit && (isSystemDev || (agentIdentity?.phone === r.agentPhone && r.status === RecordStatus.DRAFT)) && (
                              <button onClick={(e) => { e.stopPropagation(); onEdit(r); }} className="text-slate-300 hover:text-blue-600 transition-colors p-1">
                                <i className="fas fa-edit text-[10px]"></i>
                              </button>
                           )}
                           
-                          {/* Delete Button: Visible to System Devs, Privileged Roles, OR Record Owner if DRAFT */}
                           {onDelete && (isSystemDev || isPrivilegedRole(agentIdentity) || (agentIdentity?.phone === r.agentPhone && r.status === RecordStatus.DRAFT)) && (
                              <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1">
                                <i className="fas fa-trash-alt text-[10px]"></i>
@@ -912,12 +918,11 @@ const App: React.FC = () => {
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed Trades</p>
                 </div>
                 <div className="bg-slate-900 p-8 rounded-3xl border border-black text-center col-span-2">
-                  <p className="text-2xl font-black text-white">KSh {boardMetrics.clusterPerformance.reduce((a, b: any) => a + b[1].volume, 0).toLocaleString()}</p>
+                  <p className="text-2xl font-black text-white">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total Trade Volume</p>
                 </div>
               </div>
             </div>
-            {/* Added Universal Audit Log to Home for Transparency - Only for logged in users */}
             {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
           </div>
         )}
@@ -991,12 +996,9 @@ const App: React.FC = () => {
                   {renderExportButtons()}
                 </div>
                 
-                {/* AI Auditing Section Removed */}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
-                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData} />}
+                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 
-                {/* Pending Orders */}
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden mt-12 relative">
                   <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-6">
                     <div>
@@ -1032,7 +1034,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* UNIVERSAL AUDIT LOG: Shows ALL records to satisfy transparency */}
                 <AuditLogTable data={records} title="Universal Audit Log" onDelete={handleDeleteRecord} onEdit={handleEditRecord} />
               </>
             )}
@@ -1129,14 +1130,12 @@ const App: React.FC = () => {
                     <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
                   </thead>
                   <tbody className="divide-y">
-                    {/* Changed filter: Only show PAID items (skipping VALIDATED step for speed) */}
                     {records.filter(r => r.status === RecordStatus.PAID).map(r => (
                       <tr key={r.id} className="hover:bg-slate-800/50">
                         <td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td>
                         <td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td>
                         <td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td>
                         <td className="py-6 text-right">
-                           {/* Simplified Action: Click Verify directly sets status to VERIFIED */}
                            <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Verify & Seal</button>
                         </td>
                       </tr>
@@ -1163,13 +1162,13 @@ const App: React.FC = () => {
                     <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {boardMetrics.clusterPerformance.map(([cluster, stats]: any) => (
+                    {boardMetrics.clusterPerformance.map(([cluster, stats]) => (
                       <tr key={cluster} className="hover:bg-slate-50/50"><td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td><td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td><td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td></tr>
                     ))}
                     <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl">
                       <td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td>
-                      <td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].volume, 0).toLocaleString()}</td>
-                      <td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a: number, b: any) => a + b[1].profit, 0).toLocaleString()}</td>
+                      <td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}</td>
+                      <td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0).toLocaleString()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1182,9 +1181,7 @@ const App: React.FC = () => {
 
         {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
           <div className="space-y-12 animate-in fade-in duration-300">
-            
             <AdminInvite />
-
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
