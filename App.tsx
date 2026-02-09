@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
@@ -48,13 +47,19 @@ interface HashableRecord {
   date: string;
   unitsSold: number;
   unitPrice: number;
+  produceId?: string;
+  orderId?: string;
   [key: string]: unknown; 
 }
 
 const computeHash = async (record: HashableRecord): Promise<string> => {
   const normalizedUnits = Number(record.unitsSold).toString();
   const normalizedPrice = Number(record.unitPrice).toString();
-  const msg = `${record.id || ''}-${record.date}-${normalizedUnits}-${normalizedPrice}`;
+  // Improved hashing: Include produceId and orderId if available to ensure data integrity link
+  const pid = record.produceId || '';
+  const oid = record.orderId || '';
+  const msg = `${record.id || ''}-${record.date}-${normalizedUnits}-${normalizedPrice}-${pid}-${oid}`;
+  
   const encoder = new TextEncoder();
   const data = encoder.encode(msg);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -94,6 +99,9 @@ interface SaleFormSubmission {
   orderId?: string;
   produceId?: string;
 }
+
+// Defined outside to prevent inference issues
+type ClusterMetric = { volume: number, profit: number };
 
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
@@ -347,9 +355,8 @@ const App: React.FC = () => {
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
 
-  type ClusterMetric = { volume: number, profit: number };
-
-  const boardMetrics = useMemo(() => {
+  // Explicit typing for useMemo to avoid inference errors
+  const boardMetrics = useMemo<{ clusterPerformance: [string, ClusterMetric][] }>(() => {
     const rLog = records; 
     const clusterMap = rLog.reduce((acc, r) => {
       const cluster = r.cluster || 'Unknown';
@@ -359,7 +366,7 @@ const App: React.FC = () => {
       return acc;
     }, {} as Record<string, ClusterMetric>);
     
-    const clusterPerformance = Object.entries(clusterMap).sort((a: [string, ClusterMetric], b: [string, ClusterMetric]) => b[1].profit - a[1].profit);
+    const clusterPerformance = Object.entries(clusterMap).sort((a, b) => b[1].profit - a[1].profit);
     return { clusterPerformance };
   }, [records]);
 

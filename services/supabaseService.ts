@@ -61,7 +61,8 @@ const mapRecordToDb = (r: SaleRecord) => ({
   agent_name: r.agentName,
   cluster: r.cluster,
   synced: r.synced,
-  order_id: r.orderId
+  order_id: r.orderId,
+  produce_id: r.produceId
 });
 
 const mapDbToRecord = (db: any): SaleRecord => ({
@@ -84,7 +85,8 @@ const mapDbToRecord = (db: any): SaleRecord => ({
   agentName: db.agent_name || db.agentName,
   cluster: db.cluster,
   synced: true,
-  orderId: db.order_id || db.orderId
+  orderId: db.order_id || db.orderId,
+  produceId: db.produce_id || db.produceId
 });
 
 /* SALE RECORDS */

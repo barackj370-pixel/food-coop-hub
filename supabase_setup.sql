@@ -55,6 +55,8 @@ create table if not exists public.records (
   "agentPhone" text,
   "agentName" text,
   cluster text,
+  order_id text,
+  produce_id text, -- Added produce_id column
   agent_id uuid references public.profiles(id)
 );
 
