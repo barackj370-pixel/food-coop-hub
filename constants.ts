@@ -1,3 +1,5 @@
+
+
 export const COMMODITY_CATEGORIES = {
   'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Other'],
   'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano', 'Other'],
@@ -36,14 +38,5 @@ export const PROFIT_MARGIN = 0.10; // 10% coop margin
 // Background Sync Polling Interval (30 Seconds)
 export const SYNC_POLLING_INTERVAL = 30000;
 
-/**
- * CONFIGURATION: 
- * Update this URL with your unique Google Apps Script Web App URL from Step 3.
- */
-export const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxDJ_0zNPpLGqYgmp8sjkkOi1zdq8D6YcS4LOoYQGLlLBtj7Vgud7ImSzMoZhH2M60C0A/exec";
-
-/**
- * VIEW URL: 
- * Update this with your actual Google Sheet browser URL.
- */
-export const GOOGLE_SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1HiMWDqPQi_uzHDKUr_wJAWUDPeWQofyYd4IU6esNq5w/edit?gid=0#gid=0";
+// Fix: Add explicit string type to prevent 'never' type narrowing in consuming services when value is ""
+export const GOOGLE_SHEETS_WEBHOOK_URL: string = "";

@@ -1,10 +1,12 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import ProduceForm from './components/ProduceForm.tsx';
 import StatCard from './components/StatCard.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEET_VIEW_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
+import LoginPage from './page/LoginPage.tsx';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEETS_WEBHOOK_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
+import { analyzeSalesData } from './services/geminiService.ts';
+import { supabase } from './services/supabaseClient.ts';
 import { 
   syncToGoogleSheets, 
   fetchFromGoogleSheets, 
@@ -22,6 +24,9 @@ import {
   deleteAllOrdersFromCloud,
   deleteAllRecordsFromCloud
 } from './services/googleSheetsService.ts';
+
+// Supabase services fallback
+import { fetchUsers as fetchSupabaseUsers } from './services/supabaseService.ts';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
@@ -42,21 +47,11 @@ const persistence = {
   }
 };
 
-// Global robust normalization function
 const normalizePhone = (p: any) => {
   let s = String(p || '').trim();
-  // Strip decimals (e.g. "123.0" -> "123")
   if (s.includes('.')) s = s.split('.')[0];
   const clean = s.replace(/\D/g, '');
   return clean.length >= 9 ? clean.slice(-9) : clean;
-};
-
-// Robust passcode normalization
-const normalizePasscode = (p: any) => {
-  let s = String(p || '').trim();
-  // Strip decimals (e.g. "7890.0" -> "7890")
-  if (s.includes('.')) s = s.split('.')[0];
-  return s.replace(/\D/g, '');
 };
 
 const computeHash = async (record: any): Promise<string> => {
@@ -74,10 +69,7 @@ const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
     const saved = persistence.get('food_coop_data');
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) { return []; }
+      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
     }
     return [];
   });
@@ -85,10 +77,7 @@ const App: React.FC = () => {
   const [marketOrders, setMarketOrders] = useState<MarketOrder[]>(() => {
     const saved = persistence.get('food_coop_orders');
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) { return []; }
+      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
     }
     return [];
   });
@@ -96,10 +85,7 @@ const App: React.FC = () => {
   const [produceListings, setProduceListings] = useState<ProduceListing[]>(() => {
     const saved = persistence.get('food_coop_produce');
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) { return []; }
+      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
     }
     return [];
   });
@@ -124,28 +110,50 @@ const App: React.FC = () => {
     }
     return 'CUSTOMER';
   });
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const syncLock = useRef(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  const [contactForm, setContactForm] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: ''
-  });
+  const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
 
-  const [authForm, setAuthForm] = useState({
-    name: '',
-    phone: '',
-    passcode: '',
-    role: SystemRole.FIELD_AGENT,
-    cluster: ''
-  });
+  // Listen for Supabase Auth Changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        // Fetch public profile
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('phone', session.user.user_metadata?.phone || session.user.phone)
+          .maybeSingle();
+
+        if (profile) {
+          const identity = profile as AgentIdentity;
+          setAgentIdentity(identity);
+          persistence.set('agent_session', JSON.stringify(identity));
+          if (currentPortal === 'LOGIN') setCurrentPortal('HOME');
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setAgentIdentity(null);
+        persistence.remove('agent_session');
+        setCurrentPortal('LOGIN');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [currentPortal]);
+
+  const handleLoginSuccess = (identity: AgentIdentity) => {
+    setAgentIdentity(identity);
+    persistence.set('agent_session', JSON.stringify(identity));
+    setCurrentPortal('HOME');
+  };
 
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.name === 'Barack James';
 
@@ -177,25 +185,25 @@ const App: React.FC = () => {
     syncLock.current = true;
     setIsSyncing(true);
     try {
-      const [cloudUsers, cloudRecords, cloudOrders, cloudProduce] = await Promise.all([
-        fetchUsersFromCloud(),
+      // Try to fetch users from Supabase first, fallback to Sheets if needed or just use Sheets for now if users table is sparse
+      const sbUsers = await fetchSupabaseUsers();
+      
+      const [cloudRecords, cloudOrders, cloudProduce] = await Promise.all([
         fetchFromGoogleSheets(),
         fetchOrdersFromCloud(),
         fetchProduceFromCloud()
       ]);
       
-      if (cloudUsers && cloudUsers.length > 0) {
-        setUsers(prev => {
-          const userMap = new Map<string, AgentIdentity>();
-          cloudUsers.forEach(u => { userMap.set(normalizePhone(u.phone), u); });
-          prev.forEach(u => {
-            const key = normalizePhone(u.phone);
-            if (!userMap.has(key)) userMap.set(key, u);
-          });
-          const combined = Array.from(userMap.values());
-          persistence.set('coop_users', JSON.stringify(combined));
-          return combined;
-        });
+      if (sbUsers && sbUsers.length > 0) {
+        setUsers(sbUsers);
+        persistence.set('coop_users', JSON.stringify(sbUsers));
+      } else {
+        // Fallback for legacy data
+        const cloudUsers = await fetchUsersFromCloud();
+        if (cloudUsers && cloudUsers.length > 0) {
+           setUsers(cloudUsers);
+           persistence.set('coop_users', JSON.stringify(cloudUsers));
+        }
       }
 
       if (cloudRecords !== null) {
@@ -299,6 +307,15 @@ const App: React.FC = () => {
     return { clusterPerformance };
   }, [filteredRecords]);
 
+  // Handle Gemini Analysis
+  const handleGenerateReport = async () => {
+    setIsGeneratingReport(true);
+    setAiReport(null);
+    const report = await analyzeSalesData(filteredRecords.slice(0, 50)); // Analyze last 50 records
+    setAiReport(report);
+    setIsGeneratingReport(false);
+  };
+
   const handleAddProduce = async (data: {
     date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string;
   }) => {
@@ -396,7 +413,7 @@ const App: React.FC = () => {
       customerName: agentIdentity.name,
       customerPhone: agentIdentity.phone,
       status: OrderStatus.OPEN,
-      agentPhone: '', // Filled by fulfilling agent
+      agentPhone: '',
       cluster: listing.cluster
     };
 
@@ -465,7 +482,6 @@ const App: React.FC = () => {
     const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
     const coopProfit = totalSale * PROFIT_MARGIN;
     const signature = await computeHash({ ...data, id });
-    // Use the cluster provided from the form (customer's cluster) or fallback to agent's cluster
     const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
     const newRecord: SaleRecord = {
       ...data, id, totalSale, coopProfit, status: RecordStatus.DRAFT, signature,
@@ -488,7 +504,6 @@ const App: React.FC = () => {
       } catch (err) { console.error("Order fulfillment sync failed:", err); }
     }
     
-    // Inventory Management: Deduct quantity sold from available stock
     if (data.produceId) {
       setProduceListings(prev => {
         const target = prev.find(p => p.id === data.produceId);
@@ -502,8 +517,6 @@ const App: React.FC = () => {
           
           const newList = prev.map(p => p.id === data.produceId ? updated : p);
           persistence.set('food_coop_produce', JSON.stringify(newList));
-          
-          // Sync update instead of delete
           syncProduceToCloud(updated).catch(e => console.error("Inventory sync failed:", e));
           return newList;
         }
@@ -563,7 +576,8 @@ const App: React.FC = () => {
     try { await deleteUserFromCloud(phone); } catch (e) { }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setAgentIdentity(null);
     persistence.remove('agent_session');
     setCurrentPortal('HOME');
@@ -597,92 +611,6 @@ const App: React.FC = () => {
     e.preventDefault();
     alert("Thank you for your message. Our team will get back to you shortly at info@kplfoodcoopmarket.co.ke");
     setContactForm({ name: '', email: '', subject: '', message: '' });
-  };
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAuthLoading(true);
-    
-    // Normalize user input immediately using robust helper
-    const targetPhoneNormalized = normalizePhone(authForm.phone);
-    const targetPasscode = normalizePasscode(authForm.passcode);
-    
-    if (targetPhoneNormalized.length < 8) {
-      alert("Invalid Phone: Please enter a valid phone number.");
-      setIsAuthLoading(false);
-      return;
-    }
-
-    try {
-      // Force a fresh fetch from cloud database
-      const latestCloudUsers = await fetchUsersFromCloud();
-      
-      // Update local cache if cloud data is valid
-      if (latestCloudUsers && latestCloudUsers.length > 0) {
-        setUsers(latestCloudUsers);
-        persistence.set('coop_users', JSON.stringify(latestCloudUsers));
-      }
-
-      // Determine the set of users to authenticate against
-      const authPool = (latestCloudUsers && latestCloudUsers.length > 0) ? latestCloudUsers : users;
-
-      if (isRegisterMode) {
-        if (authForm.role !== SystemRole.SYSTEM_DEVELOPER && !authForm.cluster) { 
-          alert("Registration Error: Cluster selection is mandatory."); 
-          setIsAuthLoading(false); 
-          return; 
-        }
-        
-        const newUser: AgentIdentity = { 
-          name: authForm.name.trim(), 
-          phone: authForm.phone.trim(), 
-          passcode: targetPasscode, 
-          role: authForm.role, 
-          cluster: (authForm.role === SystemRole.SYSTEM_DEVELOPER || authForm.role === SystemRole.FINANCE_OFFICER || authForm.role === SystemRole.AUDITOR || authForm.role === SystemRole.MANAGER) ? '-' : (authForm.cluster || 'System'), 
-          status: 'ACTIVE' 
-        };
-        
-        // Prevent duplicate registration in local state
-        const updatedUsersList = [...authPool.filter(u => normalizePhone(u.phone) !== normalizePhone(newUser.phone)), newUser];
-        setUsers(updatedUsersList);
-        persistence.set('coop_users', JSON.stringify(updatedUsersList));
-        
-        const syncSuccess = await syncUserToCloud(newUser);
-        if (!syncSuccess) {
-           alert("Warning: Account created locally, but failed to sync with cloud. Please ensure you have an active internet connection.");
-        }
-        
-        setAgentIdentity(newUser);
-        persistence.set('agent_session', JSON.stringify(newUser));
-        setCurrentPortal('HOME');
-      } else {
-        // High-Integrity Matching using robust normalization on both target and pool
-        const matchedUser = authPool.find(u => {
-          const cloudPhoneNorm = normalizePhone(u.phone);
-          const cloudPassNorm = normalizePasscode(u.passcode);
-          return cloudPhoneNorm === targetPhoneNormalized && cloudPassNorm === targetPasscode;
-        });
-        
-        if (matchedUser) { 
-          setAgentIdentity(matchedUser); 
-          persistence.set('agent_session', JSON.stringify(matchedUser)); 
-          setCurrentPortal('HOME');
-        } else {
-          let errMsg = "Authentication Failed: Account not found or passcode is incorrect.";
-          if (latestCloudUsers === null && users.length === 0) {
-            errMsg = "Connectivity Error: Unable to reach the member database. Please check your internet connection and try again.";
-          } else if (latestCloudUsers && latestCloudUsers.length === 0 && users.length === 0) {
-            errMsg = "System Notice: No registered accounts found in the repository. If you are new, please use the Register option.";
-          }
-          alert(errMsg); 
-        }
-      }
-    } catch (err) { 
-      console.error("Critical Auth Error:", err);
-      alert("System Error: A failure occurred during authentication. Please refresh the page and try again."); 
-    } finally { 
-      setIsAuthLoading(false); 
-    }
   };
 
   const renderExportButtons = () => (
@@ -866,7 +794,7 @@ const App: React.FC = () => {
           </div>
         </div>
         <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS'].includes(p)).map(p => {
+          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN'].includes(p)).map(p => {
             if (p === 'MARKET') {
               return (
                 <div key={p} className="relative">
@@ -888,29 +816,7 @@ const App: React.FC = () => {
 
       <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
         {currentPortal === 'LOGIN' && !agentIdentity && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center py-12">
-            <div className="w-full max-w-[400px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6">
-              <div className="flex justify-between items-end mb-2">
-                <h2 className="text-2xl font-black text-black uppercase tracking-tight">{isRegisterMode ? 'Register' : 'Login'}</h2>
-                <button onClick={() => { setIsRegisterMode(!isRegisterMode); setAuthForm({...authForm, cluster: CLUSTERS[0]})}} className="text-[10px] font-black uppercase text-red-600 hover:text-red-700">{isRegisterMode ? 'Back to Login' : 'Create Account'}</button>
-              </div>
-              <form onSubmit={handleAuth} className="space-y-4 text-center">
-                {isRegisterMode && <input type="text" placeholder="Full Name" required value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none transition-all" />}
-                <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={e => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none transition-all" />
-                <input type="password" placeholder="4-Digit Pin" required value={authForm.passcode} onChange={e => setAuthForm({...authForm, passcode: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black text-center outline-none transition-all" />
-                {isRegisterMode && (
-                  <><select value={authForm.role} onChange={e => setAuthForm({...authForm, role: e.target.value as any})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none">{Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}</select>
-                  {authForm.role !== SystemRole.SYSTEM_DEVELOPER && authForm.role !== SystemRole.FINANCE_OFFICER && authForm.role !== SystemRole.AUDITOR && authForm.role !== SystemRole.MANAGER && (<select required value={authForm.cluster} onChange={e => setAuthForm({...authForm, cluster: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4.5 font-bold text-black outline-none"><option value="" disabled>Select Cluster</option>{CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}</select>)}</>
-                )}
-                <button disabled={isAuthLoading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95">{isAuthLoading ? <i className="fas fa-spinner fa-spin"></i> : (isRegisterMode ? 'Register Account' : 'Authenticate')}</button>
-                <div className="flex justify-center gap-1.5 mt-8 opacity-40">
-                  <div className="w-12 h-1 rounded-full bg-red-600"></div>
-                  <div className="w-12 h-1 rounded-full bg-black"></div>
-                  <div className="w-12 h-1 rounded-full bg-green-500"></div>
-                </div>
-              </form>
-            </div>
-          </div>
+          <LoginPage onLoginSuccess={handleLoginSuccess} />
         )}
 
         {currentPortal === 'HOME' && (
@@ -1099,6 +1005,40 @@ const App: React.FC = () => {
                   </div>
                   {renderExportButtons()}
                 </div>
+                
+                {/* AI Auditing Section */}
+                <div className="bg-slate-900 rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden text-white">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 relative z-10">
+                    <div>
+                      <p className="text-[10px] font-black text-green-400 uppercase tracking-[0.3em] mb-2">Gemini AI Audit Node</p>
+                      <h3 className="text-2xl font-black uppercase tracking-tight">Intelligent Transaction Analysis</h3>
+                    </div>
+                    <button 
+                      onClick={handleGenerateReport} 
+                      disabled={isGeneratingReport}
+                      className="bg-white text-black px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-slate-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isGeneratingReport ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-robot"></i>}
+                      Generate Report
+                    </button>
+                  </div>
+                  
+                  {aiReport && (
+                    <div className="bg-white/10 rounded-3xl p-8 backdrop-blur-md border border-white/10 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="prose prose-invert prose-sm max-w-none">
+                         <div dangerouslySetInnerHTML={{ __html: aiReport.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-400">$1</strong>') }} />
+                      </div>
+                      <div className="mt-6 pt-6 border-t border-white/10 text-right">
+                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Analysis generated by Google Gemini 3.0 Flash</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Decorative Elements */}
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                  <div className="absolute bottom-0 left-0 w-64 h-64 bg-red-500/20 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData} />}
                 
@@ -1293,7 +1233,7 @@ const App: React.FC = () => {
                   <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
                 </div>
                 <div className="flex flex-wrap gap-4">
-                  <a href={GOOGLE_SHEET_VIEW_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a>
+                  <a href={GOOGLE_SHEETS_WEBHOOK_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a>
                   <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
                     <i className="fas fa-warehouse"></i> Purge Repository
                   </button>

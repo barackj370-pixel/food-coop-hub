@@ -1,3 +1,4 @@
+
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
@@ -12,16 +13,15 @@ export enum OrderStatus {
 }
 
 export enum SystemRole {
-  SALES_AGENT = 'Sales Agent',
-  SUPPLIER = 'Supplier',
-  CUSTOMER = 'Customer',
+  FIELD_AGENT = 'Field Agent',
   FINANCE_OFFICER = 'Finance Officer',
-  AUDIT_OFFICER = 'Audit Officer',
-  DIRECTOR = 'Director',
+  AUDITOR = 'Audit Officer',
+  MANAGER = 'Director',
   SYSTEM_DEVELOPER = 'System Developer',
+  SUPPLIER = 'Supplier',
+  // Fix: Added CUSTOMER role to SystemRole enum as it is referenced in LoginPage.tsx
+  CUSTOMER = 'Customer'
 }
-
-
 
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
 

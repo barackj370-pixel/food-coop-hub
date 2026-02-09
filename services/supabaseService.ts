@@ -1,178 +1,127 @@
-import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types';
 
-/**
- * Utility to check if the Supabase client is configured and ready.
- * Provides a helpful warning if environment variables are missing.
- */
+import { supabase } from './supabaseClient.ts';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types.ts';
+
 const isClientReady = (): boolean => {
-  if (!supabase) {
-    console.warn("Supabase client is not initialized. Please ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in your environment variables.");
+  if (!supabase || !supabase.from) {
+    console.warn("Supabase client not properly initialized.");
     return false;
   }
   return true;
 };
 
-/* =======================
-   SALE RECORDS
-======================= */
-
+/* SALE RECORDS */
 export const saveRecord = async (record: SaleRecord) => {
   if (!isClientReady()) return false;
-  
-  const { error } = await supabase!
-    .from('records')
-    .upsert(record, { onConflict: 'id' });
-
-  if (error) {
-    console.error('Save record error:', error);
-    return false;
-  }
-  return true;
+  // Ensure we don't send local-only flags to DB if they aren't in schema
+  const { synced, ...dbRecord } = record;
+  const { error } = await supabase.from('records').upsert(dbRecord, { onConflict: 'id' });
+  if (error) console.error('Supabase saveRecord error:', error);
+  return !error;
 };
 
 export const fetchRecords = async () => {
   if (!isClientReady()) return [];
-
-  const { data, error } = await supabase!
-    .from('records')
-    .select('*')
-    .order('createdAt', { ascending: false });
-
+  const { data, error } = await supabase.from('records').select('*').order('createdAt', { ascending: false });
   if (error) {
-    console.error('Fetch records error:', error);
+    console.error('Supabase fetchRecords error:', error);
     return [];
   }
-
-  return data as SaleRecord[];
+  return (data as SaleRecord[]) || [];
 };
 
 export const deleteRecord = async (id: string) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase!.from('records').delete().eq('id', id);
+  const { error } = await supabase.from('records').delete().eq('id', id);
   return !error;
 };
 
-/* =======================
-   USERS
-======================= */
+export const deleteAllRecords = async () => {
+  if (!isClientReady()) return false;
+  const { error } = await supabase.from('records').delete().neq('id', '0');
+  return !error;
+};
 
+/* USERS / AGENTS */
 export const saveUser = async (user: AgentIdentity) => {
   if (!isClientReady()) return false;
-  
-  const { error } = await supabase!
-    .from('users')
-    .upsert(user, { onConflict: 'phone' });
-
-  if (error) {
-    console.error('Save user error:', error);
-    return false;
-  }
-  return true;
+  const { error } = await supabase.from('users').upsert(user, { onConflict: 'phone' });
+  if (error) console.error('Supabase saveUser error:', error);
+  return !error;
 };
 
 export const fetchUsers = async () => {
   if (!isClientReady()) return [];
-  
-  const { data, error } = await supabase!.from('users').select('*');
-
+  const { data, error } = await supabase.from('users').select('*');
   if (error) {
-    console.error('Fetch users error:', error);
+    console.error('Supabase fetchUsers error:', error);
     return [];
   }
-
-  return data as AgentIdentity[];
+  return (data as AgentIdentity[]) || [];
 };
 
 export const deleteUser = async (phone: string) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase!.from('users').delete().eq('phone', phone);
+  const { error } = await supabase.from('users').delete().eq('phone', phone);
   return !error;
 };
 
-/* =======================
-   ORDERS
-======================= */
+export const deleteAllUsers = async () => {
+  if (!isClientReady()) return false;
+  const { error } = await supabase.from('users').delete().neq('phone', '0');
+  return !error;
+};
 
+/* MARKET ORDERS */
 export const saveOrder = async (order: MarketOrder) => {
   if (!isClientReady()) return false;
-
-  const { error } = await supabase!
-    .from('orders')
-    .upsert(order, { onConflict: 'id' });
-
-  if (error) {
-    console.error('Save order error:', error);
-    return false;
-  }
-  return true;
+  const { error } = await supabase.from('orders').upsert(order, { onConflict: 'id' });
+  if (error) console.error('Supabase saveOrder error:', error);
+  return !error;
 };
 
 export const fetchOrders = async () => {
   if (!isClientReady()) return [];
-
-  const { data, error } = await supabase!
-    .from('orders')
-    .select('*')
-    .order('date', { ascending: false });
-
+  const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
   if (error) {
-    console.error('Fetch orders error:', error);
+    console.error('Supabase fetchOrders error:', error);
     return [];
   }
-
-  return data as MarketOrder[];
+  return (data as MarketOrder[]) || [];
 };
 
-/* =======================
-   PRODUCE
-======================= */
+export const deleteAllOrders = async () => {
+  if (!isClientReady()) return false;
+  const { error } = await supabase.from('orders').delete().neq('id', '0');
+  return !error;
+};
 
+/* PRODUCE LISTINGS */
 export const saveProduce = async (produce: ProduceListing) => {
   if (!isClientReady()) return false;
-
-  const { error } = await supabase!
-    .from('produce')
-    .upsert(produce, { onConflict: 'id' });
-
-  if (error) {
-    console.error('Save produce error:', error);
-    return false;
-  }
-  return true;
+  const { error } = await supabase.from('produce').upsert(produce, { onConflict: 'id' });
+  if (error) console.error('Supabase saveProduce error:', error);
+  return !error;
 };
 
 export const fetchProduce = async () => {
   if (!isClientReady()) return [];
-
-  const { data, error } = await supabase!
-    .from('produce')
-    .select('*')
-    .order('date', { ascending: false });
-
+  const { data, error } = await supabase.from('produce').select('*').order('date', { ascending: false });
   if (error) {
-    console.error('Fetch produce error:', error);
+    console.error('Supabase fetchProduce error:', error);
     return [];
   }
-
-  return data as ProduceListing[];
+  return (data as ProduceListing[]) || [];
 };
 
 export const deleteProduce = async (id: string) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase!.from('produce').delete().eq('id', id);
+  const { error } = await supabase.from('produce').delete().eq('id', id);
   return !error;
 };
-export const getCurrentUserProfile = async () => {
-  const { data: session } = await supabase.auth.getSession();
-  if (!session.session) return null;
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', session.session.user.id)
-    .single();
-
-  if (error) throw error;
-  return data;
+export const deleteAllProduce = async () => {
+  if (!isClientReady()) return false;
+  const { error } = await supabase.from('produce').delete().neq('id', '0');
+  return !error;
 };

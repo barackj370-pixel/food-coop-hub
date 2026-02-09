@@ -14,10 +14,15 @@
       // Environment Shims
       window.global = window;
       if (typeof window.process === 'undefined') {
-        window.process = { env: { API_KEY: "" } };
+        window.process = { env: {} };
       } else if (!window.process.env) {
-        window.process.env = { API_KEY: "" };
+        window.process.env = {};
       }
+      
+      // Inject Supabase credentials from the provided configuration to ensure createClient succeeds
+      window.process.env.VITE_SUPABASE_URL = "https://ervfxsdwurppznjhsbht.supabase.co";
+      window.process.env.VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVydmZ4c2R3dXJwcHpuamhzYmh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNjUzNjIsImV4cCI6MjA4NDk0MTM2Mn0.MIQOHcsAKpoOfx4OjAZ4C8meqrUcFEmELjtspnbQ8-U";
+      window.process.env.API_KEY = window.process.env.API_KEY || "";
 
       window.hideHubLoader = function() {
         const loader = document.getElementById('loading-screen');
@@ -78,6 +83,5 @@
     <div id="root"></div>
 
     <script type="module" src="index.tsx"></script>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>
