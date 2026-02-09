@@ -184,7 +184,7 @@ const App: React.FC = () => {
     let base = [...loggedInBase];
     if (agentIdentity.role === SystemRole.FINANCE_OFFICER) base.splice(4, 0, 'FINANCE');
     else if (agentIdentity.role === SystemRole.AUDITOR) base.splice(4, 0, 'AUDIT');
-    else if (agentIdentity.role === SystemRole.MANAGER) base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD');
+    else if (agentIdentity.role === SystemRole.MANAGER) base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD', 'INVITE');
     return base;
   }, [agentIdentity, isSystemDev]);
 
@@ -848,7 +848,11 @@ const App: React.FC = () => {
           <LoginPage onLoginSuccess={handleLoginSuccess} />
         )}
 
-        {/* Removed INVITE portal logic */}
+        {currentPortal === 'INVITE' && agentIdentity && (
+          <div className="space-y-12 animate-in fade-in duration-300">
+             <AdminInvite />
+          </div>
+        )}
 
         {currentPortal === 'HOME' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">

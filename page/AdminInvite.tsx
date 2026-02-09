@@ -38,9 +38,9 @@ const AdminInvite: React.FC = () => {
         </div>
 
         <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-left">
-           <h4 className="text-[11px] font-black text-blue-700 uppercase tracking-widest mb-2"><i className="fas fa-info-circle mr-1"></i> Admin Note</h4>
+           <h4 className="text-[11px] font-black text-blue-700 uppercase tracking-widest mb-2"><i className="fas fa-info-circle mr-1"></i> Note</h4>
            <p className="text-xs text-blue-600 leading-relaxed">
-             New accounts will be set to <strong>Active</strong> by default. You can manage user status, roles, and cluster assignments from the <span className="font-bold underline">System</span> menu.
+             New accounts will be set to <strong>Active</strong> by default. <span className="opacity-80">Administrator access is required to modify user permissions or suspend accounts.</span>
            </p>
         </div>
       </div>
