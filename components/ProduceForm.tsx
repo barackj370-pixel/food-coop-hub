@@ -74,8 +74,12 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
 
           canvas.width = width;
           canvas.height = height;
-          ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7)); // 70% Quality JPEG
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7)); // 70% Quality JPEG
+          } else {
+            reject(new Error("Canvas context failed"));
+          }
         };
         img.onerror = reject;
         img.src = e.target?.result as string;

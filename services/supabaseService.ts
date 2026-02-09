@@ -18,15 +18,12 @@ const getCurrentUserId = async () => {
 
 // HELPER: Error Handler
 const handleSupabaseError = (context: string, err: any) => {
-  // Convert error to string for broad checking
   const msg = (err.message || err.toString() || '').toLowerCase();
   
-  // Explicitly check for browser fetch failures
   if (err instanceof TypeError && msg.includes('failed to fetch')) {
     return; 
   }
 
-  // Suppress common network/offline errors
   if (
     msg.includes('failed to fetch') || 
     msg.includes('networkerror') || 
@@ -34,11 +31,9 @@ const handleSupabaseError = (context: string, err: any) => {
     msg.includes('connection error') ||
     msg.includes('load failed')
   ) {
-    // Network offline or unreachable - Silent fail (Offline Mode)
     return;
   }
   
-  // Ignore specific PostgREST codes (e.g. empty result sets if handled elsewhere)
   if (err.code !== 'PGRST205' && err.code !== '42P01') {
     console.error(`${context}:`, err);
   }
@@ -101,7 +96,6 @@ export const saveRecord = async (record: SaleRecord) => {
     const dbPayload = mapRecordToDb(record);
     const { synced, ...payload } = dbPayload as any;
     
-    // Inject agent_id for RLS
     if (userId) {
       (payload as any).agent_id = userId;
     }
@@ -155,7 +149,6 @@ export const deleteAllRecords = async () => {
 export const saveUser = async (user: AgentIdentity) => {
   if (!isClientReady()) return false;
   try {
-    // Note: 'id' in AgentIdentity should match auth.uid()
     const { error } = await supabase.from('profiles').upsert(user, { onConflict: 'phone' });
     if (error) throw error;
     return true;
@@ -232,13 +225,10 @@ export const saveOrder = async (order: MarketOrder) => {
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
-
     const payload = mapOrderToDb(order);
-    
     if (userId) {
       (payload as any).agent_id = userId;
     }
-
     const { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
     if (error) throw error;
     return true;
@@ -305,13 +295,10 @@ export const saveProduce = async (produce: ProduceListing) => {
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
-    
     const payload = mapProduceToDb(produce);
-    
     if (userId) {
       (payload as any).agent_id = userId;
     }
-
     const { error } = await supabase.from('produce').upsert(payload, { onConflict: 'id' });
     if (error) throw error;
     return true;

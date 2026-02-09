@@ -19,14 +19,13 @@ export enum SystemRole {
   MANAGER = 'Director',
   SYSTEM_DEVELOPER = 'System Developer',
   SUPPLIER = 'Supplier',
-  // Fix: Added CUSTOMER role to SystemRole enum as it is referenced in LoginPage.tsx
   CUSTOMER = 'Customer'
 }
 
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
 
 export interface AgentIdentity {
-  id?: string; // Link to Auth ID
+  id?: string;
   name: string;
   phone: string;
   role: SystemRole;
@@ -61,7 +60,7 @@ export interface ProduceListing {
   supplierPhone: string;
   cluster: string;
   status: 'AVAILABLE' | 'SOLD_OUT';
-  images?: string[]; // Array of Base64 Image Strings
+  images?: string[]; // Array of Base64 strings
 }
 
 export interface SaleRecord {
@@ -86,5 +85,5 @@ export interface SaleRecord {
   agentName?: string;
   cluster?: string;
   synced?: boolean;
-  orderId?: string; // Optional link to the original market order
+  orderId?: string;
 }
