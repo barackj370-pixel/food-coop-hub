@@ -2,8 +2,6 @@
 -- Run this script in your Supabase SQL Editor to initialize the database tables
 
 -- 1. Create profiles table (Public Profile)
--- This table mirrors the Auth users but stores application-specific details
--- Renamed from 'users' to 'profiles' to match application code
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
   name text not null,
@@ -15,27 +13,22 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
--- Enable RLS for profiles
 alter table public.profiles enable row level security;
 
--- Policy: Everyone can view profiles (needed for verifying agents/suppliers)
 create policy "Public profiles are viewable by everyone" 
   on public.profiles for select 
   using (true);
 
--- Policy: Users can insert their own profile during signup
 create policy "Users can insert their own profile" 
   on public.profiles for insert 
   with check (auth.uid() = id);
 
--- Policy: Users can update their own profile
-create policy "Users can update own profile" 
+create policy "Users can update their own profile" 
   on public.profiles for update 
   using (auth.uid() = id);
 
 
 -- 2. Create records table (Sales Records)
--- camelCase columns used to match existing frontend JSON payloads
 create table if not exists public.records (
   id text primary key,
   date text,
@@ -56,9 +49,20 @@ create table if not exists public.records (
   "agentName" text,
   cluster text,
   order_id text,
-  produce_id text, -- Added produce_id column
+  produce_id text,
   agent_id uuid references public.profiles(id)
 );
+
+-- MIGRATION: Add columns if they are missing from existing table
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_name = 'records' and column_name = 'order_id') then
+    alter table public.records add column order_id text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'records' and column_name = 'produce_id') then
+    alter table public.records add column produce_id text;
+  end if;
+end $$;
 
 alter table public.records enable row level security;
 create policy "Records viewable by everyone" on public.records for select using (true);
@@ -78,9 +82,17 @@ create table if not exists public.produce (
   "supplierPhone" text,
   cluster text,
   status text,
-  images text, -- New column for storing JSON array of base64 images
+  images text,
   agent_id uuid references public.profiles(id)
 );
+
+-- MIGRATION: Add images column if missing
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_name = 'produce' and column_name = 'images') then
+    alter table public.produce add column images text;
+  end if;
+end $$;
 
 alter table public.produce enable row level security;
 create policy "Produce viewable by everyone" on public.produce for select using (true);

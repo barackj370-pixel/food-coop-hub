@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import ProduceForm from './components/ProduceForm.tsx';
 import StatCard from './components/StatCard.tsx';
@@ -55,10 +55,13 @@ interface HashableRecord {
 const computeHash = async (record: HashableRecord): Promise<string> => {
   const normalizedUnits = Number(record.unitsSold).toString();
   const normalizedPrice = Number(record.unitPrice).toString();
-  // Improved hashing: Include produceId and orderId if available to ensure data integrity link
-  const pid = record.produceId || '';
-  const oid = record.orderId || '';
-  const msg = `${record.id || ''}-${record.date}-${normalizedUnits}-${normalizedPrice}-${pid}-${oid}`;
+  
+  // Integrity Check: Include produceId and orderId in the hash payload
+  // This ensures that a sale record cannot be re-linked to a different order/produce without invalidating the signature
+  const pid = record.produceId || 'null';
+  const oid = record.orderId || 'null';
+  
+  const msg = `${record.id || ''}|${record.date}|${normalizedUnits}|${normalizedPrice}|${pid}|${oid}`;
   
   const encoder = new TextEncoder();
   const data = encoder.encode(msg);
@@ -99,9 +102,6 @@ interface SaleFormSubmission {
   orderId?: string;
   produceId?: string;
 }
-
-// Defined outside to prevent inference issues
-type ClusterMetric = { volume: number, profit: number };
 
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
@@ -356,17 +356,18 @@ const App: React.FC = () => {
   }, [filteredRecords]);
 
   // Explicit typing for useMemo to avoid inference errors
-  const boardMetrics = useMemo<{ clusterPerformance: [string, ClusterMetric][] }>(() => {
+  const boardMetrics = useMemo(() => {
     const rLog = records; 
-    const clusterMap = rLog.reduce((acc, r) => {
+    const clusterMap = rLog.reduce<Record<string, ClusterMetric>>((acc, r) => {
       const cluster = r.cluster || 'Unknown';
       if (!acc[cluster]) acc[cluster] = { volume: 0, profit: 0 };
       acc[cluster].volume += Number(r.totalSale);
       acc[cluster].profit += Number(r.coopProfit);
       return acc;
-    }, {} as Record<string, ClusterMetric>);
+    }, {});
     
-    const clusterPerformance = Object.entries(clusterMap).sort((a, b) => b[1].profit - a[1].profit);
+    // Explicitly cast Object.entries result to assist TS inference
+    const clusterPerformance = (Object.entries(clusterMap) as [string, ClusterMetric][]).sort((a, b) => b[1].profit - a[1].profit);
     return { clusterPerformance };
   }, [records]);
 

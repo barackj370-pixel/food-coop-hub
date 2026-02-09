@@ -89,3 +89,8 @@ export interface SaleRecord {
   orderId?: string;
   produceId?: string;
 }
+
+export interface ClusterMetric {
+  volume: number;
+  profit: number;
+}
