@@ -1,4 +1,5 @@
 
+
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
@@ -13,7 +14,7 @@ export enum OrderStatus {
 }
 
 export enum SystemRole {
-  FIELD_AGENT = 'Field Agent',
+  SALES_AGENT = 'Sales Agent',
   FINANCE_OFFICER = 'Finance Officer',
   AUDITOR = 'Audit Officer',
   MANAGER = 'Director',
@@ -26,6 +27,7 @@ export enum SystemRole {
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
 
 export interface AgentIdentity {
+  id?: string; // Link to Auth ID
   name: string;
   phone: string;
   role: SystemRole;

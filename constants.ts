@@ -37,6 +37,3 @@ export const PROFIT_MARGIN = 0.10; // 10% coop margin
 
 // Background Sync Polling Interval (30 Seconds)
 export const SYNC_POLLING_INTERVAL = 30000;
-
-// Fix: Add explicit string type to prevent 'never' type narrowing in consuming services when value is ""
-export const GOOGLE_SHEETS_WEBHOOK_URL: string = "";

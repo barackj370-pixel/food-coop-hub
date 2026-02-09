@@ -1,4 +1,4 @@
-{
+export default {
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,
@@ -26,4 +26,4 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   }
-}
+};

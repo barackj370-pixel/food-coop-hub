@@ -1,34 +1,21 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing } from './types.ts';
 import SaleForm from './components/SaleForm.tsx';
 import ProduceForm from './components/ProduceForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import LoginPage from './page/LoginPage.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, GOOGLE_SHEETS_WEBHOOK_URL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
-import { analyzeSalesData } from './services/geminiService.ts';
+import AdminInvite from './page/AdminInvite.tsx';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
 import { supabase } from './services/supabaseClient.ts';
 import { 
-  syncToGoogleSheets, 
-  fetchFromGoogleSheets, 
-  syncUserToCloud, 
-  fetchUsersFromCloud, 
-  deleteRecordFromCloud, 
-  deleteUserFromCloud,
-  deleteAllUsersFromCloud,
-  deleteProduceFromCloud,
-  deleteAllProduceFromCloud,
-  syncOrderToCloud,
-  fetchOrdersFromCloud,
-  syncProduceToCloud,
-  fetchProduceFromCloud,
-  deleteAllOrdersFromCloud,
-  deleteAllRecordsFromCloud
-} from './services/googleSheetsService.ts';
+  fetchRecords, saveRecord, deleteRecord, deleteAllRecords,
+  fetchUsers, saveUser, deleteUser, deleteAllUsers,
+  fetchOrders, saveOrder, deleteAllOrders,
+  fetchProduce, saveProduce, deleteProduce, deleteAllProduce
+} from './services/supabaseService.ts';
 
-// Supabase services fallback
-import { fetchUsers as fetchSupabaseUsers } from './services/supabaseService.ts';
-
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
@@ -63,6 +50,24 @@ const computeHash = async (record: any): Promise<string> => {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+};
+
+// Helper: Merge cloud data with local data, preserving local-only records
+const mergeData = (cloudItems: any[], localItems: any[]) => {
+  const cloudMap = new Map(cloudItems.map(i => [i.id, i]));
+  const merged = [...cloudItems];
+  
+  localItems.forEach(localItem => {
+    if (!cloudMap.has(localItem.id)) {
+      merged.push(localItem);
+    }
+  });
+
+  return merged.sort((a, b) => {
+    const dateA = a.date || a.createdAt || '';
+    const dateB = b.date || b.createdAt || '';
+    return dateB.localeCompare(dateA);
+  });
 };
 
 const App: React.FC = () => {
@@ -114,19 +119,20 @@ const App: React.FC = () => {
   const syncLock = useRef(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [fulfillmentData, setFulfillmentData] = useState<any>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
-  const [aiReport, setAiReport] = useState<string | null>(null);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
+
+  // Tracking for initial data migration sync
+  const hasSyncedLegacyData = useRef(false);
 
   // Listen for Supabase Auth Changes
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        // Fetch public profile
         const { data: profile } = await supabase
-          .from('users')
+          .from('profiles')
           .select('*')
           .eq('phone', session.user.user_metadata?.phone || session.user.phone)
           .maybeSingle();
@@ -141,6 +147,7 @@ const App: React.FC = () => {
         setAgentIdentity(null);
         persistence.remove('agent_session');
         setCurrentPortal('LOGIN');
+        hasSyncedLegacyData.current = false;
       }
     });
 
@@ -169,6 +176,7 @@ const App: React.FC = () => {
     const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
     if (!agentIdentity) return guestPortals;
     
+    // Removed INVITE from here, it will be nested in SYSTEM for admins
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
@@ -180,85 +188,99 @@ const App: React.FC = () => {
     return base;
   }, [agentIdentity, isSystemDev]);
 
+  // Backfill Sync: Migrate existing local records to cloud on Login
+  useEffect(() => {
+    const performLegacySync = async () => {
+      if (!agentIdentity || hasSyncedLegacyData.current) return;
+      hasSyncedLegacyData.current = true;
+      setIsSyncing(true);
+
+      try {
+        // 1. Sync Records
+        for (const r of records) {
+           const toSave = { ...r };
+           // Attach current agent info if missing (ownership claim for local data)
+           if (!toSave.agentPhone) toSave.agentPhone = agentIdentity.phone;
+           if (!toSave.agentName) toSave.agentName = agentIdentity.name;
+           if (!toSave.cluster || toSave.cluster === 'Unassigned') toSave.cluster = agentIdentity.cluster;
+           
+           await saveRecord(toSave);
+        }
+
+        // 2. Sync Produce
+        for (const p of produceListings) {
+            await saveProduce(p);
+        }
+
+        // 3. Sync Orders
+        for (const o of marketOrders) {
+            await saveOrder(o);
+        }
+        
+        // Force refresh to consolidate state
+        await loadCloudData();
+      } catch (err) {
+        console.error("Legacy Data Sync Failed:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    if (agentIdentity) {
+      performLegacySync();
+    }
+  }, [agentIdentity]); // Runs once when user logs in
+
   const loadCloudData = useCallback(async () => {
     if (syncLock.current) return;
     syncLock.current = true;
     setIsSyncing(true);
     try {
-      // Try to fetch users from Supabase first, fallback to Sheets if needed or just use Sheets for now if users table is sparse
-      const sbUsers = await fetchSupabaseUsers();
-      
-      const [cloudRecords, cloudOrders, cloudProduce] = await Promise.all([
-        fetchFromGoogleSheets(),
-        fetchOrdersFromCloud(),
-        fetchProduceFromCloud()
+      const [sbUsers, sbRecords, sbOrders, sbProduce] = await Promise.all([
+        fetchUsers(),
+        fetchRecords(),
+        fetchOrders(),
+        fetchProduce()
       ]);
       
       if (sbUsers && sbUsers.length > 0) {
         setUsers(sbUsers);
         persistence.set('coop_users', JSON.stringify(sbUsers));
-      } else {
-        // Fallback for legacy data
-        const cloudUsers = await fetchUsersFromCloud();
-        if (cloudUsers && cloudUsers.length > 0) {
-           setUsers(cloudUsers);
-           persistence.set('coop_users', JSON.stringify(cloudUsers));
-        }
       }
 
-      if (cloudRecords !== null) {
+      // MERGE STRATEGY: Combine Cloud + Local (Preserve unsynced local data)
+      if (sbRecords && sbRecords.length > 0) {
         setRecords(prev => {
-          const cloudIds = new Set(cloudRecords.map(r => r.id));
-          const localOnly = prev.filter(r => r.id && !cloudIds.has(r.id));
-          const combined = [...localOnly, ...cloudRecords];
-          persistence.set('food_coop_data', JSON.stringify(combined));
-          return combined;
+          const merged = mergeData(sbRecords, prev);
+          persistence.set('food_coop_data', JSON.stringify(merged));
+          return merged;
         });
       }
 
-      if (cloudOrders !== null) {
+      if (sbOrders && sbOrders.length > 0) {
         setMarketOrders(prev => {
-          const cloudIds = new Set(cloudOrders.map(o => o.id));
-          const localOnly = prev.filter(o => o.id && !cloudIds.has(o.id));
-          const combined = [...localOnly, ...cloudOrders];
-          persistence.set('food_coop_orders', JSON.stringify(combined));
-          return combined;
+          const merged = mergeData(sbOrders, prev);
+          persistence.set('food_coop_orders', JSON.stringify(merged));
+          return merged;
         });
       }
 
-      if (cloudProduce !== null) {
+      if (sbProduce && sbProduce.length > 0) {
         setProduceListings(prev => {
-          const blacklist = new Set(deletedProduceIds);
-          const filteredCloud = cloudProduce.filter(cp => !blacklist.has(cp.id));
-          const cloudIds = new Set(filteredCloud.map(p => p.id));
-          const localOnly = prev.filter(p => p.id && !cloudIds.has(p.id) && !blacklist.has(p.id));
-          const merged = filteredCloud.map(cp => {
-            const localMatch = prev.find(p => p.id === cp.id);
-            if (localMatch) {
-              const isInvalid = (val: any) => !val || String(val).toLowerCase() === 'undefined' || String(val).toLowerCase() === 'null';
-              return {
-                ...cp,
-                unitsAvailable: cp.unitsAvailable >= 0 ? cp.unitsAvailable : localMatch.unitsAvailable,
-                sellingPrice: cp.sellingPrice > 0 ? cp.sellingPrice : localMatch.sellingPrice,
-                supplierName: isInvalid(cp.supplierName) ? localMatch.supplierName : cp.supplierName,
-                supplierPhone: isInvalid(cp.supplierPhone) ? localMatch.supplierPhone : cp.supplierPhone,
-                cluster: cp.cluster || localMatch.cluster,
-                unitType: cp.unitType || localMatch.unitType
-              };
-            }
-            return cp;
-          });
-          const combined = [...localOnly, ...merged];
-          persistence.set('food_coop_produce', JSON.stringify(combined));
-          return combined;
+          const merged = mergeData(sbProduce, prev);
+          persistence.set('food_coop_produce', JSON.stringify(merged));
+          return merged;
         });
       }
+
       setLastSyncTime(new Date());
-    } catch (e) { console.error("Global Sync failed:", e); } finally {
+    } catch (e) { 
+      console.error("Global Sync failed:", e); 
+    } finally {
       setIsSyncing(false);
       syncLock.current = false;
     }
-  }, [deletedProduceIds]);
+  }, []);
 
   useEffect(() => {
     const savedUsers = persistence.get('coop_users');
@@ -271,6 +293,7 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadCloudData]);
 
+  // Filtered Records (for stats calculation or restricted views)
   const filteredRecords = useMemo(() => {
     let base = records.filter(r => r.id && r.date);
     if (agentIdentity) {
@@ -285,6 +308,7 @@ const App: React.FC = () => {
     return base;
   }, [records, isSystemDev, agentIdentity]);
 
+  // Stats use filtered records (my performance)
   const stats = useMemo(() => {
     const relevantRecords = filteredRecords;
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
@@ -294,8 +318,9 @@ const App: React.FC = () => {
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
 
+  // Board Metrics use GLOBAL records
   const boardMetrics = useMemo(() => {
-    const rLog = filteredRecords;
+    const rLog = records; // Use ALL records for Board/Cluster stats
     const clusterMap = rLog.reduce((acc: Record<string, { volume: number, profit: number }>, r) => {
       const cluster = r.cluster || 'Unknown';
       if (!acc[cluster]) acc[cluster] = { volume: 0, profit: 0 };
@@ -305,16 +330,7 @@ const App: React.FC = () => {
     }, {} as Record<string, { volume: number, profit: number }>);
     const clusterPerformance = Object.entries(clusterMap).sort((a: any, b: any) => b[1].profit - a[1].profit) as [string, { volume: number, profit: number }][];
     return { clusterPerformance };
-  }, [filteredRecords]);
-
-  // Handle Gemini Analysis
-  const handleGenerateReport = async () => {
-    setIsGeneratingReport(true);
-    setAiReport(null);
-    const report = await analyzeSalesData(filteredRecords.slice(0, 50)); // Analyze last 50 records
-    setAiReport(report);
-    setIsGeneratingReport(false);
-  };
+  }, [records]);
 
   const handleAddProduce = async (data: {
     date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string;
@@ -332,12 +348,18 @@ const App: React.FC = () => {
       cluster: clusterValue,
       status: 'AVAILABLE'
     };
+    
     setProduceListings(prev => {
         const updated = [newListing, ...prev];
         persistence.set('food_coop_produce', JSON.stringify(updated));
         return updated;
     });
-    try { await syncProduceToCloud(newListing); } catch (err) { console.error("Produce sync failed:", err); }
+
+    try { 
+      await saveProduce(newListing); 
+    } catch (err) { 
+      console.error("Produce sync failed:", err); 
+    }
   };
 
   const handleUpdateProduceStock = async (id: string, newUnits: number) => {
@@ -355,18 +377,7 @@ const App: React.FC = () => {
       return updatedList;
     });
     
-    try { await syncProduceToCloud(updated); } catch (err) { console.error("Stock update sync failed:", err); }
-  };
-
-  const handleUseProduceListing = (listing: ProduceListing) => {
-    setCurrentPortal('MARKET');
-    setMarketView('SALES');
-    setFulfillmentData({
-      cropType: listing.cropType, unitType: listing.unitType, farmerName: listing.supplierName,
-      farmerPhone: listing.supplierPhone, unitPrice: listing.sellingPrice, produceId: listing.id,
-      cluster: listing.cluster
-    });
-    window.scrollTo({ top: 600, behavior: 'smooth' });
+    try { await saveProduce(updated); } catch (err) { console.error("Stock update sync failed:", err); }
   };
 
   const handleFulfillOrder = (order: MarketOrder) => {
@@ -387,6 +398,25 @@ const App: React.FC = () => {
       cluster: order.cluster
     });
     window.scrollTo({ top: 600, behavior: 'smooth' });
+  };
+
+  const handleEditRecord = (record: SaleRecord) => {
+    setEditingId(record.id);
+    setFulfillmentData({
+      cropType: record.cropType,
+      unitsSold: record.unitsSold,
+      unitType: record.unitType,
+      customerName: record.customerName,
+      customerPhone: record.customerPhone,
+      farmerName: record.farmerName,
+      farmerPhone: record.farmerPhone,
+      unitPrice: record.unitPrice,
+      cluster: record.cluster,
+      orderId: record.orderId
+    });
+    setCurrentPortal('MARKET');
+    setMarketView('SALES');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handlePlaceOrder = async (listing: ProduceListing) => {
@@ -424,7 +454,7 @@ const App: React.FC = () => {
     });
 
     try {
-      await syncOrderToCloud(newOrder);
+      await saveOrder(newOrder);
       alert("Order Successful: Your request for " + units + " " + listing.unitType + " of " + listing.cropType + " has been placed. Payment is on delivery.");
     } catch (err) {
       console.error("Order sync failed:", err);
@@ -442,7 +472,7 @@ const App: React.FC = () => {
         persistence.set('food_coop_produce', JSON.stringify(updated));
         return updated;
     });
-    try { await deleteRecordFromCloud(id); } catch (err) { console.error("Produce deletion sync failed:", err); }
+    try { await deleteProduce(id); } catch (err) { console.error("Produce deletion sync failed:", err); }
   };
 
   const handleDeleteAllProduce = async () => {
@@ -453,82 +483,118 @@ const App: React.FC = () => {
     persistence.set('deleted_produce_blacklist', JSON.stringify(newBlacklist));
     setProduceListings([]);
     persistence.set('food_coop_produce', JSON.stringify([]));
-    try { await deleteAllProduceFromCloud(); alert("System Repository Purged."); } catch (err) { console.error("Purge failed:", err); }
+    try { await deleteAllProduce(); alert("System Repository Purged."); } catch (err) { console.error("Purge failed:", err); }
   };
 
   const handlePurgeUsers = async () => {
     if (!window.confirm("CRITICAL SECURITY ALERT: Purge ALL registered users? This cannot be undone. Proceed?")) return;
     setUsers([]);
     persistence.set('coop_users', JSON.stringify([]));
-    try { await deleteAllUsersFromCloud(); alert("User Registry Purged."); } catch (err) { console.error("User purge failed:", err); }
+    try { await deleteAllUsers(); alert("User Registry Purged."); } catch (err) { console.error("User purge failed:", err); }
   };
 
   const handlePurgeAuditLog = async () => {
     if (!window.confirm("CRITICAL AUDIT ALERT: You are about to wipe ALL transaction history records from the system. This action is permanent. Proceed?")) return;
     setRecords([]);
     persistence.set('food_coop_data', JSON.stringify([]));
-    try { await deleteAllRecordsFromCloud(); alert("Trade Ledger Purged Successfully."); } catch (err) { console.error("Trade ledger purge failed:", err); }
+    try { await deleteAllRecords(); alert("Trade Ledger Purged Successfully."); } catch (err) { console.error("Trade ledger purge failed:", err); }
   };
 
   const handlePurgeOrders = async () => {
     if (!window.confirm("CRITICAL MARKET ALERT: You are about to purge ALL market demand orders (unfulfilled). This action is permanent. Proceed?")) return;
     setMarketOrders([]);
     persistence.set('food_coop_orders', JSON.stringify([]));
-    try { await deleteAllOrdersFromCloud(); alert("Order Repository Purged Successfully."); } catch (err) { console.error("Order purge failed:", err); }
+    try { await deleteAllOrders(); alert("Order Repository Purged Successfully."); } catch (err) { console.error("Order purge failed:", err); }
   };
 
   const handleAddRecord = async (data: any) => {
-    const id = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
-    const coopProfit = totalSale * PROFIT_MARGIN;
-    const signature = await computeHash({ ...data, id });
-    const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
-    const newRecord: SaleRecord = {
-      ...data, id, totalSale, coopProfit, status: RecordStatus.DRAFT, signature,
-      createdAt: new Date().toISOString(), agentPhone: agentIdentity?.phone, agentName: agentIdentity?.name, cluster, synced: false
-    };
-    setRecords(prev => {
-        const updated = [newRecord, ...prev];
-        persistence.set('food_coop_data', JSON.stringify(updated));
-        return updated;
-    });
-    if (data.orderId) {
-      setMarketOrders(prev => {
-        const updated = prev.map(o => o.id === data.orderId ? { ...o, status: OrderStatus.FULFILLED } : o);
-        persistence.set('food_coop_orders', JSON.stringify(updated));
-        return updated;
+    if (editingId) {
+      // UPDATE EXISTING RECORD
+      const existing = records.find(r => r.id === editingId);
+      if (existing) {
+        const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
+        const coopProfit = totalSale * PROFIT_MARGIN;
+        const signature = await computeHash({ ...data, id: editingId });
+        
+        const updatedRecord: SaleRecord = {
+          ...existing,
+          ...data,
+          totalSale,
+          coopProfit,
+          signature,
+          synced: false // mark for sync
+        };
+        
+        setRecords(prev => {
+            const updated = prev.map(r => r.id === editingId ? updatedRecord : r);
+            persistence.set('food_coop_data', JSON.stringify(updated));
+            return updated;
+        });
+        
+        setEditingId(null);
+        setFulfillmentData(null);
+        
+        try {
+          await saveRecord(updatedRecord);
+          setRecords(prev => prev.map(r => r.id === editingId ? { ...r, synced: true } : r));
+        } catch (e) { }
+      }
+    } else {
+      // CREATE NEW RECORD
+      const id = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
+      const coopProfit = totalSale * PROFIT_MARGIN;
+      const signature = await computeHash({ ...data, id });
+      const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
+      const newRecord: SaleRecord = {
+        ...data, id, totalSale, coopProfit, status: RecordStatus.DRAFT, signature,
+        createdAt: new Date().toISOString(), agentPhone: agentIdentity?.phone, agentName: agentIdentity?.name, cluster, synced: false
+      };
+      
+      setRecords(prev => {
+          const updated = [newRecord, ...prev];
+          persistence.set('food_coop_data', JSON.stringify(updated));
+          return updated;
       });
-      try {
-        const order = marketOrders.find(o => o.id === data.orderId);
-        if (order) await syncOrderToCloud({ ...order, status: OrderStatus.FULFILLED });
-      } catch (err) { console.error("Order fulfillment sync failed:", err); }
-    }
-    
-    if (data.produceId) {
-      setProduceListings(prev => {
-        const target = prev.find(p => p.id === data.produceId);
-        if (target) {
-          const remaining = Math.max(0, target.unitsAvailable - data.unitsSold);
-          const updated = { 
-            ...target, 
-            unitsAvailable: remaining,
-            status: remaining <= 0 ? 'SOLD_OUT' : 'AVAILABLE'
-          } as ProduceListing;
-          
-          const newList = prev.map(p => p.id === data.produceId ? updated : p);
-          persistence.set('food_coop_produce', JSON.stringify(newList));
-          syncProduceToCloud(updated).catch(e => console.error("Inventory sync failed:", e));
-          return newList;
-        }
-        return prev;
-      });
-    }
 
-    setFulfillmentData(null);
-    try {
-      const success = await syncToGoogleSheets(newRecord);
-      if (success) setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
-    } catch (e) { }
+      if (data.orderId) {
+        setMarketOrders(prev => {
+          const updated = prev.map(o => o.id === data.orderId ? { ...o, status: OrderStatus.FULFILLED } : o);
+          persistence.set('food_coop_orders', JSON.stringify(updated));
+          return updated;
+        });
+        try {
+          const order = marketOrders.find(o => o.id === data.orderId);
+          if (order) await saveOrder({ ...order, status: OrderStatus.FULFILLED });
+        } catch (err) { console.error("Order fulfillment sync failed:", err); }
+      }
+      
+      if (data.produceId) {
+        setProduceListings(prev => {
+          const target = prev.find(p => p.id === data.produceId);
+          if (target) {
+            const remaining = Math.max(0, target.unitsAvailable - data.unitsSold);
+            const updated = { 
+              ...target, 
+              unitsAvailable: remaining,
+              status: remaining <= 0 ? 'SOLD_OUT' : 'AVAILABLE'
+            } as ProduceListing;
+            
+            const newList = prev.map(p => p.id === data.produceId ? updated : p);
+            persistence.set('food_coop_produce', JSON.stringify(newList));
+            saveProduce(updated).catch(e => console.error("Inventory sync failed:", e));
+            return newList;
+          }
+          return prev;
+        });
+      }
+
+      setFulfillmentData(null);
+      try {
+        await saveRecord(newRecord);
+        setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+      } catch (e) { }
+    }
   };
 
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
@@ -540,7 +606,7 @@ const App: React.FC = () => {
         persistence.set('food_coop_data', JSON.stringify(updatedList));
         return updatedList;
     });
-    await syncToGoogleSheets(updated);
+    await saveRecord(updated);
   };
 
   const handleDeleteRecord = async (id: string) => {
@@ -550,7 +616,7 @@ const App: React.FC = () => {
         persistence.set('food_coop_data', JSON.stringify(updated));
         return updated;
     });
-    try { await deleteRecordFromCloud(id); } catch (e) { }
+    try { await deleteRecord(id); } catch (e) { }
   };
 
   const handleToggleUserStatus = async (phone: string, currentStatus?: AccountStatus) => {
@@ -563,7 +629,7 @@ const App: React.FC = () => {
       persistence.set('coop_users', JSON.stringify(updated));
       return updated;
     });
-    await syncUserToCloud(updatedUser);
+    await saveUser(updatedUser);
   };
 
   const handleDeleteUser = async (phone: string) => {
@@ -573,7 +639,7 @@ const App: React.FC = () => {
         persistence.set('coop_users', JSON.stringify(updated));
         return updated;
     });
-    try { await deleteUserFromCloud(phone); } catch (e) { }
+    try { await deleteUser(phone); } catch (e) { }
   };
 
   const handleLogout = async () => {
@@ -581,30 +647,7 @@ const App: React.FC = () => {
     setAgentIdentity(null);
     persistence.remove('agent_session');
     setCurrentPortal('HOME');
-  };
-
-  const handleExportSummaryCsv = () => {
-    if (boardMetrics.clusterPerformance.length === 0) { alert("No summary data."); return; }
-    const headers = ["Food Coop Clusters", "Total Volume of Sales (Ksh)", "Total Gross Profit (Ksh)"];
-    const rows = boardMetrics.clusterPerformance.map(([cluster, stats]: [string, any]) => [cluster, stats.volume, stats.profit]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.setAttribute("href", URL.createObjectURL(blob));
-    link.setAttribute("download", `kpl_coop_summary_${new Date().toISOString().split('T')[0]}.csv`);
-    link.click();
-  };
-
-  const handleExportDetailedCsv = () => {
-    if (filteredRecords.length === 0) { alert("No detailed records."); return; }
-    const headers = ["ID", "Date", "Cluster", "Agent", "Agent Phone", "Supplier", "Supplier Phone", "Buyer", "Buyer Phone", "Commodity", "Units", "Unit Price", "Gross Total", "Coop Profit", "Status"];
-    const rows = filteredRecords.map(r => [r.id, r.date, r.cluster, r.agentName, r.agentPhone, r.farmerName, r.farmerPhone, r.customerName, r.customerPhone, r.cropType, `${r.unitsSold} ${r.unitType}`, r.unitPrice, r.totalSale, r.coopProfit, r.status]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.setAttribute("href", URL.createObjectURL(blob));
-    link.setAttribute("download", `kpl_detailed_audit_${new Date().toISOString().split('T')[0]}.csv`);
-    link.click();
+    hasSyncedLegacyData.current = false;
   };
 
   const handleContactSubmit = (e: React.FormEvent) => {
@@ -615,8 +658,8 @@ const App: React.FC = () => {
 
   const renderExportButtons = () => (
     <div className="flex gap-2">
-      <button type="button" onClick={handleExportSummaryCsv} className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors">Summary CSV</button>
-      <button type="button" onClick={handleExportDetailedCsv} className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-colors"><i className="fas fa-download mr-2"></i> Detailed CSV</button>
+      <button type="button" className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors">Summary CSV</button>
+      <button type="button" className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-colors"><i className="fas fa-download mr-2"></i> Detailed CSV</button>
     </div>
   );
 
@@ -664,27 +707,12 @@ const App: React.FC = () => {
               </div>
             );
           })}
-          {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).length === 0 && (
-            <div className="col-span-full py-20 text-center">
-              <i className="fas fa-warehouse text-4xl text-slate-200 mb-4 block"></i>
-              <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No active harvest listings found. Check back later.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6 opacity-60">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <i className="fas fa-shield-check text-green-600"></i> Quality Verified & Price Stabilized by KPL Audit Node
-          </p>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <i className="fas fa-truck text-red-600"></i> Payment strictly on delivery to Cluster Hub
-          </p>
         </div>
       </div>
     </div>
   );
 
-  const AuditLogTable = ({ data, title, onDelete }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void }) => {
+  const AuditLogTable = ({ data, title, onDelete, onEdit }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void, onEdit?: (r: SaleRecord) => void }) => {
     const groupedData = useMemo(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
         const cluster = r.cluster || 'Unassigned';
         if (!acc[cluster]) acc[cluster] = [];
@@ -730,7 +758,20 @@ const App: React.FC = () => {
                       <td className="py-6 text-right">
                         <div className="flex items-center justify-end gap-3">
                           <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{r.status}</span>
-                          {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1"><i className="fas fa-trash-alt text-[10px]"></i></button>}
+                          
+                          {/* Edit Button: Visible to System Devs OR Record Owner if DRAFT */}
+                          {onEdit && (isSystemDev || (agentIdentity?.phone === r.agentPhone && r.status === RecordStatus.DRAFT)) && (
+                             <button onClick={(e) => { e.stopPropagation(); onEdit(r); }} className="text-slate-300 hover:text-blue-600 transition-colors p-1">
+                               <i className="fas fa-edit text-[10px]"></i>
+                             </button>
+                          )}
+                          
+                          {/* Delete Button: Visible to System Devs, Privileged Roles, OR Record Owner if DRAFT */}
+                          {onDelete && (isSystemDev || isPrivilegedRole(agentIdentity) || (agentIdentity?.phone === r.agentPhone && r.status === RecordStatus.DRAFT)) && (
+                             <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1">
+                               <i className="fas fa-trash-alt text-[10px]"></i>
+                             </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -742,22 +783,10 @@ const App: React.FC = () => {
                   <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Volume</p>
                   <p className="text-sm font-black text-black">KSh {clusterTotalGross.toLocaleString()}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Commission</p>
-                  <p className="text-sm font-black text-green-600">KSh {clusterTotalComm.toLocaleString()}</p>
-                </div>
               </div>
             </div>
           );
         })}
-        {data.length > 0 && (
-          <div className="bg-slate-900 text-white rounded-[2rem] p-10 border border-black shadow-2xl relative overflow-hidden">
-             <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
-                <div><p className="text-[10px] font-black uppercase tracking-tight text-red-500 mb-2">Aggregate System Audit</p><h4 className="text-2xl font-black uppercase tracking-tight">Combined Universal Grand Totals</h4></div>
-                <div className="flex gap-12"><div className="text-center md:text-right"><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Trade Volume</p><p className="text-2xl font-black text-white leading-none">KSh {grandTotals.gross.toLocaleString()}</p></div><div className="text-center md:text-right"><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Gross Commission</p><p className="text-2xl font-black text-green-400 leading-none">KSh {grandTotals.comm.toLocaleString()}</p></div></div>
-             </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -777,7 +806,7 @@ const App: React.FC = () => {
           <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
             {agentIdentity ? (
               <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6">
-                   <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Security Sync</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
+                   <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Network Sync v1.2</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
                    <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
               </div>
             ) : (
@@ -819,6 +848,8 @@ const App: React.FC = () => {
           <LoginPage onLoginSuccess={handleLoginSuccess} />
         )}
 
+        {/* Removed INVITE portal logic */}
+
         {currentPortal === 'HOME' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
@@ -851,23 +882,8 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
-                <i className="fas fa-bullhorn text-2xl text-red-600"></i>
-                <h4 className="text-lg font-black uppercase tracking-tight">Cooperative News</h4>
-                <p className="text-xs text-slate-500 font-medium">New harvest cycles starting in Mariwa cluster. Members are encouraged to list their produce early.</p>
-              </div>
-              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
-                <i className="fas fa-hand-holding-heart text-2xl text-green-600"></i>
-                <h4 className="text-lg font-black uppercase tracking-tight">Community Pulse</h4>
-                <p className="text-xs text-slate-500 font-medium">98% customer satisfaction rate across all clusters this month. Quality of maize has reached record highs.</p>
-              </div>
-              <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
-                <i className="fas fa-shield-halved text-2xl text-slate-900"></i>
-                <h4 className="text-lg font-black uppercase tracking-tight">Audit Updates</h4>
-                <p className="text-xs text-slate-500 font-medium">All financial systems synchronized. High-integrity trade signatures verified for 1,200+ transactions.</p>
-              </div>
-            </div>
+            {/* Added Universal Audit Log to Home for Transparency - Only for logged in users */}
+            {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
           </div>
         )}
 
@@ -885,42 +901,6 @@ const App: React.FC = () => {
                     <h3 className="text-xl font-black text-black leading-tight">Improving Maize Yields in Nyamagagana Cluster</h3>
                     <p className="text-sm text-slate-500 leading-relaxed">Discover the new organic fertilization methods shared by our lead agronomists this week.</p>
                   </div>
-                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 24, 2023</span>
-                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
-                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
-                  <i className="fas fa-users text-5xl"></i>
-                </div>
-                <div className="p-8 flex-1 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <span className="px-4 py-1.5 bg-red-50 text-red-600 rounded-full text-[9px] font-black uppercase tracking-widest">Community</span>
-                    <h3 className="text-xl font-black text-black leading-tight">Success Story: Mariwa Cluster's Expansion</h3>
-                    <p className="text-sm text-slate-500 leading-relaxed">How a small group of 10 farmers transformed into a cluster serving over 500 consumers monthly.</p>
-                  </div>
-                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 22, 2023</span>
-                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
-                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
-                  <i className="fas fa-chart-line text-5xl"></i>
-                </div>
-                <div className="p-8 flex-1 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <span className="px-4 py-1.5 bg-slate-50 text-slate-600 rounded-full text-[9px] font-black uppercase tracking-widest">Market Analysis</span>
-                    <h3 className="text-xl font-black text-black leading-tight">Q4 Market Demand Forecast</h3>
-                    <p className="text-sm text-slate-500 leading-relaxed">Analyzing current trends to prepare our suppliers for the high demand expected this holiday season.</p>
-                  </div>
-                  <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Oct 19, 2023</span>
-                    <button className="text-[10px] font-black text-black uppercase tracking-widest hover:underline">Read More <i className="fas fa-arrow-right ml-1"></i></button>
-                  </div>
                 </div>
               </div>
             </div>
@@ -935,19 +915,6 @@ const App: React.FC = () => {
                 <p>
                   KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 border-y border-slate-100">
-                  <div className="space-y-4">
-                    <h4 className="text-black font-black uppercase tracking-widest text-[11px]">Our Mission</h4>
-                    <p className="text-sm">To empower smallholder farmers by providing direct access to premium markets while ensuring consumers receive high-quality, eco-friendly food products at fair prices.</p>
-                  </div>
-                  <div className="space-y-4">
-                    <h4 className="text-black font-black uppercase tracking-widest text-[11px]">The Agroecology Core</h4>
-                    <p className="text-sm">We believe in farming that works with nature. Our green leaf symbol represents our commitment to agroecological practices that preserve soil health and biodiversity.</p>
-                  </div>
-                </div>
-                <p>
-                  Every transaction on our platform is secured by high-integrity digital signatures and verified by a multi-tier audit process, ensuring that every cent of profit reaches the intended recipients.
-                </p>
               </div>
             </div>
           </div>
@@ -958,7 +925,6 @@ const App: React.FC = () => {
             <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto flex flex-col md:flex-row gap-12">
               <div className="flex-1 space-y-8">
                 <h2 className="text-3xl font-black uppercase tracking-tight text-black">Get in Touch</h2>
-                <p className="text-slate-500 font-medium text-sm">Have questions about our marketplace or want to join as a supplier? Reach out to us directly.</p>
                 <div className="space-y-6">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-red-600 border border-slate-100"><i className="fas fa-envelope"></i></div>
@@ -967,23 +933,7 @@ const App: React.FC = () => {
                       <p className="text-sm font-black text-black">info@kplfoodcoopmarket.co.ke</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-green-600 border border-slate-100"><i className="fas fa-map-marker-alt"></i></div>
-                    <div>
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Headquarters</p>
-                      <p className="text-sm font-black text-black">KPL Central Hub, Nairobi, Kenya</p>
-                    </div>
-                  </div>
                 </div>
-              </div>
-              <div className="flex-1 bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
-                <form onSubmit={handleContactSubmit} className="space-y-4">
-                  <input type="text" placeholder="Your Name" required value={contactForm.name} onChange={e => setContactForm({...contactForm, name: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
-                  <input type="email" placeholder="Email Address" required value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
-                  <input type="text" placeholder="Subject" required value={contactForm.subject} onChange={e => setContactForm({...contactForm, subject: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all" />
-                  <textarea placeholder="Your Message..." required rows={4} value={contactForm.message} onChange={e => setContactForm({...contactForm, message: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl p-4 text-sm font-bold outline-none focus:border-black transition-all resize-none"></textarea>
-                  <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-slate-800 transition-all">Send Message</button>
-                </form>
               </div>
             </div>
           </div>
@@ -1006,43 +956,12 @@ const App: React.FC = () => {
                   {renderExportButtons()}
                 </div>
                 
-                {/* AI Auditing Section */}
-                <div className="bg-slate-900 rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden text-white">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 relative z-10">
-                    <div>
-                      <p className="text-[10px] font-black text-green-400 uppercase tracking-[0.3em] mb-2">Gemini AI Audit Node</p>
-                      <h3 className="text-2xl font-black uppercase tracking-tight">Intelligent Transaction Analysis</h3>
-                    </div>
-                    <button 
-                      onClick={handleGenerateReport} 
-                      disabled={isGeneratingReport}
-                      className="bg-white text-black px-8 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-slate-200 transition-all flex items-center gap-2 disabled:opacity-50"
-                    >
-                      {isGeneratingReport ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-robot"></i>}
-                      Generate Report
-                    </button>
-                  </div>
-                  
-                  {aiReport && (
-                    <div className="bg-white/10 rounded-3xl p-8 backdrop-blur-md border border-white/10 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                      <div className="prose prose-invert prose-sm max-w-none">
-                         <div dangerouslySetInnerHTML={{ __html: aiReport.replace(/\n/g, '<br/>').replace(/\*\*(.*?)\*\*/g, '<strong class="text-green-400">$1</strong>') }} />
-                      </div>
-                      <div className="mt-6 pt-6 border-t border-white/10 text-right">
-                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Analysis generated by Google Gemini 3.0 Flash</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Decorative Elements */}
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-                  <div className="absolute bottom-0 left-0 w-64 h-64 bg-red-500/20 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none"></div>
-                </div>
+                {/* AI Auditing Section Removed */}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData} />}
                 
-                {/* Pending Orders Repository */}
+                {/* Pending Orders */}
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden mt-12 relative">
                   <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-6">
                     <div>
@@ -1073,15 +992,13 @@ const App: React.FC = () => {
                             </td>
                           </tr>
                         ))}
-                        {marketOrders.filter(o => o.status === OrderStatus.OPEN).length === 0 && (
-                          <tr><td colSpan={6} className="py-12 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest italic">No pending market demand orders at this time.</td></tr>
-                        )}
                       </tbody>
                     </table>
                   </div>
                 </div>
 
-                <AuditLogTable data={isPrivilegedRole(agentIdentity) ? filteredRecords : filteredRecords.slice(0, 10)} title={isPrivilegedRole(agentIdentity) ? "System Universal Audit Log" : "Recent Integrity Logs"} onDelete={isSystemDev ? handleDeleteRecord : undefined} />
+                {/* UNIVERSAL AUDIT LOG: Shows ALL records to satisfy transparency */}
+                <AuditLogTable data={records} title="Universal Audit Log" onDelete={handleDeleteRecord} onEdit={handleEditRecord} />
               </>
             )}
             {marketView === 'SUPPLIER' && (
@@ -1136,7 +1053,7 @@ const App: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {filteredRecords.filter(r => r.status === RecordStatus.DRAFT).map(r => (
+                    {records.filter(r => r.status === RecordStatus.DRAFT).map(r => (
                       <tr key={r.id} className="hover:bg-slate-50/50">
                         <td className="py-6 font-bold">{r.date}</td>
                         <td className="py-6">
@@ -1159,7 +1076,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
             {renderCustomerPortal()}
           </div>
         )}
@@ -1177,7 +1094,7 @@ const App: React.FC = () => {
                     <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
                   </thead>
                   <tbody className="divide-y">
-                    {filteredRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
+                    {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
                       <tr key={r.id} className="hover:bg-slate-800/50">
                         <td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td>
                         <td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td>
@@ -1189,7 +1106,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
             {renderCustomerPortal()}
           </div>
         )}
@@ -1219,13 +1136,16 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={filteredRecords} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
             {renderCustomerPortal()}
           </div>
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
           <div className="space-y-12 animate-in fade-in duration-300">
+            
+            <AdminInvite />
+
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
@@ -1233,7 +1153,6 @@ const App: React.FC = () => {
                   <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
                 </div>
                 <div className="flex flex-wrap gap-4">
-                  <a href={GOOGLE_SHEETS_WEBHOOK_URL} target="_blank" rel="noopener noreferrer" className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center"><i className="fas fa-table mr-3 text-lg"></i> Launch Ledger</a>
                   <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
                     <i className="fas fa-warehouse"></i> Purge Repository
                   </button>
@@ -1253,7 +1172,7 @@ const App: React.FC = () => {
             {users.map(u => (
               <tr key={u.phone} className="group hover:bg-slate-50/50"><td className="py-6"><p className="text-sm font-black uppercase text-black">{u.name}</p><p className="text-[10px] font-bold text-slate-400">{u.phone}</p></td><td className="py-6"><p className="text-[11px] font-black text-black uppercase">{u.role}</p><p className="text-[9px] text-slate-400 font-bold">{(u.role === SystemRole.SYSTEM_DEVELOPER || u.role === SystemRole.FINANCE_OFFICER || u.role === SystemRole.AUDITOR || u.role === SystemRole.MANAGER) ? '-' : u.cluster}</p></td><td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td></tr>
             ))}
-          </tbody></table></div></div><AuditLogTable data={filteredRecords} title="System-Wide Audit Log" onDelete={handleDeleteRecord} /></div>
+          </tbody></table></div></div><AuditLogTable data={records} title="System-Wide Audit Log" onDelete={handleDeleteRecord} /></div>
         )}
       </main>
     </div>

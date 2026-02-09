@@ -2,13 +2,16 @@ import { GoogleGenAI } from "@google/genai";
 import { SaleRecord } from "../types.ts";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
+  // Retrieve Key from window.APP_ENV or process.env if available (for build tools)
+  const apiKey = (window as any).APP_ENV?.API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+
   // Ensure the API key is present
-  if (!process.env.API_KEY) {
-    return "API Key not configured. Please ensure process.env.API_KEY is available.";
+  if (!apiKey) {
+    return "API Key not configured. Please ensure your environment is set up correctly.";
   }
 
-  // Initialize the GoogleGenAI client with the API key as per guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Initialize the GoogleGenAI client with the API key
+  const ai = new GoogleGenAI({ apiKey });
   
   const salesSummary = records.map(r => ({
     date: r.date,
@@ -19,7 +22,6 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
     total: r.totalSale,
     farmer: `${r.farmerName} (${r.farmerPhone})`,
     customer: `${r.customerName} (${r.customerPhone})`,
-    // Fix: Removed reference to r.createdBy which is not present in SaleRecord type
   }));
 
   const prompt = `
@@ -48,7 +50,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
       },
     });
 
-    // Fix: Access .text property directly (not as a method)
+    // Access .text property directly (not as a method)
     return response.text || "No analysis could be generated.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);

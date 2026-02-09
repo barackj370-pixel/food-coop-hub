@@ -10,118 +10,347 @@ const isClientReady = (): boolean => {
   return true;
 };
 
+// HELPER: Get current User ID
+const getCurrentUserId = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id;
+};
+
+// HELPER: Error Handler
+const handleSupabaseError = (context: string, err: any) => {
+  // Convert error to string for broad checking
+  const msg = (err.message || err.toString() || '').toLowerCase();
+  
+  // Explicitly check for browser fetch failures
+  if (err instanceof TypeError && msg.includes('failed to fetch')) {
+    return; 
+  }
+
+  // Suppress common network/offline errors
+  if (
+    msg.includes('failed to fetch') || 
+    msg.includes('networkerror') || 
+    msg.includes('network request failed') ||
+    msg.includes('connection error') ||
+    msg.includes('load failed')
+  ) {
+    // Network offline or unreachable - Silent fail (Offline Mode)
+    return;
+  }
+  
+  // Ignore specific PostgREST codes (e.g. empty result sets if handled elsewhere)
+  if (err.code !== 'PGRST205' && err.code !== '42P01') {
+    console.error(`${context}:`, err);
+  }
+};
+
+// HELPER: Map camelCase (Frontend) <-> snake_case (Backend)
+
+const mapRecordToDb = (r: SaleRecord) => ({
+  id: r.id,
+  date: r.date,
+  crop_type: r.cropType,
+  unit_type: r.unitType,
+  farmer_name: r.farmerName,
+  farmer_phone: r.farmerPhone,
+  customer_name: r.customerName,
+  customer_phone: r.customerPhone,
+  units_sold: r.unitsSold,
+  unit_price: r.unitPrice,
+  total_sale: r.totalSale,
+  coop_profit: r.coopProfit,
+  status: r.status,
+  signature: r.signature,
+  created_at: r.createdAt,
+  agent_phone: r.agentPhone,
+  agent_name: r.agentName,
+  cluster: r.cluster,
+  synced: r.synced,
+  order_id: r.orderId
+});
+
+const mapDbToRecord = (db: any): SaleRecord => ({
+  id: db.id,
+  date: db.date,
+  cropType: db.crop_type || db.cropType,
+  unitType: db.unit_type || db.unitType,
+  farmerName: db.farmer_name || db.farmerName,
+  farmerPhone: db.farmer_phone || db.farmerPhone,
+  customerName: db.customer_name || db.customerName,
+  customerPhone: db.customer_phone || db.customerPhone,
+  unitsSold: Number(db.units_sold || db.unitsSold || 0),
+  unitPrice: Number(db.unit_price || db.unitPrice || 0),
+  totalSale: Number(db.total_sale || db.totalSale || 0),
+  coopProfit: Number(db.coop_profit || db.coopProfit || 0),
+  status: db.status,
+  signature: db.signature,
+  createdAt: db.created_at || db.createdAt || new Date().toISOString(),
+  agentPhone: db.agent_phone || db.agentPhone,
+  agentName: db.agent_name || db.agentName,
+  cluster: db.cluster,
+  synced: true,
+  orderId: db.order_id || db.orderId
+});
+
 /* SALE RECORDS */
 export const saveRecord = async (record: SaleRecord) => {
   if (!isClientReady()) return false;
-  // Ensure we don't send local-only flags to DB if they aren't in schema
-  const { synced, ...dbRecord } = record;
-  const { error } = await supabase.from('records').upsert(dbRecord, { onConflict: 'id' });
-  if (error) console.error('Supabase saveRecord error:', error);
-  return !error;
+  try {
+    const userId = await getCurrentUserId();
+    
+    const dbPayload = mapRecordToDb(record);
+    const { synced, ...payload } = dbPayload as any;
+    
+    // Inject agent_id for RLS
+    if (userId) {
+      (payload as any).agent_id = userId;
+    }
+    
+    const { error } = await supabase.from('records').upsert(payload, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveRecord', err);
+    return false;
+  }
 };
 
 export const fetchRecords = async () => {
   if (!isClientReady()) return [];
-  const { data, error } = await supabase.from('records').select('*').order('createdAt', { ascending: false });
-  if (error) {
-    console.error('Supabase fetchRecords error:', error);
+  try {
+    const { data, error } = await supabase.from('records').select('*').order('date', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbToRecord);
+  } catch (err: any) {
+    handleSupabaseError('fetchRecords', err);
     return [];
   }
-  return (data as SaleRecord[]) || [];
 };
 
 export const deleteRecord = async (id: string) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('records').delete().eq('id', id);
-  return !error;
+  try {
+    const { error } = await supabase.from('records').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteRecord', err);
+    return false;
+  }
 };
 
 export const deleteAllRecords = async () => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('records').delete().neq('id', '0');
-  return !error;
+  try {
+    const { error } = await supabase.from('records').delete().neq('id', '0');
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteAllRecords', err);
+    return false;
+  }
 };
 
-/* USERS / AGENTS */
+/* USERS / PROFILES */
 export const saveUser = async (user: AgentIdentity) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('users').upsert(user, { onConflict: 'phone' });
-  if (error) console.error('Supabase saveUser error:', error);
-  return !error;
+  try {
+    // Note: 'id' in AgentIdentity should match auth.uid()
+    const { error } = await supabase.from('profiles').upsert(user, { onConflict: 'phone' });
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveUser', err);
+    return false;
+  }
 };
 
 export const fetchUsers = async () => {
   if (!isClientReady()) return [];
-  const { data, error } = await supabase.from('users').select('*');
-  if (error) {
-    console.error('Supabase fetchUsers error:', error);
+  try {
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (error) throw error;
+    return (data as AgentIdentity[]) || [];
+  } catch (err: any) {
+    handleSupabaseError('fetchUsers', err);
     return [];
   }
-  return (data as AgentIdentity[]) || [];
 };
 
 export const deleteUser = async (phone: string) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('users').delete().eq('phone', phone);
-  return !error;
+  try {
+    const { error } = await supabase.from('profiles').delete().eq('phone', phone);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteUser', err);
+    return false;
+  }
 };
 
 export const deleteAllUsers = async () => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('users').delete().neq('phone', '0');
-  return !error;
+  try {
+    const { error } = await supabase.from('profiles').delete().neq('phone', '0');
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteAllUsers', err);
+    return false;
+  }
 };
 
 /* MARKET ORDERS */
+const mapOrderToDb = (o: MarketOrder) => ({
+  id: o.id,
+  date: o.date,
+  crop_type: o.cropType,
+  units_requested: o.unitsRequested,
+  unit_type: o.unitType,
+  customer_name: o.customerName,
+  customer_phone: o.customerPhone,
+  status: o.status,
+  agent_phone: o.agentPhone,
+  cluster: o.cluster
+});
+
+const mapDbToOrder = (db: any): MarketOrder => ({
+  id: db.id,
+  date: db.date,
+  cropType: db.crop_type || db.cropType,
+  unitsRequested: Number(db.units_requested || db.unitsRequested || 0),
+  unitType: db.unit_type || db.unitType,
+  customerName: db.customer_name || db.customerName,
+  customerPhone: db.customer_phone || db.customerPhone,
+  status: db.status,
+  agentPhone: db.agent_phone || db.agentPhone,
+  cluster: db.cluster
+});
+
 export const saveOrder = async (order: MarketOrder) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('orders').upsert(order, { onConflict: 'id' });
-  if (error) console.error('Supabase saveOrder error:', error);
-  return !error;
+  try {
+    const userId = await getCurrentUserId();
+
+    const payload = mapOrderToDb(order);
+    
+    if (userId) {
+      (payload as any).agent_id = userId;
+    }
+
+    const { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveOrder', err);
+    return false;
+  }
 };
 
 export const fetchOrders = async () => {
   if (!isClientReady()) return [];
-  const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
-  if (error) {
-    console.error('Supabase fetchOrders error:', error);
+  try {
+    const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbToOrder);
+  } catch (err: any) {
+    handleSupabaseError('fetchOrders', err);
     return [];
   }
-  return (data as MarketOrder[]) || [];
 };
 
 export const deleteAllOrders = async () => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('orders').delete().neq('id', '0');
-  return !error;
+  try {
+    const { error } = await supabase.from('orders').delete().neq('id', '0');
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteAllOrders', err);
+    return false;
+  }
 };
 
 /* PRODUCE LISTINGS */
+const mapProduceToDb = (p: ProduceListing) => ({
+  id: p.id,
+  date: p.date,
+  crop_type: p.cropType,
+  units_available: p.unitsAvailable,
+  unit_type: p.unitType,
+  selling_price: p.sellingPrice,
+  supplier_name: p.supplierName,
+  supplier_phone: p.supplierPhone,
+  cluster: p.cluster,
+  status: p.status
+});
+
+const mapDbToProduce = (db: any): ProduceListing => ({
+  id: db.id,
+  date: db.date,
+  cropType: db.crop_type || db.cropType,
+  unitsAvailable: Number(db.units_available || db.unitsAvailable || 0),
+  unitType: db.unit_type || db.unitType,
+  sellingPrice: Number(db.selling_price || db.sellingPrice || 0),
+  supplierName: db.supplier_name || db.supplierName,
+  supplierPhone: db.supplier_phone || db.supplierPhone,
+  cluster: db.cluster,
+  status: db.status
+});
+
 export const saveProduce = async (produce: ProduceListing) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('produce').upsert(produce, { onConflict: 'id' });
-  if (error) console.error('Supabase saveProduce error:', error);
-  return !error;
+  try {
+    const userId = await getCurrentUserId();
+    
+    const payload = mapProduceToDb(produce);
+    
+    if (userId) {
+      (payload as any).agent_id = userId;
+    }
+
+    const { error } = await supabase.from('produce').upsert(payload, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveProduce', err);
+    return false;
+  }
 };
 
 export const fetchProduce = async () => {
   if (!isClientReady()) return [];
-  const { data, error } = await supabase.from('produce').select('*').order('date', { ascending: false });
-  if (error) {
-    console.error('Supabase fetchProduce error:', error);
+  try {
+    const { data, error } = await supabase.from('produce').select('*').order('date', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbToProduce);
+  } catch (err: any) {
+    handleSupabaseError('fetchProduce', err);
     return [];
   }
-  return (data as ProduceListing[]) || [];
 };
 
 export const deleteProduce = async (id: string) => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('produce').delete().eq('id', id);
-  return !error;
+  try {
+    const { error } = await supabase.from('produce').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteProduce', err);
+    return false;
+  }
 };
 
 export const deleteAllProduce = async () => {
   if (!isClientReady()) return false;
-  const { error } = await supabase.from('produce').delete().neq('id', '0');
-  return !error;
+  try {
+    const { error } = await supabase.from('produce').delete().neq('id', '0');
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteAllProduce', err);
+    return false;
+  }
 };
