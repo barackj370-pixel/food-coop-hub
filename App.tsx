@@ -289,8 +289,22 @@ const App: React.FC = () => {
   }, [loadCloudData]);
 
   useEffect(() => {
+    // 1. POLLING FALLBACK
     const interval = setInterval(() => { loadCloudData(); }, SYNC_POLLING_INTERVAL);
-    return () => clearInterval(interval);
+
+    // 2. REALTIME SUBSCRIPTION
+    // This allows instant updates when Finance/Audit officers change status
+    const channel = supabase.channel('global_changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+        console.log('Realtime update detected, refreshing data...');
+        loadCloudData();
+      })
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [loadCloudData]);
 
   // Filtered Records (for stats calculation or restricted views)
@@ -1098,12 +1112,16 @@ const App: React.FC = () => {
                     <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
                   </thead>
                   <tbody className="divide-y">
-                    {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VALIDATED).map(r => (
+                    {/* Changed filter: Only show PAID items (skipping VALIDATED step for speed) */}
+                    {records.filter(r => r.status === RecordStatus.PAID).map(r => (
                       <tr key={r.id} className="hover:bg-slate-800/50">
                         <td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td>
                         <td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td>
                         <td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td>
-                        <td className="py-6 text-right">{r.status === RecordStatus.PAID ? (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-search"></i> Verify</button>) : (<button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-red-600 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-red-700 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Audit Seal</button>)}</td>
+                        <td className="py-6 text-right">
+                           {/* Simplified Action: Click Verify directly sets status to VERIFIED */}
+                           <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Verify & Seal</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
