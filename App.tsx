@@ -6,7 +6,7 @@ import ProduceForm from './components/ProduceForm.tsx';
 import StatCard from './components/StatCard.tsx';
 import LoginPage from './page/LoginPage.tsx';
 import AdminInvite from './page/AdminInvite.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, COMMODITY_CATEGORIES, CROP_CONFIG } from './constants.ts';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants.ts';
 import { supabase } from './services/supabaseClient.ts';
 import { 
   fetchRecords, saveRecord, deleteRecord, deleteAllRecords,
