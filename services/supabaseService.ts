@@ -283,7 +283,8 @@ const mapProduceToDb = (p: ProduceListing) => ({
   supplier_name: p.supplierName,
   supplier_phone: p.supplierPhone,
   cluster: p.cluster,
-  status: p.status
+  status: p.status,
+  images: p.images ? JSON.stringify(p.images) : null
 });
 
 const mapDbToProduce = (db: any): ProduceListing => ({
@@ -296,7 +297,8 @@ const mapDbToProduce = (db: any): ProduceListing => ({
   supplierName: db.supplier_name || db.supplierName,
   supplierPhone: db.supplier_phone || db.supplierPhone,
   cluster: db.cluster,
-  status: db.status
+  status: db.status,
+  images: db.images ? JSON.parse(db.images) : []
 });
 
 export const saveProduce = async (produce: ProduceListing) => {

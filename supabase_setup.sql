@@ -1,3 +1,4 @@
+
 -- Run this script in your Supabase SQL Editor to initialize the database tables
 
 -- 1. Create profiles table (Public Profile)
@@ -75,6 +76,7 @@ create table if not exists public.produce (
   "supplierPhone" text,
   cluster text,
   status text,
+  images text, -- New column for storing JSON array of base64 images
   agent_id uuid references public.profiles(id)
 );
 

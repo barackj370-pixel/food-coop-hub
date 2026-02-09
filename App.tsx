@@ -347,7 +347,7 @@ const App: React.FC = () => {
   }, [records]);
 
   const handleAddProduce = async (data: {
-    date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string;
+    date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string; images: string[];
   }) => {
     const clusterValue = agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa';
     const newListing: ProduceListing = {
@@ -360,7 +360,8 @@ const App: React.FC = () => {
       supplierName: data.supplierName,
       supplierPhone: data.supplierPhone,
       cluster: clusterValue,
-      status: 'AVAILABLE'
+      status: 'AVAILABLE',
+      images: data.images
     };
     
     setProduceListings(prev => {
@@ -695,7 +696,23 @@ const App: React.FC = () => {
           {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => {
             const isSameCluster = p.cluster === agentIdentity?.cluster;
             return (
-              <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group">
+              <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group overflow-hidden">
+                {/* Image Display */}
+                {p.images && p.images.length > 0 ? (
+                  <div className="w-full h-40 mb-6 rounded-2xl overflow-hidden relative">
+                     <img src={p.images[0]} alt={p.cropType} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                     {p.images.length > 1 && (
+                       <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[8px] font-bold px-2 py-1 rounded-full backdrop-blur-sm">
+                         +1 more
+                       </div>
+                     )}
+                  </div>
+                ) : (
+                  <div className="w-full h-40 mb-6 rounded-2xl bg-slate-200 flex items-center justify-center text-slate-400">
+                     <i className="fas fa-image text-3xl opacity-50"></i>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">
                     <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isSameCluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
@@ -1024,7 +1041,7 @@ const App: React.FC = () => {
                 {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (<ProduceForm userRole={agentIdentity.role} defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} onSubmit={handleAddProduce} />)}
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
                   {produceListings.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">
+                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><div className="flex items-center gap-3">{p.images && p.images.length > 0 && <img src={p.images[0]} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200" />}<p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></div></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">
                       {(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (
                         <>
                           <button type="button" onClick={() => {

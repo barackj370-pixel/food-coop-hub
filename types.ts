@@ -1,5 +1,4 @@
 
-
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
@@ -62,6 +61,7 @@ export interface ProduceListing {
   supplierPhone: string;
   cluster: string;
   status: 'AVAILABLE' | 'SOLD_OUT';
+  images?: string[]; // Array of Base64 Image Strings
 }
 
 export interface SaleRecord {

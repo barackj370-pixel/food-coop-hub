@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN } from '../constants.ts';
 import { SystemRole } from '../types.ts';
 
@@ -14,11 +15,13 @@ interface ProduceFormProps {
     sellingPrice: number;
     supplierName: string;
     supplierPhone: string;
+    images: string[];
   }) => void;
 }
 
 const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSupplierName, defaultSupplierPhone }) => {
   const isSupplier = userRole === SystemRole.SUPPLIER;
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -28,7 +31,8 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     unitsAvailable: 0,
     sellingPrice: 0, // Treated as the "Base Price" entered by the user
     supplierName: defaultSupplierName || '',
-    supplierPhone: defaultSupplierPhone || ''
+    supplierPhone: defaultSupplierPhone || '',
+    images: [] as string[]
   });
 
   useEffect(() => {
@@ -41,6 +45,70 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
   // Calculate the final market price including the coop commission
   const marketPrice = formData.sellingPrice * (1 + PROFIT_MARGIN);
   const totalValue = formData.unitsAvailable * marketPrice;
+
+  // Helper: Compress and Convert Image to Base64
+  const processImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_WIDTH = 800; // Max width for storage efficiency
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7)); // 70% Quality JPEG
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const remainingSlots = 2 - formData.images.length;
+      if (remainingSlots <= 0) {
+        alert("Maximum 2 images allowed per listing.");
+        return;
+      }
+      
+      const files = Array.from(e.target.files).slice(0, remainingSlots);
+      const processedImages = await Promise.all(files.map(processImage));
+      
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...processedImages]
+      }));
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,9 +135,11 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
       otherCropType: '',
       unitsAvailable: 0,
       sellingPrice: 0,
+      images: [],
       supplierName: isSupplier ? (defaultSupplierName || '') : '',
       supplierPhone: isSupplier ? (defaultSupplierPhone || '') : '07'
     });
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] || ['Units'];
@@ -195,7 +265,37 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
           )}
         </div>
 
-        <div className="flex items-end">
+        {/* Image Upload Section */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-4 xl:col-span-5 border-t border-slate-100 pt-6">
+           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Product Images (Max 2)</label>
+           <div className="flex flex-wrap items-center gap-4">
+              {formData.images.map((img, idx) => (
+                <div key={idx} className="relative group w-24 h-24 rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                  <img src={img} alt="Product" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px] shadow-sm hover:scale-110 transition-transform">
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              ))}
+              
+              {formData.images.length < 2 && (
+                <label className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 hover:border-green-400 hover:bg-green-50 flex flex-col items-center justify-center cursor-pointer transition-all group">
+                   <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      multiple 
+                      className="hidden" 
+                      onChange={handleImageUpload} 
+                   />
+                   <i className="fas fa-camera text-slate-300 group-hover:text-green-500 text-xl mb-1 transition-colors"></i>
+                   <span className="text-[9px] font-bold text-slate-400 group-hover:text-green-600 uppercase">Add Photo</span>
+                </label>
+              )}
+           </div>
+        </div>
+
+        <div className="flex items-end col-span-1 md:col-span-2 lg:col-span-4 xl:col-span-5">
           <button 
             type="submit"
             className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
