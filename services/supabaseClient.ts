@@ -43,7 +43,6 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    // Explicitly check for window to support SSR environments
     storage: typeof window !== 'undefined' ? window.localStorage : undefined
   }
 });
