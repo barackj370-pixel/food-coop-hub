@@ -124,3 +124,6 @@ create policy "Orders viewable by everyone" on public.orders for select using (t
 create policy "Agents can insert orders" on public.orders for insert with check (true);
 create policy "Agents can update orders" on public.orders for update using (true);
 create policy "Agents can delete orders" on public.orders for delete using (true);
+
+-- 5. Migrations (Run if updating existing DB)
+alter table public.produce add column if not exists images text;

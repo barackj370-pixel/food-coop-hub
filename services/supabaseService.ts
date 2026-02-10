@@ -32,6 +32,7 @@ const handleSupabaseError = (context: string, err: any) => {
   }
   
   // Ignore specific PostgREST errors that are handled or expected
+  // PGRST204: Schema cache issue / Missing column
   if (err.code !== 'PGRST205' && err.code !== '42P01') {
     console.error(`${context}:`, err);
   }
@@ -300,6 +301,20 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
       (payload as any).agent_id = userId;
     }
     const { error } = await supabase.from('produce').upsert(payload, { onConflict: 'id' });
+    
+    // Auto-fix for schema mismatch (missing images column in DB)
+    // If the images column doesn't exist, Supabase/PostgREST throws PGRST204.
+    // We catch this and retry the save WITHOUT the images field to prevent app crash.
+    // Enhanced check to be case-insensitive and cover standard error codes.
+    const msg = error?.message?.toLowerCase() || '';
+    if (error && (error.code === 'PGRST204' || error.code === '42703') && (msg.includes('images') || msg.includes('column'))) {
+      console.warn("Schema mismatch detected: 'images' column likely missing in DB. Retrying without images.");
+      const { images, ...safePayload } = payload;
+      const { error: retryError } = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
+      if (retryError) throw retryError;
+      return true;
+    }
+
     if (error) throw error;
     return true;
   } catch (err: any) {
