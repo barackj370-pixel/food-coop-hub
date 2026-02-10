@@ -4,12 +4,9 @@ import { SaleRecord } from "../types";
 import { getEnv } from "./env";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
-  // Use getEnv to support runtime injection via window.APP_ENV
-  const apiKey = getEnv('API_KEY');
-
   // Initialize the GoogleGenAI client with the API key
   // The client will handle authentication errors internally if the key is invalid/missing
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: getEnv('API_KEY') });
   
   const salesSummary = records.map(r => ({
     date: r.date,
