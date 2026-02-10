@@ -5,7 +5,7 @@ import { getEnv } from "./env";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
   // Use getEnv to support runtime injection via window.APP_ENV
-  const apiKey = getEnv('API_KEY') || process.env.API_KEY;
+  const apiKey = getEnv('API_KEY');
 
   // Ensure the API key is present
   if (!apiKey) {
