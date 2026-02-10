@@ -20,20 +20,18 @@ const getCurrentUserId = async (): Promise<string | undefined> => {
 const handleSupabaseError = (context: string, err: any) => {
   const msg = (err.message || err.toString() || '').toLowerCase();
   
-  if (err instanceof TypeError && msg.includes('failed to fetch')) {
-    return; 
-  }
-
+  // Ignore common network/fetch errors that might be transient
   if (
     msg.includes('failed to fetch') || 
     msg.includes('networkerror') || 
-    msg.includes('network request failed') ||
+    msg.includes('network request failed') || 
     msg.includes('connection error') ||
     msg.includes('load failed')
   ) {
     return;
   }
   
+  // Ignore specific PostgREST errors that are handled or expected
   if (err.code !== 'PGRST205' && err.code !== '42P01') {
     console.error(`${context}:`, err);
   }
@@ -96,7 +94,6 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
     const userId = await getCurrentUserId();
     
     const dbPayload = mapRecordToDb(record);
-    // Explicitly set synced to true when saving to DB
     const payload = { ...dbPayload, synced: true };
     
     if (userId) {
