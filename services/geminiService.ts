@@ -1,10 +1,11 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { SaleRecord } from "../types";
+import { getEnv } from "./env";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
-  // Retrieve Key exclusively from process.env.API_KEY as per coding guidelines
-  const apiKey = process.env.API_KEY;
+  // Use getEnv to support runtime injection via window.APP_ENV
+  const apiKey = getEnv('API_KEY') || process.env.API_KEY;
 
   // Ensure the API key is present
   if (!apiKey) {

@@ -1,5 +1,4 @@
 
-
 export enum RecordStatus {
   DRAFT = 'DRAFT',
   PAID = 'PAID',
@@ -14,7 +13,7 @@ export enum OrderStatus {
 }
 
 export enum SystemRole {
-  SALES_AGENT = 'Sales Agent',
+  SALEST_AGENT = 'Sales Agent',
   FINANCE_OFFICER = 'Finance Officer',
   AUDITOR = 'Audit Officer',
   MANAGER = 'Director',

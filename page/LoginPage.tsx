@@ -15,7 +15,7 @@ const CLUSTERS = [
 ];
 
 const CLUSTER_ROLES: SystemRole[] = [
-  SystemRole.SALES_AGENT,
+  SystemRole.SALEST_AGENT,
   SystemRole.SUPPLIER,
   SystemRole.CUSTOMER,
 ];
