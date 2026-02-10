@@ -40,14 +40,9 @@ const registerServiceWorker = () => {
        await new Promise(resolve => setTimeout(resolve, 2000));
 
        try {
-        // FORCE absolute URL resolution against the current window location.
-        // This fixes "origin mismatch" errors in cloud IDEs where the environment's base URL 
-        // (e.g. ai.studio) differs from the iframe's actual origin (e.g. googleusercontent.com).
-        const base = new URL('./', window.location.href).href;
-        const swUrl = new URL('sw.js', base).href;
-
-        // Explicitly set scope to the current directory to ensure alignment
-        const registration = await navigator.serviceWorker.register(swUrl, { scope: base });
+        // Use relative path directly. Do NOT construct using window.location.origin or href
+        // as cloud environments often have mismatched origins between iframe and top-level URL.
+        const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
         console.log('SW Registered:', registration.scope);
        } catch (err: any) {
          // Filter out known environment-specific errors that aren't critical
