@@ -3,15 +3,15 @@ import { supabase } from './supabaseClient';
 import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types';
 
 const isClientReady = (): boolean => {
-  if (!supabase || !supabase.from) {
-    console.warn("Supabase client not properly initialized.");
+  if (!supabase) {
+    console.warn("Supabase client not initialized.");
     return false;
   }
   return true;
 };
 
 // HELPER: Get current User ID
-const getCurrentUserId = async () => {
+const getCurrentUserId = async (): Promise<string | undefined> => {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.user?.id;
 };
@@ -90,7 +90,7 @@ const mapDbToRecord = (db: any): SaleRecord => ({
 });
 
 /* SALE RECORDS */
-export const saveRecord = async (record: SaleRecord) => {
+export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
@@ -112,7 +112,7 @@ export const saveRecord = async (record: SaleRecord) => {
   }
 };
 
-export const fetchRecords = async () => {
+export const fetchRecords = async (): Promise<SaleRecord[]> => {
   if (!isClientReady()) return [];
   try {
     const { data, error } = await supabase.from('records').select('*').order('date', { ascending: false });
@@ -124,7 +124,7 @@ export const fetchRecords = async () => {
   }
 };
 
-export const deleteRecord = async (id: string) => {
+export const deleteRecord = async (id: string): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('records').delete().eq('id', id);
@@ -136,7 +136,7 @@ export const deleteRecord = async (id: string) => {
   }
 };
 
-export const deleteAllRecords = async () => {
+export const deleteAllRecords = async (): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('records').delete().neq('id', '0');
@@ -149,7 +149,7 @@ export const deleteAllRecords = async () => {
 };
 
 /* USERS / PROFILES */
-export const saveUser = async (user: AgentIdentity) => {
+export const saveUser = async (user: AgentIdentity): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('profiles').upsert(user, { onConflict: 'phone' });
@@ -161,7 +161,7 @@ export const saveUser = async (user: AgentIdentity) => {
   }
 };
 
-export const fetchUsers = async () => {
+export const fetchUsers = async (): Promise<AgentIdentity[]> => {
   if (!isClientReady()) return [];
   try {
     const { data, error } = await supabase.from('profiles').select('*');
@@ -173,7 +173,7 @@ export const fetchUsers = async () => {
   }
 };
 
-export const deleteUser = async (phone: string) => {
+export const deleteUser = async (phone: string): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('profiles').delete().eq('phone', phone);
@@ -185,7 +185,7 @@ export const deleteUser = async (phone: string) => {
   }
 };
 
-export const deleteAllUsers = async () => {
+export const deleteAllUsers = async (): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('profiles').delete().neq('phone', '0');
@@ -224,7 +224,7 @@ const mapDbToOrder = (db: any): MarketOrder => ({
   cluster: db.cluster
 });
 
-export const saveOrder = async (order: MarketOrder) => {
+export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
@@ -241,7 +241,7 @@ export const saveOrder = async (order: MarketOrder) => {
   }
 };
 
-export const fetchOrders = async () => {
+export const fetchOrders = async (): Promise<MarketOrder[]> => {
   if (!isClientReady()) return [];
   try {
     const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
@@ -253,7 +253,7 @@ export const fetchOrders = async () => {
   }
 };
 
-export const deleteAllOrders = async () => {
+export const deleteAllOrders = async (): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('orders').delete().neq('id', '0');
@@ -294,7 +294,7 @@ const mapDbToProduce = (db: any): ProduceListing => ({
   images: db.images ? JSON.parse(db.images) : []
 });
 
-export const saveProduce = async (produce: ProduceListing) => {
+export const saveProduce = async (produce: ProduceListing): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
@@ -311,7 +311,7 @@ export const saveProduce = async (produce: ProduceListing) => {
   }
 };
 
-export const fetchProduce = async () => {
+export const fetchProduce = async (): Promise<ProduceListing[]> => {
   if (!isClientReady()) return [];
   try {
     const { data, error } = await supabase.from('produce').select('*').order('date', { ascending: false });
@@ -323,7 +323,7 @@ export const fetchProduce = async () => {
   }
 };
 
-export const deleteProduce = async (id: string) => {
+export const deleteProduce = async (id: string): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('produce').delete().eq('id', id);
@@ -335,7 +335,7 @@ export const deleteProduce = async (id: string) => {
   }
 };
 
-export const deleteAllProduce = async () => {
+export const deleteAllProduce = async (): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const { error } = await supabase.from('produce').delete().neq('id', '0');
