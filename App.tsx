@@ -936,7 +936,7 @@ const App: React.FC = () => {
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
               <div className="flex-1 space-y-6">
-                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">Welcome to the KPL Cooperative Hub</h2>
+                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">WELCOME TO THE KPL FOOD COOPERATIVE MARKET</h2>
                 <p className="text-slate-600 font-medium leading-relaxed">
                   Our platform is designed to empower local farmers and consumers through a transparent, high-integrity marketplace. We leverage agroecological principles to ensure sustainable growth for our community.
                 </p>
