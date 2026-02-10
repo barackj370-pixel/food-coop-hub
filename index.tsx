@@ -40,15 +40,22 @@ const registerServiceWorker = () => {
        await new Promise(resolve => setTimeout(resolve, 2000));
 
        try {
-        // Use relative path directly. Do NOT construct using window.location.origin
-        // as cloud environments often have mismatched origins between iframe and top.
-        // We also remove explicit scope to let it default to the script's location.
-        const registration = await navigator.serviceWorker.register('/sw.js');
+        // FORCE absolute URL resolution against the current window location.
+        // This fixes "origin mismatch" errors in cloud IDEs where the environment's base URL 
+        // (e.g. ai.studio) differs from the iframe's actual origin (e.g. googleusercontent.com).
+        const base = new URL('./', window.location.href).href;
+        const swUrl = new URL('sw.js', base).href;
+
+        // Explicitly set scope to the current directory to ensure alignment
+        const registration = await navigator.serviceWorker.register(swUrl, { scope: base });
         console.log('SW Registered:', registration.scope);
        } catch (err: any) {
          // Filter out known environment-specific errors that aren't critical
-         const msg = err?.message || '';
-         if (msg.includes('invalid state') || msg.includes('origin') || msg.includes('mismatch')) {
+         const msg = (err?.message || '') + ' ' + (err?.toString() || '');
+         if (msg.toLowerCase().includes('invalid state') || 
+             msg.toLowerCase().includes('origin') || 
+             msg.toLowerCase().includes('mismatch') ||
+             msg.toLowerCase().includes('script resource is behind a redirect')) {
            console.log('SW Registration Skipped (Preview Environment limitation):', msg);
          } else {
            console.warn('SW Registration Failed:', err);
