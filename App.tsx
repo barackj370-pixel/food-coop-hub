@@ -1,19 +1,19 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types.ts';
-import SaleForm from './components/SaleForm.tsx';
-import ProduceForm from './components/ProduceForm.tsx';
-import StatCard from './components/StatCard.tsx';
-import LoginPage from './page/LoginPage.tsx';
-import AdminInvite from './page/AdminInvite.tsx';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants.ts';
-import { supabase } from './services/supabaseClient.ts';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types';
+import SaleForm from './components/SaleForm';
+import ProduceForm from './components/ProduceForm';
+import StatCard from './components/StatCard';
+import LoginPage from './page/LoginPage';
+import AdminInvite from './page/AdminInvite';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
+import { supabase } from './services/supabaseClient';
 import { 
   fetchRecords, saveRecord, deleteRecord, deleteAllRecords,
   fetchUsers, saveUser, deleteUser, deleteAllUsers,
   fetchOrders, saveOrder, deleteAllOrders,
   fetchProduce, saveProduce, deleteProduce, deleteAllProduce
-} from './services/supabaseService.ts';
+} from './services/supabaseService';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
@@ -155,7 +155,7 @@ const App: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
 
-  const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
+  // Removed unused contactForm state to prevent build errors
 
   // Tracking for initial data migration sync
   const hasSyncedLegacyData = useRef(false);
