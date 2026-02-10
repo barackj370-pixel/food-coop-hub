@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { SaleRecord } from "../types";
 import { getEnv } from "./env";
@@ -35,7 +34,6 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
   `;
 
   try {
-    // Generate content using the recommended model and passing both model name and prompt directly
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -45,7 +43,6 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
       },
     });
 
-    // Access .text property directly (not as a method)
     return response.text || "No analysis could be generated.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
