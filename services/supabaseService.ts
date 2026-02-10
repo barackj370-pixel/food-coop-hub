@@ -96,7 +96,8 @@ export const saveRecord = async (record: SaleRecord) => {
     const userId = await getCurrentUserId();
     
     const dbPayload = mapRecordToDb(record);
-    const { synced, ...payload } = dbPayload as any;
+    // Explicitly set synced to true when saving to DB
+    const payload = { ...dbPayload, synced: true };
     
     if (userId) {
       (payload as any).agent_id = userId;

@@ -771,10 +771,14 @@ const App: React.FC = () => {
         return acc;
       }, {} as Record<string, SaleRecord[]>), [data]);
     
+    // Convert to keys array to ensure safe iteration
+    const clusters = Object.keys(groupedData);
+
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
+        {clusters.map((cluster) => {
+          const records = groupedData[cluster];
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
 
           return (

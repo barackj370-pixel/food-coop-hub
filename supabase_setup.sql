@@ -16,6 +16,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+-- Policies for Profiles
 create policy "Public profiles are viewable by everyone" 
   on public.profiles for select 
   using (true);
@@ -27,6 +28,24 @@ create policy "Users can insert their own profile"
 create policy "Users can update their own profile" 
   on public.profiles for update 
   using (auth.uid() = id);
+
+create policy "Admins can update all profiles" 
+  on public.profiles for update 
+  using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role in ('System Developer', 'Director')
+    )
+  );
+
+create policy "Admins can delete profiles" 
+  on public.profiles for delete 
+  using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role in ('System Developer', 'Director')
+    )
+  );
 
 
 -- 2. Create RECORDS table (Sales)
@@ -49,7 +68,7 @@ create table if not exists public.records (
   agent_phone text,
   agent_name text,
   cluster text,
-  synced boolean,
+  synced boolean default true,
   order_id text,
   produce_id text,
   agent_id uuid references public.profiles(id)
