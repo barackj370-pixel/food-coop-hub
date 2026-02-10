@@ -356,7 +356,7 @@ const App: React.FC = () => {
   }, [filteredRecords]);
 
   // Explicit typing for useMemo to avoid inference errors
-  const boardMetrics = useMemo(() => {
+  const boardMetrics = useMemo<{ clusterPerformance: [string, ClusterMetric][] }>(() => {
     const rLog = records; 
     const clusterMap = rLog.reduce<Record<string, ClusterMetric>>((acc, r) => {
       const cluster = r.cluster || 'Unknown';
@@ -763,7 +763,8 @@ const App: React.FC = () => {
   );
 
   const AuditLogTable = ({ data, title, onDelete, onEdit }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void, onEdit?: (r: SaleRecord) => void }) => {
-    const groupedData = useMemo(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
+    // Explicitly type groupedData with useMemo to fix "Property ... does not exist on type 'unknown'"
+    const groupedData = useMemo<Record<string, SaleRecord[]>>(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
         const cluster = r.cluster || 'Unassigned';
         if (!acc[cluster]) acc[cluster] = [];
         acc[cluster].push(r);

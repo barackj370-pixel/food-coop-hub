@@ -2,8 +2,8 @@ import { GoogleGenAI } from "@google/genai";
 import { SaleRecord } from "../types.ts";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
-  // Retrieve Key from window.APP_ENV or process.env if available (for build tools)
-  const apiKey = (window as any).APP_ENV?.API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : '');
+  // Retrieve Key exclusively from process.env.API_KEY as per coding guidelines
+  const apiKey = process.env.API_KEY;
 
   // Ensure the API key is present
   if (!apiKey) {
