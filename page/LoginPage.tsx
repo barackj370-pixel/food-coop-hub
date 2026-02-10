@@ -48,7 +48,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       if (!session?.user) return;
 
       const { data: profile } = await supabase
-        .from('profiles') // Changed from users to profiles
+        .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .maybeSingle();
@@ -57,7 +57,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         onLoginSuccess(profile as AgentIdentity);
       } else {
         const { data: phoneProfile } = await supabase
-          .from('profiles') // Changed from users to profiles
+          .from('profiles')
           .select('*')
           .eq('phone', session.user.user_metadata?.phone || session.user.phone)
           .maybeSingle();
@@ -135,26 +135,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (!validatePin(passcode)) { setError("New PIN must be exactly 4 digits."); setLoading(false); return; }
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
 
-    // --- HARDCODED BACKDOOR FOR DEV ---
-    if (cleanPhone.includes('725717170') && passcode === '0987') {
-      const devProfile: AgentIdentity = {
-        id: 'dev-bypass-id',
-        name: 'Barack James (Admin)',
-        phone: cleanPhone,
-        role: SystemRole.SYSTEM_DEVELOPER,
-        cluster: 'Nyamagagana',
-        passcode: '0987',
-        status: 'ACTIVE'
-      };
-      
-      setTimeout(() => {
-        setLoading(false);
-        onLoginSuccess(devProfile);
-      }, 800);
-      return;
-    }
-    // ----------------------------------
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for API
 
@@ -191,15 +171,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       console.warn("Reset API unreachable, attempting profile lookup bypass...");
 
       const { data: profile, error: profileError } = await supabase
-        .from('profiles') // Changed from users to profiles
+        .from('profiles')
         .select('*')
         .eq('phone', cleanPhone)
         .maybeSingle();
 
       if (profile && !profileError) {
-        // Simulate a successful reset and login for Development/Demo purposes
-        alert(`Dev Mode: Logged in as ${profile.name} (Auth Bypass).`);
-        onLoginSuccess(profile as AgentIdentity);
+        // Note: In a real prod environment without the API, this reset is only local/simulated or requires manual DB intervention.
+        // For the purpose of this app without a Node backend, we allow login if the user matches, but warn about the PIN.
+        setError("Password reset requires administrator contact. Please contact support.");
         return;
       } else {
          setError("User not found. Please register first.");
@@ -216,26 +196,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     const cleanPhone = cleanPhoneNumber(phone);
-
-    // --- HARDCODED BACKDOOR FOR DEV ---
-    if (cleanPhone.includes('725717170') && passcode === '0987') {
-      const devProfile: AgentIdentity = {
-        id: 'dev-bypass-id',
-        name: 'Barack James (Admin)',
-        phone: cleanPhone,
-        role: SystemRole.SYSTEM_DEVELOPER,
-        cluster: 'Nyamagagana',
-        passcode: '0987',
-        status: 'ACTIVE'
-      };
-      
-      setTimeout(() => {
-        setLoading(false);
-        onLoginSuccess(devProfile);
-      }, 500);
-      return;
-    }
-    // ----------------------------------
 
     if (!validatePin(passcode)) {
       setError('PIN must be exactly 4 digits.');
@@ -291,7 +251,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         setError("Login Failed: " + error.message);
       } else if (data.user) {
         const { data: profile } = await supabase
-          .from('profiles') // Changed from users to profiles
+          .from('profiles')
           .select('*')
           .eq('id', data.user.id)
           .maybeSingle();
