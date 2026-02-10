@@ -1,12 +1,13 @@
 
--- Run this script in your Supabase SQL Editor to initialize the database tables
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
 
--- 1. Create profiles table (Public Profile)
+-- 1. Create PROFILES table
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
-  name text not null,
-  phone text not null unique,
-  role text not null,
+  name text,
+  phone text unique,
+  role text,
   cluster text,
   passcode text,
   status text default 'ACTIVE',
@@ -28,94 +29,79 @@ create policy "Users can update their own profile"
   using (auth.uid() = id);
 
 
--- 2. Create records table (Sales Records)
+-- 2. Create RECORDS table (Sales)
 create table if not exists public.records (
   id text primary key,
   date text,
-  "cropType" text,
-  "unitType" text,
-  "farmerName" text,
-  "farmerPhone" text,
-  "customerName" text,
-  "customerPhone" text,
-  "unitsSold" numeric,
-  "unitPrice" numeric,
-  "totalSale" numeric,
-  "coopProfit" numeric,
+  crop_type text,
+  unit_type text,
+  farmer_name text,
+  farmer_phone text,
+  customer_name text,
+  customer_phone text,
+  units_sold numeric,
+  unit_price numeric,
+  total_sale numeric,
+  coop_profit numeric,
   status text,
   signature text,
-  "createdAt" text,
-  "agentPhone" text,
-  "agentName" text,
+  created_at timestamptz default now(),
+  agent_phone text,
+  agent_name text,
   cluster text,
+  synced boolean,
   order_id text,
   produce_id text,
   agent_id uuid references public.profiles(id)
 );
 
--- MIGRATION: Add columns if they are missing from existing table
-do $$
-begin
-  if not exists (select 1 from information_schema.columns where table_name = 'records' and column_name = 'order_id') then
-    alter table public.records add column order_id text;
-  end if;
-  if not exists (select 1 from information_schema.columns where table_name = 'records' and column_name = 'produce_id') then
-    alter table public.records add column produce_id text;
-  end if;
-end $$;
-
 alter table public.records enable row level security;
 create policy "Records viewable by everyone" on public.records for select using (true);
-create policy "Agents can insert records" on public.records for insert with check (auth.uid() = agent_id);
-create policy "Agents can update records" on public.records for update using (auth.uid() = agent_id);
+create policy "Agents can insert records" on public.records for insert with check (true);
+create policy "Agents can update records" on public.records for update using (true);
+create policy "Agents can delete records" on public.records for delete using (true);
 
 
--- 3. Create produce table (Produce Listings)
+-- 3. Create PRODUCE table (Listings)
 create table if not exists public.produce (
   id text primary key,
   date text,
-  "cropType" text,
-  "unitsAvailable" numeric,
-  "unitType" text,
-  "sellingPrice" numeric,
-  "supplierName" text,
-  "supplierPhone" text,
+  crop_type text,
+  units_available numeric,
+  unit_type text,
+  selling_price numeric,
+  supplier_name text,
+  supplier_phone text,
   cluster text,
   status text,
   images text,
   agent_id uuid references public.profiles(id)
 );
 
--- MIGRATION: Add images column if missing
-do $$
-begin
-  if not exists (select 1 from information_schema.columns where table_name = 'produce' and column_name = 'images') then
-    alter table public.produce add column images text;
-  end if;
-end $$;
-
 alter table public.produce enable row level security;
 create policy "Produce viewable by everyone" on public.produce for select using (true);
-create policy "Agents can insert produce" on public.produce for insert with check (auth.uid() = agent_id);
-create policy "Agents can update produce" on public.produce for update using (auth.uid() = agent_id);
+create policy "Agents can insert produce" on public.produce for insert with check (true);
+create policy "Agents can update produce" on public.produce for update using (true);
+create policy "Agents can delete produce" on public.produce for delete using (true);
 
 
--- 4. Create orders table (Market Orders)
+-- 4. Create ORDERS table (Market Requests)
 create table if not exists public.orders (
   id text primary key,
   date text,
-  "cropType" text,
-  "unitsRequested" numeric,
-  "unitType" text,
-  "customerName" text,
-  "customerPhone" text,
+  crop_type text,
+  units_requested numeric,
+  unit_type text,
+  customer_name text,
+  customer_phone text,
   status text,
-  "agentPhone" text,
+  agent_phone text,
   cluster text,
   agent_id uuid references public.profiles(id)
 );
 
 alter table public.orders enable row level security;
 create policy "Orders viewable by everyone" on public.orders for select using (true);
-create policy "Agents can insert orders" on public.orders for insert with check (auth.uid() = agent_id);
-create policy "Agents can update orders" on public.orders for update using (auth.uid() = agent_id);
+create policy "Agents can insert orders" on public.orders for insert with check (true);
+create policy "Agents can update orders" on public.orders for update using (true);
+create policy "Agents can delete orders" on public.orders for delete using (true);
