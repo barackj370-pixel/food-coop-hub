@@ -2,21 +2,38 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Support both Vite env vars and window global injection for backwards compatibility
-// Use optional chaining for import.meta.env to prevent crashes if it is undefined or if 'env' is missing
-const getEnvVar = (key: string) => {
-  // Check import.meta.env first (Vite)
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-    return import.meta.env[key];
+// We access import.meta.env properties directly (statically) to ensure Vite can replace them at build time.
+// We use optional chaining and checks to avoid crashes if import.meta.env is undefined.
+
+const getSupabaseUrl = () => {
+  // Try Vite env first
+  // Check if import.meta is defined (avoids ReferenceError in non-module envs)
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) {
+    return import.meta.env.VITE_SUPABASE_URL;
   }
-  // Check window.APP_ENV (Legacy/Injected)
-  if (typeof window !== 'undefined' && (window as any).APP_ENV && (window as any).APP_ENV[key]) {
-    return (window as any).APP_ENV[key];
+  
+  // Try Legacy/Window injection
+  if (typeof window !== 'undefined' && (window as any).APP_ENV?.VITE_SUPABASE_URL) {
+    return (window as any).APP_ENV.VITE_SUPABASE_URL;
   }
   return '';
 };
 
-const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
-const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+const getSupabaseAnonKey = () => {
+  // Try Vite env first
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) {
+    return import.meta.env.VITE_SUPABASE_ANON_KEY;
+  }
+
+  // Try Legacy/Window injection
+  if (typeof window !== 'undefined' && (window as any).APP_ENV?.VITE_SUPABASE_ANON_KEY) {
+    return (window as any).APP_ENV.VITE_SUPABASE_ANON_KEY;
+  }
+  return '';
+};
+
+const supabaseUrl = getSupabaseUrl();
+const supabaseAnonKey = getSupabaseAnonKey();
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Supabase credentials missing! Check .env file or APP_ENV injection.");
