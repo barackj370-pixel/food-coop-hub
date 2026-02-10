@@ -1,4 +1,3 @@
-
 {
   "name": "food-coop-market",
   "version": "1.0.0",
@@ -10,7 +9,7 @@
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
-    "@google/genai": "^0.1.0",
+    "@google/genai": "^1.40.0",
     "@supabase/supabase-js": "^2.39.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
