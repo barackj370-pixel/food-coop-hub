@@ -232,9 +232,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           status: 'ACTIVE'
         };
 
+        // Try to insert profile immediately
         const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile);
+        
         if (dbError) {
-             setError("Auth created but profile failed: " + dbError.message);
+             // If DB insert fails (likely RLS because session not ready), we warn but allow "success"
+             // because the Login step below will auto-heal it.
+             console.warn("Profile creation deferred due to auth state:", dbError.message);
+             setMessage('Account created! Please Log In to complete activation.');
+             setIsSignUp(false);
         } else {
              setMessage('Account created successfully! You can now log in.');
              setIsSignUp(false);
@@ -250,6 +256,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       if (error) {
         setError("Login Failed: " + error.message);
       } else if (data.user) {
+        // 1. Check for existing profile
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -259,9 +266,37 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
             onLoginSuccess(profile as AgentIdentity);
         } else {
-            setIsCompletingProfile(true);
-            setPhone(cleanPhone);
-            setMessage("Profile not found. Please complete your details.");
+            // 2. SELF-HEALING: Profile missing? Recreate it from Auth Metadata
+            console.log("Profile missing for authenticated user. Attempting auto-heal...");
+            const meta = data.user.user_metadata;
+            
+            if (meta && meta.role && meta.full_name) {
+                const recoveryProfile: AgentIdentity = {
+                    id: data.user.id,
+                    name: meta.full_name,
+                    phone: data.user.phone || cleanPhone,
+                    role: meta.role,
+                    cluster: meta.cluster || '-',
+                    passcode: passcode,
+                    status: 'ACTIVE'
+                };
+                
+                const { error: healError } = await supabase.from('profiles').upsert(recoveryProfile);
+                
+                if (!healError) {
+                    onLoginSuccess(recoveryProfile);
+                } else {
+                    console.error("Auto-heal failed:", healError);
+                    setIsCompletingProfile(true);
+                    setPhone(cleanPhone);
+                    setMessage("Profile synchronization failed. Please re-enter details.");
+                }
+            } else {
+                // Metadata missing too? Force manual completion
+                setIsCompletingProfile(true);
+                setPhone(cleanPhone);
+                setMessage("Profile not found. Please complete your details.");
+            }
         }
       }
     }
