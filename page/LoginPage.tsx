@@ -355,7 +355,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                  <input
                   required
                   type="text"
-                  placeholder="e.g. John Doe"
+                  placeholder="Enter full name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all"
