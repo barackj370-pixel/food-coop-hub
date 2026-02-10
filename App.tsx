@@ -290,7 +290,8 @@ const App: React.FC = () => {
     setTimeout(syncPendingData, 500);
   };
 
-  const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.name === 'Barack James';
+  // CLEANUP: Removed hardcoded "Barack James" backdoor. Access is now strictly based on role.
+  const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
 
   const isPrivilegedRole = (agent: AgentIdentity | null) => {
     if (!agent) return false;

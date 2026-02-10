@@ -239,7 +239,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
              // If DB insert fails (likely RLS because session not ready), we warn but allow "success"
              // because the Login step below will auto-heal it.
              console.warn("Profile creation deferred due to auth state:", dbError.message);
-             setMessage('Account created! Please Log In to complete activation.');
+             setMessage('Account created! Please Log In to activate your profile in the database.');
              setIsSignUp(false);
         } else {
              setMessage('Account created successfully! You can now log in.');
