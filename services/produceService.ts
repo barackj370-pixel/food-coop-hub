@@ -1,5 +1,4 @@
 
-// Fix: Replaced raw SQL script with valid TypeScript service logic for Supabase interactions
 import { supabase } from './supabaseClient';
 import { getCurrentProfile } from './authService';
 import { ProduceListing } from '../types';
@@ -34,8 +33,6 @@ export const fetchProduce = async () => {
     .select('*')
     .order('date', { ascending: false });
 
-  // Note: Row Level Security (RLS) is configured in the Supabase dashboard and will automatically
-  // filter the data returned based on the user's authentication context.
   const { data, error } = await query;
   if (error) {
     console.error('Fetch produce error:', error);

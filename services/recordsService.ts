@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { getCurrentProfile } from './authService';
 import { SaleRecord } from '../types';
