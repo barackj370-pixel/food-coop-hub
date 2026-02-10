@@ -774,7 +774,7 @@ const App: React.FC = () => {
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {(Object.entries(groupedData)).map(([cluster, records]) => {
+        {(Object.entries(groupedData) as [string, SaleRecord[]][]).map(([cluster, records]) => {
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
 
           return (
