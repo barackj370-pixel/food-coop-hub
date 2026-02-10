@@ -8,6 +8,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
   const apiKey = getEnv('API_KEY');
 
   // Initialize the GoogleGenAI client with the API key
+  // The client will handle authentication errors internally if the key is invalid/missing
   const ai = new GoogleGenAI({ apiKey });
   
   const salesSummary = records.map(r => ({
