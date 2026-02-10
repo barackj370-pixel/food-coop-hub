@@ -40,12 +40,13 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         systemInstruction: "You are an expert agricultural economist and cooperative auditor. Provide data-driven insights with a professional tone.",
         temperature: 0.3,
         topP: 0.95,
+        thinkingConfig: { thinkingBudget: 2048 },
       },
     });
 
