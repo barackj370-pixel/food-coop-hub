@@ -7,7 +7,18 @@ const boot = () => {
   const rootElement = document.getElementById('root');
   if (!rootElement) return;
 
-  // Service Worker registration removed to avoid cross-origin script errors in cloud preview environments.
+  // Register Service Worker for Offline Capabilities
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('SW Registered: ', registration.scope);
+        })
+        .catch(err => {
+          console.log('SW Registration Failed: ', err);
+        });
+    });
+  }
 
   try {
     const root = createRoot(rootElement);

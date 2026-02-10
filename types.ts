@@ -47,6 +47,7 @@ export interface MarketOrder {
   status: OrderStatus;
   agentPhone: string;
   cluster: string;
+  synced?: boolean;
 }
 
 export interface ProduceListing {
@@ -61,6 +62,7 @@ export interface ProduceListing {
   cluster: string;
   status: 'AVAILABLE' | 'SOLD_OUT';
   images?: string[]; // Array of Base64 strings
+  synced?: boolean;
 }
 
 export interface SaleRecord {

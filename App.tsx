@@ -58,7 +58,6 @@ const computeHash = async (record: HashableRecord): Promise<string> => {
   const normalizedPrice = Number(record.unitPrice).toString();
   
   // Integrity Check: Include produceId and orderId in the hash payload
-  // This ensures that a sale record cannot be re-linked to a different order/produce without invalidating the signature
   const pid = record.produceId || 'null';
   const oid = record.orderId || 'null';
   
@@ -149,9 +148,14 @@ const App: React.FC = () => {
     }
     return 'CUSTOMER';
   });
+  
+  // Connectivity & Sync State
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const syncLock = useRef(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const hasSyncedLegacyData = useRef(false);
+
   const [fulfillmentData, setFulfillmentData] = useState<Partial<SaleFormSubmission> | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
@@ -161,10 +165,90 @@ const App: React.FC = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  // Removed unused contactForm state to prevent build errors
+  // Connectivity Listener
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      console.log("Network restored. Initiating pending sync...");
+      syncPendingData();
+    };
+    const handleOffline = () => setIsOnline(false);
 
-  // Tracking for initial data migration sync
-  const hasSyncedLegacyData = useRef(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [records, produceListings, marketOrders]);
+
+  // Sync Logic
+  const syncPendingData = useCallback(async () => {
+    if (syncLock.current || !navigator.onLine) return;
+    syncLock.current = true;
+    setIsSyncing(true);
+
+    try {
+      // 1. Sync Pending Records
+      const pendingRecords = records.filter(r => r.synced === false);
+      if (pendingRecords.length > 0) {
+        console.log(`Syncing ${pendingRecords.length} pending records...`);
+        let syncedCount = 0;
+        for (const record of pendingRecords) {
+           const success = await saveRecord(record);
+           if (success) syncedCount++;
+        }
+        if (syncedCount > 0) {
+           // Update local state to mark as synced
+           setRecords(prev => {
+             const updated = prev.map(r => pendingRecords.some(pr => pr.id === r.id) ? { ...r, synced: true } : r);
+             persistence.set('food_coop_data', JSON.stringify(updated));
+             return updated;
+           });
+        }
+      }
+
+      // 2. Sync Pending Produce
+      const pendingProduce = produceListings.filter(p => p.synced === false);
+      if (pendingProduce.length > 0) {
+        for (const item of pendingProduce) {
+           const success = await saveProduce(item);
+           if (success) {
+             setProduceListings(prev => {
+               const updated = prev.map(p => p.id === item.id ? { ...p, synced: true } : p);
+               persistence.set('food_coop_produce', JSON.stringify(updated));
+               return updated;
+             });
+           }
+        }
+      }
+
+      // 3. Sync Pending Orders
+      const pendingOrders = marketOrders.filter(o => o.synced === false);
+      if (pendingOrders.length > 0) {
+        for (const order of pendingOrders) {
+           const success = await saveOrder(order);
+           if (success) {
+             setMarketOrders(prev => {
+               const updated = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
+               persistence.set('food_coop_orders', JSON.stringify(updated));
+               return updated;
+             });
+           }
+        }
+      }
+
+      // 4. Fetch Fresh Cloud Data
+      await loadCloudData();
+      
+    } catch (e) {
+      console.error("Sync process interrupted:", e);
+    } finally {
+      setIsSyncing(false);
+      syncLock.current = false;
+    }
+  }, [records, produceListings, marketOrders]);
 
   // Listen for Supabase Auth Changes
   useEffect(() => {
@@ -181,6 +265,9 @@ const App: React.FC = () => {
           setAgentIdentity(identity);
           persistence.set('agent_session', JSON.stringify(identity));
           if (currentPortal === 'LOGIN') setCurrentPortal('HOME');
+          
+          // Trigger sync on login
+          setTimeout(syncPendingData, 1000);
         }
       } else if (event === 'SIGNED_OUT') {
         setAgentIdentity(null);
@@ -193,12 +280,13 @@ const App: React.FC = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [currentPortal]);
+  }, [currentPortal, syncPendingData]);
 
   const handleLoginSuccess = (identity: AgentIdentity) => {
     setAgentIdentity(identity);
     persistence.set('agent_session', JSON.stringify(identity));
     setCurrentPortal('HOME');
+    setTimeout(syncPendingData, 500);
   };
 
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.name === 'Barack James';
@@ -226,50 +314,8 @@ const App: React.FC = () => {
     return base;
   }, [agentIdentity, isSystemDev]);
 
-  // Backfill Sync: Migrate existing local records to cloud on Login
-  useEffect(() => {
-    const performLegacySync = async () => {
-      if (!agentIdentity || hasSyncedLegacyData.current) return;
-      hasSyncedLegacyData.current = true;
-      setIsSyncing(true);
-
-      try {
-        // 1. Sync Records
-        for (const r of records) {
-           const toSave = { ...r };
-           if (!toSave.agentPhone) toSave.agentPhone = agentIdentity.phone;
-           if (!toSave.agentName) toSave.agentName = agentIdentity.name;
-           if (!toSave.cluster || toSave.cluster === 'Unassigned') toSave.cluster = agentIdentity.cluster;
-           
-           await saveRecord(toSave);
-        }
-
-        // 2. Sync Produce
-        for (const p of produceListings) {
-            await saveProduce(p);
-        }
-
-        // 3. Sync Orders
-        for (const o of marketOrders) {
-            await saveOrder(o);
-        }
-        
-        await loadCloudData();
-      } catch (err) {
-        console.error("Legacy Data Sync Failed:", err);
-      } finally {
-        setIsSyncing(false);
-      }
-    };
-
-    if (agentIdentity) {
-      performLegacySync();
-    }
-  }, [agentIdentity, records, produceListings, marketOrders]);
-
   const loadCloudData = useCallback(async () => {
-    if (syncLock.current) return;
-    syncLock.current = true;
+    if (!navigator.onLine) return; 
     setIsSyncing(true);
     try {
       const [sbUsers, sbRecords, sbOrders, sbProduce] = await Promise.all([
@@ -313,22 +359,23 @@ const App: React.FC = () => {
       console.error("Global Sync failed:", e); 
     } finally {
       setIsSyncing(false);
-      syncLock.current = false;
     }
   }, []);
 
   useEffect(() => {
     const savedUsers = persistence.get('coop_users');
     if (savedUsers) { try { setUsers(JSON.parse(savedUsers)); } catch (e) { } }
-    loadCloudData();
+    if (navigator.onLine) loadCloudData();
   }, [loadCloudData]);
 
   useEffect(() => {
-    const interval = setInterval(() => { loadCloudData(); }, SYNC_POLLING_INTERVAL);
+    const interval = setInterval(() => { if (navigator.onLine) loadCloudData(); }, SYNC_POLLING_INTERVAL);
     const channel = supabase.channel('global_changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-        console.log('Realtime update detected, refreshing data...');
-        loadCloudData();
+        if (navigator.onLine) {
+           console.log('Realtime update detected, refreshing data...');
+           loadCloudData();
+        }
       })
       .subscribe();
 
@@ -392,7 +439,8 @@ const App: React.FC = () => {
       supplierPhone: data.supplierPhone,
       cluster: clusterValue,
       status: 'AVAILABLE',
-      images: data.images
+      images: data.images,
+      synced: false // Start as unsynced
     };
     
     setProduceListings(prev => {
@@ -402,9 +450,16 @@ const App: React.FC = () => {
     });
 
     try { 
-      await saveProduce(newListing); 
+      const success = await saveProduce(newListing); 
+      if (success) {
+        setProduceListings(prev => {
+          const updated = prev.map(p => p.id === newListing.id ? { ...p, synced: true } : p);
+          persistence.set('food_coop_produce', JSON.stringify(updated));
+          return updated;
+        });
+      }
     } catch (err) { 
-      console.error("Produce sync failed:", err); 
+      console.error("Produce sync failed (saved locally):", err); 
     }
   };
 
@@ -414,7 +469,8 @@ const App: React.FC = () => {
     const updated = { 
       ...listing, 
       unitsAvailable: newUnits, 
-      status: newUnits <= 0 ? 'SOLD_OUT' : 'AVAILABLE' 
+      status: newUnits <= 0 ? 'SOLD_OUT' : 'AVAILABLE',
+      synced: false 
     } as ProduceListing;
     
     setProduceListings(prev => {
@@ -423,7 +479,12 @@ const App: React.FC = () => {
       return updatedList;
     });
     
-    try { await saveProduce(updated); } catch (err) { console.error("Stock update sync failed:", err); }
+    try { 
+      const success = await saveProduce(updated); 
+      if (success) {
+         setProduceListings(prev => prev.map(p => p.id === id ? { ...p, synced: true } : p));
+      }
+    } catch (err) { console.error("Stock update sync failed:", err); }
   };
 
   const handleFulfillOrder = (order: MarketOrder) => {
@@ -491,7 +552,8 @@ const App: React.FC = () => {
       customerPhone: agentIdentity.phone,
       status: OrderStatus.OPEN,
       agentPhone: '',
-      cluster: listing.cluster
+      cluster: listing.cluster,
+      synced: false
     };
 
     setMarketOrders(prev => {
@@ -501,11 +563,15 @@ const App: React.FC = () => {
     });
 
     try {
-      await saveOrder(newOrder);
-      alert("Order Successful: Your request for " + units + " " + listing.unitType + " of " + listing.cropType + " has been placed. Payment is on delivery.");
+      const success = await saveOrder(newOrder);
+      if (success) {
+         setMarketOrders(prev => prev.map(o => o.id === newOrder.id ? { ...o, synced: true } : o));
+         alert("Order Successful: Your request for " + units + " " + listing.unitType + " of " + listing.cropType + " has been placed. Payment is on delivery.");
+      } else {
+         alert("Order Saved Locally (Offline): Will sync when connection is restored.");
+      }
     } catch (err) {
       console.error("Order sync failed:", err);
-      alert("Sync Error: Order placed locally but failed to reach the server. Please check your connection.");
     }
   };
 
@@ -582,8 +648,10 @@ const App: React.FC = () => {
         setFulfillmentData(null);
         
         try {
-          await saveRecord(updatedRecord);
-          setRecords(prev => prev.map(r => r.id === editingId ? { ...r, synced: true } : r));
+          const success = await saveRecord(updatedRecord);
+          if (success) {
+             setRecords(prev => prev.map(r => r.id === editingId ? { ...r, synced: true } : r));
+          }
         } catch (e) { }
       }
     } else {
@@ -605,14 +673,19 @@ const App: React.FC = () => {
       });
 
       if (data.orderId) {
-        setMarketOrders(prev => {
-          const updated = prev.map(o => o.id === data.orderId ? { ...o, status: OrderStatus.FULFILLED } : o);
-          persistence.set('food_coop_orders', JSON.stringify(updated));
-          return updated;
-        });
+        // Mark order as fulfilled locally
+        const updatedOrders = marketOrders.map(o => o.id === data.orderId ? { ...o, status: OrderStatus.FULFILLED, synced: false } : o);
+        setMarketOrders(updatedOrders);
+        persistence.set('food_coop_orders', JSON.stringify(updatedOrders));
+        
         try {
           const order = marketOrders.find(o => o.id === data.orderId);
-          if (order) await saveOrder({ ...order, status: OrderStatus.FULFILLED });
+          if (order) {
+            const success = await saveOrder({ ...order, status: OrderStatus.FULFILLED });
+            if (success) {
+               setMarketOrders(prev => prev.map(o => o.id === data.orderId ? { ...o, synced: true } : o));
+            }
+          }
         } catch (err) { console.error("Order fulfillment sync failed:", err); }
       }
       
@@ -624,12 +697,15 @@ const App: React.FC = () => {
             const updated = { 
               ...target, 
               unitsAvailable: remaining,
-              status: remaining <= 0 ? 'SOLD_OUT' : 'AVAILABLE'
+              status: remaining <= 0 ? 'SOLD_OUT' : 'AVAILABLE',
+              synced: false
             } as ProduceListing;
             
             const newList = prev.map(p => p.id === data.produceId ? updated : p);
             persistence.set('food_coop_produce', JSON.stringify(newList));
-            saveProduce(updated).catch(e => console.error("Inventory sync failed:", e));
+            saveProduce(updated).then(ok => {
+                if (ok) setProduceListings(cur => cur.map(p => p.id === updated.id ? {...p, synced: true} : p));
+            }).catch(e => console.error("Inventory sync failed:", e));
             return newList;
           }
           return prev;
@@ -638,8 +714,10 @@ const App: React.FC = () => {
 
       setFulfillmentData(null);
       try {
-        await saveRecord(newRecord);
-        setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+        const success = await saveRecord(newRecord);
+        if (success) {
+          setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+        }
       } catch (e) { }
     }
   };
@@ -647,13 +725,16 @@ const App: React.FC = () => {
   const handleUpdateStatus = async (id: string, newStatus: RecordStatus) => {
     const record = records.find(r => r.id === id);
     if (!record) return;
-    const updated = { ...record, status: newStatus };
+    const updated = { ...record, status: newStatus, synced: false };
     setRecords(prev => {
         const updatedList = prev.map(r => r.id === id ? updated : r);
         persistence.set('food_coop_data', JSON.stringify(updatedList));
         return updatedList;
     });
-    await saveRecord(updated);
+    const success = await saveRecord(updated);
+    if (success) {
+       setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
+    }
   };
 
   const handleDeleteRecord = async (id: string) => {
@@ -715,8 +796,8 @@ const App: React.FC = () => {
       <button 
         type="button" 
         onClick={handleGenerateReport}
-        disabled={isGeneratingReport}
-        className="bg-purple-600 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-purple-700 transition-colors shadow-md flex items-center gap-2"
+        disabled={isGeneratingReport || !isOnline}
+        className={`${!isOnline ? 'bg-slate-300' : 'bg-purple-600 hover:bg-purple-700'} text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors shadow-md flex items-center gap-2`}
       >
         {isGeneratingReport ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-robot"></i>}
         AI Audit
@@ -822,7 +903,12 @@ const App: React.FC = () => {
                 <tbody className="divide-y divide-slate-50">
                   {records.map(r => (
                     <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
-                      <td className="py-6 text-slate-400">{r.date}</td>
+                      <td className="py-6 text-slate-400">
+                        {r.date}
+                        {r.synced === false && (
+                          <span className="block text-[8px] text-red-500 font-black uppercase mt-1">Pending Sync</span>
+                        )}
+                      </td>
                       <td className="py-6">
                         <div className="space-y-1">
                           <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
@@ -883,8 +969,15 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
             {agentIdentity ? (
-              <div className="bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6">
-                   <div className="text-right"><p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Network Sync v1.2</p><p className="text-[10px] font-bold text-black">{isSyncing ? 'Syncing...' : lastSyncTime?.toLocaleTimeString() || '...'}</p></div>
+              <div className={`bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6 ${!isOnline ? 'border-red-200 bg-red-50' : ''}`}>
+                   <div className="text-right">
+                     <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${!isOnline ? 'text-red-600' : 'text-slate-400'}`}>
+                       {isOnline ? 'Network Sync v1.2' : 'OFFLINE MODE'}
+                     </p>
+                     <p className="text-[10px] font-bold text-black">
+                       {isSyncing ? 'Syncing...' : (!isOnline ? 'Queued' : (lastSyncTime?.toLocaleTimeString() || 'Connected'))}
+                     </p>
+                   </div>
                    <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
               </div>
             ) : (
