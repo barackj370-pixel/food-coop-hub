@@ -1,4 +1,5 @@
-import { supabase } from './supabaseClient.ts';
+
+import { supabase } from './supabaseClient';
 
 export const getCurrentProfile = async () => {
   const { data: { session } } = await supabase.auth.getSession();

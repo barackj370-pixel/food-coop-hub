@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants.ts';
-import { ProduceListing } from '../types.ts';
+import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants';
+import { ProduceListing } from '../types';
 
 interface SaleFormProps {
   clusters: string[];

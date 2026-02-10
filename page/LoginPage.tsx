@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../services/supabaseClient.ts';
-import { SystemRole, AgentIdentity } from '../types.ts';
+import { supabase } from '../services/supabaseClient';
+import { SystemRole, AgentIdentity } from '../types';
 
 /* ───────── CLUSTERS ───────── */
 const CLUSTERS = [

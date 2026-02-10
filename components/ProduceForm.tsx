@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN } from '../constants.ts';
-import { SystemRole } from '../types.ts';
+import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN } from '../constants';
+import { SystemRole } from '../types';
 
 interface ProduceFormProps {
   userRole: SystemRole;

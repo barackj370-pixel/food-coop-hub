@@ -1,6 +1,6 @@
 
-import { supabase } from './supabaseClient.ts';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types.ts';
+import { supabase } from './supabaseClient';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types';
 
 const isClientReady = (): boolean => {
   if (!supabase || !supabase.from) {
