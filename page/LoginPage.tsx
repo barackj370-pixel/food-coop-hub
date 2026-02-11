@@ -82,7 +82,37 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   /* ───────── HELPERS ───────── */
   const validatePin = (pin: string) => /^\d{4}$/.test(pin);
-  const cleanPhoneNumber = (p: string) => p.trim();
+  
+  // Robust Kenyan Phone Normalizer (E.164 Format)
+  // Accepts: 07xx, 7xx, 254xx, +254xx
+  // Returns: +2547xx...
+  const normalizeKenyanPhone = (input: string) => {
+    // Remove all non-numeric characters except leading +
+    let cleaned = input.replace(/[^\d+]/g, '');
+    
+    // Handle leading '+'
+    if (cleaned.startsWith('+')) {
+      cleaned = cleaned.substring(1);
+    }
+
+    // Case: Starts with 254 (Standard) -> 2547...
+    if (cleaned.startsWith('254')) {
+      return '+' + cleaned;
+    }
+    
+    // Case: Starts with 07 or 01 (Local) -> 2547...
+    if (cleaned.startsWith('01') || cleaned.startsWith('07')) {
+      return '+254' + cleaned.substring(1);
+    }
+    
+    // Case: Starts with 7 or 1 (Short Local) -> 2547...
+    if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
+      return '+254' + cleaned;
+    }
+
+    // Fallback: Return as is with + if it looks like an international number, otherwise add +254
+    return cleaned.length >= 9 ? '+254' + cleaned : '+' + cleaned;
+  };
   
   // Pad 4-digit PIN to 6 chars for Supabase Auth requirements (transparent to user)
   const getAuthPassword = (p: string) => p.length === 4 ? `${p}00` : p;
@@ -108,10 +138,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const newUserProfile: AgentIdentity = {
       id: user.id,
       name: fullName,
-      phone: phone,
+      phone: normalizeKenyanPhone(phone),
       role: role,
       cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
-      passcode: passcode, // Store raw 4-digit pin for reference
+      passcode: passcode, 
       status: 'ACTIVE'
     };
 
@@ -132,8 +162,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setError(null);
     setMessage(null);
 
-    const cleanPhone = cleanPhoneNumber(phone);
-    if (!cleanPhone) { setError("Please enter your phone number."); setLoading(false); return; }
+    const formattedPhone = normalizeKenyanPhone(phone);
+
+    if (!formattedPhone || formattedPhone.length < 10) { setError("Please enter a valid phone number."); setLoading(false); return; }
     if (!validatePin(passcode)) { setError("New PIN must be exactly 4 digits."); setLoading(false); return; }
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
 
@@ -145,7 +176,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const response = await fetch('/api/reset-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleanPhone, pin: passcode }),
+        body: JSON.stringify({ phone: formattedPhone, pin: passcode }),
         signal: controller.signal
       });
 
@@ -160,7 +191,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const result = await response.json();
       if (result.success) {
         // 2. Auto Login on Success (Try new padded password first)
-        const { data } = await supabase.auth.signInWithPassword({ phone: cleanPhone, password: getAuthPassword(passcode) });
+        const { data } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password: getAuthPassword(passcode) });
         if (data.user) {
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
            if (profile) onLoginSuccess(profile as AgentIdentity);
@@ -169,13 +200,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
     } catch (err: any) {
       // 3. FALLBACK: DEV BYPASS
-      // If API fails (no backend), we manually verify user exists and log them in
       console.warn("Reset API unreachable, attempting profile lookup bypass...");
 
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('phone', cleanPhone)
+        .eq('phone', formattedPhone)
         .maybeSingle();
 
       if (profile && !profileError) {
@@ -195,7 +225,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError(null);
 
-    const cleanPhone = cleanPhoneNumber(phone);
+    // Normalize phone number to E.164 (e.g., +2547...)
+    const formattedPhone = normalizeKenyanPhone(phone);
+
+    if (!formattedPhone || formattedPhone.length < 12) {
+      setError('Invalid Phone Number. Please check format (e.g., 0725...)');
+      setLoading(false);
+      return;
+    }
 
     if (!validatePin(passcode)) {
       setError('PIN must be exactly 4 digits.');
@@ -209,24 +246,45 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       // Register with padded password
       const { data, error } = await supabase.auth.signUp({
-        phone: cleanPhone,
+        phone: formattedPhone,
         password: getAuthPassword(passcode),
         options: {
-          data: { full_name: fullName, role, phone: cleanPhone, cluster },
+          data: { full_name: fullName, role, phone: formattedPhone, cluster },
         },
       });
 
-      if (error) {
+      // SMART HANDLING: If user already exists during signup, try to log them in!
+      if (error && error.message.toLowerCase().includes('already registered')) {
+        console.log("User exists, attempting auto-login with provided credentials...");
+        const loginAttempt = await supabase.auth.signInWithPassword({
+          phone: formattedPhone,
+          password: getAuthPassword(passcode),
+        });
+
+        if (loginAttempt.data.user) {
+          // Login successful, proceed to profile check below
+          // fall through to profile check
+        } else {
+          // Login failed - means account exists but PIN is wrong
+          setError("Account already exists, but the PIN provided is incorrect. Please use 'Forgot Pin' to reset.");
+          setLoading(false);
+          return;
+        }
+      } else if (error) {
         setError(error.message);
         setLoading(false);
         return;
       }
 
-      if (data.user) {
+      // Check if we have a user from either SignUp or Auto-Login
+      const user = data.user || (await supabase.auth.getUser()).data.user;
+
+      if (user) {
+         // Upsert Profile to ensure it matches form data
          const newUserProfile: AgentIdentity = {
-          id: data.user.id,
+          id: user.id,
           name: fullName,
-          phone: cleanPhone,
+          phone: formattedPhone,
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
           passcode: passcode, // Store raw 4-digit pin
@@ -240,14 +298,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
              setMessage('Account created! Please Log In to activate your profile in the database.');
              setIsSignUp(false);
         } else {
-             setMessage('Account created successfully! You can now log in.');
-             setIsSignUp(false);
+             // Direct success - auto login
+             onLoginSuccess(newUserProfile);
         }
       }
     } else {
       // Login - Try padded password first (standard)
       let { data, error } = await supabase.auth.signInWithPassword({
-        phone: cleanPhone,
+        phone: formattedPhone,
         password: getAuthPassword(passcode),
       });
 
@@ -255,7 +313,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
          console.log("Login failed with padded pin, retrying with raw pin...");
          const rawAttempt = await supabase.auth.signInWithPassword({
-            phone: cleanPhone,
+            phone: formattedPhone,
             password: passcode,
          });
          
@@ -266,7 +324,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
 
       if (error) {
-        setError("Login Failed: " + error.message);
+        setError("Invalid PIN or Phone Number. Please try again or use Reset PIN.");
       } else if (data.user) {
         // 1. Check for existing profile
         const { data: profile } = await supabase
@@ -282,12 +340,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             console.log("Profile missing for authenticated user. Attempting auto-heal...");
             const meta = data.user.user_metadata;
             
-            if (meta && meta.role && meta.full_name) {
+            if (meta && (meta.role || meta.full_name)) {
                 const recoveryProfile: AgentIdentity = {
                     id: data.user.id,
-                    name: meta.full_name,
-                    phone: data.user.phone || cleanPhone,
-                    role: meta.role,
+                    name: meta.full_name || 'Member',
+                    phone: data.user.phone || formattedPhone,
+                    role: meta.role || SystemRole.CUSTOMER,
                     cluster: meta.cluster || '-',
                     passcode: passcode,
                     status: 'ACTIVE'
@@ -300,12 +358,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 } else {
                     console.error("Auto-heal failed:", healError);
                     setIsCompletingProfile(true);
-                    setPhone(cleanPhone);
+                    setPhone(formattedPhone);
                     setMessage("Profile synchronization failed. Please re-enter details.");
                 }
             } else {
                 setIsCompletingProfile(true);
-                setPhone(cleanPhone);
+                setPhone(formattedPhone);
                 setMessage("Profile not found. Please complete your details.");
             }
         }
@@ -380,7 +438,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
              <input
               required
               type="tel"
-              placeholder="+254..."
+              placeholder="07... or +254..."
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isCompletingProfile ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
