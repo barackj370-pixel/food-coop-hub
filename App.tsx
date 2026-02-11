@@ -166,6 +166,14 @@ const App: React.FC = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
+  // Initial Load - Check for Register Mode in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'register' && !agentIdentity) {
+      setCurrentPortal('LOGIN');
+    }
+  }, [agentIdentity]);
+
   // Connectivity Listener
   useEffect(() => {
     const handleOnline = () => {

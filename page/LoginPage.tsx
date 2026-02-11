@@ -40,19 +40,25 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  /* ───────── CHECK EXISTING SESSION & HANDLE INVITES ───────── */
+  /* ───────── INITIALIZATION & DEEP LINKS ───────── */
   useEffect(() => {
+    // Check for "mode=register" in URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'register') {
+      setIsSignUp(true);
+    }
+
     const checkUser = async () => {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          // If connection fails here, we might want to know
           console.warn("Session check warning:", sessionError.message);
         }
 
         if (!session?.user) return;
 
+        // User is logged in (e.g. from Email Link)
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -62,6 +68,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
           onLoginSuccess(profile as AgentIdentity);
         } else {
+          // Logged in but no profile (Email Invite Clicked)
           const { data: phoneProfile } = await supabase
             .from('profiles')
             .select('*')
@@ -75,12 +82,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
           setIsCompletingProfile(true);
           const meta = session.user.user_metadata || {};
+          
           if (meta.name || meta.full_name) setFullName(meta.name || meta.full_name);
           if (meta.phone) setPhone(meta.phone);
           if (meta.role) setRole(meta.role as SystemRole);
           if (meta.cluster) setCluster(meta.cluster);
           
-          setMessage("Invitation accepted. Please complete your account details.");
+          setMessage("Welcome! Please set your 4-digit PIN to activate your account.");
         }
       } catch (err) {
         console.error("Session Check Failed:", err);
@@ -116,28 +124,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     return e.message || "An unexpected error occurred.";
   };
 
-  /* ───────── DEV AUTO-RECOVERY ───────── */
-  const attemptDeveloperRecovery = async (formattedPhone: string, pin: string) => {
-      try {
-        console.log("Attempting Dev Auto-Recovery...");
-        const response = await fetch('/api/reset-pin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: formattedPhone, pin: pin }),
-        });
-
-        if (response.ok) {
-           return await supabase.auth.signInWithPassword({
-              phone: formattedPhone,
-              password: getAuthPassword(pin),
-           });
-        }
-      } catch (e) {
-        console.warn("Dev recovery failed", e);
-      }
-      return { data: { user: null, session: null }, error: new Error("Recovery unavailable") as any };
-  };
-
   /* ───────── COMPLETE PROFILE (FOR INVITED USERS) ───────── */
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,24 +138,29 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { setError('Session expired. Please click the invite link again.'); setLoading(false); return; }
 
+        // Update Auth Password to the new PIN (padded)
         if (passcode) {
           const { error: pwError } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
           if (pwError) throw pwError;
         }
 
+        // Create Profile Entry
         const newUserProfile: AgentIdentity = {
           id: user.id,
           name: fullName,
           phone: normalizeKenyanPhone(phone),
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
-          passcode: passcode, 
+          passcode: passcode, // Store plain 4-digit PIN for reference
           status: 'ACTIVE'
         };
 
         const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile, { onConflict: 'id' });
 
         if (dbError) throw dbError;
+        
+        // Clear query params if any
+        window.history.replaceState({}, document.title, "/");
         onLoginSuccess(newUserProfile);
     } catch (err: any) {
         setError(handleFetchError(err));
@@ -212,6 +203,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       const result = await response.json();
       if (result.success) {
+        // Auto Login after reset
         const { data } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password: getAuthPassword(passcode) });
         if (data.user) {
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
@@ -266,7 +258,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-          // Register
+          // 1. Register Auth User
           const { data, error } = await supabase.auth.signUp({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
@@ -279,19 +271,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (error && error.message.toLowerCase().includes('already registered')) {
             console.log("User exists, attempting auto-login...");
             
-            // Try Login
             let loginAttempt = await supabase.auth.signInWithPassword({
               phone: formattedPhone,
               password: getAuthPassword(passcode),
             });
             
-            // If Login fails, try Recovery
-            if (loginAttempt.error && isSystemDev) {
-                // Ensure type safety with cast if needed as recovery returns a custom object compatible structure
-                const recovery = await attemptDeveloperRecovery(formattedPhone, passcode);
-                loginAttempt = recovery as any;
-            }
-
             if (loginAttempt.data.user) {
               const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginAttempt.data.user.id).single();
               if (profile) {
@@ -320,7 +304,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             throw error;
           }
 
-          // Successful Registration
+          // 2. Successful Registration -> Create Profile
           const user = data.user || (await supabase.auth.getUser()).data.user;
           if (user) {
             const newUserProfile: AgentIdentity = {
@@ -329,7 +313,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               phone: formattedPhone,
               role: targetRole!,
               cluster: targetCluster,
-              passcode: passcode,
+              passcode: passcode, // Save 4-digit PIN
               status: 'ACTIVE'
             };
 
@@ -339,6 +323,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 setMessage('Account created! Please Log In.');
                 setIsSignUp(false);
             } else {
+                // Remove ?mode=register from URL on success
+                window.history.replaceState({}, document.title, "/");
                 onLoginSuccess(newUserProfile);
             }
           }
@@ -349,31 +335,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             password: getAuthPassword(passcode),
           });
 
-          // Dev Recovery Hook if Login Fails
-          if (error && isSystemDev) {
-            console.log("Dev Login failed, triggering auto-recovery...");
-            const recovery = await attemptDeveloperRecovery(formattedPhone, passcode);
-            if (!recovery.error && recovery.data.user) {
-                data = recovery.data as any;
-                error = null;
-            }
-          } else if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
-            // Fallback for legacy 4-digit PINs
-            const rawAttempt = await supabase.auth.signInWithPassword({
-                phone: formattedPhone,
-                password: passcode,
-            });
-            if (!rawAttempt.error && rawAttempt.data.user) {
-                data = rawAttempt.data;
-                error = null;
-            }
-          }
-
           if (error) {
             // Check specifically for connection errors
-            if (error.message.includes('fetch')) {
-               throw error;
-            }
+            if (error.message.includes('fetch')) throw error;
             setError("Invalid PIN or Phone. If you have an account, please use 'Forgot Pin'.");
           } else if (data.user) {
             // Check Profile
@@ -389,10 +353,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 console.log("Profile missing. Healing...");
                 const recoveryProfile: AgentIdentity = {
                     id: data.user.id,
-                    name: isSystemDev ? 'Barack James' : (data.user.user_metadata.full_name || 'Member'),
+                    name: data.user.user_metadata.full_name || 'Member',
                     phone: formattedPhone,
-                    role: isSystemDev ? SystemRole.SYSTEM_DEVELOPER : (data.user.user_metadata.role || SystemRole.CUSTOMER),
-                    cluster: isSystemDev ? '-' : (data.user.user_metadata.cluster || 'Mariwa'),
+                    role: data.user.user_metadata.role || SystemRole.CUSTOMER,
+                    cluster: data.user.user_metadata.cluster || 'Mariwa',
                     passcode: passcode,
                     status: 'ACTIVE'
                 };
@@ -411,8 +375,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   /* ───────── RENDER MODE ───────── */
   const renderTitle = () => {
     if (isResetting) return 'Set New PIN';
-    if (isCompletingProfile) return 'Create Account';
-    return isSignUp ? 'Register' : 'Login';
+    if (isCompletingProfile) return 'Complete Profile';
+    return isSignUp ? 'Create Account' : 'Member Login';
   };
 
   const handleToggleMode = () => {

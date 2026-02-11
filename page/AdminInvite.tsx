@@ -3,7 +3,11 @@ import React, { useState } from 'react';
 
 const AdminInvite: React.FC = () => {
   const [copied, setCopied] = useState(false);
-  const inviteLink = typeof window !== 'undefined' ? window.location.origin : '';
+  
+  // Create a direct registration link
+  const inviteLink = typeof window !== 'undefined' 
+    ? `${window.location.protocol}//${window.location.host}/?mode=register`
+    : '';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(inviteLink);
@@ -12,7 +16,7 @@ const AdminInvite: React.FC = () => {
   };
 
   const handleShareWhatsApp = () => {
-    const text = `Join the KPL Food Coop Market securely here: ${inviteLink}`;
+    const text = `Join the KPL Food Coop Market. Create your account securely here: ${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -30,7 +34,7 @@ const AdminInvite: React.FC = () => {
         </div>
 
         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col gap-4">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registration Link</p>
+           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Direct Registration Link</p>
            <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3">
               <code className="flex-1 text-left text-xs font-bold text-slate-700 truncate">{inviteLink}</code>
               <button 
