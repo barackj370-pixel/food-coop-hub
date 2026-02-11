@@ -98,6 +98,30 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   // Pad 4-digit PIN to 6 chars for Supabase Auth requirements
   const getAuthPassword = (p: string) => p.length === 4 ? `${p}00` : p;
 
+  /* ───────── DEV AUTO-RECOVERY ───────── */
+  const attemptDeveloperRecovery = async (formattedPhone: string, pin: string) => {
+      try {
+        console.log("Attempting Dev Auto-Recovery...");
+        // Call reset-pin API to force align the account state
+        const response = await fetch('/api/reset-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: formattedPhone, pin: pin }),
+        });
+
+        if (response.ok) {
+           // If reset success, try login again immediately
+           return await supabase.auth.signInWithPassword({
+              phone: formattedPhone,
+              password: getAuthPassword(pin),
+           });
+        }
+      } catch (e) {
+        console.warn("Dev recovery failed", e);
+      }
+      return { data: { user: null }, error: new Error("Recovery unavailable") };
+  };
+
   /* ───────── COMPLETE PROFILE (FOR INVITED USERS) ───────── */
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,10 +174,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout for deep search
+    const timeoutId = setTimeout(() => controller.abort(), 8000); 
 
     try {
-      // 1. Attempt Secure API Reset
       const response = await fetch('/api/reset-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,26 +194,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       const result = await response.json();
       if (result.success) {
-        // 2. Auto Login on Success
         const { data } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password: getAuthPassword(passcode) });
         if (data.user) {
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-           if (profile) {
-             onLoginSuccess(profile as AgentIdentity);
-           } else {
-             // Profile Healing via Reset
-             const isDev = formattedPhone === '+254725717170';
-             const recoveryProfile: AgentIdentity = {
-                id: data.user.id,
-                name: isDev ? 'Barack James' : 'Member',
-                phone: formattedPhone,
-                role: isDev ? SystemRole.SYSTEM_DEVELOPER : SystemRole.CUSTOMER,
-                cluster: '-',
-                passcode: passcode,
-                status: 'ACTIVE'
-             };
-             await supabase.from('profiles').upsert(recoveryProfile);
-             onLoginSuccess(recoveryProfile);
+           if (profile) onLoginSuccess(profile as AgentIdentity);
+           else {
+             // Fallback profile load
+             window.location.reload();
            }
            return;
         }
@@ -218,12 +228,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const formattedPhone = normalizeKenyanPhone(phone);
 
     // ─── DEVELOPER BOOTSTRAP LOGIC ───
-    // Hardcoded recovery for Barack James to ensure access
     const isSystemDev = formattedPhone === '+254725717170';
     const targetName = isSystemDev ? 'Barack James' : fullName;
     const targetRole = isSystemDev ? SystemRole.SYSTEM_DEVELOPER : role;
     const targetCluster = isSystemDev ? '-' : cluster;
-    // ─────────────────────────────────
 
     if (!formattedPhone || formattedPhone.length < 12) {
       setError('Invalid Phone Number. Please check format (e.g., 0725...)');
@@ -253,13 +261,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       // SMART HANDLING: User already exists
       if (error && error.message.toLowerCase().includes('already registered')) {
         console.log("User exists, attempting auto-login...");
-        const loginAttempt = await supabase.auth.signInWithPassword({
+        
+        // Try Login
+        let loginAttempt = await supabase.auth.signInWithPassword({
           phone: formattedPhone,
           password: getAuthPassword(passcode),
         });
+        
+        // If Login fails, try Recovery
+        if (loginAttempt.error && isSystemDev) {
+            loginAttempt = await attemptDeveloperRecovery(formattedPhone, passcode);
+        }
 
         if (loginAttempt.data.user) {
-           // Login Success - check profile
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginAttempt.data.user.id).single();
            if (profile) {
               onLoginSuccess(profile as AgentIdentity);
@@ -279,8 +293,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
            }
            return;
         } else {
-          // Login failed - Wrong PIN
-          setError("Account exists. Please use 'Forgot Pin' to reset your access.");
+          setError("Account exists. Please use 'Forgot Pin'.");
           setLoading(false);
           return;
         }
@@ -304,7 +317,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         };
 
         const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile);
-        
         if (dbError) {
              console.warn("Profile creation deferred:", dbError.message);
              setMessage('Account created! Please Log In.');
@@ -320,8 +332,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         password: getAuthPassword(passcode),
       });
 
-      // Fallback for legacy 4-digit PINs
-      if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
+      // Dev Recovery Hook if Login Fails
+      if (error && isSystemDev) {
+         console.log("Dev Login failed, triggering auto-recovery...");
+         const recovery = await attemptDeveloperRecovery(formattedPhone, passcode);
+         if (!recovery.error && recovery.data.user) {
+             data = recovery.data;
+             error = null;
+         }
+      } else if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
+         // Fallback for legacy 4-digit PINs
          const rawAttempt = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: passcode,
@@ -345,9 +365,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
             onLoginSuccess(profile as AgentIdentity);
         } else {
-            // Self-Heal: Create profile from metadata or bootstrap logic
             console.log("Profile missing. Healing...");
-            
             const recoveryProfile: AgentIdentity = {
                 id: data.user.id,
                 name: isSystemDev ? 'Barack James' : (data.user.user_metadata.full_name || 'Member'),
