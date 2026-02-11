@@ -84,37 +84,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const validatePin = (pin: string) => /^\d{4}$/.test(pin);
   
   // Robust Kenyan Phone Normalizer (E.164 Format)
-  // Accepts: 07xx, 7xx, 254xx, +254xx
-  // Returns: +2547xx...
   const normalizeKenyanPhone = (input: string) => {
-    // Remove all non-numeric characters except leading +
     let cleaned = input.replace(/[^\d+]/g, '');
     
-    // Handle leading '+'
-    if (cleaned.startsWith('+')) {
-      cleaned = cleaned.substring(1);
-    }
-
-    // Case: Starts with 254 (Standard) -> 2547...
-    if (cleaned.startsWith('254')) {
-      return '+' + cleaned;
-    }
+    if (cleaned.startsWith('+254')) return cleaned;
+    if (cleaned.startsWith('254')) return '+' + cleaned;
+    if (cleaned.startsWith('01') || cleaned.startsWith('07')) return '+254' + cleaned.substring(1);
+    if (cleaned.startsWith('7') || cleaned.startsWith('1')) return '+254' + cleaned;
     
-    // Case: Starts with 07 or 01 (Local) -> 2547...
-    if (cleaned.startsWith('01') || cleaned.startsWith('07')) {
-      return '+254' + cleaned.substring(1);
-    }
-    
-    // Case: Starts with 7 or 1 (Short Local) -> 2547...
-    if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
-      return '+254' + cleaned;
-    }
-
-    // Fallback: Return as is with + if it looks like an international number, otherwise add +254
     return cleaned.length >= 9 ? '+254' + cleaned : '+' + cleaned;
   };
   
-  // Pad 4-digit PIN to 6 chars for Supabase Auth requirements (transparent to user)
+  // Pad 4-digit PIN to 6 chars for Supabase Auth requirements
   const getAuthPassword = (p: string) => p.length === 4 ? `${p}00` : p;
 
   /* ───────── COMPLETE PROFILE (FOR INVITED USERS) ───────── */
@@ -155,7 +136,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(false);
   };
 
-  /* ───────── RESET PIN (DEV MODE / HYBRID) ───────── */
+  /* ───────── RESET PIN (SELF-HEALING) ───────── */
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -169,7 +150,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout for API
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout for deep search
 
     try {
       // 1. Attempt Secure API Reset
@@ -182,37 +163,37 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       clearTimeout(timeoutId);
 
-      // Check if response is valid JSON (API exists)
       const contentType = response.headers.get("content-type");
       if (!response.ok || !contentType || !contentType.includes("application/json")) {
-        throw new Error("API_UNAVAILABLE");
+         // If API fails with 404, the user truly doesn't exist
+         if (response.status === 404) throw new Error("USER_NOT_FOUND");
+         throw new Error("API_UNAVAILABLE");
       }
 
       const result = await response.json();
       if (result.success) {
-        // 2. Auto Login on Success (Try new padded password first)
+        // 2. Auto Login on Success
         const { data } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password: getAuthPassword(passcode) });
         if (data.user) {
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-           if (profile) onLoginSuccess(profile as AgentIdentity);
+           if (profile) {
+             onLoginSuccess(profile as AgentIdentity);
+           } else {
+             // Should not happen if API self-healed, but failsafe:
+             setMessage("PIN Reset successful. Please log in now.");
+             setIsResetting(false);
+           }
            return;
         }
+      } else {
+        setError(result.error || "Reset failed.");
       }
     } catch (err: any) {
-      // 3. FALLBACK: DEV BYPASS
-      console.warn("Reset API unreachable, attempting profile lookup bypass...");
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('phone', formattedPhone)
-        .maybeSingle();
-
-      if (profile && !profileError) {
-        setError("Password reset requires administrator contact. Please contact support.");
-        return;
+      if (err.message === "USER_NOT_FOUND") {
+         setError("User not found. Please go back and Register.");
       } else {
-         setError("User not found. Please register first.");
+         console.warn("Reset API Error:", err);
+         setError("Connection error. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -225,7 +206,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError(null);
 
-    // Normalize phone number to E.164 (e.g., +2547...)
     const formattedPhone = normalizeKenyanPhone(phone);
 
     if (!formattedPhone || formattedPhone.length < 12) {
@@ -244,7 +224,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       if (!role) { setError('Please select a role.'); setLoading(false); return; }
       if (CLUSTER_ROLES.includes(role) && !cluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-      // Register with padded password
+      // Register
       const { data, error } = await supabase.auth.signUp({
         phone: formattedPhone,
         password: getAuthPassword(passcode),
@@ -253,20 +233,37 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         },
       });
 
-      // SMART HANDLING: If user already exists during signup, try to log them in!
+      // SMART HANDLING: User already exists
       if (error && error.message.toLowerCase().includes('already registered')) {
-        console.log("User exists, attempting auto-login with provided credentials...");
+        console.log("User exists, attempting auto-login...");
         const loginAttempt = await supabase.auth.signInWithPassword({
           phone: formattedPhone,
           password: getAuthPassword(passcode),
         });
 
         if (loginAttempt.data.user) {
-          // Login successful, proceed to profile check below
-          // fall through to profile check
+           // Login Success - check profile
+           const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginAttempt.data.user.id).single();
+           if (profile) {
+              onLoginSuccess(profile as AgentIdentity);
+           } else {
+              // Create missing profile
+              const newUserProfile: AgentIdentity = {
+                id: loginAttempt.data.user.id,
+                name: fullName,
+                phone: formattedPhone,
+                role: role,
+                cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
+                passcode: passcode,
+                status: 'ACTIVE'
+              };
+              await supabase.from('profiles').upsert(newUserProfile);
+              onLoginSuccess(newUserProfile);
+           }
+           return;
         } else {
-          // Login failed - means account exists but PIN is wrong
-          setError("Account already exists, but the PIN provided is incorrect. Please use 'Forgot Pin' to reset.");
+          // Login failed - Wrong PIN
+          setError("Account exists. Please use 'Forgot Pin' to reset your access.");
           setLoading(false);
           return;
         }
@@ -276,47 +273,42 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      // Check if we have a user from either SignUp or Auto-Login
+      // Successful Registration
       const user = data.user || (await supabase.auth.getUser()).data.user;
-
       if (user) {
-         // Upsert Profile to ensure it matches form data
          const newUserProfile: AgentIdentity = {
           id: user.id,
           name: fullName,
           phone: formattedPhone,
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
-          passcode: passcode, // Store raw 4-digit pin
+          passcode: passcode,
           status: 'ACTIVE'
         };
 
         const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile);
         
         if (dbError) {
-             console.warn("Profile creation deferred due to auth state:", dbError.message);
-             setMessage('Account created! Please Log In to activate your profile in the database.');
+             console.warn("Profile creation deferred:", dbError.message);
+             setMessage('Account created! Please Log In.');
              setIsSignUp(false);
         } else {
-             // Direct success - auto login
              onLoginSuccess(newUserProfile);
         }
       }
     } else {
-      // Login - Try padded password first (standard)
+      // Login
       let { data, error } = await supabase.auth.signInWithPassword({
         phone: formattedPhone,
         password: getAuthPassword(passcode),
       });
 
-      // Fallback: Retry with raw password for legacy accounts
+      // Fallback for legacy 4-digit PINs
       if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
-         console.log("Login failed with padded pin, retrying with raw pin...");
          const rawAttempt = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: passcode,
          });
-         
          if (!rawAttempt.error && rawAttempt.data.user) {
             data = rawAttempt.data;
             error = null;
@@ -324,9 +316,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
 
       if (error) {
-        setError("Invalid PIN or Phone Number. Please try again or use Reset PIN.");
+        setError("Invalid PIN or Phone. If you have an account, please use 'Forgot Pin'.");
       } else if (data.user) {
-        // 1. Check for existing profile
+        // Check Profile
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -336,36 +328,20 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
             onLoginSuccess(profile as AgentIdentity);
         } else {
-            // 2. SELF-HEALING
-            console.log("Profile missing for authenticated user. Attempting auto-heal...");
+            // Self-Heal: Create profile from metadata if missing
+            console.log("Profile missing. Healing...");
             const meta = data.user.user_metadata;
-            
-            if (meta && (meta.role || meta.full_name)) {
-                const recoveryProfile: AgentIdentity = {
-                    id: data.user.id,
-                    name: meta.full_name || 'Member',
-                    phone: data.user.phone || formattedPhone,
-                    role: meta.role || SystemRole.CUSTOMER,
-                    cluster: meta.cluster || '-',
-                    passcode: passcode,
-                    status: 'ACTIVE'
-                };
-                
-                const { error: healError } = await supabase.from('profiles').upsert(recoveryProfile);
-                
-                if (!healError) {
-                    onLoginSuccess(recoveryProfile);
-                } else {
-                    console.error("Auto-heal failed:", healError);
-                    setIsCompletingProfile(true);
-                    setPhone(formattedPhone);
-                    setMessage("Profile synchronization failed. Please re-enter details.");
-                }
-            } else {
-                setIsCompletingProfile(true);
-                setPhone(formattedPhone);
-                setMessage("Profile not found. Please complete your details.");
-            }
+            const recoveryProfile: AgentIdentity = {
+                id: data.user.id,
+                name: meta.full_name || 'Member',
+                phone: data.user.phone || formattedPhone,
+                role: meta.role || SystemRole.CUSTOMER,
+                cluster: meta.cluster || 'Mariwa',
+                passcode: passcode,
+                status: 'ACTIVE'
+            };
+            await supabase.from('profiles').upsert(recoveryProfile);
+            onLoginSuccess(recoveryProfile);
         }
       }
     }
@@ -417,7 +393,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           } className="space-y-4 relative z-10"
         >
           
-          {/* Name Field - Register / Complete Profile only */}
+          {/* Name Field */}
           {!isResetting && (isSignUp || isCompletingProfile) && (
             <div className="space-y-1">
                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name</label>
@@ -432,7 +408,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
           )}
 
-          {/* Phone Field - All Modes */}
+          {/* Phone Field */}
           <div className="space-y-1">
              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Phone Number</label>
              <input
@@ -446,7 +422,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             />
           </div>
 
-          {/* Passcode Field - Login / Register / Complete / Reset */}
+          {/* Passcode Field */}
           <div className="space-y-1">
              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">
                {isResetting ? 'New 4-Digit Pin' : '4-Digit Pin'}
@@ -488,7 +464,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
           )}
 
-          {/* Role & Cluster - Register / Complete */}
+          {/* Role & Cluster */}
           {(!isResetting) && (isSignUp || isCompletingProfile) && (
             <>
               <div className="space-y-1">
