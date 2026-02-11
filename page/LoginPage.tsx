@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
@@ -42,38 +43,47 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   /* ───────── CHECK EXISTING SESSION & HANDLE INVITES ───────── */
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (profile) {
-        onLoginSuccess(profile as AgentIdentity);
-      } else {
-        const { data: phoneProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('phone', session.user.user_metadata?.phone || session.user.phone)
-          .maybeSingle();
-          
-        if (phoneProfile) {
-           onLoginSuccess(phoneProfile as AgentIdentity);
-           return;
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          // If connection fails here, we might want to know
+          console.warn("Session check warning:", sessionError.message);
         }
 
-        setIsCompletingProfile(true);
-        const meta = session.user.user_metadata || {};
-        if (meta.name || meta.full_name) setFullName(meta.name || meta.full_name);
-        if (meta.phone) setPhone(meta.phone);
-        if (meta.role) setRole(meta.role as SystemRole);
-        if (meta.cluster) setCluster(meta.cluster);
-        
-        setMessage("Invitation accepted. Please complete your account details.");
+        if (!session?.user) return;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          onLoginSuccess(profile as AgentIdentity);
+        } else {
+          const { data: phoneProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('phone', session.user.user_metadata?.phone || session.user.phone)
+            .maybeSingle();
+            
+          if (phoneProfile) {
+             onLoginSuccess(phoneProfile as AgentIdentity);
+             return;
+          }
+
+          setIsCompletingProfile(true);
+          const meta = session.user.user_metadata || {};
+          if (meta.name || meta.full_name) setFullName(meta.name || meta.full_name);
+          if (meta.phone) setPhone(meta.phone);
+          if (meta.role) setRole(meta.role as SystemRole);
+          if (meta.cluster) setCluster(meta.cluster);
+          
+          setMessage("Invitation accepted. Please complete your account details.");
+        }
+      } catch (err) {
+        console.error("Session Check Failed:", err);
       }
     };
 
@@ -98,6 +108,36 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   // Pad 4-digit PIN to 6 chars for Supabase Auth requirements
   const getAuthPassword = (p: string) => p.length === 4 ? `${p}00` : p;
 
+  const handleFetchError = (e: any) => {
+    const msg = (e.message || e.toString()).toLowerCase();
+    if (msg.includes('failed to fetch') || msg.includes('load failed') || msg.includes('network')) {
+       return "Connection Failed: Unable to reach database. Please check your internet connection and ensure the Project URL in .env is correct.";
+    }
+    return e.message || "An unexpected error occurred.";
+  };
+
+  /* ───────── DEV AUTO-RECOVERY ───────── */
+  const attemptDeveloperRecovery = async (formattedPhone: string, pin: string) => {
+      try {
+        console.log("Attempting Dev Auto-Recovery...");
+        const response = await fetch('/api/reset-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: formattedPhone, pin: pin }),
+        });
+
+        if (response.ok) {
+           return await supabase.auth.signInWithPassword({
+              phone: formattedPhone,
+              password: getAuthPassword(pin),
+           });
+        }
+      } catch (e) {
+        console.warn("Dev recovery failed", e);
+      }
+      return { data: { user: null, session: null }, error: new Error("Recovery unavailable") as any };
+  };
+
   /* ───────── COMPLETE PROFILE (FOR INVITED USERS) ───────── */
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,32 +148,34 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (!role) { setError('Please select a role.'); setLoading(false); return; }
     if (CLUSTER_ROLES.includes(role) && !cluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError('Session expired. Please click the invite link again.'); setLoading(false); return; }
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setError('Session expired. Please click the invite link again.'); setLoading(false); return; }
 
-    if (passcode) {
-      const { error: pwError } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
-      if (pwError) { setError(`Pin Error: ${pwError.message}`); setLoading(false); return; }
+        if (passcode) {
+          const { error: pwError } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
+          if (pwError) throw pwError;
+        }
+
+        const newUserProfile: AgentIdentity = {
+          id: user.id,
+          name: fullName,
+          phone: normalizeKenyanPhone(phone),
+          role: role,
+          cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
+          passcode: passcode, 
+          status: 'ACTIVE'
+        };
+
+        const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile, { onConflict: 'id' });
+
+        if (dbError) throw dbError;
+        onLoginSuccess(newUserProfile);
+    } catch (err: any) {
+        setError(handleFetchError(err));
+    } finally {
+        setLoading(false);
     }
-
-    const newUserProfile: AgentIdentity = {
-      id: user.id,
-      name: fullName,
-      phone: normalizeKenyanPhone(phone),
-      role: role,
-      cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
-      passcode: passcode, 
-      status: 'ACTIVE'
-    };
-
-    const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile, { onConflict: 'id' });
-
-    if (dbError) {
-      setError(dbError.message);
-    } else {
-      onLoginSuccess(newUserProfile);
-    }
-    setLoading(false);
   };
 
   /* ───────── RESET PIN (SELF-HEALING) ───────── */
@@ -150,10 +192,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout for deep search
+    const timeoutId = setTimeout(() => controller.abort(), 8000); 
 
     try {
-      // 1. Attempt Secure API Reset
       const response = await fetch('/api/reset-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,27 +212,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       const result = await response.json();
       if (result.success) {
-        // 2. Auto Login on Success
         const { data } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password: getAuthPassword(passcode) });
         if (data.user) {
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-           if (profile) {
-             onLoginSuccess(profile as AgentIdentity);
-           } else {
-             // Profile Healing via Reset
-             const isDev = formattedPhone === '+254725717170';
-             const recoveryProfile: AgentIdentity = {
-                id: data.user.id,
-                name: isDev ? 'Barack James' : 'Member',
-                phone: formattedPhone,
-                role: isDev ? SystemRole.SYSTEM_DEVELOPER : SystemRole.CUSTOMER,
-                cluster: '-',
-                passcode: passcode,
-                status: 'ACTIVE'
-             };
-             await supabase.from('profiles').upsert(recoveryProfile);
-             onLoginSuccess(recoveryProfile);
-           }
+           if (profile) onLoginSuccess(profile as AgentIdentity);
+           else window.location.reload();
            return;
         }
       } else {
@@ -200,9 +225,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     } catch (err: any) {
       if (err.message === "USER_NOT_FOUND") {
          setError("User not found. Please Register first.");
+      } else if (err.message === "API_UNAVAILABLE") {
+         setError("Reset service unavailable. Please try again later.");
       } else {
-         console.warn("Reset API Error:", err);
-         setError("Connection error. Please try again.");
+         setError(handleFetchError(err));
       }
     } finally {
       setLoading(false);
@@ -218,12 +244,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const formattedPhone = normalizeKenyanPhone(phone);
 
     // ─── DEVELOPER BOOTSTRAP LOGIC ───
-    // Hardcoded recovery for Barack James to ensure access
     const isSystemDev = formattedPhone === '+254725717170';
     const targetName = isSystemDev ? 'Barack James' : fullName;
     const targetRole = isSystemDev ? SystemRole.SYSTEM_DEVELOPER : role;
     const targetCluster = isSystemDev ? '-' : cluster;
-    // ─────────────────────────────────
 
     if (!formattedPhone || formattedPhone.length < 12) {
       setError('Invalid Phone Number. Please check format (e.g., 0725...)');
@@ -237,132 +261,151 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    if (isSignUp) {
-      if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
-      if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
+    try {
+        if (isSignUp) {
+          if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
+          if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-      // Register
-      const { data, error } = await supabase.auth.signUp({
-        phone: formattedPhone,
-        password: getAuthPassword(passcode),
-        options: {
-          data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
-        },
-      });
-
-      // SMART HANDLING: User already exists
-      if (error && error.message.toLowerCase().includes('already registered')) {
-        console.log("User exists, attempting auto-login...");
-        const loginAttempt = await supabase.auth.signInWithPassword({
-          phone: formattedPhone,
-          password: getAuthPassword(passcode),
-        });
-
-        if (loginAttempt.data.user) {
-           // Login Success - check profile
-           const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginAttempt.data.user.id).single();
-           if (profile) {
-              onLoginSuccess(profile as AgentIdentity);
-           } else {
-              // Create missing profile (Auto-Heal)
-              const newUserProfile: AgentIdentity = {
-                id: loginAttempt.data.user.id,
-                name: targetName,
-                phone: formattedPhone,
-                role: targetRole!,
-                cluster: targetCluster,
-                passcode: passcode,
-                status: 'ACTIVE'
-              };
-              await supabase.from('profiles').upsert(newUserProfile);
-              onLoginSuccess(newUserProfile);
-           }
-           return;
-        } else {
-          // Login failed - Wrong PIN
-          setError("Account exists. Please use 'Forgot Pin' to reset your access.");
-          setLoading(false);
-          return;
-        }
-      } else if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-
-      // Successful Registration
-      const user = data.user || (await supabase.auth.getUser()).data.user;
-      if (user) {
-         const newUserProfile: AgentIdentity = {
-          id: user.id,
-          name: targetName,
-          phone: formattedPhone,
-          role: targetRole!,
-          cluster: targetCluster,
-          passcode: passcode,
-          status: 'ACTIVE'
-        };
-
-        const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile);
-        
-        if (dbError) {
-             console.warn("Profile creation deferred:", dbError.message);
-             setMessage('Account created! Please Log In.');
-             setIsSignUp(false);
-        } else {
-             onLoginSuccess(newUserProfile);
-        }
-      }
-    } else {
-      // Login
-      let { data, error } = await supabase.auth.signInWithPassword({
-        phone: formattedPhone,
-        password: getAuthPassword(passcode),
-      });
-
-      // Fallback for legacy 4-digit PINs
-      if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
-         const rawAttempt = await supabase.auth.signInWithPassword({
+          // Register
+          const { data, error } = await supabase.auth.signUp({
             phone: formattedPhone,
-            password: passcode,
-         });
-         if (!rawAttempt.error && rawAttempt.data.user) {
-            data = rawAttempt.data;
-            error = null;
-         }
-      }
+            password: getAuthPassword(passcode),
+            options: {
+              data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
+            },
+          });
 
-      if (error) {
-        setError("Invalid PIN or Phone. If you have an account, please use 'Forgot Pin'.");
-      } else if (data.user) {
-        // Check Profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .maybeSingle();
-        
-        if (profile) {
-            onLoginSuccess(profile as AgentIdentity);
-        } else {
-            // Self-Heal: Create profile from metadata or bootstrap logic
-            console.log("Profile missing. Healing...");
+          // SMART HANDLING: User already exists
+          if (error && error.message.toLowerCase().includes('already registered')) {
+            console.log("User exists, attempting auto-login...");
             
-            const recoveryProfile: AgentIdentity = {
-                id: data.user.id,
-                name: isSystemDev ? 'Barack James' : (data.user.user_metadata.full_name || 'Member'),
-                phone: formattedPhone,
-                role: isSystemDev ? SystemRole.SYSTEM_DEVELOPER : (data.user.user_metadata.role || SystemRole.CUSTOMER),
-                cluster: isSystemDev ? '-' : (data.user.user_metadata.cluster || 'Mariwa'),
-                passcode: passcode,
-                status: 'ACTIVE'
+            // Try Login
+            let loginAttempt = await supabase.auth.signInWithPassword({
+              phone: formattedPhone,
+              password: getAuthPassword(passcode),
+            });
+            
+            // If Login fails, try Recovery
+            if (loginAttempt.error && isSystemDev) {
+                // Ensure type safety with cast if needed as recovery returns a custom object compatible structure
+                const recovery = await attemptDeveloperRecovery(formattedPhone, passcode);
+                loginAttempt = recovery as any;
+            }
+
+            if (loginAttempt.data.user) {
+              const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginAttempt.data.user.id).single();
+              if (profile) {
+                  onLoginSuccess(profile as AgentIdentity);
+              } else {
+                  // Create missing profile (Auto-Heal)
+                  const newUserProfile: AgentIdentity = {
+                    id: loginAttempt.data.user.id,
+                    name: targetName,
+                    phone: formattedPhone,
+                    role: targetRole!,
+                    cluster: targetCluster,
+                    passcode: passcode,
+                    status: 'ACTIVE'
+                  };
+                  await supabase.from('profiles').upsert(newUserProfile);
+                  onLoginSuccess(newUserProfile);
+              }
+              return;
+            } else {
+              setError("Account exists. Please use 'Forgot Pin'.");
+              setLoading(false);
+              return;
+            }
+          } else if (error) {
+            throw error;
+          }
+
+          // Successful Registration
+          const user = data.user || (await supabase.auth.getUser()).data.user;
+          if (user) {
+            const newUserProfile: AgentIdentity = {
+              id: user.id,
+              name: targetName,
+              phone: formattedPhone,
+              role: targetRole!,
+              cluster: targetCluster,
+              passcode: passcode,
+              status: 'ACTIVE'
             };
-            await supabase.from('profiles').upsert(recoveryProfile);
-            onLoginSuccess(recoveryProfile);
+
+            const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile);
+            if (dbError) {
+                console.warn("Profile creation deferred:", dbError.message);
+                setMessage('Account created! Please Log In.');
+                setIsSignUp(false);
+            } else {
+                onLoginSuccess(newUserProfile);
+            }
+          }
+        } else {
+          // Login
+          let { data, error } = await supabase.auth.signInWithPassword({
+            phone: formattedPhone,
+            password: getAuthPassword(passcode),
+          });
+
+          // Dev Recovery Hook if Login Fails
+          if (error && isSystemDev) {
+            console.log("Dev Login failed, triggering auto-recovery...");
+            const recovery = await attemptDeveloperRecovery(formattedPhone, passcode);
+            if (!recovery.error && recovery.data.user) {
+                data = recovery.data as any;
+                error = null;
+            }
+          } else if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
+            // Fallback for legacy 4-digit PINs
+            const rawAttempt = await supabase.auth.signInWithPassword({
+                phone: formattedPhone,
+                password: passcode,
+            });
+            if (!rawAttempt.error && rawAttempt.data.user) {
+                data = rawAttempt.data;
+                error = null;
+            }
+          }
+
+          if (error) {
+            // Check specifically for connection errors
+            if (error.message.includes('fetch')) {
+               throw error;
+            }
+            setError("Invalid PIN or Phone. If you have an account, please use 'Forgot Pin'.");
+          } else if (data.user) {
+            // Check Profile
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .maybeSingle();
+            
+            if (profile) {
+                onLoginSuccess(profile as AgentIdentity);
+            } else {
+                console.log("Profile missing. Healing...");
+                const recoveryProfile: AgentIdentity = {
+                    id: data.user.id,
+                    name: isSystemDev ? 'Barack James' : (data.user.user_metadata.full_name || 'Member'),
+                    phone: formattedPhone,
+                    role: isSystemDev ? SystemRole.SYSTEM_DEVELOPER : (data.user.user_metadata.role || SystemRole.CUSTOMER),
+                    cluster: isSystemDev ? '-' : (data.user.user_metadata.cluster || 'Mariwa'),
+                    passcode: passcode,
+                    status: 'ACTIVE'
+                };
+                await supabase.from('profiles').upsert(recoveryProfile);
+                onLoginSuccess(recoveryProfile);
+            }
+          }
         }
-      }
+    } catch (err: any) {
+        setError(handleFetchError(err));
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   /* ───────── RENDER MODE ───────── */

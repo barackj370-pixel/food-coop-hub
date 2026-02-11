@@ -20,19 +20,21 @@ const getCurrentUserId = async (): Promise<string | undefined> => {
 const handleSupabaseError = (context: string, err: any) => {
   const msg = (err.message || err.toString() || '').toLowerCase();
   
-  // Ignore common network/fetch errors that might be transient
+  // Ignore common network/fetch errors that might be transient or expected during reload
   if (
     msg.includes('failed to fetch') || 
     msg.includes('networkerror') || 
     msg.includes('network request failed') || 
     msg.includes('connection error') ||
-    msg.includes('load failed')
+    msg.includes('load failed') ||
+    msg.includes('abort') || // Ignore AbortError
+    msg.includes('signal is aborted')
   ) {
     return;
   }
   
   // Ignore specific PostgREST errors that are handled or expected
-  // PGRST204: Schema cache issue / Missing column
+  // PGRST205: Schema cache issue / Missing column
   if (err.code !== 'PGRST205' && err.code !== '42P01') {
     console.error(`${context}:`, err);
   }
@@ -303,9 +305,6 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
     const { error } = await supabase.from('produce').upsert(payload, { onConflict: 'id' });
     
     // Auto-fix for schema mismatch (missing images column in DB)
-    // If the images column doesn't exist, Supabase/PostgREST throws PGRST204.
-    // We catch this and retry the save WITHOUT the images field to prevent app crash.
-    // Enhanced check to be case-insensitive and cover standard error codes.
     const msg = error?.message?.toLowerCase() || '';
     if (error && (error.code === 'PGRST204' || error.code === '42703') && (msg.includes('images') || msg.includes('column'))) {
       console.warn("Schema mismatch detected: 'images' column likely missing in DB. Retrying without images.");

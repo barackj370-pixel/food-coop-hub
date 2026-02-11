@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,11 +14,9 @@
       // Initialize Global Configuration
       window.APP_ENV = window.APP_ENV || {};
       
-      // Inject Credentials
-      window.APP_ENV.VITE_SUPABASE_URL = "https://ervfxsdwurppznjhsbht.supabase.co";
-      window.APP_ENV.VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVydmZ4c2R3dXJwcHpuamhzYmh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNjUzNjIsImV4cCI6MjA4NDk0MTM2Mn0.MIQOHcsAKpoOfx4OjAZ4C8meqrUcFEmELjtspnbQ8-U";
-      window.APP_ENV.API_KEY = ""; 
-
+      // Credentials should be loaded from .env or environment variables.
+      // Removed hardcoded legacy values to prevent connection errors to deleted projects.
+      
       // Loading Screen Helper
       window.hideHubLoader = function() {
         const loader = document.getElementById('loading-screen');
@@ -83,4 +80,3 @@
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>
-    

@@ -1,10 +1,11 @@
+
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Admin Client
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Initialize Supabase Admin Client with fallbacks
+const supabaseUrl = process.env.SUPABASE_URL || 'https://xtgztxbbkduxfcaocjhh.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0Z3p0eGJia2R1eGZjYW9jamhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTQyNjc5MywiZXhwIjoyMDg1MDAyNzkzfQ.bOqUP1xXkHP6lf5-B2Azd9FAC5WyS_WdmI53iKXfYzk';
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const normalizeKenyanPhone = (input: string) => {
   if (!input) return '';
@@ -64,8 +65,8 @@ export default async function handler(req: any, res: any) {
       console.log('[ResetPIN] Profile missing. Searching Auth system...');
       const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
       
-      if (!listError && users) {
-         const foundUser = users.find(u => 
+      if (!listError && users && users.length > 0) {
+         const foundUser = users.find((u: any) => 
             normalizeKenyanPhone(u.phone || '') === formattedPhone || 
             u.user_metadata?.phone === formattedPhone
          );
