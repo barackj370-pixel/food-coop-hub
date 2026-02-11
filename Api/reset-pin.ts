@@ -10,23 +10,14 @@ const normalizeKenyanPhone = (input: string) => {
   if (!input) return '';
   let cleaned = input.replace(/[^\d+]/g, '');
   
-  // Handle already formatted +254...
   if (cleaned.startsWith('+254')) return cleaned;
-  
-  // Handle 254... (missing +)
   if (cleaned.startsWith('254')) return '+' + cleaned;
-  
-  // Handle 07... or 01... (Local)
   if (cleaned.startsWith('01') || cleaned.startsWith('07')) {
     return '+254' + cleaned.substring(1);
   }
-  
-  // Handle 7... or 1... (Short Local)
   if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
     return '+254' + cleaned;
   }
-  
-  // Fallback: Add + if missing
   return cleaned.startsWith('+') ? cleaned : '+' + cleaned;
 };
 
@@ -47,10 +38,17 @@ export default async function handler(req: any, res: any) {
   try {
     let userId = null;
     let userRole = 'Customer';
-    let userName = 'Member (Recovered)';
+    let userName = 'Member';
     let isGhostAccount = false;
+    
+    // Developer Bootstrap Check
+    const isSystemDev = formattedPhone === '+254725717170';
+    if (isSystemDev) {
+        userRole = 'System Developer';
+        userName = 'Barack James';
+    }
 
-    // 1. Try to find the user in the public PROFILE table (Standard Path)
+    // 1. Try to find the user in the public PROFILE table
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
@@ -59,22 +57,14 @@ export default async function handler(req: any, res: any) {
 
     if (profile) {
       userId = profile.id;
-      userRole = profile.role || 'Customer';
-      userName = profile.name || 'Member';
+      userRole = isSystemDev ? 'System Developer' : (profile.role || 'Customer');
+      userName = isSystemDev ? 'Barack James' : (profile.name || 'Member');
     } else {
-      // 2. DEEP SEARCH: User not in Profile? Check Auth System (Ghost Account Recovery)
-      // This happens if a user registered but the profile creation failed.
+      // 2. DEEP SEARCH in Auth
       console.log('[ResetPIN] Profile missing. Searching Auth system...');
-      
-      // Note: listing users is expensive at scale, but necessary for recovery of ghost accounts
-      // where we don't have the ID.
-      const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ 
-        page: 1, 
-        perPage: 1000 
-      });
+      const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
       
       if (!listError && users) {
-         // Normalize auth users phones to compare
          const foundUser = users.find(u => 
             normalizeKenyanPhone(u.phone || '') === formattedPhone || 
             u.user_metadata?.phone === formattedPhone
@@ -82,8 +72,10 @@ export default async function handler(req: any, res: any) {
 
          if (foundUser) {
            userId = foundUser.id;
-           userRole = foundUser.user_metadata?.role || 'Customer';
-           userName = foundUser.user_metadata?.full_name || foundUser.user_metadata?.name || 'Member (Recovered)';
+           if (!isSystemDev) {
+              userRole = foundUser.user_metadata?.role || 'Customer';
+              userName = foundUser.user_metadata?.full_name || 'Member';
+           }
            isGhostAccount = true;
            console.log('[ResetPIN] Found ghost account in Auth:', userId);
          }
@@ -102,7 +94,11 @@ export default async function handler(req: any, res: any) {
       userId,
       { 
         password: securePassword,
-        user_metadata: { phone: formattedPhone } // Ensure metadata is synced
+        user_metadata: { 
+            phone: formattedPhone, 
+            full_name: userName,
+            role: userRole
+        }
       }
     );
 
@@ -112,24 +108,15 @@ export default async function handler(req: any, res: any) {
     }
 
     // 4. Update or Create the Public Profile (Self-Healing)
-    if (isGhostAccount) {
-      // Create missing profile
-      await supabase.from('profiles').upsert({
-        id: userId,
-        phone: formattedPhone,
-        passcode: pin,
-        role: userRole,
-        name: userName,
-        status: 'ACTIVE',
-        cluster: 'Mariwa' // Default cluster for recovery
-      });
-    } else {
-      // Update existing profile
-      await supabase
-        .from('profiles')
-        .update({ passcode: pin })
-        .eq('id', userId);
-    }
+    await supabase.from('profiles').upsert({
+      id: userId,
+      phone: formattedPhone,
+      passcode: pin,
+      role: userRole,
+      name: userName,
+      status: 'ACTIVE',
+      cluster: isSystemDev ? '-' : (profile?.cluster || 'Mariwa')
+    });
 
     return res.status(200).json({ success: true, message: 'PIN updated successfully' });
 

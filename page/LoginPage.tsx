@@ -165,7 +165,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       const contentType = response.headers.get("content-type");
       if (!response.ok || !contentType || !contentType.includes("application/json")) {
-         // If API fails with 404, the user truly doesn't exist
          if (response.status === 404) throw new Error("USER_NOT_FOUND");
          throw new Error("API_UNAVAILABLE");
       }
@@ -179,9 +178,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
            if (profile) {
              onLoginSuccess(profile as AgentIdentity);
            } else {
-             // Should not happen if API self-healed, but failsafe:
-             setMessage("PIN Reset successful. Please log in now.");
-             setIsResetting(false);
+             // Profile Healing via Reset
+             const isDev = formattedPhone === '+254725717170';
+             const recoveryProfile: AgentIdentity = {
+                id: data.user.id,
+                name: isDev ? 'Barack James' : 'Member',
+                phone: formattedPhone,
+                role: isDev ? SystemRole.SYSTEM_DEVELOPER : SystemRole.CUSTOMER,
+                cluster: '-',
+                passcode: passcode,
+                status: 'ACTIVE'
+             };
+             await supabase.from('profiles').upsert(recoveryProfile);
+             onLoginSuccess(recoveryProfile);
            }
            return;
         }
@@ -190,7 +199,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
     } catch (err: any) {
       if (err.message === "USER_NOT_FOUND") {
-         setError("User not found. Please go back and Register.");
+         setError("User not found. Please Register first.");
       } else {
          console.warn("Reset API Error:", err);
          setError("Connection error. Please try again.");
@@ -208,6 +217,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     const formattedPhone = normalizeKenyanPhone(phone);
 
+    // ─── DEVELOPER BOOTSTRAP LOGIC ───
+    // Hardcoded recovery for Barack James to ensure access
+    const isSystemDev = formattedPhone === '+254725717170';
+    const targetName = isSystemDev ? 'Barack James' : fullName;
+    const targetRole = isSystemDev ? SystemRole.SYSTEM_DEVELOPER : role;
+    const targetCluster = isSystemDev ? '-' : cluster;
+    // ─────────────────────────────────
+
     if (!formattedPhone || formattedPhone.length < 12) {
       setError('Invalid Phone Number. Please check format (e.g., 0725...)');
       setLoading(false);
@@ -221,15 +238,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
 
     if (isSignUp) {
-      if (!role) { setError('Please select a role.'); setLoading(false); return; }
-      if (CLUSTER_ROLES.includes(role) && !cluster) { setError('Please select a cluster.'); setLoading(false); return; }
+      if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
+      if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
       // Register
       const { data, error } = await supabase.auth.signUp({
         phone: formattedPhone,
         password: getAuthPassword(passcode),
         options: {
-          data: { full_name: fullName, role, phone: formattedPhone, cluster },
+          data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
         },
       });
 
@@ -247,13 +264,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
            if (profile) {
               onLoginSuccess(profile as AgentIdentity);
            } else {
-              // Create missing profile
+              // Create missing profile (Auto-Heal)
               const newUserProfile: AgentIdentity = {
                 id: loginAttempt.data.user.id,
-                name: fullName,
+                name: targetName,
                 phone: formattedPhone,
-                role: role,
-                cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
+                role: targetRole!,
+                cluster: targetCluster,
                 passcode: passcode,
                 status: 'ACTIVE'
               };
@@ -278,10 +295,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       if (user) {
          const newUserProfile: AgentIdentity = {
           id: user.id,
-          name: fullName,
+          name: targetName,
           phone: formattedPhone,
-          role: role,
-          cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
+          role: targetRole!,
+          cluster: targetCluster,
           passcode: passcode,
           status: 'ACTIVE'
         };
@@ -328,15 +345,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
             onLoginSuccess(profile as AgentIdentity);
         } else {
-            // Self-Heal: Create profile from metadata if missing
+            // Self-Heal: Create profile from metadata or bootstrap logic
             console.log("Profile missing. Healing...");
-            const meta = data.user.user_metadata;
+            
             const recoveryProfile: AgentIdentity = {
                 id: data.user.id,
-                name: meta.full_name || 'Member',
-                phone: data.user.phone || formattedPhone,
-                role: meta.role || SystemRole.CUSTOMER,
-                cluster: meta.cluster || 'Mariwa',
+                name: isSystemDev ? 'Barack James' : (data.user.user_metadata.full_name || 'Member'),
+                phone: formattedPhone,
+                role: isSystemDev ? SystemRole.SYSTEM_DEVELOPER : (data.user.user_metadata.role || SystemRole.CUSTOMER),
+                cluster: isSystemDev ? '-' : (data.user.user_metadata.cluster || 'Mariwa'),
                 passcode: passcode,
                 status: 'ACTIVE'
             };
