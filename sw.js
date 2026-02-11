@@ -1,5 +1,6 @@
-const CACHE_NAME = 'kpl-offline-v2';
-const DYNAMIC_CACHE = 'kpl-dynamic-v2';
+
+const CACHE_NAME = 'kpl-offline-v3';
+const DYNAMIC_CACHE = 'kpl-dynamic-v3';
 
 // Install Event: Skip waiting to activate immediately
 self.addEventListener('install', (event) => {
@@ -24,16 +25,35 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event: Network First for API, Cache First for Assets
+// Fetch Event
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // 1. API Requests (Supabase, Google AI) - Network Only (Fail fast if offline)
+  // 1. API Requests - Network Only (Fail fast if offline)
   if (url.hostname.includes('supabase') || url.hostname.includes('googleapis') || url.hostname.includes('google')) {
     return;
   }
 
-  // 2. App Assets (HTML, JS, CSS, Images) - Stale-While-Revalidate or Cache-First
+  // 2. Navigation Requests (HTML) - Network First, Fallback to Cache
+  // This ensures the user always gets the latest version of the app shell
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          return caches.open(DYNAMIC_CACHE).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+        })
+        .catch(() => {
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // 3. Static Assets (JS, CSS, Images) - Stale-While-Revalidate
+  // Return cached version immediately for speed, but update cache in background
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)

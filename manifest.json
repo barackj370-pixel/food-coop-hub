@@ -1,8 +1,9 @@
+
 {
   "name": "KPL Food Coop Hub",
   "short_name": "KPL Hub",
   "description": "Secure Agricultural Cooperative Sales & Audit Management",
-  "start_url": "./index.html",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#022c22",
