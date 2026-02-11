@@ -32,14 +32,17 @@ export default async function handler(req: any, res: any) {
     }
 
     // 2. Update the Auth User Password using Admin privileges
+    // Pad to 6 chars if 4 provided, to meet Supabase default constraints
+    const securePassword = pin.length === 4 ? `${pin}00` : pin;
+
     const { error: authError } = await supabase.auth.admin.updateUserById(
       userProfile.id,
-      { password: pin }
+      { password: securePassword }
     );
 
     if (authError) throw authError;
 
-    // 3. Update the Public Profile Passcode (to keep it in sync for reference)
+    // 3. Update the Public Profile Passcode (Store raw 4 digit pin for reference)
     await supabase
       .from('profiles')
       .update({ passcode: pin })

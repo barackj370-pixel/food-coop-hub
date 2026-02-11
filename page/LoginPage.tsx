@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
@@ -84,6 +83,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   /* ───────── HELPERS ───────── */
   const validatePin = (pin: string) => /^\d{4}$/.test(pin);
   const cleanPhoneNumber = (p: string) => p.trim();
+  
+  // Pad 4-digit PIN to 6 chars for Supabase Auth requirements (transparent to user)
+  const getAuthPassword = (p: string) => p.length === 4 ? `${p}00` : p;
 
   /* ───────── COMPLETE PROFILE (FOR INVITED USERS) ───────── */
   const handleCompleteProfile = async (e: React.FormEvent) => {
@@ -99,7 +101,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (!user) { setError('Session expired. Please click the invite link again.'); setLoading(false); return; }
 
     if (passcode) {
-      const { error: pwError } = await supabase.auth.updateUser({ password: passcode });
+      const { error: pwError } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
       if (pwError) { setError(`Pin Error: ${pwError.message}`); setLoading(false); return; }
     }
 
@@ -109,7 +111,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       phone: phone,
       role: role,
       cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
-      passcode: passcode, 
+      passcode: passcode, // Store raw 4-digit pin for reference
       status: 'ACTIVE'
     };
 
@@ -157,8 +159,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       const result = await response.json();
       if (result.success) {
-        // 2. Auto Login on Success
-        const { data } = await supabase.auth.signInWithPassword({ phone: cleanPhone, password: passcode });
+        // 2. Auto Login on Success (Try new padded password first)
+        const { data } = await supabase.auth.signInWithPassword({ phone: cleanPhone, password: getAuthPassword(passcode) });
         if (data.user) {
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
            if (profile) onLoginSuccess(profile as AgentIdentity);
@@ -177,8 +179,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         .maybeSingle();
 
       if (profile && !profileError) {
-        // Note: In a real prod environment without the API, this reset is only local/simulated or requires manual DB intervention.
-        // For the purpose of this app without a Node backend, we allow login if the user matches, but warn about the PIN.
         setError("Password reset requires administrator contact. Please contact support.");
         return;
       } else {
@@ -207,9 +207,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       if (!role) { setError('Please select a role.'); setLoading(false); return; }
       if (CLUSTER_ROLES.includes(role) && !cluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
+      // Register with padded password
       const { data, error } = await supabase.auth.signUp({
         phone: cleanPhone,
-        password: passcode,
+        password: getAuthPassword(passcode),
         options: {
           data: { full_name: fullName, role, phone: cleanPhone, cluster },
         },
@@ -228,16 +229,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           phone: cleanPhone,
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
-          passcode: passcode,
+          passcode: passcode, // Store raw 4-digit pin
           status: 'ACTIVE'
         };
 
-        // Try to insert profile immediately
         const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile);
         
         if (dbError) {
-             // If DB insert fails (likely RLS because session not ready), we warn but allow "success"
-             // because the Login step below will auto-heal it.
              console.warn("Profile creation deferred due to auth state:", dbError.message);
              setMessage('Account created! Please Log In to activate your profile in the database.');
              setIsSignUp(false);
@@ -247,11 +245,25 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         }
       }
     } else {
-      // Login
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Login - Try padded password first (standard)
+      let { data, error } = await supabase.auth.signInWithPassword({
         phone: cleanPhone,
-        password: passcode,
+        password: getAuthPassword(passcode),
       });
+
+      // Fallback: Retry with raw password for legacy accounts
+      if (error && (error.message.includes("Invalid login") || error.message.includes("credential"))) {
+         console.log("Login failed with padded pin, retrying with raw pin...");
+         const rawAttempt = await supabase.auth.signInWithPassword({
+            phone: cleanPhone,
+            password: passcode,
+         });
+         
+         if (!rawAttempt.error && rawAttempt.data.user) {
+            data = rawAttempt.data;
+            error = null;
+         }
+      }
 
       if (error) {
         setError("Login Failed: " + error.message);
@@ -266,7 +278,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
             onLoginSuccess(profile as AgentIdentity);
         } else {
-            // 2. SELF-HEALING: Profile missing? Recreate it from Auth Metadata
+            // 2. SELF-HEALING
             console.log("Profile missing for authenticated user. Attempting auto-heal...");
             const meta = data.user.user_metadata;
             
@@ -292,7 +304,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     setMessage("Profile synchronization failed. Please re-enter details.");
                 }
             } else {
-                // Metadata missing too? Force manual completion
                 setIsCompletingProfile(true);
                 setPhone(cleanPhone);
                 setMessage("Profile not found. Please complete your details.");
