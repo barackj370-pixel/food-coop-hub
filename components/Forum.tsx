@@ -86,7 +86,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
         </div>
         <button 
           onClick={() => setShowForm(!showForm)}
-          className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${showForm ? 'bg-slate-100 text-slate-500' : 'bg-black text-white hover:bg-slate-900'}`}
+          className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${showForm ? 'bg-slate-100 text-slate-500' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
         >
           {showForm ? <><i className="fas fa-times"></i> Cancel</> : <><i className="fas fa-pen"></i> New Post</>}
         </button>
@@ -146,21 +146,24 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
             <div key={post.id} className="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-md hover:shadow-xl transition-shadow group relative overflow-hidden">
               <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4 relative z-10">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 font-black text-xl shadow-sm">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 font-black text-xl shadow-sm shrink-0">
                     {post.authorName.charAt(0)}
                   </div>
                   <div>
                     <h4 className="text-lg font-black text-black leading-tight">{post.title}</h4>
-                    <div className="flex flex-wrap items-center gap-2 mt-1">
-                      <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${getRoleBadgeColor(post.authorRole)}`}>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className="text-[10px] font-black text-black uppercase">
+                        {post.authorName}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-wider ${getRoleBadgeColor(post.authorRole)}`}>
                         {post.authorRole}
                       </span>
                       {post.authorCluster && post.authorCluster !== '-' && (
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">
-                          • {post.authorCluster}
+                        <span className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-500 border border-slate-100 text-[8px] font-bold uppercase tracking-wider">
+                          <i className="fas fa-map-marker-alt mr-1"></i> {post.authorCluster}
                         </span>
                       )}
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">
+                      <span className="text-[8px] font-bold text-slate-400 uppercase ml-1">
                         • {new Date(post.createdAt).toLocaleDateString()}
                       </span>
                     </div>
@@ -177,13 +180,10 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
                 )}
               </div>
               
-              <div className="pl-16 relative z-10">
+              <div className="pl-0 md:pl-16 relative z-10">
                 <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">
                   {post.content}
                 </p>
-                <div className="mt-4 pt-4 border-t border-slate-50 flex items-center gap-2">
-                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Posted by {post.authorName}</p>
-                </div>
               </div>
             </div>
           ))}
