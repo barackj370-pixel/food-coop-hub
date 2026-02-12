@@ -105,6 +105,53 @@ interface SaleFormSubmission {
   produceId?: string;
 }
 
+// News Data Structure
+interface NewsArticle {
+  id: string;
+  title: string;
+  summary: string;
+  content: string; // can contain HTML breaks <br/>
+  author: string;
+  role: string;
+  date: string;
+  category: string;
+  image: string;
+}
+
+const NEWS_ARTICLES: NewsArticle[] = [
+  {
+    id: 'news-001',
+    category: 'Education & Training',
+    title: 'Specialists Launch Organic Fertilizer Training Across Clusters',
+    summary: 'Director David Otieno and Manager Clifford Ochieng lead the initiative to educate farmers on sustainable organic fertilizer preparation, starting with Mulo Cluster.',
+    content: `In a major step towards sustainable agriculture, trained specialists from KPL Food Coop have embarked on a comprehensive training program across all clusters. The initiative focuses on educating farmers on the preparation and application of organic fertilizer, a key component in reducing costs and improving soil health.<br/><br/>
+    The training is spearheaded by the Cooperative's leadership, including <strong>Director David Otieno</strong> and <strong>Manager Clifford Ochieng</strong>, who are personally visiting farming communities to ensure the adoption of these eco-friendly practices.<br/><br/>
+    <strong>Progress Update:</strong><br/>
+    The team has successfully concluded the first leg of the tour in the <strong>Mulo Cluster</strong>, where farmers were introduced to composting techniques and bio-slurry application. The reception was overwhelmingly positive, with many farmers eager to transition away from expensive synthetic inputs.<br/><br/>
+    <strong>Next Stop: Rabolo Cluster</strong><br/>
+    The training caravan is scheduled to visit the <strong>Rabolo Cluster in Ranen</strong> next week. Farmers in the region are encouraged to attend these sessions to learn how to boost their yields sustainably.`,
+    author: 'Admin Desk',
+    role: 'Coop HQ',
+    date: 'Feb 10, 2024',
+    image: 'https://images.unsplash.com/photo-1625246333195-58197bd47f3b?auto=format&fit=crop&q=80&w=1000' // Farmer training/soil context
+  },
+  {
+    id: 'news-002',
+    category: 'Digital Innovation',
+    title: 'Digital Revolution: New Platform & Weather Portal Launching Feb 17th',
+    summary: 'Barack James, Head of Digital Innovations, tours all 7 clusters to unveil the new Food Coop digital platform and upcoming local weather portal.',
+    content: `The KPL Food Coop is taking a giant leap into the future with the establishment of the new <strong>Digital Innovation Department</strong>. Headed by <strong>Barack James</strong>, this department is tasked with modernizing the cooperative's operations and empowering farmers with data.<br/><br/>
+    <strong>Cluster Tour & Platform Launch</strong><br/>
+    Barack James is currently conducting a tour of all 7 clusters to introduce the new <strong>Food Coop Digital Platform</strong> to sales agents. This platform is designed to streamline sales, track inventory in real-time, and ensure transparent record-keeping. The system is expected to be fully functional and live by <strong>February 17th</strong>.<br/><br/>
+    <strong>Upcoming Weather Portal</strong><br/>
+    In addition to the sales platform, the Digital Innovations Department is developing a <strong>Local Weather Portal</strong>. This tool will provide hyper-local weather forecasts specific to each cluster, helping farmers make informed decisions about planting, harvesting, and fertilizer application. This data-driven approach aims to mitigate climate risks and maximize farm production across the cooperative.`,
+    author: 'Barack James',
+    role: 'Head of Digital Innovations',
+    date: 'Feb 12, 2024',
+    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=1000' // Digital/Tech context
+  }
+];
+
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
     const saved = persistence.get('food_coop_data');
@@ -152,6 +199,7 @@ const App: React.FC = () => {
   });
 
   const [showPublicSupplierStats, setShowPublicSupplierStats] = useState(false);
+  const [viewingNewsArticle, setViewingNewsArticle] = useState<NewsArticle | null>(null);
   
   // Connectivity & Sync State
   const [isSyncing, setIsSyncing] = useState(false);
@@ -1088,19 +1136,42 @@ const App: React.FC = () => {
         {currentPortal === 'NEWS' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center">Cooperative News & Updates</h2>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col">
-                <div className="h-48 bg-slate-200 flex items-center justify-center text-slate-400">
-                  <i className="fas fa-seedling text-5xl"></i>
-                </div>
-                <div className="p-8 flex-1 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <span className="px-4 py-1.5 bg-green-50 text-green-600 rounded-full text-[9px] font-black uppercase tracking-widest">Agricultural Insights</span>
-                    <h3 className="text-xl font-black text-black leading-tight">Improving Maize Yields in Nyamagagana Cluster</h3>
-                    <p className="text-sm text-slate-500 leading-relaxed">Discover the new organic fertilization methods shared by our lead agronomists this week.</p>
+              {NEWS_ARTICLES.map(article => (
+                <div 
+                  key={article.id} 
+                  onClick={() => setViewingNewsArticle(article)}
+                  className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col cursor-pointer group hover:shadow-2xl transition-all hover:scale-[1.02]"
+                >
+                  <div className="h-56 bg-slate-200 relative overflow-hidden">
+                    <img src={article.image} alt={article.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
+                      <span className="text-[9px] font-black text-white uppercase tracking-widest">{article.category}</span>
+                    </div>
+                  </div>
+                  <div className="p-8 flex-1 flex flex-col justify-between">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-start">
+                         <h3 className="text-xl font-black text-black leading-tight group-hover:text-green-600 transition-colors">{article.title}</h3>
+                      </div>
+                      <p className="text-sm text-slate-500 leading-relaxed line-clamp-3">{article.summary}</p>
+                    </div>
+                    <div className="mt-8 pt-6 border-t border-slate-50 flex justify-between items-center">
+                       <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                             <i className="fas fa-user"></i>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black uppercase text-black">{article.author}</p>
+                            <p className="text-[8px] font-bold text-slate-400">{article.date}</p>
+                          </div>
+                       </div>
+                       <span className="text-[9px] font-black uppercase text-slate-300 group-hover:text-green-500 transition-colors tracking-widest">Read Story <i className="fas fa-arrow-right ml-1"></i></span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
@@ -1390,6 +1461,46 @@ const App: React.FC = () => {
             </div>
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
               <button onClick={() => setIsReportOpen(false)} className="bg-black text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800">Close Report</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* News Article Modal */}
+      {viewingNewsArticle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setViewingNewsArticle(null)}>
+          <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="relative h-64 shrink-0">
+               <img src={viewingNewsArticle.image} alt={viewingNewsArticle.title} className="w-full h-full object-cover" />
+               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+               <button onClick={() => setViewingNewsArticle(null)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
+                  <i className="fas fa-times"></i>
+               </button>
+               <div className="absolute bottom-6 left-8 right-8">
+                  <span className="px-3 py-1 bg-green-500 text-white rounded-full text-[9px] font-black uppercase tracking-widest mb-3 inline-block">{viewingNewsArticle.category}</span>
+                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight">{viewingNewsArticle.title}</h2>
+               </div>
+            </div>
+            
+            <div className="p-8 md:p-12 overflow-y-auto flex-1 bg-white">
+               <div className="flex items-center gap-4 mb-8 pb-8 border-b border-slate-100">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                      <i className="fas fa-user-circle text-2xl"></i>
+                  </div>
+                  <div>
+                     <p className="text-sm font-black text-black uppercase">{viewingNewsArticle.author}</p>
+                     <p className="text-xs text-slate-500 font-medium">{viewingNewsArticle.role}</p>
+                  </div>
+                  <div className="ml-auto text-right">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Published</p>
+                     <p className="text-xs font-bold text-black">{viewingNewsArticle.date}</p>
+                  </div>
+               </div>
+               
+               <div 
+                 className="prose prose-slate max-w-none font-medium text-slate-600 leading-relaxed"
+                 dangerouslySetInnerHTML={{ __html: viewingNewsArticle.content }}
+               />
             </div>
           </div>
         </div>
