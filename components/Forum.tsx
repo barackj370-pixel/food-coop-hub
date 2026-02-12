@@ -10,21 +10,26 @@ interface ForumProps {
 const Forum: React.FC<ForumProps> = ({ currentUser }) => {
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   
+  // Form State
+  const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
+  
+  // Submission Status State
+  const [status, setStatus] = useState<'IDLE' | 'SUBMITTING' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [feedbackMsg, setFeedbackMsg] = useState('');
 
   const loadPosts = async () => {
-    setLoading(true);
+    // Only set global loading on first load to prevent flash
+    if (posts.length === 0) setLoading(true);
+    
     try {
       const data = await fetchForumPosts();
       setPosts(data);
     } catch (e) {
       console.error("Failed to load posts:", e);
-      // Ensure we don't block the UI if fetch fails
-      setPosts([]);
+      // Fail gracefully
     } finally {
       setLoading(false);
     }
@@ -38,7 +43,9 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) return;
 
-    setCreating(true);
+    setStatus('SUBMITTING');
+    setFeedbackMsg('');
+
     try {
       const success = await saveForumPost({
         title: newTitle,
@@ -50,17 +57,25 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
       });
 
       if (success) {
+        setStatus('SUCCESS');
+        setFeedbackMsg('Post published successfully!');
         setNewTitle('');
         setNewContent('');
-        setShowForm(false);
         await loadPosts();
+        
+        // Auto-hide form after success
+        setTimeout(() => {
+          setShowForm(false);
+          setStatus('IDLE');
+          setFeedbackMsg('');
+        }, 2000);
       } else {
-        alert("Failed to post message. Please check your connection or try again later.");
+        setStatus('ERROR');
+        setFeedbackMsg("Failed to post message. Please check your connection.");
       }
     } catch (err) {
-      alert("An unexpected error occurred while posting.");
-    } finally {
-      setCreating(false);
+      setStatus('ERROR');
+      setFeedbackMsg("An unexpected error occurred while posting.");
     }
   };
 
@@ -75,16 +90,14 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
   };
 
   const canDelete = (post: ForumPost) => {
-    // Admins (Dev, Manager, Director) can delete anything
     const isAdmin = [SystemRole.SYSTEM_DEVELOPER, SystemRole.MANAGER].includes(currentUser.role as SystemRole); 
-    // Users can delete their own
     const isAuthor = post.authorPhone === currentUser.phone;
     return isAdmin || isAuthor;
   };
 
   const getRoleBadgeColor = (role: string) => {
     if (role === SystemRole.SYSTEM_DEVELOPER) return 'bg-purple-100 text-purple-700 border-purple-200';
-    if (role === SystemRole.MANAGER) return 'bg-black text-white border-black'; // Director
+    if (role === SystemRole.MANAGER) return 'bg-black text-white border-black';
     if (role === SystemRole.FINANCE_OFFICER || role === SystemRole.AUDITOR) return 'bg-blue-100 text-blue-700 border-blue-200';
     return 'bg-slate-100 text-slate-600 border-slate-200';
   };
@@ -97,7 +110,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Official Communications & Updates</p>
         </div>
         <button 
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => { setShowForm(!showForm); setStatus('IDLE'); setFeedbackMsg(''); }}
           className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${showForm ? 'bg-slate-100 text-slate-500' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
         >
           {showForm ? <><i className="fas fa-times"></i> Cancel</> : <><i className="fas fa-pen"></i> New Post</>}
@@ -105,8 +118,21 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-2xl animate-in slide-in-from-top-4 duration-300">
-          <div className="space-y-6">
+        <form onSubmit={handleCreate} className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-2xl animate-in slide-in-from-top-4 duration-300 relative overflow-hidden">
+          
+          {/* Status Feedback Banner */}
+          {status === 'SUCCESS' && (
+            <div className="absolute top-0 left-0 right-0 bg-green-500 text-white p-4 text-center text-xs font-black uppercase tracking-widest animate-in slide-in-from-top-2">
+              <i className="fas fa-check-circle mr-2"></i> {feedbackMsg}
+            </div>
+          )}
+          {status === 'ERROR' && (
+            <div className="absolute top-0 left-0 right-0 bg-red-500 text-white p-4 text-center text-xs font-black uppercase tracking-widest animate-in slide-in-from-top-2">
+              <i className="fas fa-exclamation-triangle mr-2"></i> {feedbackMsg}
+            </div>
+          )}
+
+          <div className={`space-y-6 ${status !== 'IDLE' && status !== 'SUBMITTING' ? 'mt-8' : ''}`}>
             <div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 mb-2 block">Subject / Title</label>
               <input 
@@ -114,8 +140,9 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
                 value={newTitle}
                 onChange={e => setNewTitle(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-lg"
-                placeholder="Brief summary of the announcement..."
+                placeholder="Brief summary..."
                 required
+                disabled={status === 'SUBMITTING'}
               />
             </div>
             <div>
@@ -126,16 +153,16 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-medium text-slate-700 outline-none focus:bg-white focus:border-green-400 transition-all min-h-[150px] resize-none leading-relaxed"
                 placeholder="Type your message here..."
                 required
+                disabled={status === 'SUBMITTING'}
               />
             </div>
             <div className="flex justify-end pt-4 border-t border-slate-50">
               <button 
                 type="submit" 
-                disabled={creating}
+                disabled={status === 'SUBMITTING'}
                 className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all flex items-center gap-2"
               >
-                {creating ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-paper-plane"></i>}
-                Publish to Forum
+                {status === 'SUBMITTING' ? <><i className="fas fa-spinner fa-spin"></i> Publishing...</> : <><i className="fas fa-paper-plane"></i> Publish to Forum</>}
               </button>
             </div>
           </div>
