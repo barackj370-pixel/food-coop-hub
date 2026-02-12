@@ -17,15 +17,12 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<SaleRecord[]>([]);
   const [supplierName, setSupplierName] = useState('');
+  const [supplierCluster, setSupplierCluster] = useState('');
   const [view, setView] = useState<'INPUT' | 'STATS'>('INPUT');
 
   // Helper to normalize phone for search
   const normalizePhone = (p: string) => {
     let s = p.trim().replace(/\D/g, '');
-    // Handle Kenyan formats casually (07xx -> 7xx, 2547xx -> 7xx) for loose matching if needed, 
-    // but strict E.164 is better for DB. 
-    // Here we'll rely on the user typing what matches the DB record (usually 07... or +254...)
-    // A simple approach is searching with the last 9 digits.
     return s.length >= 9 ? s.slice(-9) : s;
   };
 
@@ -38,26 +35,54 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     setLoading(true);
     try {
-      // Fetch all records where the farmer phone contains the input digits (last 9)
-      // This allows '0712...' to match '+254712...'
       const searchTerm = normalizePhone(phone);
       
-      const { data, error } = await supabase
+      // 1. Check Sales Records
+      const { data: salesData, error: salesError } = await supabase
         .from('records')
         .select('*')
         .or(`farmer_phone.ilike.%${searchTerm}%,farmer_phone.eq.${phone}`)
         .order('date', { ascending: false });
 
-      if (error) throw error;
+      if (salesError) throw salesError;
 
-      if (!data || data.length === 0) {
-        alert("No records found for this number.");
+      // 2. Check Produce Listings (if no sales found, maybe they just listed items)
+      let produceData: any[] = [];
+      if (!salesData || salesData.length === 0) {
+        const { data, error: produceError } = await supabase
+          .from('produce')
+          .select('*')
+          .or(`supplier_phone.ilike.%${searchTerm}%,supplier_phone.eq.${phone}`)
+          .limit(1);
+        
+        if (produceError) throw produceError;
+        produceData = data || [];
+      }
+
+      if ((!salesData || salesData.length === 0) && produceData.length === 0) {
+        alert("No records found for this number. Ensure you have active listings or past sales.");
         setLoading(false);
         return;
       }
 
+      // Determine Identity
+      let name = "Supplier";
+      let cluster = "Unassigned";
+
+      // Try to get details from sales first
+      if (salesData && salesData.length > 0) {
+        name = salesData[0].farmer_name || name;
+        cluster = salesData[0].cluster || cluster;
+      } else if (produceData.length > 0) {
+        name = produceData[0].supplier_name || name;
+        cluster = produceData[0].cluster || cluster;
+      }
+
+      setSupplierName(name);
+      setSupplierCluster(cluster);
+
       // Map DB fields to TypeScript Interface
-      const mappedRecords: SaleRecord[] = data.map((r: any) => ({
+      const mappedRecords: SaleRecord[] = (salesData || []).map((r: any) => ({
         id: r.id,
         date: r.date,
         cropType: r.crop_type,
@@ -80,19 +105,11 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       }));
 
       // Filter for valid financial records (Paid/Verified/Validated)
-      // We exclude DRAFT to show realized gains, or keep them to show potential?
-      // Let's keep verified/paid for "Real Money" and validated for "Pending".
       const validRecords = mappedRecords.filter(r => 
         r.status === RecordStatus.PAID || 
         r.status === RecordStatus.VERIFIED || 
         r.status === RecordStatus.VALIDATED
       );
-
-      if (validRecords.length > 0) {
-        setSupplierName(validRecords[0].farmerName);
-      } else {
-        setSupplierName("Supplier");
-      }
 
       setRecords(validRecords);
       setView('STATS');
@@ -206,7 +223,9 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </button>
           <div className="text-right">
              <h2 className="text-xl font-black text-black uppercase tracking-tight">{supplierName}</h2>
-             <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Verified Stakeholder</p>
+             <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">
+                <i className="fas fa-map-marker-alt mr-1"></i> {supplierCluster} Cluster
+             </p>
           </div>
         </div>
 
@@ -219,7 +238,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <div>
                    <p className="text-[10px] font-black text-green-400 uppercase tracking-[0.3em] mb-2">Total Community Contribution</p>
                    <h1 className="text-5xl font-black tracking-tighter">KSh {stats?.allTime.clusterShare.toLocaleString()}</h1>
-                   <p className="text-xs font-bold text-slate-400 mt-2">This is the 60% share generated for your cluster from your sales.</p>
+                   <p className="text-xs font-bold text-slate-400 mt-2">This is the 60% share generated for <span className="text-white">{supplierCluster}</span> cluster from your sales.</p>
                 </div>
                 
                 <div className="h-px bg-white/10 w-full"></div>
@@ -275,7 +294,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
              <i className="fas fa-info-circle text-slate-300 text-2xl mb-4"></i>
              <p className="text-xs font-bold text-slate-500 leading-relaxed">
                As a stakeholder, your produce contributes to the strength of your cluster. 
-               <br/>60% of the profits generated by your sales are reinvested into your local community cluster.
+               <br/>60% of the profits generated by your sales are reinvested into your local community cluster ({supplierCluster}).
              </p>
           </div>
 
