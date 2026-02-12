@@ -1288,13 +1288,94 @@ const App: React.FC = () => {
 
         {currentPortal === 'ABOUT' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-8">
-              <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></h2>
-              <div className="space-y-6 text-slate-600 font-medium leading-relaxed">
-                <p>
-                  KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-5xl mx-auto space-y-12">
+              
+              {/* Header Section */}
+              <div className="text-center space-y-6">
+                <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto text-green-600 border border-green-100 shadow-sm mb-6">
+                   <i className="fas fa-seedling text-3xl"></i>
+                </div>
+                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">
+                  Revolutionizing <span className="text-green-600">Agriculture</span> Through <span className="text-black">Community</span>
+                </h2>
+                <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-3xl mx-auto">
+                  KPL Food Coop Market is a digital-first cooperative platform dedicated to bridging the gap between rural abundance and urban demand. We are building a future where farmers are fairly rewarded, and consumers access fresh, high-quality produce with total transparency.
                 </p>
               </div>
+
+              <div className="h-px bg-slate-100 w-full"></div>
+
+              {/* Mission & Vision Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="space-y-4">
+                   <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-black shadow-sm"><i className="fas fa-bullseye"></i></div>
+                      <h3 className="text-xl font-black uppercase tracking-tight">Our Mission</h3>
+                   </div>
+                   <p className="text-slate-600 leading-relaxed text-sm font-medium">
+                     To dismantle the barriers in the agricultural supply chain that exploit farmers and inflate costs for consumers. We strive to create a streamlined, efficient marketplace where value remains within the community, fostering economic resilience and sustainability.
+                   </p>
+                </div>
+                <div className="space-y-4">
+                   <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-black shadow-sm"><i className="fas fa-eye"></i></div>
+                      <h3 className="text-xl font-black uppercase tracking-tight">Our Vision</h3>
+                   </div>
+                   <p className="text-slate-600 leading-relaxed text-sm font-medium">
+                     A Kenya where every smallholder farmer has direct access to a global market, where food wastage is eliminated through data-driven logistics, and where agriculture becomes a viable, dignified, and profitable profession for the next generation.
+                   </p>
+                </div>
+              </div>
+
+              {/* The Cluster Model */}
+              <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                 <h3 className="text-lg font-black uppercase tracking-tight text-black mb-4 flex items-center gap-2">
+                   <i className="fas fa-network-wired text-green-600"></i> The Cluster Model
+                 </h3>
+                 <p className="text-slate-600 leading-relaxed text-sm font-medium mb-6">
+                   Our operations are anchored in strategic clusters—<strong>Mariwa, Mulo, Rabolo, Kangemi, Kabarnet, Apuoyo, and Nyamagagana</strong>. This decentralized structure allows us to:
+                 </p>
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                       <i className="fas fa-truck-fast text-slate-300 text-2xl mb-3"></i>
+                       <h4 className="text-xs font-black uppercase tracking-widest text-black mb-1">Optimize Logistics</h4>
+                       <p className="text-[10px] text-slate-500 font-bold">Reduce transport costs by aggregating produce locally.</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                       <i className="fas fa-certificate text-slate-300 text-2xl mb-3"></i>
+                       <h4 className="text-xs font-black uppercase tracking-widest text-black mb-1">Ensure Quality</h4>
+                       <p className="text-[10px] text-slate-500 font-bold">Monitor harvest standards at the source before distribution.</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                       <i className="fas fa-hand-holding-heart text-slate-300 text-2xl mb-3"></i>
+                       <h4 className="text-xs font-black uppercase tracking-widest text-black mb-1">Empower Locals</h4>
+                       <p className="text-[10px] text-slate-500 font-bold">Create jobs for agents and logistics support within the region.</p>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Core Values */}
+              <div>
+                <h3 className="text-lg font-black uppercase tracking-tight text-center mb-8">Core Values</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                   <div className="text-center p-6">
+                      <div className="w-16 h-16 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 text-2xl shadow-sm"><i className="fas fa-file-invoice-dollar"></i></div>
+                      <h4 className="font-black uppercase text-xs tracking-widest mb-2">Transparency</h4>
+                      <p className="text-xs text-slate-500">Open ledgers and real-time reporting build unshakeable trust.</p>
+                   </div>
+                   <div className="text-center p-6">
+                      <div className="w-16 h-16 mx-auto bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-4 text-2xl shadow-sm"><i className="fas fa-scale-balanced"></i></div>
+                      <h4 className="font-black uppercase text-xs tracking-widest mb-2">Fairness</h4>
+                      <p className="text-xs text-slate-500">Equitable profit sharing that respects the farmer's hard work.</p>
+                   </div>
+                   <div className="text-center p-6">
+                      <div className="w-16 h-16 mx-auto bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-4 text-2xl shadow-sm"><i className="fas fa-users"></i></div>
+                      <h4 className="font-black uppercase text-xs tracking-widest mb-2">Community</h4>
+                      <p className="text-xs text-slate-500">We grow together. Our cooperative is owned by the people it serves.</p>
+                   </div>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
