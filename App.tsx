@@ -234,8 +234,7 @@ const App: React.FC = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  // VERSION CHECK - Force clear storage if version mismatched
-  // MOVED AFTER STATE INITIALIZATION TO ALLOW STATE WIPING
+  // VERSION CHECK - Force clear storage and Redirect to LOGIN if version mismatched
   useEffect(() => {
     const storedVersion = persistence.get('app_version');
     if (storedVersion !== APP_VERSION) {
@@ -247,13 +246,15 @@ const App: React.FC = () => {
       if (blacklist) persistence.set('deleted_produce_blacklist', blacklist);
       persistence.set('app_version', APP_VERSION);
       
-      // Instead of reload (which causes loops in some environments), wipe state directly
+      // Wipe state in memory
       setRecords([]);
       setMarketOrders([]);
       setProduceListings([]);
       setUsers([]);
       setAgentIdentity(null);
-      setCurrentPortal('HOME'); // Reset to HOME, not LOGIN
+      
+      // Force Login on Version Update
+      setCurrentPortal('LOGIN'); 
       supabase.auth.signOut().catch(() => {});
     }
   }, []);
@@ -262,6 +263,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'register' && !agentIdentity) {
+      // Invite Link -> Force Login Page (which handles registration)
       setCurrentPortal('LOGIN');
     }
   }, [agentIdentity]);
@@ -373,7 +375,7 @@ const App: React.FC = () => {
       } else if (event === 'SIGNED_OUT') {
         setAgentIdentity(null);
         persistence.remove('agent_session');
-        setCurrentPortal('HOME'); // Default to HOME on logout, not LOGIN
+        setCurrentPortal('HOME'); // Logout -> Home Page
         hasSyncedLegacyData.current = false;
       }
     });
