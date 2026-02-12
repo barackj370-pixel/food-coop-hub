@@ -258,76 +258,104 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-          // 1. Register Auth User
-          const { data, error } = await supabase.auth.signUp({
+          // 1. Attempt Registration via Server API (Bypasses SMS)
+          let registrationSuccess = false;
+          let registrationError = '';
+
+          try {
+            const apiRes = await fetch('/api/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phone: formattedPhone,
+                password: getAuthPassword(passcode),
+                data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster }
+              })
+            });
+
+            const apiData = await apiRes.json();
+            if (apiRes.ok && apiData.success) {
+              registrationSuccess = true;
+            } else if (apiData.error && apiData.error.toLowerCase().includes('already registered')) {
+               // Fallthrough to login attempt
+               console.log("User exists (API), logging in...");
+            } else {
+               registrationError = apiData.error || 'Registration failed.';
+               throw new Error(registrationError);
+            }
+          } catch (apiErr: any) {
+             // If API fails (e.g. 404 in local dev without functions), fall back to client SDK
+             console.warn("API Registration failed, trying client SDK:", apiErr);
+             
+             // Client SDK Backup (Note: Will fail if Twilio is broken)
+             const { data, error } = await supabase.auth.signUp({
+                phone: formattedPhone,
+                password: getAuthPassword(passcode),
+                options: {
+                  data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
+                },
+             });
+
+             if (error) {
+               if (error.message.toLowerCase().includes('already registered')) {
+                 console.log("User exists (SDK), logging in...");
+               } else {
+                 throw error;
+               }
+             } else if (data.user) {
+               registrationSuccess = true;
+               // Ensure profile exists
+               await supabase.from('profiles').upsert({
+                  id: data.user.id,
+                  name: targetName,
+                  phone: formattedPhone,
+                  role: targetRole!,
+                  cluster: targetCluster,
+                  passcode: passcode,
+                  status: 'ACTIVE'
+               });
+             }
+          }
+
+          // 2. Auto Login after Registration
+          // This handles both "New Registration Success" and "User Already Exists" cases
+          const { data, error: loginError } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
-            options: {
-              data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
-            },
           });
 
-          // SMART HANDLING: User already exists
-          if (error && error.message.toLowerCase().includes('already registered')) {
-            console.log("User exists, attempting auto-login...");
-            
-            let loginAttempt = await supabase.auth.signInWithPassword({
-              phone: formattedPhone,
-              password: getAuthPassword(passcode),
-            });
-            
-            if (loginAttempt.data.user) {
-              const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginAttempt.data.user.id).single();
-              if (profile) {
-                  onLoginSuccess(profile as AgentIdentity);
-              } else {
-                  // Create missing profile (Auto-Heal)
-                  const newUserProfile: AgentIdentity = {
-                    id: loginAttempt.data.user.id,
+          if (loginError) {
+             if (registrationSuccess) {
+                // Rare edge case: Registered but can't login immediately
+                setMessage('Account created! Please log in manually.');
+                setIsSignUp(false);
+                setLoading(false);
+                return;
+             }
+             setError("Registration failed or Account exists with different PIN. Use 'Forgot Pin'.");
+          } else if (data.user) {
+             // Success - Ensure Profile (Self-Heal)
+             const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+             if (profile) {
+                window.history.replaceState({}, document.title, "/");
+                onLoginSuccess(profile as AgentIdentity);
+             } else {
+                // Just in case profile creation failed during register
+                const recoveryProfile: AgentIdentity = {
+                    id: data.user.id,
                     name: targetName,
                     phone: formattedPhone,
                     role: targetRole!,
                     cluster: targetCluster,
                     passcode: passcode,
                     status: 'ACTIVE'
-                  };
-                  await supabase.from('profiles').upsert(newUserProfile);
-                  onLoginSuccess(newUserProfile);
-              }
-              return;
-            } else {
-              setError("Account exists. Please use 'Forgot Pin'.");
-              setLoading(false);
-              return;
-            }
-          } else if (error) {
-            throw error;
-          }
-
-          // 2. Successful Registration -> Create Profile
-          const user = data.user || (await supabase.auth.getUser()).data.user;
-          if (user) {
-            const newUserProfile: AgentIdentity = {
-              id: user.id,
-              name: targetName,
-              phone: formattedPhone,
-              role: targetRole!,
-              cluster: targetCluster,
-              passcode: passcode, // Save 4-digit PIN
-              status: 'ACTIVE'
-            };
-
-            const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile);
-            if (dbError) {
-                console.warn("Profile creation deferred:", dbError.message);
-                setMessage('Account created! Please Log In.');
-                setIsSignUp(false);
-            } else {
-                // Remove ?mode=register from URL on success
+                };
+                await supabase.from('profiles').upsert(recoveryProfile);
                 window.history.replaceState({}, document.title, "/");
-                onLoginSuccess(newUserProfile);
-            }
+                onLoginSuccess(recoveryProfile);
+             }
           }
+
         } else {
           // Login
           let { data, error } = await supabase.auth.signInWithPassword({
