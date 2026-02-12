@@ -100,15 +100,15 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
     if (initialData) {
       setFormData(prev => ({
         ...prev,
-        cropType: initialData.cropType || prev.cropType,
-        unitsSold: initialData.unitsSold || prev.unitsSold,
-        unitType: initialData.unitType || prev.unitType,
-        customerName: initialData.customerName || prev.customerName,
-        customerPhone: initialData.customerPhone || prev.customerPhone,
-        farmerName: initialData.farmerName || prev.farmerName,
-        farmerPhone: initialData.farmerPhone || prev.farmerPhone,
-        unitPrice: initialData.unitPrice || prev.unitPrice,
-        cluster: initialData.cluster || prev.cluster
+        cropType: initialData.cropType !== undefined ? initialData.cropType : prev.cropType,
+        unitsSold: initialData.unitsSold !== undefined ? initialData.unitsSold : prev.unitsSold,
+        unitType: initialData.unitType !== undefined ? initialData.unitType : prev.unitType,
+        customerName: initialData.customerName !== undefined ? initialData.customerName : prev.customerName,
+        customerPhone: initialData.customerPhone !== undefined ? initialData.customerPhone : prev.customerPhone,
+        farmerName: initialData.farmerName !== undefined ? initialData.farmerName : prev.farmerName,
+        farmerPhone: initialData.farmerPhone !== undefined ? initialData.farmerPhone : prev.farmerPhone,
+        unitPrice: initialData.unitPrice !== undefined ? initialData.unitPrice : prev.unitPrice,
+        cluster: initialData.cluster !== undefined ? initialData.cluster : prev.cluster
       }));
     }
   }, [initialData]);

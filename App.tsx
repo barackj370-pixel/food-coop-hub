@@ -611,14 +611,23 @@ const App: React.FC = () => {
 
   const handleFulfillOrder = (order: MarketOrder) => {
     const listing = produceListings.find(p => p.cropType === order.cropType && p.cluster === order.cluster && p.status === 'AVAILABLE');
+    
+    // Check if the order's customer phone matches the current agent's phone
+    // If they match, it is a Self Order (Auto-populate everything)
+    // If they differ, it is a Customer Order (Clear customer details for verification)
+    const isSelfOrder = normalizePhone(order.customerPhone) === normalizePhone(agentIdentity?.phone);
+
     setCurrentPortal('MARKET');
     setMarketView('SALES');
     setFulfillmentData({
       cropType: order.cropType,
       unitsSold: order.unitsRequested,
       unitType: order.unitType,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
+      
+      // Conditional Auto-population
+      customerName: isSelfOrder ? order.customerName : '',
+      customerPhone: isSelfOrder ? order.customerPhone : '',
+      
       orderId: order.id,
       produceId: listing?.id,
       farmerName: listing?.supplierName || 'Food Coop',
@@ -656,6 +665,25 @@ const App: React.FC = () => {
       return;
     }
 
+    let targetName = agentIdentity.name;
+    let targetPhone = agentIdentity.phone;
+
+    // Special Logic for Sales Agents: Prompt for Self vs Customer
+    if (agentIdentity.role === SystemRole.SALES_AGENT) {
+       const isSelf = window.confirm(`Is this order for yourself (${agentIdentity.name})?\n\nOK = Yes, for Me\nCancel = No, for a Customer`);
+       
+       if (!isSelf) {
+          const cName = window.prompt("Enter Customer Name:");
+          if (!cName) return; // Cancelled
+          
+          const cPhone = window.prompt("Enter Customer Phone Number:");
+          if (!cPhone) return; // Cancelled
+          
+          targetName = cName;
+          targetPhone = cPhone;
+       }
+    }
+
     const qty = window.prompt(`How many ${listing.unitType} of ${listing.cropType} would you like to order? (Available: ${listing.unitsAvailable})`, "1");
     if (qty === null) return;
     const units = parseFloat(qty);
@@ -670,10 +698,10 @@ const App: React.FC = () => {
       cropType: listing.cropType,
       unitsRequested: units,
       unitType: listing.unitType,
-      customerName: agentIdentity.name,
-      customerPhone: agentIdentity.phone,
+      customerName: targetName,
+      customerPhone: targetPhone,
       status: OrderStatus.OPEN,
-      agentPhone: '',
+      agentPhone: '', // Agent phone is tracked via user session/creator usually, explicitly empty here as per schema default
       cluster: listing.cluster,
       synced: false
     };
