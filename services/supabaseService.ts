@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing } from '../types';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost } from '../types';
 
 const isClientReady = (): boolean => {
   if (!supabase) {
@@ -354,6 +354,67 @@ export const deleteAllProduce = async (): Promise<boolean> => {
     return true;
   } catch (err: any) {
     handleSupabaseError('deleteAllProduce', err);
+    return false;
+  }
+};
+
+/* FORUM POSTS */
+const mapDbToForumPost = (db: any): ForumPost => ({
+  id: db.id,
+  title: db.title,
+  content: db.content,
+  authorName: db.author_name,
+  authorRole: db.author_role,
+  authorCluster: db.author_cluster,
+  authorPhone: db.author_phone,
+  createdAt: db.created_at,
+});
+
+export const fetchForumPosts = async (): Promise<ForumPost[]> => {
+  if (!isClientReady()) return [];
+  try {
+    const { data, error } = await supabase.from('forum_posts').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbToForumPost);
+  } catch (err: any) {
+    handleSupabaseError('fetchForumPosts', err);
+    return [];
+  }
+};
+
+export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+
+    const payload = {
+      title: post.title,
+      content: post.content,
+      author_name: post.authorName,
+      author_role: post.authorRole,
+      author_cluster: post.authorCluster,
+      author_phone: post.authorPhone,
+      agent_id: userId
+    };
+
+    const { error } = await supabase.from('forum_posts').insert(payload);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveForumPost', err);
+    return false;
+  }
+};
+
+export const deleteForumPost = async (id: string): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const { error } = await supabase.from('forum_posts').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteForumPost', err);
     return false;
   }
 };

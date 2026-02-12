@@ -159,3 +159,35 @@ create policy "Agents can update orders" on public.orders for update using (true
 
 drop policy if exists "Agents can delete orders" on public.orders;
 create policy "Agents can delete orders" on public.orders for delete using (true);
+
+-- 5. FORUM POSTS (Internal Communication)
+create table if not exists public.forum_posts (
+  id uuid default uuid_generate_v4() primary key,
+  title text not null,
+  content text not null,
+  author_name text not null,
+  author_role text not null,
+  author_cluster text,
+  author_phone text,
+  created_at timestamptz default now(),
+  agent_id uuid references public.profiles(id)
+);
+
+alter table public.forum_posts enable row level security;
+
+drop policy if exists "Forum posts viewable by everyone" on public.forum_posts;
+create policy "Forum posts viewable by everyone" on public.forum_posts for select using (true);
+
+drop policy if exists "Authenticated users can create posts" on public.forum_posts;
+create policy "Authenticated users can create posts" on public.forum_posts for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Users can delete their own posts or admins can delete all" on public.forum_posts;
+create policy "Users can delete their own posts or admins can delete all" on public.forum_posts for delete using (
+  auth.role() = 'authenticated' and (
+    agent_id = auth.uid() or 
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role in ('System Developer', 'Director', 'Manager')
+    )
+  )
+);

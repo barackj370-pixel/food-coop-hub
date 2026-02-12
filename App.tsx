@@ -8,6 +8,7 @@ import WeatherWidget from './components/WeatherWidget';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
+import Forum from './components/Forum';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -18,7 +19,7 @@ import {
   fetchProduce, saveProduce, deleteProduce, deleteAllProduce
 } from './services/supabaseService';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
@@ -413,7 +414,8 @@ const App: React.FC = () => {
     const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
     if (!agentIdentity) return guestPortals;
     
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
+    // Add FORUM to logged in base
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'FORUM', 'CONTACT'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
@@ -1182,6 +1184,10 @@ const App: React.FC = () => {
           <div className="space-y-12 animate-in fade-in duration-300">
              <AdminInvite />
           </div>
+        )}
+
+        {currentPortal === 'FORUM' && agentIdentity && (
+          <Forum currentUser={agentIdentity} />
         )}
 
         {currentPortal === 'HOME' && (

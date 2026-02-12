@@ -96,6 +96,17 @@ export interface SaleRecord {
   produceId?: string;
 }
 
+export interface ForumPost {
+  id: string;
+  title: string;
+  content: string;
+  authorName: string;
+  authorRole: string;
+  authorCluster: string;
+  authorPhone: string; // Used for permission checks on delete
+  createdAt: string;
+}
+
 export interface ClusterMetric {
   volume: number;
   profit: number;
