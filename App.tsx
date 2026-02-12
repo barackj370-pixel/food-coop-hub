@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types';
 import SaleForm from './components/SaleForm';
@@ -9,6 +8,7 @@ import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
 import Forum from './components/Forum';
+import ContactForm from './components/ContactForm';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -1288,359 +1288,139 @@ const App: React.FC = () => {
 
         {currentPortal === 'ABOUT' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-8">
-              <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></h2>
-              <div className="space-y-6 text-slate-600 font-medium leading-relaxed">
-                <p>
-                  KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-5xl mx-auto space-y-12">
+              
+              {/* Header Section */}
+              <div className="text-center space-y-6">
+                <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto text-green-600 border border-green-100 shadow-sm mb-6">
+                   <i className="fas fa-seedling text-3xl"></i>
+                </div>
+                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">
+                  Revolutionizing <span className="text-green-600">Agriculture</span> Through <span className="text-black">Community</span>
+                </h2>
+                <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-3xl mx-auto">
+                  KPL Food Coop Market is a digital-first cooperative platform dedicated to bridging the gap between rural abundance and urban demand. We are building a future where farmers are fairly rewarded, and consumers access fresh, high-quality produce with total transparency.
                 </p>
               </div>
+
+              <div className="h-px bg-slate-100 w-full"></div>
+
+              {/* Mission & Vision Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="space-y-4">
+                   <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-black shadow-sm"><i className="fas fa-bullseye"></i></div>
+                      <h3 className="text-xl font-black uppercase tracking-tight">Our Mission</h3>
+                   </div>
+                   <p className="text-slate-600 leading-relaxed text-sm font-medium">
+                     To dismantle the barriers in the agricultural supply chain that exploit farmers and inflate costs for consumers. We strive to create a streamlined, efficient marketplace where value remains within the community, fostering economic resilience and sustainability.
+                   </p>
+                </div>
+                <div className="space-y-4">
+                   <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-black shadow-sm"><i className="fas fa-eye"></i></div>
+                      <h3 className="text-xl font-black uppercase tracking-tight">Our Vision</h3>
+                   </div>
+                   <p className="text-slate-600 leading-relaxed text-sm font-medium">
+                     A Kenya where every smallholder farmer has direct access to a global market, where food wastage is eliminated through data-driven logistics, and where agriculture becomes a viable, dignified, and profitable profession for the next generation.
+                   </p>
+                </div>
+              </div>
+
+              {/* The Cluster Model */}
+              <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                 <h3 className="text-lg font-black uppercase tracking-tight text-black mb-4 flex items-center gap-2">
+                   <i className="fas fa-network-wired text-green-600"></i> The Cluster Model
+                 </h3>
+                 <p className="text-slate-600 leading-relaxed text-sm font-medium mb-6">
+                   Our operations are anchored in strategic clusters—<strong>Mariwa, Mulo, Rabolo, Kangemi, Kabarnet, Apuoyo, and Nyamagagana</strong>. This decentralized structure allows us to:
+                 </p>
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                       <i className="fas fa-truck-fast text-slate-300 text-2xl mb-3"></i>
+                       <h4 className="text-xs font-black uppercase tracking-widest text-black mb-1">Optimize Logistics</h4>
+                       <p className="text-[10px] text-slate-500 font-bold">Reduce transport costs by aggregating produce locally.</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                       <i className="fas fa-certificate text-slate-300 text-2xl mb-3"></i>
+                       <h4 className="text-xs font-black uppercase tracking-widest text-black mb-1">Ensure Quality</h4>
+                       <p className="text-[10px] text-slate-500 font-bold">Monitor harvest standards at the source before distribution.</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                       <i className="fas fa-hand-holding-heart text-slate-300 text-2xl mb-3"></i>
+                       <h4 className="text-xs font-black uppercase tracking-widest text-black mb-1">Empower Locals</h4>
+                       <p className="text-[10px] text-slate-500 font-bold">Create jobs for agents and logistics support within the region.</p>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Core Values */}
+              <div>
+                <h3 className="text-lg font-black uppercase tracking-tight text-center mb-8">Core Values</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                   <div className="text-center p-6">
+                      <div className="w-16 h-16 mx-auto bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 text-2xl shadow-sm"><i className="fas fa-file-invoice-dollar"></i></div>
+                      <h4 className="font-black uppercase text-xs tracking-widest mb-2">Transparency</h4>
+                      <p className="text-xs text-slate-500">Open ledgers and real-time reporting build unshakeable trust.</p>
+                   </div>
+                   <div className="text-center p-6">
+                      <div className="w-16 h-16 mx-auto bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-4 text-2xl shadow-sm"><i className="fas fa-scale-balanced"></i></div>
+                      <h4 className="font-black uppercase text-xs tracking-widest mb-2">Fairness</h4>
+                      <p className="text-xs text-slate-500">Equitable profit sharing that respects the farmer's hard work.</p>
+                   </div>
+                   <div className="text-center p-6">
+                      <div className="w-16 h-16 mx-auto bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-4 text-2xl shadow-sm"><i className="fas fa-users"></i></div>
+                      <h4 className="font-black uppercase text-xs tracking-widest mb-2">Community</h4>
+                      <p className="text-xs text-slate-500">We grow together. Our cooperative is owned by the people it serves.</p>
+                   </div>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
 
         {currentPortal === 'CONTACT' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto flex flex-col md:flex-row gap-12">
-              <div className="flex-1 space-y-8">
-                <h2 className="text-3xl font-black uppercase tracking-tight text-black">Get in Touch</h2>
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-red-600 border border-slate-100"><i className="fas fa-envelope"></i></div>
-                    <div>
-                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Email Support</p>
-                      <p className="text-sm font-black text-black">info@kplfoodcoopmarket.co.ke</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                 <div className="space-y-8">
+                   <div>
+                     <h2 className="text-3xl font-black uppercase tracking-tight text-black">Get in Touch</h2>
+                     <p className="text-slate-500 font-medium mt-4 leading-relaxed">
+                       Have questions about joining the coop, placing bulk orders, or technical support? We are here to help.
+                     </p>
+                   </div>
+                   <div className="space-y-6">
+                     <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100">
+                         <i className="fas fa-envelope"></i>
+                       </div>
+                       <div>
+                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email</p>
+                         <p className="font-bold text-black">info@kplfoodcoop.co.ke</p>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+                 <ContactForm />
+               </div>
+             </div>
           </div>
         )}
 
-        {currentPortal === 'MARKET' && agentIdentity && (
-          <div className="space-y-8 animate-in fade-in duration-300">
-            <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-seedling"></i> Supplier Portal</button>
-                <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-shopping-cart"></i> Sales Portal</button>
-                <button type="button" onClick={() => setMarketView('CUSTOMER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'CUSTOMER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-user"></i> Customer Portal</button>
-            </div>
-            {marketView === 'SALES' && (
-              <>
-                <div className="flex flex-col md:flex-row justify-between items-center gap-6 bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                  <div>
-                    <h3 className="text-xl font-black text-black uppercase tracking-tighter">Sales Activity Overview</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Export Financial Performance Logs</p>
-                  </div>
-                  {renderExportButtons(false)}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
-                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
-                
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden mt-12 relative">
-                  <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-6">
-                    <div>
-                      <h3 className="text-sm font-black text-black uppercase tracking-widest">Market Demand Hub</h3>
-                      <p className="text-[9px] font-black text-red-600 uppercase tracking-[0.2em] mt-1">Pending Customer Requests</p>
-                    </div>
-                    <span className="bg-red-50 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">
-                      {marketOrders.filter(o => o.status === OrderStatus.OPEN).length} Orders Open
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                        <tr><th className="pb-4">Order Ref</th><th className="pb-4">Customer Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Requested</th><th className="pb-4 text-right">Action</th></tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {marketOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
-                          <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-6"><span className="text-[10px] font-black text-slate-400">{o.id}</span></td>
-                            <td className="py-6"><p className="text-[11px] font-black uppercase text-black">{o.customerName}</p><p className="text-[9px] text-slate-400 font-mono">{o.customerPhone}</p></td>
-                            <td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{o.cluster}</span></td>
-                            <td className="py-6"><p className="text-[11px] font-black uppercase text-red-600">{o.cropType}</p></td>
-                            <td className="py-6"><p className="text-[11px] font-black text-slate-700">{o.unitsRequested} {o.unitType}</p></td>
-                            <td className="py-6 text-right">
-                              <button onClick={() => handleFulfillOrder(o)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center gap-2 ml-auto">
-                                <i className="fas fa-file-contract"></i> Fulfill Sale
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <AuditLogTable data={records} title="Universal Ledger" onDelete={handleDeleteRecord} onEdit={handleEditRecord} />
-              </>
-            )}
-            {marketView === 'SUPPLIER' && (
-              <div className="space-y-12">
-                {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (<ProduceForm userRole={agentIdentity.role} defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} onSubmit={handleAddProduce} />)}
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
-                  {produceListings.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><div className="flex items-center gap-3">{p.images && p.images.length > 0 && <img src={p.images[0]} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200" />}<p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></div></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">
-                      {(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (
-                        <>
-                          <button type="button" onClick={() => {
-                            const input = window.prompt(`Enter new stock quantity for ${p.cropType} (Available: ${p.unitsAvailable} ${p.unitType})`, String(p.unitsAvailable));
-                            if (input !== null) {
-                              const val = parseFloat(input);
-                              if (!isNaN(val)) handleUpdateProduceStock(p.id, val);
-                            }
-                          }} className="text-blue-500 hover:text-blue-700 transition-all p-2 bg-blue-50 hover:bg-blue-100 rounded-xl flex items-center gap-1.5 px-3">
-                            <i className="fas fa-boxes-stacked text-[12px]"></i>
-                            <span className="text-[9px] font-black uppercase tracking-tighter">Update Stock</span>
-                          </button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteProduce(p.id); }} className="text-red-400 hover:text-red-700 transition-all p-2 bg-red-50 hover:bg-red-100 rounded-xl">
-                            <i className="fas fa-trash-can text-[14px]"></i>
-                          </button>
-                        </>
-                      )}
-                      <span className="text-[8px] font-black uppercase text-green-500 bg-green-50 px-3 py-1 rounded-full border border-green-100">Live Listing</span>
-                    </div></td></tr>
-                  ))}
-                </tbody></table></div></div>
-              </div>
-            )}
-            {marketView === 'CUSTOMER' && renderCustomerPortal()}
-          </div>
-        )}
-
-        {currentPortal === 'FINANCE' && agentIdentity && (
-          <div className="space-y-8 animate-in fade-in duration-300">
-            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
-              <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3>
-                {renderExportButtons(false)}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                    <tr>
-                      <th className="pb-4">Date</th>
-                      <th className="pb-4">Participants</th>
-                      <th className="pb-4">Commodity</th>
-                      <th className="pb-4">Commission</th>
-                      <th className="pb-4 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {records.filter(r => r.status === RecordStatus.DRAFT).map(r => (
-                      <tr key={r.id} className="hover:bg-slate-50/50">
-                        <td className="py-6 font-bold">{r.date}</td>
-                        <td className="py-6">
-                          <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
-                            <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
-                            <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
-                            <p>Buyer: {r.customerName} ({r.customerPhone})</p>
-                          </div>
-                        </td>
-                        <td className="py-6 uppercase font-bold">{r.cropType}</td>
-                        <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
-                        <td className="py-6 text-right">
-                          <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
-                            <i className="fas fa-check"></i> Confirm Receipt
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
-            {renderCustomerPortal()}
-          </div>
-        )}
-
-        {currentPortal === 'AUDIT' && agentIdentity && (
-          <div className="space-y-8 animate-in fade-in duration-300">
-            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
-              <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-black pl-4">Awaiting Approval & Verification</h3>
-                {renderExportButtons(false)}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                    <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {records.filter(r => r.status === RecordStatus.PAID).map(r => (
-                      <tr key={r.id} className="hover:bg-slate-800/50">
-                        <td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td>
-                        <td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td>
-                        <td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td>
-                        <td className="py-6 text-right">
-                           <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Verify & Seal</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <AuditLogTable data={records} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
-            {renderCustomerPortal()}
-          </div>
-        )}
-
-        {currentPortal === 'BOARD' && agentIdentity && (
-          <div className="space-y-12 animate-in fade-in duration-300">
-            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
-                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3>
-                {renderExportButtons(true)}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                    <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {boardMetrics.clusterPerformance.map(([cluster, stats]) => (
-                      <tr key={cluster} className="hover:bg-slate-50/50"><td className="py-6 font-black text-black uppercase text-[11px]">{cluster}</td><td className="py-6 font-black text-slate-900 text-[11px]">KSh {stats.volume.toLocaleString()}</td><td className="py-6 font-black text-green-600 text-[11px]">KSh {stats.profit.toLocaleString()}</td></tr>
-                    ))}
-                    <tr className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-xl">
-                      <td className="py-6 px-8 font-black uppercase text-[11px] rounded-l-3xl">Aggregate Performance</td>
-                      <td className="py-6 font-black text-[11px]">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}</td>
-                      <td className="py-6 px-8 font-black text-green-400 text-[11px] rounded-r-3xl">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0).toLocaleString()}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
-            {renderCustomerPortal()}
-          </div>
-        )}
-
-        {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
-          <div className="space-y-12 animate-in fade-in duration-300">
-            <AdminInvite />
-            <WeatherWidget defaultCluster="Mariwa" />
-            <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
-              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-green-500 mb-2">Cloud Storage Node</p>
-                  <h4 className="text-2xl font-black uppercase tracking-tight">Master Database Repository</h4>
-                </div>
-                <div className="flex flex-wrap gap-4">
-                  <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
-                    <i className="fas fa-warehouse"></i> Purge Repository
-                  </button>
-                  <button onClick={handlePurgeAuditLog} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
-                    <i className="fas fa-file-invoice-dollar"></i> Purge Ledger
-                  </button>
-                  <button onClick={handlePurgeOrders} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
-                    <i className="fas fa-shopping-basket"></i> Purge Orders
-                  </button>
-                  <button onClick={handlePurgeUsers} className="bg-red-600/80 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-red-700 shadow-xl flex items-center gap-2">
-                    <i className="fas fa-users-slash"></i> Purge Users
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">User Identity</th><th className="pb-4">Role / Node</th><th className="pb-4">Metadata</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr></thead><tbody className="divide-y">
-            {users.map(u => (
-              <tr key={u.phone} className="group hover:bg-slate-50/50">
-                <td className="py-6">
-                  <p className="text-sm font-black uppercase text-black">{u.name}</p>
-                  <p className="text-[10px] font-bold text-slate-400">{u.phone}</p>
-                  {u.email && <p className="text-[9px] font-medium text-blue-500">{u.email}</p>}
-                </td>
-                <td className="py-6">
-                  <p className="text-[11px] font-black text-black uppercase">{u.role}</p>
-                  <p className="text-[9px] text-slate-400 font-bold">{(u.role === SystemRole.SYSTEM_DEVELOPER || u.role === SystemRole.FINANCE_OFFICER || u.role === SystemRole.AUDITOR || u.role === SystemRole.MANAGER) ? '-' : u.cluster}</p>
-                </td>
-                <td className="py-6">
-                  <div className="space-y-1">
-                    {u.lastSignInAt && (
-                      <p className="text-[9px] font-bold text-slate-500 uppercase">
-                        Last Seen: <span className="text-black">{new Date(u.lastSignInAt).toLocaleDateString()}</span>
-                      </p>
-                    )}
-                    {u.provider && (
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-[8px] font-black uppercase text-slate-400 tracking-wider">
-                        via {u.provider}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td>
-                <td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td>
-              </tr>
-            ))}
-          </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" onDelete={handleDeleteRecord} /></div>
-        )}
       </main>
 
-      {/* AI Report Modal */}
-      {isReportOpen && reportData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsReportOpen(false)}>
-          <div className="bg-white w-full max-w-4xl max-h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center"><i className="fas fa-robot text-xl"></i></div>
-                 <div>
-                   <h3 className="text-xl font-black text-black uppercase tracking-tight">AI Market Audit</h3>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Generated by Gemini 3.0 Flash</p>
-                 </div>
-              </div>
-              <button onClick={() => setIsReportOpen(false)} className="w-10 h-10 rounded-full bg-slate-200 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center justify-center"><i className="fas fa-times"></i></button>
-            </div>
-            <div className="p-8 overflow-y-auto bg-white font-medium text-slate-600 leading-relaxed text-sm whitespace-pre-wrap">
-              {reportData}
-            </div>
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <button onClick={() => setIsReportOpen(false)} className="bg-black text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800">Close Report</button>
-            </div>
-          </div>
+      <footer className="bg-white border-t border-slate-100 py-12 mt-auto relative z-10">
+        <div className="container mx-auto px-6 text-center space-y-4">
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">
+            &copy; {new Date().getFullYear()} KPL Food Coop Market. All Rights Reserved.
+          </p>
+          <p className="text-slate-300 text-[9px] font-bold uppercase tracking-widest">
+            Empowering Farmers • Feeding Communities • v{APP_VERSION}
+          </p>
         </div>
-      )}
-
-      {/* News Article Modal */}
-      {viewingNewsArticle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setViewingNewsArticle(null)}>
-          <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="relative h-64 shrink-0">
-               <img src={viewingNewsArticle.image} alt={viewingNewsArticle.title} className="w-full h-full object-cover" />
-               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-               <button onClick={() => setViewingNewsArticle(null)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
-                  <i className="fas fa-times"></i>
-               </button>
-               <div className="absolute bottom-6 left-8 right-8">
-                  <span className="px-3 py-1 bg-green-500 text-white rounded-full text-[9px] font-black uppercase tracking-widest mb-3 inline-block">{viewingNewsArticle.category}</span>
-                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight">{viewingNewsArticle.title}</h2>
-               </div>
-            </div>
-            
-            <div className="p-8 md:p-12 overflow-y-auto flex-1 bg-white">
-               <div className="flex items-center gap-4 mb-8 pb-8 border-b border-slate-100">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                      <i className="fas fa-user-circle text-2xl"></i>
-                  </div>
-                  <div>
-                     <p className="text-sm font-black text-black uppercase">{viewingNewsArticle.author}</p>
-                     <p className="text-xs text-slate-500 font-medium">{viewingNewsArticle.role}</p>
-                  </div>
-                  <div className="ml-auto text-right">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Published</p>
-                     <p className="text-xs font-bold text-black">{viewingNewsArticle.date}</p>
-                  </div>
-               </div>
-               
-               <div 
-                 className="prose prose-slate max-w-none font-medium text-slate-600 leading-relaxed"
-                 dangerouslySetInnerHTML={{ __html: viewingNewsArticle.content }}
-               />
-            </div>
-          </div>
-        </div>
-      )}
+      </footer>
     </div>
   );
 };
