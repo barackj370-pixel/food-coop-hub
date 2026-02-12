@@ -11,6 +11,9 @@ create table if not exists public.profiles (
   cluster text,
   passcode text,
   status text default 'ACTIVE',
+  email text,
+  last_sign_in_at timestamptz,
+  provider text,
   created_at timestamptz default now()
 );
 

@@ -34,6 +34,11 @@ export interface AgentIdentity {
   warnings?: number;
   lastCheckWeek?: string;
   status?: AccountStatus;
+  // Enhanced User Metadata
+  email?: string;
+  lastSignInAt?: string;
+  provider?: string;
+  createdAt?: string;
 }
 
 export interface MarketOrder {

@@ -152,7 +152,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
           passcode: passcode, // Store plain 4-digit PIN for reference
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          // Autofill extra metadata
+          email: user.email,
+          provider: user.app_metadata.provider || 'email',
+          createdAt: user.created_at,
+          lastSignInAt: new Date().toISOString()
         };
 
         const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile, { onConflict: 'id' });
@@ -304,7 +309,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                }
              } else if (data.user) {
                registrationSuccess = true;
-               // Ensure profile exists
+               // Ensure profile exists with metadata
                await supabase.from('profiles').upsert({
                   id: data.user.id,
                   name: targetName,
@@ -312,7 +317,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   role: targetRole!,
                   cluster: targetCluster,
                   passcode: passcode,
-                  status: 'ACTIVE'
+                  status: 'ACTIVE',
+                  provider: data.user.app_metadata.provider,
+                  createdAt: data.user.created_at,
+                  email: data.user.email
                });
              }
           }
@@ -348,7 +356,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     role: targetRole!,
                     cluster: targetCluster,
                     passcode: passcode,
-                    status: 'ACTIVE'
+                    status: 'ACTIVE',
+                    provider: data.user.app_metadata.provider,
+                    createdAt: data.user.created_at,
+                    email: data.user.email
                 };
                 await supabase.from('profiles').upsert(recoveryProfile);
                 window.history.replaceState({}, document.title, "/");
@@ -386,7 +397,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     role: data.user.user_metadata.role || SystemRole.CUSTOMER,
                     cluster: data.user.user_metadata.cluster || 'Mariwa',
                     passcode: passcode,
-                    status: 'ACTIVE'
+                    status: 'ACTIVE',
+                    provider: data.user.app_metadata.provider,
+                    createdAt: data.user.created_at,
+                    email: data.user.email
                 };
                 await supabase.from('profiles').upsert(recoveryProfile);
                 onLoginSuccess(recoveryProfile);

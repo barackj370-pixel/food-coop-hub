@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
     if (error) throw error;
 
     if (user.user) {
-      // 2. Create Public Profile
+      // 2. Create Public Profile with Extended Metadata (Autofill)
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: user.user.id,
         name: data.full_name,
@@ -38,7 +38,12 @@ export default async function handler(req: any, res: any) {
         role: data.role,
         cluster: data.cluster,
         passcode: password.slice(0, 4), // Store original 4-digit PIN reference
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        // Autofill Fields
+        email: user.user.email || null,
+        created_at: user.user.created_at,
+        last_sign_in_at: user.user.last_sign_in_at || null,
+        provider: user.user.app_metadata?.provider || 'phone'
       });
 
       if (profileError) {
