@@ -121,34 +121,44 @@ interface NewsArticle {
 const NEWS_ARTICLES: NewsArticle[] = [
   {
     id: 'news-001',
-    category: 'Education & Training',
-    title: 'Specialists Launch Organic Fertilizer Training Across Clusters',
-    summary: 'Director David Otieno and Manager Clifford Ochieng lead the initiative to educate farmers on sustainable organic fertilizer preparation, starting with Mulo Cluster.',
-    content: `In a major step towards sustainable agriculture, trained specialists from KPL Food Coop have embarked on a comprehensive training program across all clusters. The initiative focuses on educating farmers on the preparation and application of organic fertilizer, a key component in reducing costs and improving soil health.<br/><br/>
-    The training is spearheaded by the Cooperative's leadership, including <strong>Director David Otieno</strong> and <strong>Manager Clifford Ochieng</strong>, who are personally visiting farming communities to ensure the adoption of these eco-friendly practices.<br/><br/>
-    <strong>Progress Update:</strong><br/>
-    The team has successfully concluded the first leg of the tour in the <strong>Mulo Cluster</strong>, where farmers were introduced to composting techniques and bio-slurry application. The reception was overwhelmingly positive, with many farmers eager to transition away from expensive synthetic inputs.<br/><br/>
-    <strong>Next Stop: Rabolo Cluster</strong><br/>
-    The training caravan is scheduled to visit the <strong>Rabolo Cluster in Ranen</strong> next week. Farmers in the region are encouraged to attend these sessions to learn how to boost their yields sustainably.`,
+    category: 'Sustainable Farming',
+    title: 'Organic Fertilizer Training: Mulo & Rabolo',
+    summary: 'Specialists led by Director David Otieno and Manager Clifford Ochieng are touring clusters to educate farmers on organic fertilizer. Mulo visited, Rabolo next.',
+    content: `
+      <p>Trained specialists from the KPL Food Coop are currently touring all clusters to educate farmers on the preparation and application of organic fertilizer. This initiative aims to reduce input costs and improve soil health across the cooperative.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Mulo Cluster Covered</h4>
+      <p>We have successfully covered the <strong>Mulo Cluster</strong>, which was the first stop on this educational tour. Farmers in Mulo participated actively and have started implementing organic compost techniques.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Next Stop: Rabolo Cluster</h4>
+      <p>The next visit, scheduled for next week, will be to the <strong>Rabolo Cluster in Ranen</strong>. Farmers in this region are encouraged to attend to learn vital organic farming skills.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Leadership Support</h4>
+      <p>The training team is led by the <strong>Director of Food Coop, David Otieno</strong>, and <strong>Manager Clifford Ochieng</strong>, demonstrating the cooperative's commitment to hands-on support for our farming community.</p>
+    `,
     author: 'Admin Desk',
     role: 'Coop HQ',
     date: 'Feb 10, 2024',
-    image: 'https://images.unsplash.com/photo-1625246333195-58197bd47f3b?auto=format&fit=crop&q=80&w=1000' // Farmer training/soil context
+    image: 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&q=80&w=1000'
   },
   {
     id: 'news-002',
     category: 'Digital Innovation',
-    title: 'Digital Revolution: New Platform & Weather Portal Launching Feb 17th',
-    summary: 'Barack James, Head of Digital Innovations, tours all 7 clusters to unveil the new Food Coop digital platform and upcoming local weather portal.',
-    content: `The KPL Food Coop is taking a giant leap into the future with the establishment of the new <strong>Digital Innovation Department</strong>. Headed by <strong>Barack James</strong>, this department is tasked with modernizing the cooperative's operations and empowering farmers with data.<br/><br/>
-    <strong>Cluster Tour & Platform Launch</strong><br/>
-    Barack James is currently conducting a tour of all 7 clusters to introduce the new <strong>Food Coop Digital Platform</strong> to sales agents. This platform is designed to streamline sales, track inventory in real-time, and ensure transparent record-keeping. The system is expected to be fully functional and live by <strong>February 17th</strong>.<br/><br/>
-    <strong>Upcoming Weather Portal</strong><br/>
-    In addition to the sales platform, the Digital Innovations Department is developing a <strong>Local Weather Portal</strong>. This tool will provide hyper-local weather forecasts specific to each cluster, helping farmers make informed decisions about planting, harvesting, and fertilizer application. This data-driven approach aims to mitigate climate risks and maximize farm production across the cooperative.`,
+    title: 'Digital Department & Platform Launch',
+    summary: 'Barack James, Head of Digital Innovations, tours the 7 clusters to unveil the new sales platform launching Feb 17th and the upcoming weather portal.',
+    content: `
+      <p>We are excited to announce the establishment of the <strong>Digital Innovation Department</strong>, headed by <strong>Barack James</strong>. This department is pivotal in modernizing our cooperative's operations.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Cluster Tour & Platform Launch</h4>
+      <p>Barack James is currently visiting all 7 clusters to introduce the new <strong>Food Coop Digital Platform</strong> to sales agents. This state-of-the-art system is expected to be fully functional and live by <strong>February 17th</strong>. It will streamline operations, improve record-keeping transparency, and facilitate faster transactions.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Upcoming: Local Weather Portal</h4>
+      <p>In addition to the sales platform, the Digital Innovations Department is tasked with developing a <strong>Local Weather Portal</strong>. This tool will provide hyper-local climate data to assist farmers in planning their production cycles effectively.</p>
+    `,
     author: 'Barack James',
     role: 'Head of Digital Innovations',
     date: 'Feb 12, 2024',
-    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=1000' // Digital/Tech context
+    image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=1000'
   }
 ];
 
