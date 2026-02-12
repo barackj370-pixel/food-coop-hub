@@ -4,8 +4,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 
 // Domain Redirection Logic: Force traffic to kplfoodcoopmarket.co.ke
-// ONLY redirect if we are specifically on the vercel deployment or known aliases.
-// We refrain from a blanket "not localhost" check to avoid breaking preview environments (like StackBlitz/Bolt).
+// NOTE: Temporarily disabled to prevent "Server IP address not found" errors in preview 
+// while the main domain DNS is propagating or being configured.
+/*
 const MAIN_DOMAIN = 'kplfoodcoopmarket.co.ke';
 if (typeof window !== 'undefined') {
   const hostname = window.location.hostname;
@@ -17,6 +18,7 @@ if (typeof window !== 'undefined') {
     window.location.replace(targetUrl);
   }
 }
+*/
 
 const boot = () => {
   const rootElement = document.getElementById('root');

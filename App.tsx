@@ -139,7 +139,8 @@ const NEWS_ARTICLES: NewsArticle[] = [
     author: 'Admin Desk',
     role: 'Coop HQ',
     date: 'Feb 10, 2024',
-    image: 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&q=80&w=1000'
+    // Image updated to show heap of organic material
+    image: 'https://images.unsplash.com/photo-1595814433015-e6f5ce69614e?auto=format&fit=crop&q=80&w=1000'
   },
   {
     id: 'news-002',
