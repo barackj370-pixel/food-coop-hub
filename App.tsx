@@ -25,8 +25,8 @@ export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apu
 
 const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='none' stroke='%23000000' stroke-width='30' stroke-linecap='round' stroke-linejoin='round' d='M64 96h64l48 240h256l48-176H192'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='208' cy='432' r='16'/%3E%3Ccircle fill='%23dc2626' cx='384' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='384' cy='432' r='16'/%3E%3Cpath fill='%2316a34a' d='M256 128c0-50-40-90-90-90s-60 40-40 90c20 40 60 70 130 50z'/%3E%3Cpath fill='%2322c55e' d='M256 128c0-50 40-90 90-90s60 40 40 90c-20 40-60 70-130 50z'/%3E%3Ccircle fill='%23dc2626' cx='256' cy='224' r='48'/%3E%3Cpath fill='none' stroke='%23000000' stroke-width='8' stroke-linecap='round' d='M256 176v48'/%3E%3C/svg%3E";
 
-// UPDATE THIS VERSION WHEN YOU DEPLOY A NEW BUILD TO FORCE CLEAR CACHE
-const APP_VERSION = '1.1.0';
+// Bumped version to trigger safe migration logic
+const APP_VERSION = '1.2.0';
 
 const persistence = {
   get: (key: string): string | null => {
@@ -234,26 +234,23 @@ const App: React.FC = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  // VERSION CHECK - Force clear storage and Redirect to LOGIN if version mismatched
+  // VERSION CHECK - Force re-auth but SAFEGUARD data
   useEffect(() => {
     const storedVersion = persistence.get('app_version');
     if (storedVersion !== APP_VERSION) {
-      console.log('New Version Detected: Clearing Legacy Data');
+      console.log('New Version Detected: Migrating Session & Ensuring Data Safety');
       
-      const blacklist = persistence.get('deleted_produce_blacklist');
-      persistence.clear();
+      // SAFETY GUARANTEE: We NEVER wipe 'food_coop_data', 'food_coop_orders', etc. here.
+      // This ensures agents who worked offline do not lose their entries during an update.
+      // We only clear the SESSION to force re-authentication and fresh sync.
       
-      if (blacklist) persistence.set('deleted_produce_blacklist', blacklist);
-      persistence.set('app_version', APP_VERSION);
+      persistence.remove('agent_session'); // Force logout to ensure auth is fresh
+      persistence.set('app_version', APP_VERSION); // Update version marker
       
-      // Wipe state in memory
-      setRecords([]);
-      setMarketOrders([]);
-      setProduceListings([]);
-      setUsers([]);
+      // Clear in-memory session only
       setAgentIdentity(null);
       
-      // Force Login on Version Update
+      // Force Login on Version Update so new code is authorized properly
       setCurrentPortal('LOGIN'); 
       supabase.auth.signOut().catch(() => {});
     }
