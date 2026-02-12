@@ -398,7 +398,7 @@ const App: React.FC = () => {
     setTimeout(syncPendingData, 500);
   };
 
-  // CLEANUP: Removed hardcoded "Barack James" backdoor. Access is now strictly based on role.
+  // CLEANUP: Access strictly based on role.
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
 
   const isPrivilegedRole = (agent: AgentIdentity | null) => {
@@ -414,13 +414,25 @@ const App: React.FC = () => {
     if (!agentIdentity) return guestPortals;
     
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
+    
+    // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+    
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
     let base = [...loggedInBase];
-    if (agentIdentity.role === SystemRole.FINANCE_OFFICER) base.splice(4, 0, 'FINANCE');
-    else if (agentIdentity.role === SystemRole.AUDITOR) base.splice(4, 0, 'AUDIT');
-    else if (agentIdentity.role === SystemRole.MANAGER) base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD', 'INVITE');
+    if (agentIdentity.role === SystemRole.FINANCE_OFFICER) {
+      base.splice(4, 0, 'FINANCE');
+    }
+    else if (agentIdentity.role === SystemRole.AUDITOR) {
+      base.splice(4, 0, 'AUDIT');
+    }
+    else if (agentIdentity.role === SystemRole.MANAGER) {
+      // Director/Manager Access: Finance, Audit, Board, Invite.
+      // EXPLICITLY NO SYSTEM PORTAL.
+      base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD', 'INVITE');
+    }
+    
     return base;
   }, [agentIdentity, isSystemDev]);
 
@@ -1121,6 +1133,9 @@ const App: React.FC = () => {
                 </div>
               );
             }
+            // Double check: If 'SYSTEM' somehow got into the list for a non-dev, don't render the button.
+            if (p === 'SYSTEM' && !isSystemDev) return null;
+
             return (<button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>{p}</button>);
           })}
         </nav>
