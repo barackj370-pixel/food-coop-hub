@@ -1163,6 +1163,16 @@ const App: React.FC = () => {
                 </div>
               );
             }
+            
+            // SPECIAL HANDLING: Highlighting the Forum Button
+            if (p === 'FORUM') {
+               return (
+                <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === p ? 'bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-600/20 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-purple-600'}`}>
+                  <i className="fas fa-comments"></i> Forum
+                </button>
+               );
+            }
+
             // Double check: If 'SYSTEM' somehow got into the list for a non-dev, don't render the button.
             if (p === 'SYSTEM' && !isSystemDev) return null;
 
