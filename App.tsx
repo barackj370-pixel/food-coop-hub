@@ -1312,30 +1312,12 @@ const App: React.FC = () => {
                    </div>
                    <div className="space-y-6">
                      <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 border border-green-100">
-                         <i className="fas fa-phone-alt"></i>
-                       </div>
-                       <div>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Phone</p>
-                         <p className="font-bold text-black">+254 700 000 000</p>
-                       </div>
-                     </div>
-                     <div className="flex items-center gap-4">
                        <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100">
                          <i className="fas fa-envelope"></i>
                        </div>
                        <div>
                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email</p>
                          <p className="font-bold text-black">info@kplfoodcoop.co.ke</p>
-                       </div>
-                     </div>
-                     <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 border border-purple-100">
-                         <i className="fas fa-map-marker-alt"></i>
-                       </div>
-                       <div>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Headquarters</p>
-                         <p className="font-bold text-black">Migori County, Kenya</p>
                        </div>
                      </div>
                    </div>
