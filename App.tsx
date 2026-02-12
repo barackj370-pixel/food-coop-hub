@@ -145,8 +145,8 @@ const NEWS_ARTICLES: NewsArticle[] = [
     author: 'Admin Desk',
     role: 'Coop HQ',
     date: 'Feb 10, 2024',
-    // Image updated to show heap of organic material
-    image: 'https://images.unsplash.com/photo-1595814433015-e6f5ce69614e?auto=format&fit=crop&q=80&w=1000'
+    // Image updated: Heap of dry leaves/organic waste for compost
+    image: 'https://images.unsplash.com/photo-1508500207392-7efc9076e0d3?auto=format&fit=crop&q=80&w=1000'
   },
   {
     id: 'news-002',
@@ -892,17 +892,19 @@ const App: React.FC = () => {
     }
   };
 
-  const renderExportButtons = () => (
+  const renderExportButtons = (showAiAudit: boolean = false) => (
     <div className="flex gap-2">
-      <button 
-        type="button" 
-        onClick={handleGenerateReport}
-        disabled={isGeneratingReport || !isOnline}
-        className={`${!isOnline ? 'bg-slate-300' : 'bg-purple-600 hover:bg-purple-700'} text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors shadow-md flex items-center gap-2`}
-      >
-        {isGeneratingReport ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-robot"></i>}
-        AI Audit
-      </button>
+      {showAiAudit && (
+        <button 
+          type="button" 
+          onClick={handleGenerateReport}
+          disabled={isGeneratingReport || !isOnline}
+          className={`${!isOnline ? 'bg-slate-300' : 'bg-purple-600 hover:bg-purple-700'} text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors shadow-md flex items-center gap-2`}
+        >
+          {isGeneratingReport ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-robot"></i>}
+          AI Audit
+        </button>
+      )}
       <button type="button" className="bg-slate-100 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors">Summary CSV</button>
       <button type="button" className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-colors"><i className="fas fa-download mr-2"></i> Detailed CSV</button>
     </div>
@@ -1262,7 +1264,7 @@ const App: React.FC = () => {
                     <h3 className="text-xl font-black text-black uppercase tracking-tighter">Sales Activity Overview</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Export Financial Performance Logs</p>
                   </div>
-                  {renderExportButtons()}
+                  {renderExportButtons(false)}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
@@ -1344,7 +1346,7 @@ const App: React.FC = () => {
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
               <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                 <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3>
-                {renderExportButtons()}
+                {renderExportButtons(false)}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -1391,7 +1393,7 @@ const App: React.FC = () => {
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
               <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                 <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-black pl-4">Awaiting Approval & Verification</h3>
-                {renderExportButtons()}
+                {renderExportButtons(false)}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -1423,7 +1425,7 @@ const App: React.FC = () => {
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                 <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3>
-                {renderExportButtons()}
+                {renderExportButtons(true)}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
