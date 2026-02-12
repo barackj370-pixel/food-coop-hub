@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost } from '../types';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, ContactMessage } from '../types';
 
 const isClientReady = (): boolean => {
   if (!supabase) {
@@ -415,6 +415,26 @@ export const deleteForumPost = async (id: string): Promise<boolean> => {
     return true;
   } catch (err: any) {
     handleSupabaseError('deleteForumPost', err);
+    return false;
+  }
+};
+
+/* CONTACT MESSAGES */
+export const saveContactMessage = async (msg: ContactMessage): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const { error } = await supabase.from('contact_messages').insert({
+      name: msg.name,
+      email: msg.email,
+      phone: msg.phone,
+      subject: msg.subject,
+      message: msg.message,
+      status: 'NEW'
+    });
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveContactMessage', err);
     return false;
   }
 };
