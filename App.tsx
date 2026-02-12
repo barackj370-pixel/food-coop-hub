@@ -1274,7 +1274,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                <AuditLogTable data={records} title="Universal Audit Log" onDelete={handleDeleteRecord} onEdit={handleEditRecord} />
+                <AuditLogTable data={records} title="Universal Ledger" onDelete={handleDeleteRecord} onEdit={handleEditRecord} />
               </>
             )}
             {marketView === 'SUPPLIER' && (
@@ -1352,7 +1352,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={records} title="Full Financial Audit Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
             {renderCustomerPortal()}
           </div>
         )}
@@ -1414,7 +1414,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={records} title="Universal Trade Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
             {renderCustomerPortal()}
           </div>
         )}
@@ -1449,7 +1449,7 @@ const App: React.FC = () => {
             {users.map(u => (
               <tr key={u.phone} className="group hover:bg-slate-50/50"><td className="py-6"><p className="text-sm font-black uppercase text-black">{u.name}</p><p className="text-[10px] font-bold text-slate-400">{u.phone}</p></td><td className="py-6"><p className="text-[11px] font-black text-black uppercase">{u.role}</p><p className="text-[9px] text-slate-400 font-bold">{(u.role === SystemRole.SYSTEM_DEVELOPER || u.role === SystemRole.FINANCE_OFFICER || u.role === SystemRole.AUDITOR || u.role === SystemRole.MANAGER) ? '-' : u.cluster}</p></td><td className="py-6"><span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{u.status || 'AWAITING'}</span></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td></tr>
             ))}
-          </tbody></table></div></div><AuditLogTable data={records} title="System-Wide Audit Log" onDelete={handleDeleteRecord} /></div>
+          </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" onDelete={handleDeleteRecord} /></div>
         )}
       </main>
 

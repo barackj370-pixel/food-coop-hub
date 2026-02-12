@@ -2,7 +2,7 @@
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- 1. Create PROFILES table
+-- 1. PROFILES (User Registry)
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
   name text,
@@ -16,28 +16,33 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
--- Policies for Profiles
+-- Policies for Profiles (Drop first to avoid conflicts)
+drop policy if exists "Public profiles are viewable by everyone" on public.profiles;
 create policy "Public profiles are viewable by everyone" 
   on public.profiles for select 
   using (true);
 
+drop policy if exists "Users can insert their own profile" on public.profiles;
 create policy "Users can insert their own profile" 
   on public.profiles for insert 
   with check (auth.uid() = id);
 
+drop policy if exists "Users can update their own profile" on public.profiles;
 create policy "Users can update their own profile" 
   on public.profiles for update 
   using (auth.uid() = id);
 
+drop policy if exists "Admins can update all profiles" on public.profiles;
 create policy "Admins can update all profiles" 
   on public.profiles for update 
   using (
     exists (
       select 1 from public.profiles
-      where id = auth.uid() and role in ('System Developer', 'Director')
+      where id = auth.uid() and role in ('System Developer', 'Director', 'Manager')
     )
   );
 
+drop policy if exists "Admins can delete profiles" on public.profiles;
 create policy "Admins can delete profiles" 
   on public.profiles for delete 
   using (
@@ -48,7 +53,7 @@ create policy "Admins can delete profiles"
   );
 
 
--- 2. Create RECORDS table (Sales)
+-- 2. RECORDS (The Universal Ledger)
 create table if not exists public.records (
   id text primary key,
   date text,
@@ -75,13 +80,22 @@ create table if not exists public.records (
 );
 
 alter table public.records enable row level security;
-create policy "Records viewable by everyone" on public.records for select using (true);
-create policy "Agents can insert records" on public.records for insert with check (true);
-create policy "Agents can update records" on public.records for update using (true);
-create policy "Agents can delete records" on public.records for delete using (true);
+
+-- Policies for Records
+drop policy if exists "Ledger viewable by everyone" on public.records;
+create policy "Ledger viewable by everyone" on public.records for select using (true);
+
+drop policy if exists "Agents can insert records" on public.records;
+create policy "Agents can insert records" on public.records for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Agents can update records" on public.records;
+create policy "Agents can update records" on public.records for update using (auth.role() = 'authenticated');
+
+drop policy if exists "Agents can delete records" on public.records;
+create policy "Agents can delete records" on public.records for delete using (auth.role() = 'authenticated');
 
 
--- 3. Create PRODUCE table (Listings)
+-- 3. PRODUCE (Market Listings)
 create table if not exists public.produce (
   id text primary key,
   date text,
@@ -98,13 +112,22 @@ create table if not exists public.produce (
 );
 
 alter table public.produce enable row level security;
+
+-- Policies for Produce
+drop policy if exists "Produce viewable by everyone" on public.produce;
 create policy "Produce viewable by everyone" on public.produce for select using (true);
+
+drop policy if exists "Agents can insert produce" on public.produce;
 create policy "Agents can insert produce" on public.produce for insert with check (true);
+
+drop policy if exists "Agents can update produce" on public.produce;
 create policy "Agents can update produce" on public.produce for update using (true);
+
+drop policy if exists "Agents can delete produce" on public.produce;
 create policy "Agents can delete produce" on public.produce for delete using (true);
 
 
--- 4. Create ORDERS table (Market Requests)
+-- 4. ORDERS (Market Requests)
 create table if not exists public.orders (
   id text primary key,
   date text,
@@ -120,10 +143,16 @@ create table if not exists public.orders (
 );
 
 alter table public.orders enable row level security;
-create policy "Orders viewable by everyone" on public.orders for select using (true);
-create policy "Agents can insert orders" on public.orders for insert with check (true);
-create policy "Agents can update orders" on public.orders for update using (true);
-create policy "Agents can delete orders" on public.orders for delete using (true);
 
--- 5. Migrations (Run if updating existing DB)
-alter table public.produce add column if not exists images text;
+-- Policies for Orders
+drop policy if exists "Orders viewable by everyone" on public.orders;
+create policy "Orders viewable by everyone" on public.orders for select using (true);
+
+drop policy if exists "Agents can insert orders" on public.orders;
+create policy "Agents can insert orders" on public.orders for insert with check (true);
+
+drop policy if exists "Agents can update orders" on public.orders;
+create policy "Agents can update orders" on public.orders for update using (true);
+
+drop policy if exists "Agents can delete orders" on public.orders;
+create policy "Agents can delete orders" on public.orders for delete using (true);
