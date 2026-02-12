@@ -153,7 +153,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
       <div className="flex flex-col lg:flex-row justify-between items-center mb-10 gap-8">
         <div className="text-center lg:text-left">
           <h3 className="text-xl font-black text-black uppercase tracking-tighter">New Supplies Entry</h3>
-          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">Listing Harvest for Market Hub</p>
+          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">Listing Supplies for Market Hub</p>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Estimated Market Value (Incl. 10% Fee)</span>
