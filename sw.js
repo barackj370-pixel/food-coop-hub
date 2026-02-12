@@ -1,6 +1,6 @@
 
-const CACHE_NAME = 'kpl-offline-v3';
-const DYNAMIC_CACHE = 'kpl-dynamic-v3';
+const CACHE_NAME = 'kpl-offline-v5';
+const DYNAMIC_CACHE = 'kpl-dynamic-v5';
 
 // Install Event: Skip waiting to activate immediately
 self.addEventListener('install', (event) => {
