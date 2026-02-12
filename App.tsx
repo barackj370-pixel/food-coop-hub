@@ -1196,6 +1196,215 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {/* RESTORED MISSING PORTALS */}
+        {currentPortal === 'MARKET' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {marketView === 'SALES' && (
+              <>
+                <SaleForm 
+                  clusters={CLUSTERS} 
+                  produceListings={produceListings}
+                  initialData={fulfillmentData || undefined}
+                  onSubmit={handleAddRecord}
+                />
+                <AuditLogTable 
+                  data={filteredRecords} 
+                  title="Your Sales History" 
+                  onDelete={handleDeleteRecord}
+                  onEdit={handleEditRecord}
+                />
+              </>
+            )}
+
+            {marketView === 'SUPPLIER' && (
+              <>
+                <ProduceForm 
+                  userRole={agentIdentity?.role || SystemRole.SUPPLIER}
+                  defaultSupplierName={agentIdentity?.name}
+                  defaultSupplierPhone={agentIdentity?.phone}
+                  onSubmit={handleAddProduce} 
+                />
+                <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-xl overflow-hidden">
+                  <h3 className="text-sm font-black text-black uppercase tracking-widest mb-6">Your Active Listings</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                        <tr><th className="pb-4">Date</th><th className="pb-4">Item</th><th className="pb-4">Qty</th><th className="pb-4">Price</th><th className="pb-4">Status</th><th className="pb-4 text-right">Action</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {produceListings.filter(p => isSystemDev || p.supplierPhone === agentIdentity?.phone).map(p => (
+                          <tr key={p.id} className="text-xs font-bold group hover:bg-slate-50">
+                            <td className="py-4 text-slate-500">{p.date}</td>
+                            <td className="py-4 text-black">{p.cropType}</td>
+                            <td className="py-4 text-black">{p.unitsAvailable} {p.unitType}</td>
+                            <td className="py-4 text-black">KSh {p.sellingPrice}</td>
+                            <td className="py-4"><span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${p.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></td>
+                            <td className="py-4 text-right">
+                              <button onClick={() => handleDeleteProduce(p.id)} className="text-slate-300 hover:text-red-600"><i className="fas fa-trash"></i></button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {marketView === 'CUSTOMER' && renderCustomerPortal()}
+          </div>
+        )}
+
+        {currentPortal === 'FINANCE' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <StatCard label="Pending Payouts" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} icon="fa-clock" color="bg-orange-50" accent="text-orange-600" />
+              <StatCard label="Completed Payouts" value={`KSh ${stats.approvedComm.toLocaleString()}`} icon="fa-check-circle" color="bg-green-50" accent="text-green-600" />
+            </div>
+            
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl">
+               <div className="flex justify-between items-center mb-8">
+                 <h3 className="text-lg font-black text-black uppercase tracking-tight">Payout Queue</h3>
+                 {renderExportButtons()}
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <tr><th className="pb-4">ID</th><th className="pb-4">Agent</th><th className="pb-4">Amount</th><th className="pb-4">Status</th><th className="pb-4 text-right">Action</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.VERIFIED).map(r => (
+                        <tr key={r.id} className="text-xs font-bold">
+                           <td className="py-4 text-slate-400 font-mono">{r.id.substring(0,6)}</td>
+                           <td className="py-4">{r.agentName}</td>
+                           <td className="py-4 text-green-600">KSh {r.coopProfit.toLocaleString()}</td>
+                           <td className="py-4"><span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${r.status === RecordStatus.VERIFIED ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{r.status}</span></td>
+                           <td className="py-4 text-right">
+                             {r.status === RecordStatus.PAID && (
+                               <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-green-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-md hover:bg-green-700">Mark Paid</button>
+                             )}
+                           </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'AUDIT' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="flex justify-end">{renderExportButtons(true)}</div>
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl mb-8">
+                <h3 className="text-lg font-black text-black uppercase tracking-tight mb-6">Validation Queue</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <tr><th className="pb-4">Date</th><th className="pb-4">Agent</th><th className="pb-4">Sale</th><th className="pb-4">Profit</th><th className="pb-4">Status</th><th className="pb-4 text-right">Action</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                       {records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.VALIDATED).map(r => (
+                         <tr key={r.id} className="text-xs font-bold">
+                            <td className="py-4 text-slate-500">{r.date}</td>
+                            <td className="py-4">{r.agentName}</td>
+                            <td className="py-4">KSh {r.totalSale.toLocaleString()}</td>
+                            <td className="py-4 text-green-600">KSh {r.coopProfit.toLocaleString()}</td>
+                            <td className="py-4"><span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[8px] font-black uppercase">{r.status}</span></td>
+                            <td className="py-4 text-right">
+                               {r.status === RecordStatus.DRAFT && (
+                                 <button onClick={() => handleUpdateStatus(r.id, RecordStatus.VALIDATED)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-md hover:bg-blue-700">Validate</button>
+                               )}
+                               {r.status === RecordStatus.VALIDATED && (
+                                 <button onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-purple-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-md hover:bg-purple-700">Approve</button>
+                               )}
+                            </td>
+                         </tr>
+                       ))}
+                    </tbody>
+                  </table>
+                </div>
+             </div>
+             
+             <AuditLogTable 
+               data={records.filter(r => r.status !== RecordStatus.DRAFT)} 
+               title="Transaction Audit Log" 
+             />
+          </div>
+        )}
+
+        {currentPortal === 'BOARD' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard label="Total Volume" value={`KSh ${boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}`} icon="fa-chart-line" color="bg-white" />
+              <StatCard label="Total Revenue" value={`KSh ${boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0).toLocaleString()}`} icon="fa-coins" color="bg-white" accent="text-green-600" />
+              <StatCard label="Active Agents" value={users.filter(u => u.role === SystemRole.SALES_AGENT).length} icon="fa-users" color="bg-white" />
+              <StatCard label="Clusters" value={CLUSTERS.length} icon="fa-map" color="bg-white" />
+            </div>
+
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
+              <h3 className="text-xl font-black text-black uppercase tracking-tighter mb-8">Cluster Performance Rankings</h3>
+              <div className="space-y-6">
+                {boardMetrics.clusterPerformance.map(([cluster, metric], idx) => (
+                  <div key={cluster} className="flex items-center gap-4">
+                    <span className="text-2xl font-black text-slate-200 w-8">{idx + 1}</span>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-end mb-2">
+                        <span className="font-black text-black uppercase text-xs tracking-widest">{cluster}</span>
+                        <span className="font-bold text-black text-xs">KSh {metric.profit.toLocaleString()}</span>
+                      </div>
+                      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-black rounded-full" 
+                          style={{ width: `${(metric.profit / (boardMetrics.clusterPerformance[0][1].profit || 1)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentPortal === 'SYSTEM' && isSystemDev && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="bg-red-50 p-8 rounded-[2.5rem] border border-red-100">
+                <h3 className="text-lg font-black text-red-700 uppercase tracking-tight mb-4">Danger Zone</h3>
+                <div className="flex flex-wrap gap-4">
+                   <button onClick={handlePurgeAuditLog} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-700">Purge Records</button>
+                   <button onClick={handlePurgeUsers} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-700">Purge Users</button>
+                   <button onClick={handleDeleteAllProduce} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-700">Purge Produce</button>
+                   <button onClick={handlePurgeOrders} className="bg-red-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-700">Purge Orders</button>
+                </div>
+             </div>
+
+             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl">
+                <h3 className="text-lg font-black text-black uppercase tracking-tight mb-6">User Registry</h3>
+                <div className="overflow-x-auto">
+                   <table className="w-full text-left">
+                      <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                         <tr><th className="pb-4">Name</th><th className="pb-4">Role</th><th className="pb-4">Cluster</th><th className="pb-4">Status</th><th className="pb-4 text-right">Action</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                         {users.map(u => (
+                           <tr key={u.phone} className="text-xs font-bold">
+                              <td className="py-4">{u.name} <div className="text-[9px] text-slate-400">{u.phone}</div></td>
+                              <td className="py-4">{u.role}</td>
+                              <td className="py-4">{u.cluster}</td>
+                              <td className="py-4"><button onClick={() => handleToggleUserStatus(u.phone, u.status)} className={`px-3 py-1 rounded-full text-[8px] font-black uppercase ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{u.status || 'ACTIVE'}</button></td>
+                              <td className="py-4 text-right">
+                                <button onClick={() => handleDeleteUser(u.phone)} className="text-slate-300 hover:text-red-600"><i className="fas fa-trash"></i></button>
+                              </td>
+                           </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
+          </div>
+        )}
+
         {currentPortal === 'FORUM' && agentIdentity && (
           <Forum currentUser={agentIdentity} />
         )}
