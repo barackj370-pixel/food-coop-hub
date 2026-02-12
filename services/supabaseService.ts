@@ -35,8 +35,29 @@ const handleSupabaseError = (context: string, err: any) => {
   
   // Ignore specific PostgREST errors that are handled or expected
   // PGRST205: Schema cache issue / Missing column
+  // 42P01: Undefined table (Feature not deployed yet)
   if (err.code !== 'PGRST205' && err.code !== '42P01') {
     console.error(`${context}:`, err);
+  }
+};
+
+// HELPER: Timeout Wrapper to prevent infinite loading
+const withTimeout = async <T>(promise: Promise<T>, ms: number = 10000, fallbackValue?: T): Promise<T> => {
+  let timer: any;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error("Request timed out"));
+    }, ms);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeout]);
+    clearTimeout(timer);
+    return result;
+  } catch (err) {
+    clearTimeout(timer);
+    if (fallbackValue !== undefined) return fallbackValue;
+    throw err;
   }
 };
 
@@ -373,11 +394,20 @@ const mapDbToForumPost = (db: any): ForumPost => ({
 export const fetchForumPosts = async (): Promise<ForumPost[]> => {
   if (!isClientReady()) return [];
   try {
-    const { data, error } = await supabase.from('forum_posts').select('*').order('created_at', { ascending: false });
+    // Wrap the Supabase call in a timeout race to prevent "Loading..." hanging forever
+    const response = await withTimeout(
+      supabase.from('forum_posts').select('*').order('created_at', { ascending: false }),
+      8000, // 8 second timeout
+      { data: [], error: null } // Fallback if timed out (empty list)
+    );
+
+    const { data, error } = response as any;
     if (error) throw error;
+    
     return (data || []).map(mapDbToForumPost);
   } catch (err: any) {
     handleSupabaseError('fetchForumPosts', err);
+    // Return empty array to clear loading state even on error
     return [];
   }
 };
@@ -386,7 +416,10 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
-    if (!userId) return false;
+    if (!userId) {
+      console.warn("Cannot post: No user session active.");
+      return false;
+    }
 
     const payload = {
       title: post.title,
@@ -398,7 +431,11 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
       agent_id: userId
     };
 
-    const { error } = await supabase.from('forum_posts').insert(payload);
+    const { error } = await withTimeout(
+        supabase.from('forum_posts').insert(payload),
+        10000
+    ) as any;
+
     if (error) throw error;
     return true;
   } catch (err: any) {
@@ -410,7 +447,11 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
 export const deleteForumPost = async (id: string): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
-    const { error } = await supabase.from('forum_posts').delete().eq('id', id);
+    const { error } = await withTimeout(
+        supabase.from('forum_posts').delete().eq('id', id),
+        5000
+    ) as any;
+    
     if (error) throw error;
     return true;
   } catch (err: any) {

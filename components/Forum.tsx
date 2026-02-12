@@ -18,9 +18,16 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
 
   const loadPosts = async () => {
     setLoading(true);
-    const data = await fetchForumPosts();
-    setPosts(data);
-    setLoading(false);
+    try {
+      const data = await fetchForumPosts();
+      setPosts(data);
+    } catch (e) {
+      console.error("Failed to load posts:", e);
+      // Ensure we don't block the UI if fetch fails
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -32,24 +39,29 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
     if (!newTitle.trim() || !newContent.trim()) return;
 
     setCreating(true);
-    const success = await saveForumPost({
-      title: newTitle,
-      content: newContent,
-      authorName: currentUser.name,
-      authorRole: currentUser.role,
-      authorCluster: currentUser.cluster,
-      authorPhone: currentUser.phone
-    });
+    try {
+      const success = await saveForumPost({
+        title: newTitle,
+        content: newContent,
+        authorName: currentUser.name,
+        authorRole: currentUser.role,
+        authorCluster: currentUser.cluster,
+        authorPhone: currentUser.phone
+      });
 
-    if (success) {
-      setNewTitle('');
-      setNewContent('');
-      setShowForm(false);
-      await loadPosts();
-    } else {
-      alert("Failed to post message.");
+      if (success) {
+        setNewTitle('');
+        setNewContent('');
+        setShowForm(false);
+        await loadPosts();
+      } else {
+        alert("Failed to post message. Please check your connection or try again later.");
+      }
+    } catch (err) {
+      alert("An unexpected error occurred while posting.");
+    } finally {
+      setCreating(false);
     }
-    setCreating(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -64,7 +76,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
 
   const canDelete = (post: ForumPost) => {
     // Admins (Dev, Manager, Director) can delete anything
-    const isAdmin = [SystemRole.SYSTEM_DEVELOPER, SystemRole.MANAGER, SystemRole.MANAGER].includes(currentUser.role as SystemRole); // Director is usually MANAGER role key
+    const isAdmin = [SystemRole.SYSTEM_DEVELOPER, SystemRole.MANAGER].includes(currentUser.role as SystemRole); 
     // Users can delete their own
     const isAuthor = post.authorPhone === currentUser.phone;
     return isAdmin || isAuthor;
