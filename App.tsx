@@ -1062,10 +1062,8 @@ const App: React.FC = () => {
                      onClick={() => setShowPublicSupplierStats(true)} 
                      className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-green-700 transition-all flex items-center gap-2"
                   >
-                     <i className="fas fa-chart-pie"></i> Farmers: Check Your Shares
+                     <i className="fas fa-chart-pie"></i> SUPPLIERS: CHECK YOUR SHARES
                   </button>
-
-                  <button onClick={() => setCurrentPortal('ABOUT')} className="bg-slate-100 text-black px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all">Learn More</button>
                 </div>
               </div>
               <div className="flex-1 grid grid-cols-2 gap-4">
