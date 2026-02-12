@@ -191,28 +191,3 @@ create policy "Users can delete their own posts or admins can delete all" on pub
     )
   )
 );
-
--- 6. CONTACT MESSAGES (Public Inquiry)
-create table if not exists public.contact_messages (
-  id uuid default uuid_generate_v4() primary key,
-  name text not null,
-  email text,
-  phone text,
-  subject text,
-  message text not null,
-  date timestamptz default now(),
-  status text default 'NEW'
-);
-
-alter table public.contact_messages enable row level security;
-
-drop policy if exists "Anyone can insert messages" on public.contact_messages;
-create policy "Anyone can insert messages" on public.contact_messages for insert with check (true);
-
-drop policy if exists "Admins can view messages" on public.contact_messages;
-create policy "Admins can view messages" on public.contact_messages for select using (
-  exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role in ('System Developer', 'Director', 'Manager', 'Sales Agent')
-    )
-);

@@ -107,17 +107,6 @@ export interface ForumPost {
   createdAt: string;
 }
 
-export interface ContactMessage {
-  id?: string;
-  name: string;
-  email?: string;
-  phone: string;
-  subject: string;
-  message: string;
-  date: string;
-  status: 'NEW' | 'READ';
-}
-
 export interface ClusterMetric {
   volume: number;
   profit: number;
