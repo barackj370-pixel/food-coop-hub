@@ -8,7 +8,7 @@ import WeatherWidget from './components/WeatherWidget';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
-import Forum from './components/Forum';
+// Forum removed temporarily
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -19,7 +19,7 @@ import {
   fetchProduce, saveProduce, deleteProduce, deleteAllProduce
 } from './services/supabaseService';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
@@ -414,8 +414,8 @@ const App: React.FC = () => {
     const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
     if (!agentIdentity) return guestPortals;
     
-    // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'FORUM', 'CONTACT'];
+    // Add FORUM to logged in base (temporarily removed Forum)
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
@@ -1164,15 +1164,6 @@ const App: React.FC = () => {
               );
             }
             
-            // SPECIAL HANDLING: Highlighting the Forum Button
-            if (p === 'FORUM') {
-               return (
-                <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === p ? 'bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-600/20 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-purple-600'}`}>
-                  <i className="fas fa-comments"></i> Forum
-                </button>
-               );
-            }
-
             // Double check: If 'SYSTEM' somehow got into the list for a non-dev, don't render the button.
             if (p === 'SYSTEM' && !isSystemDev) return null;
 
@@ -1194,10 +1185,6 @@ const App: React.FC = () => {
           <div className="space-y-12 animate-in fade-in duration-300">
              <AdminInvite />
           </div>
-        )}
-
-        {currentPortal === 'FORUM' && agentIdentity && (
-          <Forum currentUser={agentIdentity} />
         )}
 
         {currentPortal === 'HOME' && (
