@@ -7,6 +7,7 @@ import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
+import PublicSupplierStats from './components/PublicSupplierStats';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -149,6 +150,8 @@ const App: React.FC = () => {
     }
     return 'CUSTOMER';
   });
+
+  const [showPublicSupplierStats, setShowPublicSupplierStats] = useState(false);
   
   // Connectivity & Sync State
   const [isSyncing, setIsSyncing] = useState(false);
@@ -1025,6 +1028,10 @@ const App: React.FC = () => {
       </header>
 
       <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
+        {showPublicSupplierStats && (
+           <PublicSupplierStats onBack={() => setShowPublicSupplierStats(false)} />
+        )}
+
         {currentPortal === 'LOGIN' && !agentIdentity && (
           <LoginPage onLoginSuccess={handleLoginSuccess} />
         )}
@@ -1043,12 +1050,21 @@ const App: React.FC = () => {
                 <p className="text-slate-600 font-medium leading-relaxed">
                   Our platform is designed to empower local farmers and consumers through a transparent, high-integrity marketplace. We leverage agroecological principles to ensure sustainable growth for our community.
                 </p>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                   {agentIdentity ? (
                     <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button>
                   ) : (
                     <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Get Started</button>
                   )}
+                  
+                  {/* Public Supplier Stats Button */}
+                  <button 
+                     onClick={() => setShowPublicSupplierStats(true)} 
+                     className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-green-700 transition-all flex items-center gap-2"
+                  >
+                     <i className="fas fa-chart-pie"></i> Farmers: Check Your Shares
+                  </button>
+
                   <button onClick={() => setCurrentPortal('ABOUT')} className="bg-slate-100 text-black px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all">Learn More</button>
                 </div>
               </div>
