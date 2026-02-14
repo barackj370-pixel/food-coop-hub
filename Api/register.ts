@@ -40,7 +40,7 @@ export default async function handler(req: any, res: any) {
         passcode: password.slice(0, 4), // Store original 4-digit PIN reference
         status: 'ACTIVE',
         // Autofill Fields
-        email: user.user.email || null,
+        // REMOVED EMAIL to prevent schema error
         created_at: user.user.created_at,
         last_sign_in_at: user.user.last_sign_in_at || null,
         provider: user.user.app_metadata?.provider || 'phone'
