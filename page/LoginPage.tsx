@@ -140,19 +140,20 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const handleFetchError = (e: any) => {
     const msg = (e.message || e.toString()).toLowerCase();
     if (msg.includes('failed to fetch') || msg.includes('load failed') || msg.includes('network') || msg.includes('signal is aborted')) {
-       return "Connection Interrupted: Please check your internet and try again.";
+       return "Connection Issue: Check your internet or try again.";
     }
     if (msg.includes('timeout')) {
-       return "Request Timed Out: Please check your internet connection.";
+       return "Request Timed Out: Server might be waking up (Cold Start). Please try again.";
     }
     return e.message || "An unexpected error occurred.";
   };
 
   // TIMEOUT HELPER
-  const withTimeout = <T,>(promise: Promise<T>, ms: number = 15000): Promise<T> => {
+  // Increased to 60 seconds to allow Supabase Cold Start on slow connections
+  const withTimeout = <T,>(promise: Promise<T>, ms: number = 60000): Promise<T> => {
     return Promise.race([
         promise,
-        new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Connection timed out. Please try again.")), ms))
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Connection timed out. The server might be waking up or your internet is slow.")), ms))
     ]);
   };
 
@@ -184,7 +185,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
      const cleanPayload = JSON.parse(JSON.stringify(dbPayload));
 
      const controller = new AbortController();
-     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s Timeout
+     // Increased to 60 seconds
+     const timeoutId = setTimeout(() => controller.abort(), 60000); 
 
      try {
        const response = await fetch(url, {
