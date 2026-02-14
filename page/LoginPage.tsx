@@ -149,6 +149,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
      const url = `${supabaseUrl}/rest/v1/profiles`;
      
      // Map camelCase (App) to snake_case (DB)
+     // REMOVED 'email' to prevent schema error
      const dbPayload = {
         id: profileData.id,
         name: profileData.name,
@@ -157,7 +158,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         cluster: profileData.cluster,
         passcode: profileData.passcode,
         status: profileData.status,
-        email: profileData.email,
         provider: profileData.provider,
         created_at: profileData.createdAt,
         last_sign_in_at: profileData.lastSignInAt
