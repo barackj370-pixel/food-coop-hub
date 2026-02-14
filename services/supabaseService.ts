@@ -152,7 +152,21 @@ export const deleteAllRecords = async (): Promise<boolean> => {
 export const saveUser = async (user: AgentIdentity): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
-    const { error } = await supabase.from('profiles').upsert(user, { onConflict: 'phone' });
+    const payload = {
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      passcode: user.passcode,
+      cluster: user.cluster,
+      status: user.status,
+      email: user.email,
+      last_sign_in_at: user.lastSignInAt,
+      provider: user.provider,
+      created_at: user.createdAt
+    };
+
+    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'phone' });
     if (error) throw error;
     return true;
   } catch (err: any) {
@@ -166,7 +180,19 @@ export const fetchUsers = async (): Promise<AgentIdentity[]> => {
   try {
     const { data, error } = await supabase.from('profiles').select('*');
     if (error) throw error;
-    return (data as AgentIdentity[]) || [];
+    return (data || []).map((u: any) => ({
+      id: u.id,
+      name: u.name,
+      phone: u.phone,
+      role: u.role,
+      passcode: u.passcode,
+      cluster: u.cluster,
+      status: u.status,
+      email: u.email,
+      lastSignInAt: u.last_sign_in_at,
+      provider: u.provider,
+      createdAt: u.created_at
+    }));
   } catch (err: any) {
     handleSupabaseError('fetchUsers', err);
     return [];
