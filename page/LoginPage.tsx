@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
 import { getEnv } from '../services/env';
@@ -41,6 +41,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isInviteFlow, setIsInviteFlow] = useState(false);
+
+  // Ref to track if component is mounted to prevent state updates after unmount
+  const isMounted = useRef(true);
+  useEffect(() => {
+    return () => { isMounted.current = false; };
+  }, []);
 
   /* ───────── INITIALIZATION & DEEP LINKS ───────── */
   useEffect(() => {
@@ -165,31 +171,26 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
      const cleanPayload = JSON.parse(JSON.stringify(dbPayload));
 
-     try {
-       const response = await fetch(url, {
-         method: 'POST',
-         headers: {
-           'Content-Type': 'application/json',
-           'apikey': supabaseKey,
-           'Authorization': `Bearer ${accessToken}`,
-           'Prefer': 'resolution=merge-duplicates'
-         },
-         body: JSON.stringify(cleanPayload)
-       });
+     const response = await fetch(url, {
+       method: 'POST',
+       headers: {
+         'Content-Type': 'application/json',
+         'apikey': supabaseKey,
+         'Authorization': `Bearer ${accessToken}`,
+         'Prefer': 'resolution=merge-duplicates'
+       },
+       body: JSON.stringify(cleanPayload)
+     });
 
-       if (!response.ok) {
-         const errText = await response.text();
-         throw new Error(`DB Sync Failed: ${errText}`);
-       }
+     if (!response.ok) {
+       const errText = await response.text();
+       throw new Error(`DB Sync Failed: ${errText}`);
+     }
 
-       // Success - Clear URL params and redirect
-       window.history.replaceState({}, document.title, "/");
-       onLoginSuccess(profileData);
-
-     } catch (err: any) {
-        console.error("REST Profile Create Error:", err);
-        setError(`Account created, but profile failed: ${err.message}`);
-        setLoading(false);
+     // Success - Clear URL params and redirect
+     if (isMounted.current) {
+        window.history.replaceState({}, document.title, "/");
+        onLoginSuccess(profileData);
      }
   };
 
@@ -199,13 +200,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError(null);
 
-    if (!validatePin(passcode)) { setError('PIN must be exactly 4 digits.'); setLoading(false); return; }
-    if (!role) { setError('Please select a role.'); setLoading(false); return; }
-    if (CLUSTER_ROLES.includes(role) && !cluster) { setError('Please select a cluster.'); setLoading(false); return; }
-
     try {
+        if (!validatePin(passcode)) throw new Error('PIN must be exactly 4 digits.');
+        if (!role) throw new Error('Please select a role.');
+        if (CLUSTER_ROLES.includes(role) && !cluster) throw new Error('Please select a cluster.');
+
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) { setError('Session expired. Please reload.'); setLoading(false); return; }
+        if (!session?.user) throw new Error('Session expired. Please reload.');
 
         if (passcode) await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
 
@@ -222,9 +223,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           createdAt: session.user.created_at,
           lastSignInAt: new Date().toISOString()
         }, session.access_token);
+        
     } catch (err: any) {
-        setError(handleFetchError(err));
-        setLoading(false);
+        if (isMounted.current) {
+            setError(handleFetchError(err));
+            setLoading(false);
+        }
     }
   };
 
@@ -236,25 +240,28 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setMessage(null);
 
     const formattedPhone = normalizeKenyanPhone(phone);
-    if (formattedPhone.length < 10) { setError("Invalid phone number."); setLoading(false); return; }
-    if (!validatePin(passcode)) { setError("PIN must be 4 digits."); setLoading(false); return; }
-    if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
-
+    
     try {
+        if (formattedPhone.length < 10) throw new Error("Invalid phone number.");
+        if (!validatePin(passcode)) throw new Error("PIN must be 4 digits.");
+        if (passcode !== confirmPasscode) throw new Error("PINs do not match.");
+
        const { data: { session } } = await supabase.auth.getSession();
        
        if (session) {
           const { error } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
           if (error) throw error;
-          setMessage("PIN updated successfully.");
-          setIsResetting(false);
+          if (isMounted.current) {
+              setMessage("PIN updated successfully.");
+              setIsResetting(false);
+          }
        } else {
-          setError("For security, please contact your Cluster Admin to reset your PIN if you are locked out.");
+          throw new Error("For security, please contact your Cluster Admin to reset your PIN if you are locked out.");
        }
     } catch (err: any) {
-      setError(err.message || "Reset failed.");
+      if (isMounted.current) setError(err.message || "Reset failed.");
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
@@ -270,14 +277,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const targetRole = isSystemDev ? SystemRole.SYSTEM_DEVELOPER : role;
     const targetCluster = isSystemDev ? '-' : cluster;
 
-    if (formattedPhone.length < 12) { setError('Invalid Phone Format.'); setLoading(false); return; }
-    if (!validatePin(passcode)) { setError('PIN must be 4 digits.'); setLoading(false); return; }
-
     try {
-        if (isSignUp) {
-          if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
-          if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
+        if (formattedPhone.length < 12) throw new Error('Invalid Phone Format.');
+        if (!validatePin(passcode)) throw new Error('PIN must be 4 digits.');
 
+        if (isSignUp) {
+          if (!targetRole) throw new Error('Please select a role.');
+          if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) throw new Error('Please select a cluster.');
+
+          // 1. Sign Up
           let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
@@ -288,42 +296,52 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
           if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
              console.log("User exists, attempting login...");
-             // Proceed to Login
+             // Fallthrough to Login logic logic below requires logic restructure, 
+             // but simpler to just try sign in immediately here for this specific case
           } else if (signUpError) {
              throw signUpError;
           }
 
-          // 2. Login immediately to get session
-          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-            phone: formattedPhone,
-            password: getAuthPassword(passcode),
-          });
-
-          if (loginError) {
-             setError("Registration successful. Please Login.");
-             setIsSignUp(false);
-             setLoading(false);
-             return;
+          // 2. Determine Session (Use existing from SignUp if available, else Login)
+          let session = signUpData.session;
+          let accessToken = session?.access_token;
+          
+          if (!session) {
+             const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+                phone: formattedPhone,
+                password: getAuthPassword(passcode),
+             });
+             
+             if (loginError) {
+                 if (isMounted.current) {
+                    setError("Registration successful. Please Login.");
+                    setIsSignUp(false);
+                 }
+                 return; // Finally block will handle setLoading(false)
+             }
+             session = loginData.session;
+             accessToken = loginData.session?.access_token;
           }
 
           // 3. Create Profile
-          if (loginData.session) {
+          if (session && accessToken) {
              await createProfileViaRest({
-                id: loginData.session.user.id,
+                id: session.user.id,
                 name: targetName,
                 phone: formattedPhone,
                 role: targetRole!,
                 cluster: targetCluster,
                 passcode: passcode,
                 status: 'ACTIVE',
-                provider: loginData.session.user.app_metadata.provider,
-                createdAt: loginData.session.user.created_at,
-                email: loginData.session.user.email
-             }, loginData.session.access_token);
+                provider: session.user.app_metadata.provider,
+                createdAt: session.user.created_at,
+                email: session.user.email
+             }, accessToken);
           } else {
-             setError("Registration successful. Please Login.");
-             setIsSignUp(false);
-             setLoading(false);
+             if (isMounted.current) {
+                setError("Registration successful. Please Login.");
+                setIsSignUp(false);
+             }
           }
 
         } else {
@@ -333,11 +351,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             password: getAuthPassword(passcode),
           });
 
-          if (error) {
-            setError("Invalid PIN or Phone. If you are new, ask Admin for an invite.");
-            setLoading(false);
-            return;
-          } 
+          if (error) throw new Error("Invalid PIN or Phone. If you are new, ask Admin for an invite.");
           
           if (data.session) {
             const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle();
@@ -356,7 +370,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     provider: profile.provider,
                     createdAt: profile.created_at
                  };
-                onLoginSuccess(mappedProfile);
+                if (isMounted.current) onLoginSuccess(mappedProfile);
             } else {
                 // Healing for Ghost Profiles
                 console.log("Profile missing on login. Healing...");
@@ -373,14 +387,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     email: data.session.user.email
                 }, data.session.access_token);
             }
-          } else {
-             // Login successful but no session? (Edge case)
-             setLoading(false);
           }
         }
     } catch (err: any) {
-        setError(handleFetchError(err));
-        setLoading(false); 
+        if (isMounted.current) {
+            setError(handleFetchError(err));
+        }
+    } finally {
+        // Ensure loading is turned off if we are still mounted
+        if (isMounted.current) setLoading(false);
     }
   };
 
