@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
@@ -115,8 +116,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   const handleFetchError = (e: any) => {
     const msg = (e.message || e.toString()).toLowerCase();
-    if (msg.includes('failed to fetch') || msg.includes('load failed') || msg.includes('network')) {
-       return "Connection Failed: Unable to reach database. Please check internet.";
+    if (msg.includes('failed to fetch') || msg.includes('load failed') || msg.includes('network') || msg.includes('signal is aborted')) {
+       return "Connection Interrupted: Please check your internet and try again.";
     }
     return e.message || "An unexpected error occurred.";
   };
@@ -124,8 +125,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   // ROBUST PROFILE CREATOR
   const createProfileWithRetry = async (profileData: AgentIdentity, retries = 2) => {
     try {
-      // Ensure we have a fresh session token for RLS
-      await supabase.auth.refreshSession();
+      // FIX: Removed `supabase.auth.refreshSession()` which causes race conditions/aborts after fresh login
+      
+      // Add stability delay to let auth headers settle
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       const { error } = await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
       
@@ -146,6 +149,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     } catch (err: any) {
       console.error(`Profile Sync Attempt Failed (${retries} left):`, err);
+      
+      // Retry on network errors or aborts
       if (retries > 0) {
         setTimeout(() => createProfileWithRetry(profileData, retries - 1), 1000);
       } else {
