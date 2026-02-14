@@ -8,7 +8,7 @@ import WeatherWidget from './components/WeatherWidget';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
-// Forum removed temporarily
+import Forum from './components/Forum';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -20,7 +20,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
@@ -159,7 +159,7 @@ const NEWS_ARTICLES: NewsArticle[] = [
       <p>We are excited to announce the establishment of the <strong>Digital Innovation Department</strong>, headed by <strong>Barack James</strong>. This department is pivotal in modernizing our cooperative's operations.</p>
       <br/>
       <h4 class="text-lg font-bold text-black mb-2">Cluster Tour & Platform Launch</h4>
-      <p>Barack James is currently visiting all 7 clusters to introduce the new <strong>Food Coop Digital Platform</strong> to sales agents. This state-of-the-art system is expected to be fully functional and live by <strong>February 17th</strong>. It will streamline operations, improve record-keeping transparency, and facilitate faster transactions.</p>
+      <p>Barack James is currently visiting all 7 clusters to introduce the new <strong>Food Coop Digital Platform</strong>. This state-of-the-art system is expected to be fully functional and live by <strong>February 17th</strong>. It will streamline operations, improve record-keeping transparency, and facilitate faster transactions.</p>
       <br/>
       <h4 class="text-lg font-bold text-black mb-2">Upcoming: Local Weather Portal</h4>
       <p>In addition to the sales platform, the Digital Innovations Department is tasked with developing a <strong>Local Weather Portal</strong>. This tool will provide hyper-local climate data to assist farmers in planning their production cycles effectively.</p>
@@ -382,9 +382,10 @@ const App: React.FC = () => {
           if (currentPortalRef.current === 'LOGIN') setCurrentPortal('HOME');
           
           if (navigator.onLine) {
+             // Exclude email in update if it causes issues, but usually fine here if column exists
+             // Safe to omit if schema is shaky
              await supabase.from('profiles').update({
                 last_sign_in_at: new Date().toISOString(),
-                email: session.user.email,
              }).eq('id', session.user.id);
           }
         } else {
@@ -411,7 +412,7 @@ const App: React.FC = () => {
                     cluster: meta.cluster || '-',
                     passcode: '0000',
                     status: 'ACTIVE',
-                    email: session.user.email,
+                    // REMOVED EMAIL to prevent PGRST204 error
                     provider: 'email_invite',
                     created_at: new Date().toISOString()
                 })
@@ -437,7 +438,10 @@ const App: React.FC = () => {
              }
           } else {
              // 3. Metadata missing? Send to Login Page to complete profile manually
-             setCurrentPortal('LOGIN');
+             // Only redirect if NOT already on login page to avoid loops
+             if (currentPortalRef.current !== 'LOGIN') {
+                 setCurrentPortal('LOGIN');
+             }
           }
         }
 
@@ -478,8 +482,8 @@ const App: React.FC = () => {
     const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
     if (!agentIdentity) return guestPortals;
     
-    // Add FORUM to logged in base (temporarily removed Forum)
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT'];
+    // Add FORUM to logged in base
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT', 'FORUM'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
@@ -1381,6 +1385,10 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {currentPortal === 'FORUM' && agentIdentity && (
+           <Forum currentUser={agentIdentity} />
         )}
 
         {currentPortal === 'MARKET' && agentIdentity && (
