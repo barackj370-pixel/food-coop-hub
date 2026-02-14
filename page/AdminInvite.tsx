@@ -11,6 +11,7 @@ const CLUSTER_ROLES: SystemRole[] = [
 
 const AdminInvite: React.FC = () => {
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<SystemRole>(SystemRole.SALES_AGENT);
   const [cluster, setCluster] = useState(CLUSTERS[0]);
@@ -23,6 +24,11 @@ const AdminInvite: React.FC = () => {
     setLoading(true);
     setMessage(null);
 
+    // Basic normalization for Kenya
+    let formattedPhone = phone.trim();
+    if (formattedPhone.startsWith('0')) formattedPhone = '254' + formattedPhone.slice(1);
+    if (formattedPhone.startsWith('+')) formattedPhone = formattedPhone.slice(1);
+
     try {
       const response = await fetch('/api/invite-user', {
         method: 'POST',
@@ -31,8 +37,9 @@ const AdminInvite: React.FC = () => {
           email,
           role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
-          data: { // Pass name in metadata for auto-profile creation
-             full_name: fullName
+          data: { 
+             full_name: fullName,
+             phone: formattedPhone // Pass phone to metadata
           }
         })
       });
@@ -44,6 +51,7 @@ const AdminInvite: React.FC = () => {
       setMessage({ type: 'success', text: `Invitation sent to ${email}` });
       setEmail('');
       setFullName('');
+      setPhone('');
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -89,6 +97,18 @@ const AdminInvite: React.FC = () => {
               />
            </div>
 
+           <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Phone Number</label>
+              <input 
+                type="tel" 
+                required 
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all"
+                placeholder="07..."
+              />
+           </div>
+
            <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Role</label>
@@ -131,7 +151,7 @@ const AdminInvite: React.FC = () => {
         <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-left">
            <h4 className="text-[11px] font-black text-blue-700 uppercase tracking-widest mb-2"><i className="fas fa-info-circle mr-1"></i> How it works</h4>
            <p className="text-xs text-blue-600 leading-relaxed">
-             The user will receive an email with a secure link. When they click it, they will be logged in automatically, and their profile will be created with the details you entered above. They can set a password later.
+             The user will receive an email with a secure link. When they click it, their profile will be automatically created with the Name, Phone, and Role you provided here.
            </p>
         </div>
       </div>
