@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -10,7 +11,7 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { email, role, cluster } = req.body;
+  const { email, role, cluster, data: userData } = req.body;
 
   if (!email || !role) {
     return res.status(400).json({ error: 'Email and role are required' });
@@ -22,6 +23,8 @@ export default async function handler(req: any, res: any) {
         data: {
           role,
           cluster: cluster ?? null,
+          full_name: userData?.full_name,
+          phone: userData?.phone // Pass the phone number to metadata
         },
         redirectTo: process.env.NEXT_PUBLIC_SITE_URL,
       });
