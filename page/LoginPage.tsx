@@ -21,6 +21,10 @@ const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.CUSTOMER,
 ];
 
+// Fallback credentials to ensure profile creation works even if .env fails
+const FALLBACK_URL = 'https://xtgztxbbkduxfcaocjhh.supabase.co';
+const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0Z3p0eGJia2R1eGZjYW9jamhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0MjY3OTMsImV4cCI6MjA4NTAwMjc5M30._fYCizbbpv1mkyd2qNufDVLOFRc-wI5Yo6zKA3Mp4Og';
+
 interface LoginPageProps {
   onLoginSuccess: (identity: AgentIdentity) => void;
 }
@@ -138,19 +142,27 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (msg.includes('failed to fetch') || msg.includes('load failed') || msg.includes('network') || msg.includes('signal is aborted')) {
        return "Connection Interrupted: Please check your internet and try again.";
     }
+    if (msg.includes('timeout')) {
+       return "Request Timed Out: Please check your internet connection.";
+    }
     return e.message || "An unexpected error occurred.";
+  };
+
+  // TIMEOUT HELPER
+  const withTimeout = <T,>(promise: Promise<T>, ms: number = 15000): Promise<T> => {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Connection timed out. Please try again.")), ms))
+    ]);
   };
 
   /**
    * DIRECT REST API PROFILE CREATION
    */
   const createProfileViaRest = async (profileData: AgentIdentity, accessToken: string) => {
-     const supabaseUrl = getEnv('VITE_SUPABASE_URL');
-     const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY');
-
-     if (!supabaseUrl || !supabaseKey) {
-       throw new Error("Missing System Configuration (URL/Key)");
-     }
+     // Use fallbacks if getEnv fails
+     const supabaseUrl = getEnv('VITE_SUPABASE_URL') || FALLBACK_URL;
+     const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY') || FALLBACK_KEY;
 
      const url = `${supabaseUrl}/rest/v1/profiles`;
      
@@ -171,26 +183,37 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
      const cleanPayload = JSON.parse(JSON.stringify(dbPayload));
 
-     const response = await fetch(url, {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         'apikey': supabaseKey,
-         'Authorization': `Bearer ${accessToken}`,
-         'Prefer': 'resolution=merge-duplicates'
-       },
-       body: JSON.stringify(cleanPayload)
-     });
+     const controller = new AbortController();
+     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s Timeout
 
-     if (!response.ok) {
-       const errText = await response.text();
-       throw new Error(`DB Sync Failed: ${errText}`);
-     }
+     try {
+       const response = await fetch(url, {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'apikey': supabaseKey,
+           'Authorization': `Bearer ${accessToken}`,
+           'Prefer': 'resolution=merge-duplicates'
+         },
+         body: JSON.stringify(cleanPayload),
+         signal: controller.signal
+       });
 
-     // Success - Clear URL params and redirect
-     if (isMounted.current) {
-        window.history.replaceState({}, document.title, "/");
-        onLoginSuccess(profileData);
+       clearTimeout(timeoutId);
+
+       if (!response.ok) {
+         const errText = await response.text();
+         throw new Error(`DB Sync Failed: ${errText}`);
+       }
+
+       // Success - Clear URL params and redirect
+       if (isMounted.current) {
+          window.history.replaceState({}, document.title, "/");
+          onLoginSuccess(profileData);
+       }
+     } catch (err: any) {
+        clearTimeout(timeoutId);
+        throw err;
      }
   };
 
@@ -246,7 +269,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (!validatePin(passcode)) throw new Error("PIN must be 4 digits.");
         if (passcode !== confirmPasscode) throw new Error("PINs do not match.");
 
-       const { data: { session } } = await supabase.auth.getSession();
+       const { data: { session } } = await withTimeout(supabase.auth.getSession());
        
        if (session) {
           const { error } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
@@ -286,18 +309,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) throw new Error('Please select a cluster.');
 
           // 1. Sign Up
-          let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          let { data: signUpData, error: signUpError } = await withTimeout(supabase.auth.signUp({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
             options: {
               data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
             },
-          });
+          }));
 
           if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
              console.log("User exists, attempting login...");
-             // Fallthrough to Login logic logic below requires logic restructure, 
-             // but simpler to just try sign in immediately here for this specific case
+             // Fallthrough
           } else if (signUpError) {
              throw signUpError;
           }
@@ -307,17 +329,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           let accessToken = session?.access_token;
           
           if (!session) {
-             const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+             const { data: loginData, error: loginError } = await withTimeout(supabase.auth.signInWithPassword({
                 phone: formattedPhone,
                 password: getAuthPassword(passcode),
-             });
+             }));
              
              if (loginError) {
                  if (isMounted.current) {
                     setError("Registration successful. Please Login.");
                     setIsSignUp(false);
                  }
-                 return; // Finally block will handle setLoading(false)
+                 return; 
              }
              session = loginData.session;
              accessToken = loginData.session?.access_token;
@@ -346,10 +368,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         } else {
           // LOGIN FLOW
-          let { data, error } = await supabase.auth.signInWithPassword({
+          let { data, error } = await withTimeout(supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
-          });
+          }));
 
           if (error) throw new Error("Invalid PIN or Phone. If you are new, ask Admin for an invite.");
           
