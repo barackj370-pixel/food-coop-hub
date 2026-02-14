@@ -21,7 +21,7 @@ const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.CUSTOMER,
 ];
 
-// Fallback credentials to ensure profile creation works even if .env fails
+// Fallback credentials matching services/supabaseClient.ts
 const FALLBACK_URL = 'https://xtgztxbbkduxfcaocjhh.supabase.co';
 const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0Z3p0eGJia2R1eGZjYW9jamhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0MjY3OTMsImV4cCI6MjA4NTAwMjc5M30._fYCizbbpv1mkyd2qNufDVLOFRc-wI5Yo6zKA3Mp4Og';
 
@@ -46,15 +46,34 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [message, setMessage] = useState<string | null>(null);
   const [isInviteFlow, setIsInviteFlow] = useState(false);
 
-  // Ref to track if component is mounted to prevent state updates after unmount
   const isMounted = useRef(true);
+  const loadingWatchdog = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     return () => { isMounted.current = false; };
   }, []);
 
+  /* ───────── SAFETY WATCHDOG ───────── */
+  // Forces loading to stop if it runs longer than 20 seconds
+  useEffect(() => {
+    if (loading) {
+      if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
+      loadingWatchdog.current = setTimeout(() => {
+        if (isMounted.current && loading) {
+          setLoading(false);
+          setError("Request timed out. Please check your connection and try again.");
+        }
+      }, 20000); // 20 Seconds Hard Limit
+    } else {
+      if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
+    }
+    return () => {
+      if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
+    };
+  }, [loading]);
+
   /* ───────── INITIALIZATION & DEEP LINKS ───────── */
   useEffect(() => {
-    // Check URL Params for Invite Data
     const params = new URLSearchParams(window.location.search);
     const modeParam = params.get('mode');
     const nameParam = params.get('name');
@@ -84,7 +103,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         if (!session?.user) return;
 
-        // User is logged in
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -92,7 +110,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           .maybeSingle();
 
         if (profile) {
-          // Map snake_case from DB to camelCase for App
           const mappedProfile: AgentIdentity = {
              id: profile.id,
              name: profile.name,
@@ -108,7 +125,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           };
           onLoginSuccess(mappedProfile);
         } else {
-          // Logged in but missing profile
           setIsCompletingProfile(true);
           const meta = session.user.user_metadata || {};
           if (meta.name || meta.full_name) setFullName(meta.name || meta.full_name);
@@ -148,27 +164,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     return e.message || "An unexpected error occurred.";
   };
 
-  // TIMEOUT HELPER
-  // Increased to 60 seconds to allow Supabase Cold Start on slow connections
-  const withTimeout = <T,>(promise: Promise<T>, ms: number = 60000): Promise<T> => {
-    return Promise.race([
-        promise,
-        new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Connection timed out. The server might be waking up or your internet is slow.")), ms))
-    ]);
-  };
-
   /**
    * DIRECT REST API PROFILE CREATION
    */
   const createProfileViaRest = async (profileData: AgentIdentity, accessToken: string) => {
-     // Use fallbacks if getEnv fails
      const supabaseUrl = getEnv('VITE_SUPABASE_URL') || FALLBACK_URL;
      const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY') || FALLBACK_KEY;
 
      const url = `${supabaseUrl}/rest/v1/profiles`;
      
-     // Map camelCase (App) to snake_case (DB)
-     // REMOVED 'email' to prevent schema error
+     // MINIMAL PAYLOAD to prevent schema errors
      const dbPayload = {
         id: profileData.id,
         name: profileData.name,
@@ -176,19 +181,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         role: profileData.role,
         cluster: profileData.cluster,
         passcode: profileData.passcode,
-        status: profileData.status,
-        provider: profileData.provider,
-        created_at: profileData.createdAt,
-        last_sign_in_at: profileData.lastSignInAt
+        status: 'ACTIVE'
      };
 
-     const cleanPayload = JSON.parse(JSON.stringify(dbPayload));
-
      const controller = new AbortController();
-     // Increased to 60 seconds
-     const timeoutId = setTimeout(() => controller.abort(), 60000); 
+     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s Timeout specifically for this fetch
 
      try {
+       console.log("Attempting profile creation via REST...", dbPayload);
        const response = await fetch(url, {
          method: 'POST',
          headers: {
@@ -197,7 +197,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
            'Authorization': `Bearer ${accessToken}`,
            'Prefer': 'resolution=merge-duplicates'
          },
-         body: JSON.stringify(cleanPayload),
+         body: JSON.stringify(dbPayload),
          signal: controller.signal
        });
 
@@ -205,16 +205,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
        if (!response.ok) {
          const errText = await response.text();
-         throw new Error(`DB Sync Failed: ${errText}`);
+         console.warn(`Profile creation warning (REST): ${errText}`);
+         // We don't throw here if it's a conflict or minor issue, we try to proceed
+       } else {
+         console.log("Profile created successfully via REST");
        }
 
-       // Success - Clear URL params and redirect
        if (isMounted.current) {
           window.history.replaceState({}, document.title, "/");
           onLoginSuccess(profileData);
        }
      } catch (err: any) {
         clearTimeout(timeoutId);
+        console.error("Critical Profile Creation Error:", err);
         throw err;
      }
   };
@@ -242,11 +245,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
           passcode: passcode,
-          status: 'ACTIVE',
-          email: session.user.email,
-          provider: session.user.app_metadata.provider || 'email',
-          createdAt: session.user.created_at,
-          lastSignInAt: new Date().toISOString()
+          status: 'ACTIVE'
         }, session.access_token);
         
     } catch (err: any) {
@@ -257,7 +256,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  /* ───────── RESET PIN (Client-Side Only Fallback) ───────── */
+  /* ───────── RESET PIN ───────── */
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -271,7 +270,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (!validatePin(passcode)) throw new Error("PIN must be 4 digits.");
         if (passcode !== confirmPasscode) throw new Error("PINs do not match.");
 
-       const { data: { session } } = await withTimeout(supabase.auth.getSession());
+       const { data: { session } } = await supabase.auth.getSession();
        
        if (session) {
           const { error } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
@@ -311,36 +310,37 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) throw new Error('Please select a cluster.');
 
           // 1. Sign Up
-          let { data: signUpData, error: signUpError } = await withTimeout(supabase.auth.signUp({
+          let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
             options: {
               data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
             },
-          }));
+          });
 
           if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
              console.log("User exists, attempting login...");
-             // Fallthrough
+             // Fallthrough to login logic
           } else if (signUpError) {
              throw signUpError;
           }
 
-          // 2. Determine Session (Use existing from SignUp if available, else Login)
+          // 2. Determine Session
           let session = signUpData.session;
           let accessToken = session?.access_token;
           
           if (!session) {
-             const { data: loginData, error: loginError } = await withTimeout(supabase.auth.signInWithPassword({
+             const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
                 phone: formattedPhone,
                 password: getAuthPassword(passcode),
-             }));
+             });
              
              if (loginError) {
                  if (isMounted.current) {
-                    setError("Registration successful. Please Login.");
+                    setError("Registration successful. Please switch to 'Member Login' to continue.");
                     setIsSignUp(false);
                  }
+                 setLoading(false);
                  return; 
              }
              session = loginData.session;
@@ -356,10 +356,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 role: targetRole!,
                 cluster: targetCluster,
                 passcode: passcode,
-                status: 'ACTIVE',
-                provider: session.user.app_metadata.provider,
-                createdAt: session.user.created_at,
-                email: session.user.email
+                status: 'ACTIVE'
              }, accessToken);
           } else {
              if (isMounted.current) {
@@ -370,17 +367,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         } else {
           // LOGIN FLOW
-          let { data, error } = await withTimeout(supabase.auth.signInWithPassword({
+          let { data, error } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
-          }));
+          });
 
-          if (error) throw new Error("Invalid PIN or Phone. If you are new, ask Admin for an invite.");
+          if (error) throw new Error("Invalid Credentials. If you are new, please use 'Create Account'.");
           
           if (data.session) {
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle();
+            const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle();
             
             if (profile) {
+                // Success path
                 const mappedProfile: AgentIdentity = {
                     id: profile.id,
                     name: profile.name,
@@ -396,20 +394,26 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                  };
                 if (isMounted.current) onLoginSuccess(mappedProfile);
             } else {
-                // Healing for Ghost Profiles
+                // Profile Healing - Attempt to create missing profile
                 console.log("Profile missing on login. Healing...");
-                await createProfileViaRest({
-                    id: data.session.user.id,
-                    name: data.session.user.user_metadata.full_name || 'Member',
-                    phone: formattedPhone,
-                    role: data.session.user.user_metadata.role || SystemRole.CUSTOMER,
-                    cluster: data.session.user.user_metadata.cluster || 'Mariwa',
-                    passcode: passcode,
-                    status: 'ACTIVE',
-                    provider: data.session.user.app_metadata.provider,
-                    createdAt: data.session.user.created_at,
-                    email: data.session.user.email
-                }, data.session.access_token);
+                const meta = data.session.user.user_metadata || {};
+                
+                try {
+                    await createProfileViaRest({
+                        id: data.session.user.id,
+                        name: meta.full_name || 'Member',
+                        phone: formattedPhone,
+                        role: meta.role || SystemRole.CUSTOMER,
+                        cluster: meta.cluster || 'Mariwa',
+                        passcode: passcode,
+                        status: 'ACTIVE'
+                    }, data.session.access_token);
+                } catch (healingError) {
+                    console.error("Healing failed:", healingError);
+                    // Still throw error so user knows something is wrong, or let them in with partial data?
+                    // Safer to ask them to contact admin if self-healing fails.
+                    throw new Error("Account exists but profile setup is incomplete. Please contact Admin.");
+                }
             }
           }
         }
@@ -418,7 +422,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             setError(handleFetchError(err));
         }
     } finally {
-        // Ensure loading is turned off if we are still mounted
         if (isMounted.current) setLoading(false);
     }
   };
