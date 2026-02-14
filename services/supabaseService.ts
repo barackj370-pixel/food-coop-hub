@@ -152,6 +152,7 @@ export const deleteAllRecords = async (): Promise<boolean> => {
 export const saveUser = async (user: AgentIdentity): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
+    // Exclude 'email' as the column might be missing in older schemas
     const payload = {
       id: user.id,
       name: user.name,
@@ -160,7 +161,6 @@ export const saveUser = async (user: AgentIdentity): Promise<boolean> => {
       passcode: user.passcode,
       cluster: user.cluster,
       status: user.status,
-      email: user.email,
       last_sign_in_at: user.lastSignInAt,
       provider: user.provider,
       created_at: user.createdAt
