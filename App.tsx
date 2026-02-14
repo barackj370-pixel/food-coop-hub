@@ -18,6 +18,7 @@ import {
   fetchOrders, saveOrder, deleteAllOrders,
   fetchProduce, saveProduce, deleteProduce, deleteAllProduce
 } from './services/supabaseService';
+import { getEnv } from './services/env';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE';
 type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
@@ -362,32 +363,65 @@ const App: React.FC = () => {
   // Listen for Supabase Auth Changes
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        // SYNC: Update last_sign_in_at on profile
-        if (navigator.onLine) {
-           await supabase.from('profiles').update({
-              last_sign_in_at: new Date().toISOString(),
-              email: session.user.email, // Ensure email is fresh
-              provider: session.user.app_metadata?.provider
-           }).eq('id', session.user.id);
-        }
-
+      // HANDLE INVITES: If user is signed in (via magic link/invite) but has no profile, auto-create it.
+      if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
+        const meta = session.user.user_metadata || {};
+        
+        // 1. Check for existing profile
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('phone', session.user.user_metadata?.phone || session.user.phone)
+          .eq('id', session.user.id)
           .maybeSingle();
 
         if (profile) {
+          // Normal Login
           const identity = profile as AgentIdentity;
           setAgentIdentity(identity);
           persistence.set('agent_session', JSON.stringify(identity));
-          
           if (currentPortalRef.current === 'LOGIN') setCurrentPortal('HOME');
           
-          // Trigger sync on login using Ref
-          setTimeout(() => { if (syncPendingDataRef.current) syncPendingDataRef.current(); }, 1000);
+          if (navigator.onLine) {
+             await supabase.from('profiles').update({
+                last_sign_in_at: new Date().toISOString(),
+                email: session.user.email,
+             }).eq('id', session.user.id);
+          }
+        } else {
+          // 2. Profile Missing (Ghost/Invite) -> Create it if metadata exists
+          if (meta.full_name && meta.role) {
+             console.log("Auto-Creating Profile from Invite Metadata...");
+             // REST Call to bypass race conditions
+             const url = `${getEnv('VITE_SUPABASE_URL')}/rest/v1/profiles`;
+             await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': getEnv('VITE_SUPABASE_ANON_KEY'),
+                  'Authorization': `Bearer ${session.access_token}`,
+                  'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify({
+                    id: session.user.id,
+                    name: meta.full_name,
+                    phone: meta.phone || session.user.email,
+                    role: meta.role,
+                    cluster: meta.cluster || '-',
+                    passcode: '0000',
+                    status: 'ACTIVE',
+                    email: session.user.email,
+                    provider: 'email_invite',
+                    created_at: new Date().toISOString()
+                })
+             }).then(() => window.location.reload()); // Reload to fetch the new profile in next tick
+          } else {
+             // 3. Metadata missing? Send to Login Page to complete profile manually
+             setCurrentPortal('LOGIN');
+          }
         }
+
+        setTimeout(() => { if (syncPendingDataRef.current) syncPendingDataRef.current(); }, 1000);
+
       } else if (event === 'SIGNED_OUT') {
         setAgentIdentity(null);
         persistence.remove('agent_session');
