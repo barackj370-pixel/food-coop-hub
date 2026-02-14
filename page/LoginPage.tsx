@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
+import { getEnv } from '../services/env';
 
 /* ───────── CLUSTERS ───────── */
 const CLUSTERS = [
@@ -67,22 +68,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           // Logged in but missing profile (Ghost Account or Invite)
           // Attempt automatic self-healing if metadata exists
           const meta = session.user.user_metadata || {};
-          if (meta.phone && meta.full_name && meta.role) {
-             console.log("Detected Ghost Account. Attempting self-heal...");
-             await createProfileWithRetry({
+          
+          // Check if we have enough info to auto-create (Common for Email Invites)
+          if (meta.full_name && meta.role) {
+             console.log("Detected Invite/Ghost Account. Attempting self-heal...");
+             await createProfileViaRest({
                 id: session.user.id,
                 name: meta.full_name,
-                phone: meta.phone,
+                phone: meta.phone || session.user.phone || session.user.email || '',
                 role: meta.role,
                 cluster: meta.cluster || '-',
-                passcode: '0000', // Unknown, will need reset
+                passcode: '0000', // Default for email invites, they use password reset later
                 status: 'ACTIVE',
                 email: session.user.email,
                 provider: session.user.app_metadata.provider,
                 createdAt: session.user.created_at,
                 lastSignInAt: new Date().toISOString()
-             });
-             return; // createProfileWithRetry handles success callback
+             }, session.access_token);
+             return; 
           }
 
           setIsCompletingProfile(true);
@@ -122,44 +125,52 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     return e.message || "An unexpected error occurred.";
   };
 
-  // ROBUST PROFILE CREATOR
-  const createProfileWithRetry = async (profileData: AgentIdentity, retries = 2) => {
-    try {
-      // FIX: Removed `supabase.auth.refreshSession()` which causes race conditions/aborts after fresh login
-      
-      // Add stability delay to let auth headers settle
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const { error } = await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
-      
-      if (error) throw error;
-      
-      // Verification Fetch
-      const { data: verify, error: verifyError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', profileData.id)
-        .single();
+  /**
+   * DIRECT REST API PROFILE CREATION
+   * Bypasses the Supabase Client SDK to avoid "signal is aborted" errors 
+   * caused by client state transitions during auth.
+   */
+  const createProfileViaRest = async (profileData: AgentIdentity, accessToken: string) => {
+     const supabaseUrl = getEnv('VITE_SUPABASE_URL');
+     const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
-      if (verifyError || !verify) throw new Error("Verification failed: Profile not found after insert.");
+     if (!supabaseUrl || !supabaseKey) {
+       throw new Error("Missing System Configuration (URL/Key)");
+     }
 
-      // Success
-      window.history.replaceState({}, document.title, "/");
-      onLoginSuccess(profileData);
+     const url = `${supabaseUrl}/rest/v1/profiles`;
+     
+     // Remove undefined values to avoid JSON errors
+     const cleanPayload = JSON.parse(JSON.stringify(profileData));
 
-    } catch (err: any) {
-      console.error(`Profile Sync Attempt Failed (${retries} left):`, err);
-      
-      // Retry on network errors or aborts
-      if (retries > 0) {
-        setTimeout(() => createProfileWithRetry(profileData, retries - 1), 1000);
-      } else {
+     try {
+       const response = await fetch(url, {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'apikey': supabaseKey,
+           'Authorization': `Bearer ${accessToken}`,
+           'Prefer': 'resolution=merge-duplicates'
+         },
+         body: JSON.stringify(cleanPayload)
+       });
+
+       if (!response.ok) {
+         const errText = await response.text();
+         throw new Error(`DB Sync Failed: ${errText}`);
+       }
+
+       // Success - Redirect
+       window.history.replaceState({}, document.title, "/");
+       onLoginSuccess(profileData);
+
+     } catch (err: any) {
+        console.error("REST Profile Create Error:", err);
+        setError(`Account created, but profile failed: ${err.message}`);
+        // Do NOT stop loading here if called from a flow that handles it, 
+        // but since this is usually the final step:
         setLoading(false);
-        setError(`CRITICAL ERROR: Account created in Auth, but Profile sync failed. 
-                 Please contact Admin with this code: ${err.message || 'DB_SYNC_FAIL'}`);
-        // Do NOT call onLoginSuccess here. Force user to retry or contact support.
-      }
-    }
+     }
   };
 
   /* ───────── COMPLETE PROFILE ───────── */
@@ -173,24 +184,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (CLUSTER_ROLES.includes(role) && !cluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setError('Session expired. Please click invite link again.'); setLoading(false); return; }
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) { setError('Session expired. Please click invite link again.'); setLoading(false); return; }
 
         if (passcode) await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
 
-        await createProfileWithRetry({
-          id: user.id,
+        await createProfileViaRest({
+          id: session.user.id,
           name: fullName,
           phone: normalizeKenyanPhone(phone),
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
           passcode: passcode,
           status: 'ACTIVE',
-          email: user.email,
-          provider: user.app_metadata.provider || 'email',
-          createdAt: user.created_at,
+          email: session.user.email,
+          provider: session.user.app_metadata.provider || 'email',
+          createdAt: session.user.created_at,
           lastSignInAt: new Date().toISOString()
-        });
+        }, session.access_token);
     } catch (err: any) {
         setError(handleFetchError(err));
         setLoading(false);
@@ -268,21 +279,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           // Handle "Already Registered" by proceeding to Login logic
           if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
              console.log("User exists, attempting login & heal...");
-             // Proceed to Login block
+             // Proceed to Login block -> Falls through to next step
           } else if (signUpError) {
-             // Try Fallback API if SDK fails (e.g. Rate Limit)
-             try {
-               await fetch('/api/register', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ phone: formattedPhone, password: getAuthPassword(passcode), data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster } })
-               });
-             } catch (apiErr) {
-               throw signUpError; // Throw original error if fallback also fails
-             }
+             throw signUpError;
           }
 
           // 2. MANDATORY LOGIN to get Session for RLS
+          // We assume if signup succeeded or user existed, we can log in now
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
@@ -291,24 +294,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (loginError) {
              setError("Registration successful, but login failed. Please try logging in manually.");
              setIsSignUp(false);
-             setLoading(false);
              return;
           }
 
-          // 3. MANDATORY PROFILE CREATION (Self-Healing)
-          if (loginData.user) {
-             await createProfileWithRetry({
-                id: loginData.user.id,
+          // 3. MANDATORY PROFILE CREATION (Using Robust REST Fetch)
+          if (loginData.session) {
+             await createProfileViaRest({
+                id: loginData.session.user.id,
                 name: targetName,
                 phone: formattedPhone,
                 role: targetRole!,
                 cluster: targetCluster,
                 passcode: passcode,
                 status: 'ACTIVE',
-                provider: loginData.user.app_metadata.provider,
-                createdAt: loginData.user.created_at,
-                email: loginData.user.email
-             });
+                provider: loginData.session.user.app_metadata.provider,
+                createdAt: loginData.session.user.created_at,
+                email: loginData.session.user.email
+             }, loginData.session.access_token);
+             // createProfileViaRest calls onLoginSuccess, so we are done
           }
 
         } else {
@@ -320,36 +323,39 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
           if (error) {
             setError("Invalid PIN or Phone.");
-            setLoading(false);
             return;
           } 
           
-          if (data.user) {
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
+          if (data.session) {
+            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle();
             
             if (profile) {
                 onLoginSuccess(profile as AgentIdentity);
             } else {
                 // HEALING: User exists in Auth but not Profile
                 console.log("Profile missing on login. Healing...");
-                await createProfileWithRetry({
-                    id: data.user.id,
-                    name: data.user.user_metadata.full_name || 'Member',
+                await createProfileViaRest({
+                    id: data.session.user.id,
+                    name: data.session.user.user_metadata.full_name || 'Member',
                     phone: formattedPhone,
-                    role: data.user.user_metadata.role || SystemRole.CUSTOMER,
-                    cluster: data.user.user_metadata.cluster || 'Mariwa',
+                    role: data.session.user.user_metadata.role || SystemRole.CUSTOMER,
+                    cluster: data.session.user.user_metadata.cluster || 'Mariwa',
                     passcode: passcode,
                     status: 'ACTIVE',
-                    provider: data.user.app_metadata.provider,
-                    createdAt: data.user.created_at,
-                    email: data.user.email
-                });
+                    provider: data.session.user.app_metadata.provider,
+                    createdAt: data.session.user.created_at,
+                    email: data.session.user.email
+                }, data.session.access_token);
             }
           }
         }
     } catch (err: any) {
         setError(handleFetchError(err));
-        setLoading(false);
+        setLoading(false); // Only ensure loading stops on error
+    } finally {
+        // NOTE: We don't always set loading false here because createProfileViaRest might be redirecting
+        // But if there was an error caught above, loading is cleared.
+        // If success, we want the spinner to stay until the page flips.
     }
   };
 
