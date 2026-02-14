@@ -82,7 +82,21 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           .maybeSingle();
 
         if (profile) {
-          onLoginSuccess(profile as AgentIdentity);
+          // Map snake_case from DB to camelCase for App
+          const mappedProfile: AgentIdentity = {
+             id: profile.id,
+             name: profile.name,
+             phone: profile.phone,
+             role: profile.role,
+             passcode: profile.passcode,
+             cluster: profile.cluster,
+             status: profile.status,
+             email: profile.email,
+             lastSignInAt: profile.last_sign_in_at,
+             provider: profile.provider,
+             createdAt: profile.created_at
+          };
+          onLoginSuccess(mappedProfile);
         } else {
           // Logged in but missing profile
           setIsCompletingProfile(true);
@@ -133,7 +147,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
      }
 
      const url = `${supabaseUrl}/rest/v1/profiles`;
-     const cleanPayload = JSON.parse(JSON.stringify(profileData));
+     
+     // Map camelCase (App) to snake_case (DB)
+     const dbPayload = {
+        id: profileData.id,
+        name: profileData.name,
+        phone: profileData.phone,
+        role: profileData.role,
+        cluster: profileData.cluster,
+        passcode: profileData.passcode,
+        status: profileData.status,
+        email: profileData.email,
+        provider: profileData.provider,
+        created_at: profileData.createdAt,
+        last_sign_in_at: profileData.lastSignInAt
+     };
+
+     const cleanPayload = JSON.parse(JSON.stringify(dbPayload));
 
      try {
        const response = await fetch(url, {
@@ -210,11 +240,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (!validatePin(passcode)) { setError("PIN must be 4 digits."); setLoading(false); return; }
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
 
-    // NOTE: Real PIN reset usually requires SMS OTP. 
-    // Since we lack a backend SMS service, we will try standard Supabase Auth update if logged in, 
-    // or tell user to contact admin if not.
     try {
-       // Check if we have an active session to update password directly
        const { data: { session } } = await supabase.auth.getSession();
        
        if (session) {
@@ -223,8 +249,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           setMessage("PIN updated successfully.");
           setIsResetting(false);
        } else {
-          // If not logged in, we can't reset without backend/SMS.
-          // Fallback message:
           setError("For security, please contact your Cluster Admin to reset your PIN if you are locked out.");
        }
     } catch (err: any) {
@@ -254,13 +278,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-          // 1. Try Client SDK SignUp
-          // Using phone as email for Supabase Auth consistency if email is optional
-          // We append a fake domain to phone number to make it a valid email for Auth
-          // (Common strategy when Phone Auth isn't enabled or is expensive)
-          // OR if Phone Auth IS enabled, we use signInWithOtp (but that requires SMS).
-          // Assuming we want Password Auth:
-          
           let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
@@ -283,10 +300,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           });
 
           if (loginError) {
-             // If login fails after "success" signup, maybe it needs confirmation?
-             // But we are using phone+password.
-             // If Supabase is set to 'Confirm Email/Phone', this will fail.
-             // We assume 'Enable Secure Email' is OFF or 'Auto Confirm' is ON in Supabase for this flow.
              setError("Registration successful. Please Login.");
              setIsSignUp(false);
              return;
@@ -324,7 +337,20 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle();
             
             if (profile) {
-                onLoginSuccess(profile as AgentIdentity);
+                const mappedProfile: AgentIdentity = {
+                    id: profile.id,
+                    name: profile.name,
+                    phone: profile.phone,
+                    role: profile.role,
+                    passcode: profile.passcode,
+                    cluster: profile.cluster,
+                    status: profile.status,
+                    email: profile.email,
+                    lastSignInAt: profile.last_sign_in_at,
+                    provider: profile.provider,
+                    createdAt: profile.created_at
+                 };
+                onLoginSuccess(mappedProfile);
             } else {
                 // Healing for Ghost Profiles
                 console.log("Profile missing on login. Healing...");
