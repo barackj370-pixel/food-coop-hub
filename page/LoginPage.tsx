@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
@@ -202,8 +201,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       const contentType = response.headers.get("content-type");
       if (!response.ok || !contentType || !contentType.includes("application/json")) {
-         if (response.status === 404) throw new Error("USER_NOT_FOUND");
-         throw new Error("API_UNAVAILABLE");
+         // Fallback logic for client-side resets if API fails
+         if (response.status === 404 || response.status === 405 || !response.ok) throw new Error("API_UNAVAILABLE");
       }
 
       const result = await response.json();
@@ -220,10 +219,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         setError(result.error || "Reset failed.");
       }
     } catch (err: any) {
-      if (err.message === "USER_NOT_FOUND") {
-         setError("User not found. Please Register first.");
-      } else if (err.message === "API_UNAVAILABLE") {
-         setError("Reset service unavailable. Please try again later.");
+      if (err.message === "API_UNAVAILABLE") {
+         // Attempt Client-Side Recovery (Rarely works without admin key, but worth a try if user is logged in)
+         setError("Automatic reset unavailable. Please contact an admin to reset your PIN.");
       } else {
          setError(handleFetchError(err));
       }
@@ -263,9 +261,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-          // 1. Attempt Registration via Server API (Bypasses SMS)
-          let registrationSuccess = false;
-          let registrationError = '';
+          // 1. Attempt Registration via Server API (Preferred for Admin privileges)
+          let backendRegistrationFailed = false;
 
           try {
             const apiRes = await fetch('/api/register', {
@@ -278,21 +275,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               })
             });
 
-            const apiData = await apiRes.json();
-            if (apiRes.ok && apiData.success) {
-              registrationSuccess = true;
-            } else if (apiData.error && apiData.error.toLowerCase().includes('already registered')) {
-               // Fallthrough to login attempt
-               console.log("User exists (API), logging in...");
+            const contentType = apiRes.headers.get("content-type");
+            if (apiRes.ok && contentType && contentType.includes("application/json")) {
+                const apiData = await apiRes.json();
+                if (!apiData.success && !apiData.error?.includes('already registered')) {
+                   throw new Error(apiData.error || 'Registration failed');
+                }
             } else {
-               registrationError = apiData.error || 'Registration failed.';
-               throw new Error(registrationError);
+                // If API returns 404/405 or HTML (typical in SPA), force fallback
+                backendRegistrationFailed = true;
             }
           } catch (apiErr: any) {
-             // If API fails (e.g. 404 in local dev without functions), fall back to client SDK
-             console.warn("API Registration failed, trying client SDK:", apiErr);
-             
-             // Client SDK Backup (Note: Will fail if Twilio is broken)
+             console.warn("API Registration skipped/failed, using Client SDK:", apiErr);
+             backendRegistrationFailed = true;
+          }
+
+          // 2. Client SDK Fallback (If API unavailable)
+          if (backendRegistrationFailed) {
              const { data, error } = await supabase.auth.signUp({
                 phone: formattedPhone,
                 password: getAuthPassword(passcode),
@@ -302,80 +301,70 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
              });
 
              if (error) {
-               if (error.message.toLowerCase().includes('already registered')) {
-                 console.log("User exists (SDK), logging in...");
-               } else {
+               if (!error.message.toLowerCase().includes('already registered')) {
                  throw error;
                }
-             } else if (data.user) {
-               registrationSuccess = true;
-               // Ensure profile exists with metadata
-               await supabase.from('profiles').upsert({
-                  id: data.user.id,
-                  name: targetName,
-                  phone: formattedPhone,
-                  role: targetRole!,
-                  cluster: targetCluster,
-                  passcode: passcode,
-                  status: 'ACTIVE',
-                  provider: data.user.app_metadata.provider,
-                  createdAt: data.user.created_at,
-                  email: data.user.email
-               });
              }
           }
 
-          // 2. Auto Login after Registration
-          // This handles both "New Registration Success" and "User Already Exists" cases
-          const { data, error: loginError } = await supabase.auth.signInWithPassword({
+          // 3. MANDATORY LOGIN to Establish Session BEFORE Profile Creation
+          // This fixes the "Ghost Account" issue where profile creation fails due to missing RLS context
+          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
           });
 
           if (loginError) {
-             if (registrationSuccess) {
-                // Rare edge case: Registered but can't login immediately
-                setMessage('Account created! Please log in manually.');
-                setIsSignUp(false);
-                setLoading(false);
-                return;
-             }
-             setError("Registration failed or Account exists with different PIN. Use 'Forgot Pin'.");
-          } else if (data.user) {
-             // Success - Ensure Profile (Self-Heal)
-             const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-             if (profile) {
-                window.history.replaceState({}, document.title, "/");
-                onLoginSuccess(profile as AgentIdentity);
-             } else {
-                // Just in case profile creation failed during register
-                const recoveryProfile: AgentIdentity = {
-                    id: data.user.id,
+             setError("Registration successful, but auto-login failed. Please try logging in manually.");
+             setIsSignUp(false);
+             setLoading(false);
+             return;
+          }
+
+          // 4. Ensure Profile Exists (Self-Healing / Post-Registration)
+          // Now that we have a session, RLS will allow this insert
+          if (loginData.user) {
+             const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', loginData.user.id).maybeSingle();
+             
+             if (!existingProfile) {
+                const newProfile: AgentIdentity = {
+                    id: loginData.user.id,
                     name: targetName,
                     phone: formattedPhone,
                     role: targetRole!,
                     cluster: targetCluster,
                     passcode: passcode,
                     status: 'ACTIVE',
-                    provider: data.user.app_metadata.provider,
-                    createdAt: data.user.created_at,
-                    email: data.user.email
+                    provider: loginData.user.app_metadata.provider,
+                    createdAt: loginData.user.created_at,
+                    email: loginData.user.email
                 };
-                await supabase.from('profiles').upsert(recoveryProfile);
+                
+                const { error: profileError } = await supabase.from('profiles').upsert(newProfile);
+                
+                if (profileError) {
+                    console.error("Profile creation failed:", profileError);
+                    // Don't block login, but warn
+                }
+                
                 window.history.replaceState({}, document.title, "/");
-                onLoginSuccess(recoveryProfile);
+                onLoginSuccess(newProfile);
+             } else {
+                // Profile exists, load it
+                const { data: fullProfile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
+                window.history.replaceState({}, document.title, "/");
+                onLoginSuccess(fullProfile as AgentIdentity);
              }
           }
 
         } else {
-          // Login
+          // ─── LOGIN FLOW ───
           let { data, error } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
           });
 
           if (error) {
-            // Check specifically for connection errors
             if (error.message.includes('fetch')) throw error;
             setError("Invalid PIN or Phone. If you have an account, please use 'Forgot Pin'.");
           } else if (data.user) {
@@ -389,6 +378,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             if (profile) {
                 onLoginSuccess(profile as AgentIdentity);
             } else {
+                // Healing: User exists in Auth but missing in Profiles
                 console.log("Profile missing. Healing...");
                 const recoveryProfile: AgentIdentity = {
                     id: data.user.id,
