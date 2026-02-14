@@ -40,12 +40,31 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [isInviteFlow, setIsInviteFlow] = useState(false);
 
   /* ───────── INITIALIZATION & DEEP LINKS ───────── */
   useEffect(() => {
+    // Check URL Params for Invite Data
     const params = new URLSearchParams(window.location.search);
-    if (params.get('mode') === 'register') {
+    const modeParam = params.get('mode');
+    const nameParam = params.get('name');
+    const phoneParam = params.get('phone');
+    const roleParam = params.get('role');
+    const clusterParam = params.get('cluster');
+
+    if (modeParam === 'register') {
       setIsSignUp(true);
+      if (nameParam) {
+        setFullName(nameParam);
+        setIsInviteFlow(true);
+      }
+      if (phoneParam) setPhone(phoneParam);
+      if (roleParam) setRole(roleParam as SystemRole);
+      if (clusterParam) setCluster(clusterParam);
+      
+      if (nameParam) {
+        setMessage(`Welcome ${nameParam}! Please create a 4-digit PIN to secure your account.`);
+      }
     }
 
     const checkUser = async () => {
@@ -65,35 +84,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
           onLoginSuccess(profile as AgentIdentity);
         } else {
-          // Logged in but missing profile (Ghost Account or Invite)
-          // Attempt automatic self-healing if metadata exists
-          const meta = session.user.user_metadata || {};
-          
-          // Check if we have enough info to auto-create (Common for Email Invites)
-          if (meta.full_name && meta.role) {
-             console.log("Detected Invite/Ghost Account. Attempting self-heal...");
-             await createProfileViaRest({
-                id: session.user.id,
-                name: meta.full_name,
-                phone: meta.phone || session.user.phone || session.user.email || '',
-                role: meta.role,
-                cluster: meta.cluster || '-',
-                passcode: '0000', // Default for email invites, they use password reset later
-                status: 'ACTIVE',
-                email: session.user.email,
-                provider: session.user.app_metadata.provider,
-                createdAt: session.user.created_at,
-                lastSignInAt: new Date().toISOString()
-             }, session.access_token);
-             return; 
-          }
-
+          // Logged in but missing profile
           setIsCompletingProfile(true);
+          const meta = session.user.user_metadata || {};
           if (meta.name || meta.full_name) setFullName(meta.name || meta.full_name);
           if (meta.phone) setPhone(meta.phone);
-          if (meta.role) setRole(meta.role as SystemRole);
-          if (meta.cluster) setCluster(meta.cluster);
-          setMessage("Welcome! Please complete your profile setup.");
+          setMessage("Welcome back! Please complete your profile setup.");
         }
       } catch (err) {
         console.error("Session Check Failed:", err);
@@ -127,8 +123,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   /**
    * DIRECT REST API PROFILE CREATION
-   * Bypasses the Supabase Client SDK to avoid "signal is aborted" errors 
-   * caused by client state transitions during auth.
    */
   const createProfileViaRest = async (profileData: AgentIdentity, accessToken: string) => {
      const supabaseUrl = getEnv('VITE_SUPABASE_URL');
@@ -139,8 +133,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
      }
 
      const url = `${supabaseUrl}/rest/v1/profiles`;
-     
-     // Remove undefined values to avoid JSON errors
      const cleanPayload = JSON.parse(JSON.stringify(profileData));
 
      try {
@@ -160,15 +152,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
          throw new Error(`DB Sync Failed: ${errText}`);
        }
 
-       // Success - Redirect
+       // Success - Clear URL params and redirect
        window.history.replaceState({}, document.title, "/");
        onLoginSuccess(profileData);
 
      } catch (err: any) {
         console.error("REST Profile Create Error:", err);
         setError(`Account created, but profile failed: ${err.message}`);
-        // Do NOT stop loading here if called from a flow that handles it, 
-        // but since this is usually the final step:
         setLoading(false);
      }
   };
@@ -185,7 +175,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) { setError('Session expired. Please click invite link again.'); setLoading(false); return; }
+        if (!session?.user) { setError('Session expired. Please reload.'); setLoading(false); return; }
 
         if (passcode) await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
 
@@ -208,7 +198,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  /* ───────── RESET PIN ───────── */
+  /* ───────── RESET PIN (Client-Side Only Fallback) ───────── */
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -220,28 +210,25 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (!validatePin(passcode)) { setError("PIN must be 4 digits."); setLoading(false); return; }
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
 
+    // NOTE: Real PIN reset usually requires SMS OTP. 
+    // Since we lack a backend SMS service, we will try standard Supabase Auth update if logged in, 
+    // or tell user to contact admin if not.
     try {
-      const response = await fetch('/api/reset-pin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formattedPhone, pin: passcode }),
-      });
-
-      if (!response.ok) throw new Error("Reset API unavailable.");
-      const result = await response.json();
-      
-      if (result.success) {
-        const { data } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password: getAuthPassword(passcode) });
-        if (data.user) {
-           const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-           if (profile) onLoginSuccess(profile as AgentIdentity);
-           else window.location.reload(); 
-        }
-      } else {
-        setError(result.error || "Reset failed.");
-      }
+       // Check if we have an active session to update password directly
+       const { data: { session } } = await supabase.auth.getSession();
+       
+       if (session) {
+          const { error } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
+          if (error) throw error;
+          setMessage("PIN updated successfully.");
+          setIsResetting(false);
+       } else {
+          // If not logged in, we can't reset without backend/SMS.
+          // Fallback message:
+          setError("For security, please contact your Cluster Admin to reset your PIN if you are locked out.");
+       }
     } catch (err: any) {
-      setError("Automatic reset failed. Contact Admin.");
+      setError(err.message || "Reset failed.");
     } finally {
       setLoading(false);
     }
@@ -267,7 +254,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-          // 1. Try Client SDK SignUp first (most reliable for direct connection)
+          // 1. Try Client SDK SignUp
+          // Using phone as email for Supabase Auth consistency if email is optional
+          // We append a fake domain to phone number to make it a valid email for Auth
+          // (Common strategy when Phone Auth isn't enabled or is expensive)
+          // OR if Phone Auth IS enabled, we use signInWithOtp (but that requires SMS).
+          // Assuming we want Password Auth:
+          
           let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
@@ -276,28 +269,30 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             },
           });
 
-          // Handle "Already Registered" by proceeding to Login logic
           if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
-             console.log("User exists, attempting login & heal...");
-             // Proceed to Login block -> Falls through to next step
+             console.log("User exists, attempting login...");
+             // Proceed to Login
           } else if (signUpError) {
              throw signUpError;
           }
 
-          // 2. MANDATORY LOGIN to get Session for RLS
-          // We assume if signup succeeded or user existed, we can log in now
+          // 2. Login immediately to get session
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
           });
 
           if (loginError) {
-             setError("Registration successful, but login failed. Please try logging in manually.");
+             // If login fails after "success" signup, maybe it needs confirmation?
+             // But we are using phone+password.
+             // If Supabase is set to 'Confirm Email/Phone', this will fail.
+             // We assume 'Enable Secure Email' is OFF or 'Auto Confirm' is ON in Supabase for this flow.
+             setError("Registration successful. Please Login.");
              setIsSignUp(false);
              return;
           }
 
-          // 3. MANDATORY PROFILE CREATION (Using Robust REST Fetch)
+          // 3. Create Profile
           if (loginData.session) {
              await createProfileViaRest({
                 id: loginData.session.user.id,
@@ -311,7 +306,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 createdAt: loginData.session.user.created_at,
                 email: loginData.session.user.email
              }, loginData.session.access_token);
-             // createProfileViaRest calls onLoginSuccess, so we are done
           }
 
         } else {
@@ -322,7 +316,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           });
 
           if (error) {
-            setError("Invalid PIN or Phone.");
+            setError("Invalid PIN or Phone. If you are new, ask Admin for an invite.");
             return;
           } 
           
@@ -332,7 +326,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             if (profile) {
                 onLoginSuccess(profile as AgentIdentity);
             } else {
-                // HEALING: User exists in Auth but not Profile
+                // Healing for Ghost Profiles
                 console.log("Profile missing on login. Healing...");
                 await createProfileViaRest({
                     id: data.session.user.id,
@@ -351,11 +345,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         }
     } catch (err: any) {
         setError(handleFetchError(err));
-        setLoading(false); // Only ensure loading stops on error
-    } finally {
-        // NOTE: We don't always set loading false here because createProfileViaRest might be redirecting
-        // But if there was an error caught above, loading is cleared.
-        // If success, we want the spinner to stay until the page flips.
+        setLoading(false); 
     }
   };
 
@@ -374,7 +364,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       <div className="w-full max-w-[400px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 relative overflow-hidden">
         <div className="flex justify-between items-end mb-2 relative z-10">
           <h2 className="text-2xl font-black text-black uppercase tracking-tight">{renderTitle()}</h2>
-          {!isCompletingProfile && (
+          {!isCompletingProfile && !isInviteFlow && (
             <button type="button" onClick={handleToggleMode} className="text-[10px] font-black uppercase text-red-600 hover:text-red-700 transition-colors">
               {isResetting ? 'Back to Login' : (isSignUp ? 'Back to Login' : 'Create Account')}
             </button>
@@ -386,13 +376,29 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           {!isResetting && (isSignUp || isCompletingProfile) && (
             <div className="space-y-1">
                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name</label>
-                 <input required type="text" placeholder="Enter full name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all" />
+                 <input 
+                   required 
+                   type="text" 
+                   placeholder="Enter full name" 
+                   value={fullName} 
+                   onChange={(e) => setFullName(e.target.value)} 
+                   className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isInviteFlow ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
+                   readOnly={isInviteFlow}
+                 />
             </div>
           )}
 
           <div className="space-y-1">
              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Phone Number</label>
-             <input required type="tel" placeholder="07... or +254..." value={phone} onChange={(e) => setPhone(e.target.value)} className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isCompletingProfile ? 'bg-slate-100' : 'bg-slate-50 focus:bg-white focus:border-green-400'}`} readOnly={isCompletingProfile} />
+             <input 
+                required 
+                type="tel" 
+                placeholder="07... or +254..." 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isCompletingProfile || isInviteFlow ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white focus:border-green-400'}`} 
+                readOnly={isCompletingProfile || isInviteFlow} 
+             />
           </div>
 
           <div className="space-y-1">
@@ -411,18 +417,26 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <>
               <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">System Role</label>
-                  <select required value={role ?? ''} onChange={(e) => setRole(e.target.value as SystemRole)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
-                    <option value="" disabled>Select Role</option>
-                    {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  {isInviteFlow ? (
+                    <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-500">{role}</div>
+                  ) : (
+                    <select required value={role ?? ''} onChange={(e) => setRole(e.target.value as SystemRole)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
+                      <option value="" disabled>Select Role</option>
+                      {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  )}
               </div>
               {role && CLUSTER_ROLES.includes(role) && (
                 <div className="space-y-1 animate-in slide-in-from-top-2 duration-300">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Cluster</label>
-                    <select required value={cluster} onChange={(e) => setCluster(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
-                      <option value="" disabled>Select Cluster</option>
-                      {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    {isInviteFlow ? (
+                        <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-500">{cluster}</div>
+                    ) : (
+                        <select required value={cluster} onChange={(e) => setCluster(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
+                        <option value="" disabled>Select Cluster</option>
+                        {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    )}
                 </div>
               )}
             </>
