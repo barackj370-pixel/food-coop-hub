@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types';
 import SaleForm from './components/SaleForm';
@@ -351,6 +350,14 @@ const App: React.FC = () => {
     }
   }, [records, produceListings, marketOrders]);
 
+  // Use refs to stabilize dependencies in Auth Listener to avoid re-subscription
+  // which can cause race conditions during logout
+  const syncPendingDataRef = useRef(syncPendingData);
+  const currentPortalRef = useRef(currentPortal);
+  
+  useEffect(() => { syncPendingDataRef.current = syncPendingData; }, [syncPendingData]);
+  useEffect(() => { currentPortalRef.current = currentPortal; }, [currentPortal]);
+
   // Listen for Supabase Auth Changes
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -374,10 +381,11 @@ const App: React.FC = () => {
           const identity = profile as AgentIdentity;
           setAgentIdentity(identity);
           persistence.set('agent_session', JSON.stringify(identity));
-          if (currentPortal === 'LOGIN') setCurrentPortal('HOME');
           
-          // Trigger sync on login
-          setTimeout(syncPendingData, 1000);
+          if (currentPortalRef.current === 'LOGIN') setCurrentPortal('HOME');
+          
+          // Trigger sync on login using Ref
+          setTimeout(() => { if (syncPendingDataRef.current) syncPendingDataRef.current(); }, 1000);
         }
       } else if (event === 'SIGNED_OUT') {
         setAgentIdentity(null);
@@ -390,7 +398,7 @@ const App: React.FC = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [currentPortal, syncPendingData]);
+  }, []); // Empty dependency array ensures stable listener
 
   const handleLoginSuccess = (identity: AgentIdentity) => {
     setAgentIdentity(identity);
@@ -923,11 +931,19 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // 1. Immediate UI Cleanup (Optimistic Logout)
     setAgentIdentity(null);
     persistence.remove('agent_session');
     setCurrentPortal('HOME');
     hasSyncedLegacyData.current = false;
+    
+    // 2. Perform Supabase Cleanup
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) console.warn("Logout warning:", error.message);
+    } catch (e) {
+      console.error("Logout critical error:", e);
+    }
   };
 
   const handleGenerateReport = async () => {
@@ -1132,7 +1148,13 @@ const App: React.FC = () => {
                        {isSyncing ? 'Syncing...' : (!isOnline ? 'Queued' : (lastSyncTime?.toLocaleTimeString() || 'Connected'))}
                      </p>
                    </div>
-                   <button onClick={handleLogout} className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100"><i className="fas fa-power-off text-sm"></i></button>
+                   <button 
+                     type="button" 
+                     onClick={handleLogout} 
+                     className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100 cursor-pointer"
+                   >
+                     <i className="fas fa-power-off text-sm"></i>
+                   </button>
               </div>
             ) : (
               <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center gap-3">
@@ -1257,7 +1279,7 @@ const App: React.FC = () => {
                     <div className="mt-8 pt-6 border-t border-slate-50 flex justify-between items-center">
                        <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                             <i className="fas fa-user"></i>
+                             <i className="fas fa-user-circle text-2xl"></i>
                           </div>
                           <div>
                             <p className="text-[9px] font-black uppercase text-black">{article.author}</p>
