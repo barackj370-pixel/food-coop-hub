@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
@@ -42,7 +41,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   /* ───────── INITIALIZATION & DEEP LINKS ───────── */
   useEffect(() => {
-    // Check for "mode=register" in URL
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'register') {
       setIsSignUp(true);
@@ -51,14 +49,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const checkUser = async () => {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.warn("Session check warning:", sessionError.message);
-        }
+        if (sessionError) console.warn("Session check warning:", sessionError.message);
 
         if (!session?.user) return;
 
-        // User is logged in (e.g. from Email Link)
+        // User is logged in
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -68,27 +63,33 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         if (profile) {
           onLoginSuccess(profile as AgentIdentity);
         } else {
-          // Logged in but no profile (Email Invite Clicked)
-          const { data: phoneProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('phone', session.user.user_metadata?.phone || session.user.phone)
-            .maybeSingle();
-            
-          if (phoneProfile) {
-             onLoginSuccess(phoneProfile as AgentIdentity);
-             return;
+          // Logged in but missing profile (Ghost Account or Invite)
+          // Attempt automatic self-healing if metadata exists
+          const meta = session.user.user_metadata || {};
+          if (meta.phone && meta.full_name && meta.role) {
+             console.log("Detected Ghost Account. Attempting self-heal...");
+             await createProfileWithRetry({
+                id: session.user.id,
+                name: meta.full_name,
+                phone: meta.phone,
+                role: meta.role,
+                cluster: meta.cluster || '-',
+                passcode: '0000', // Unknown, will need reset
+                status: 'ACTIVE',
+                email: session.user.email,
+                provider: session.user.app_metadata.provider,
+                createdAt: session.user.created_at,
+                lastSignInAt: new Date().toISOString()
+             });
+             return; // createProfileWithRetry handles success callback
           }
 
           setIsCompletingProfile(true);
-          const meta = session.user.user_metadata || {};
-          
           if (meta.name || meta.full_name) setFullName(meta.name || meta.full_name);
           if (meta.phone) setPhone(meta.phone);
           if (meta.role) setRole(meta.role as SystemRole);
           if (meta.cluster) setCluster(meta.cluster);
-          
-          setMessage("Welcome! Please set your 4-digit PIN to activate your account.");
+          setMessage("Welcome! Please complete your profile setup.");
         }
       } catch (err) {
         console.error("Session Check Failed:", err);
@@ -101,30 +102,62 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   /* ───────── HELPERS ───────── */
   const validatePin = (pin: string) => /^\d{4}$/.test(pin);
   
-  // Robust Kenyan Phone Normalizer (E.164 Format)
   const normalizeKenyanPhone = (input: string) => {
     let cleaned = input.replace(/[^\d+]/g, '');
-    
     if (cleaned.startsWith('+254')) return cleaned;
     if (cleaned.startsWith('254')) return '+' + cleaned;
     if (cleaned.startsWith('01') || cleaned.startsWith('07')) return '+254' + cleaned.substring(1);
     if (cleaned.startsWith('7') || cleaned.startsWith('1')) return '+254' + cleaned;
-    
     return cleaned.length >= 9 ? '+254' + cleaned : '+' + cleaned;
   };
   
-  // Pad 4-digit PIN to 6 chars for Supabase Auth requirements
   const getAuthPassword = (p: string) => p.length === 4 ? `${p}00` : p;
 
   const handleFetchError = (e: any) => {
     const msg = (e.message || e.toString()).toLowerCase();
     if (msg.includes('failed to fetch') || msg.includes('load failed') || msg.includes('network')) {
-       return "Connection Failed: Unable to reach database. Please check your internet connection and ensure the Project URL in .env is correct.";
+       return "Connection Failed: Unable to reach database. Please check internet.";
     }
     return e.message || "An unexpected error occurred.";
   };
 
-  /* ───────── COMPLETE PROFILE (FOR INVITED USERS) ───────── */
+  // ROBUST PROFILE CREATOR
+  const createProfileWithRetry = async (profileData: AgentIdentity, retries = 2) => {
+    try {
+      // Ensure we have a fresh session token for RLS
+      await supabase.auth.refreshSession();
+      
+      const { error } = await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
+      
+      if (error) throw error;
+      
+      // Verification Fetch
+      const { data: verify, error: verifyError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', profileData.id)
+        .single();
+
+      if (verifyError || !verify) throw new Error("Verification failed: Profile not found after insert.");
+
+      // Success
+      window.history.replaceState({}, document.title, "/");
+      onLoginSuccess(profileData);
+
+    } catch (err: any) {
+      console.error(`Profile Sync Attempt Failed (${retries} left):`, err);
+      if (retries > 0) {
+        setTimeout(() => createProfileWithRetry(profileData, retries - 1), 1000);
+      } else {
+        setLoading(false);
+        setError(`CRITICAL ERROR: Account created in Auth, but Profile sync failed. 
+                 Please contact Admin with this code: ${err.message || 'DB_SYNC_FAIL'}`);
+        // Do NOT call onLoginSuccess here. Force user to retry or contact support.
+      }
+    }
+  };
+
+  /* ───────── COMPLETE PROFILE ───────── */
   const handleCompleteProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -136,45 +169,30 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setError('Session expired. Please click the invite link again.'); setLoading(false); return; }
+        if (!user) { setError('Session expired. Please click invite link again.'); setLoading(false); return; }
 
-        // Update Auth Password to the new PIN (padded)
-        if (passcode) {
-          const { error: pwError } = await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
-          if (pwError) throw pwError;
-        }
+        if (passcode) await supabase.auth.updateUser({ password: getAuthPassword(passcode) });
 
-        // Create Profile Entry
-        const newUserProfile: AgentIdentity = {
+        await createProfileWithRetry({
           id: user.id,
           name: fullName,
           phone: normalizeKenyanPhone(phone),
           role: role,
           cluster: CLUSTER_ROLES.includes(role) ? cluster : '-',
-          passcode: passcode, // Store plain 4-digit PIN for reference
+          passcode: passcode,
           status: 'ACTIVE',
-          // Autofill extra metadata
           email: user.email,
           provider: user.app_metadata.provider || 'email',
           createdAt: user.created_at,
           lastSignInAt: new Date().toISOString()
-        };
-
-        const { error: dbError } = await supabase.from('profiles').upsert(newUserProfile, { onConflict: 'id' });
-
-        if (dbError) throw dbError;
-        
-        // Clear query params if any
-        window.history.replaceState({}, document.title, "/");
-        onLoginSuccess(newUserProfile);
+        });
     } catch (err: any) {
         setError(handleFetchError(err));
-    } finally {
         setLoading(false);
     }
   };
 
-  /* ───────── RESET PIN (SELF-HEALING) ───────── */
+  /* ───────── RESET PIN ───────── */
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -182,206 +200,134 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setMessage(null);
 
     const formattedPhone = normalizeKenyanPhone(phone);
-
-    if (!formattedPhone || formattedPhone.length < 10) { setError("Please enter a valid phone number."); setLoading(false); return; }
-    if (!validatePin(passcode)) { setError("New PIN must be exactly 4 digits."); setLoading(false); return; }
+    if (formattedPhone.length < 10) { setError("Invalid phone number."); setLoading(false); return; }
+    if (!validatePin(passcode)) { setError("PIN must be 4 digits."); setLoading(false); return; }
     if (passcode !== confirmPasscode) { setError("PINs do not match."); setLoading(false); return; }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); 
 
     try {
       const response = await fetch('/api/reset-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: formattedPhone, pin: passcode }),
-        signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-
-      const contentType = response.headers.get("content-type");
-      if (!response.ok || !contentType || !contentType.includes("application/json")) {
-         // Fallback logic for client-side resets if API fails
-         if (response.status === 404 || response.status === 405 || !response.ok) throw new Error("API_UNAVAILABLE");
-      }
-
+      if (!response.ok) throw new Error("Reset API unavailable.");
       const result = await response.json();
+      
       if (result.success) {
-        // Auto Login after reset
         const { data } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password: getAuthPassword(passcode) });
         if (data.user) {
            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
            if (profile) onLoginSuccess(profile as AgentIdentity);
-           else window.location.reload();
-           return;
+           else window.location.reload(); 
         }
       } else {
         setError(result.error || "Reset failed.");
       }
     } catch (err: any) {
-      if (err.message === "API_UNAVAILABLE") {
-         // Attempt Client-Side Recovery (Rarely works without admin key, but worth a try if user is logged in)
-         setError("Automatic reset unavailable. Please contact an admin to reset your PIN.");
-      } else {
-         setError(handleFetchError(err));
-      }
+      setError("Automatic reset failed. Contact Admin.");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ───────── STANDARD SIGN UP / LOGIN ───────── */
+  /* ───────── REGISTER / LOGIN ───────── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     const formattedPhone = normalizeKenyanPhone(phone);
-
-    // ─── DEVELOPER BOOTSTRAP LOGIC ───
     const isSystemDev = formattedPhone === '+254725717170';
     const targetName = isSystemDev ? 'Barack James' : fullName;
     const targetRole = isSystemDev ? SystemRole.SYSTEM_DEVELOPER : role;
     const targetCluster = isSystemDev ? '-' : cluster;
 
-    if (!formattedPhone || formattedPhone.length < 12) {
-      setError('Invalid Phone Number. Please check format (e.g., 0725...)');
-      setLoading(false);
-      return;
-    }
-
-    if (!validatePin(passcode)) {
-      setError('PIN must be exactly 4 digits.');
-      setLoading(false);
-      return;
-    }
+    if (formattedPhone.length < 12) { setError('Invalid Phone Format.'); setLoading(false); return; }
+    if (!validatePin(passcode)) { setError('PIN must be 4 digits.'); setLoading(false); return; }
 
     try {
         if (isSignUp) {
           if (!targetRole) { setError('Please select a role.'); setLoading(false); return; }
           if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) { setError('Please select a cluster.'); setLoading(false); return; }
 
-          // 1. Attempt Registration via Server API (Preferred for Admin privileges)
-          let backendRegistrationFailed = false;
+          // 1. Try Client SDK SignUp first (most reliable for direct connection)
+          let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            phone: formattedPhone,
+            password: getAuthPassword(passcode),
+            options: {
+              data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
+            },
+          });
 
-          try {
-            const apiRes = await fetch('/api/register', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                phone: formattedPhone,
-                password: getAuthPassword(passcode),
-                data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster }
-              })
-            });
-
-            const contentType = apiRes.headers.get("content-type");
-            if (apiRes.ok && contentType && contentType.includes("application/json")) {
-                const apiData = await apiRes.json();
-                if (!apiData.success && !apiData.error?.includes('already registered')) {
-                   throw new Error(apiData.error || 'Registration failed');
-                }
-            } else {
-                // If API returns 404/405 or HTML (typical in SPA), force fallback
-                backendRegistrationFailed = true;
-            }
-          } catch (apiErr: any) {
-             console.warn("API Registration skipped/failed, using Client SDK:", apiErr);
-             backendRegistrationFailed = true;
-          }
-
-          // 2. Client SDK Fallback (If API unavailable)
-          if (backendRegistrationFailed) {
-             const { data, error } = await supabase.auth.signUp({
-                phone: formattedPhone,
-                password: getAuthPassword(passcode),
-                options: {
-                  data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster },
-                },
-             });
-
-             if (error) {
-               if (!error.message.toLowerCase().includes('already registered')) {
-                 throw error;
-               }
+          // Handle "Already Registered" by proceeding to Login logic
+          if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
+             console.log("User exists, attempting login & heal...");
+             // Proceed to Login block
+          } else if (signUpError) {
+             // Try Fallback API if SDK fails (e.g. Rate Limit)
+             try {
+               await fetch('/api/register', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ phone: formattedPhone, password: getAuthPassword(passcode), data: { full_name: targetName, role: targetRole, phone: formattedPhone, cluster: targetCluster } })
+               });
+             } catch (apiErr) {
+               throw signUpError; // Throw original error if fallback also fails
              }
           }
 
-          // 3. MANDATORY LOGIN to Establish Session BEFORE Profile Creation
-          // This fixes the "Ghost Account" issue where profile creation fails due to missing RLS context
+          // 2. MANDATORY LOGIN to get Session for RLS
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
           });
 
           if (loginError) {
-             setError("Registration successful, but auto-login failed. Please try logging in manually.");
+             setError("Registration successful, but login failed. Please try logging in manually.");
              setIsSignUp(false);
              setLoading(false);
              return;
           }
 
-          // 4. Ensure Profile Exists (Self-Healing / Post-Registration)
-          // Now that we have a session, RLS will allow this insert
+          // 3. MANDATORY PROFILE CREATION (Self-Healing)
           if (loginData.user) {
-             const { data: existingProfile } = await supabase.from('profiles').select('id').eq('id', loginData.user.id).maybeSingle();
-             
-             if (!existingProfile) {
-                const newProfile: AgentIdentity = {
-                    id: loginData.user.id,
-                    name: targetName,
-                    phone: formattedPhone,
-                    role: targetRole!,
-                    cluster: targetCluster,
-                    passcode: passcode,
-                    status: 'ACTIVE',
-                    provider: loginData.user.app_metadata.provider,
-                    createdAt: loginData.user.created_at,
-                    email: loginData.user.email
-                };
-                
-                const { error: profileError } = await supabase.from('profiles').upsert(newProfile);
-                
-                if (profileError) {
-                    console.error("Profile creation failed:", profileError);
-                    // Don't block login, but warn
-                }
-                
-                window.history.replaceState({}, document.title, "/");
-                onLoginSuccess(newProfile);
-             } else {
-                // Profile exists, load it
-                const { data: fullProfile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
-                window.history.replaceState({}, document.title, "/");
-                onLoginSuccess(fullProfile as AgentIdentity);
-             }
+             await createProfileWithRetry({
+                id: loginData.user.id,
+                name: targetName,
+                phone: formattedPhone,
+                role: targetRole!,
+                cluster: targetCluster,
+                passcode: passcode,
+                status: 'ACTIVE',
+                provider: loginData.user.app_metadata.provider,
+                createdAt: loginData.user.created_at,
+                email: loginData.user.email
+             });
           }
 
         } else {
-          // ─── LOGIN FLOW ───
+          // LOGIN FLOW
           let { data, error } = await supabase.auth.signInWithPassword({
             phone: formattedPhone,
             password: getAuthPassword(passcode),
           });
 
           if (error) {
-            if (error.message.includes('fetch')) throw error;
-            setError("Invalid PIN or Phone. If you have an account, please use 'Forgot Pin'.");
-          } else if (data.user) {
-            // Check Profile
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.user.id)
-              .maybeSingle();
+            setError("Invalid PIN or Phone.");
+            setLoading(false);
+            return;
+          } 
+          
+          if (data.user) {
+            const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
             
             if (profile) {
                 onLoginSuccess(profile as AgentIdentity);
             } else {
-                // Healing: User exists in Auth but missing in Profiles
-                console.log("Profile missing. Healing...");
-                const recoveryProfile: AgentIdentity = {
+                // HEALING: User exists in Auth but not Profile
+                console.log("Profile missing on login. Healing...");
+                await createProfileWithRetry({
                     id: data.user.id,
                     name: data.user.user_metadata.full_name || 'Member',
                     phone: formattedPhone,
@@ -392,193 +338,98 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     provider: data.user.app_metadata.provider,
                     createdAt: data.user.created_at,
                     email: data.user.email
-                };
-                await supabase.from('profiles').upsert(recoveryProfile);
-                onLoginSuccess(recoveryProfile);
+                });
             }
           }
         }
     } catch (err: any) {
         setError(handleFetchError(err));
-    } finally {
         setLoading(false);
     }
   };
 
-  /* ───────── RENDER MODE ───────── */
-  const renderTitle = () => {
-    if (isResetting) return 'Set New PIN';
-    if (isCompletingProfile) return 'Complete Profile';
-    return isSignUp ? 'Create Account' : 'Member Login';
-  };
-
   const handleToggleMode = () => {
     if (isResetting) {
-      setIsResetting(false);
-      setError(null);
-      setPasscode('');
-      setConfirmPasscode('');
+      setIsResetting(false); setError(null); setPasscode(''); setConfirmPasscode('');
     } else {
-      setIsSignUp(!isSignUp);
-      setError(null);
-      setPasscode('');
+      setIsSignUp(!isSignUp); setError(null); setPasscode('');
     }
   };
+
+  const renderTitle = () => isResetting ? 'Set New PIN' : (isCompletingProfile ? 'Complete Profile' : (isSignUp ? 'Create Account' : 'Member Login'));
 
   return (
     <div className="flex flex-col items-center justify-center py-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="w-full max-w-[400px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 relative overflow-hidden">
         <div className="flex justify-between items-end mb-2 relative z-10">
-          <h2 className="text-2xl font-black text-black uppercase tracking-tight">
-            {renderTitle()}
-          </h2>
+          <h2 className="text-2xl font-black text-black uppercase tracking-tight">{renderTitle()}</h2>
           {!isCompletingProfile && (
-            <button 
-              type="button"
-              onClick={handleToggleMode} 
-              className="text-[10px] font-black uppercase text-red-600 hover:text-red-700 transition-colors"
-            >
+            <button type="button" onClick={handleToggleMode} className="text-[10px] font-black uppercase text-red-600 hover:text-red-700 transition-colors">
               {isResetting ? 'Back to Login' : (isSignUp ? 'Back to Login' : 'Create Account')}
             </button>
           )}
         </div>
 
-        <form onSubmit={
-            isResetting 
-              ? handleReset
-              : (isCompletingProfile ? handleCompleteProfile : handleSubmit)
-          } className="space-y-4 relative z-10"
-        >
+        <form onSubmit={isResetting ? handleReset : (isCompletingProfile ? handleCompleteProfile : handleSubmit)} className="space-y-4 relative z-10">
           
-          {/* Name Field */}
           {!isResetting && (isSignUp || isCompletingProfile) && (
             <div className="space-y-1">
                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name</label>
-                 <input
-                  required
-                  type="text"
-                  placeholder="Enter full name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all"
-                />
+                 <input required type="text" placeholder="Enter full name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all" />
             </div>
           )}
 
-          {/* Phone Field */}
           <div className="space-y-1">
              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Phone Number</label>
-             <input
-              required
-              type="tel"
-              placeholder="07... or +254..."
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isCompletingProfile ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
-              readOnly={isCompletingProfile} 
-            />
+             <input required type="tel" placeholder="07... or +254..." value={phone} onChange={(e) => setPhone(e.target.value)} className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isCompletingProfile ? 'bg-slate-100' : 'bg-slate-50 focus:bg-white focus:border-green-400'}`} readOnly={isCompletingProfile} />
           </div>
 
-          {/* Passcode Field */}
           <div className="space-y-1">
-             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">
-               {isResetting ? 'New 4-Digit Pin' : '4-Digit Pin'}
-             </label>
-             <input
-              required
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              pattern="\d{4}"
-              placeholder="****"
-              value={passcode}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                setPasscode(val);
-              }}
-              className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black text-center outline-none focus:bg-white focus:border-green-400 transition-all tracking-[0.5em]"
-            />
+             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">{isResetting ? 'New 4-Digit Pin' : '4-Digit Pin'}</label>
+             <input required type="password" inputMode="numeric" maxLength={4} pattern="\d{4}" placeholder="****" value={passcode} onChange={(e) => setPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black text-center outline-none focus:bg-white focus:border-green-400 transition-all tracking-[0.5em]" />
           </div>
 
-          {/* Confirm Passcode - Reset Mode */}
           {isResetting && (
             <div className="space-y-1">
                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Confirm Pin</label>
-               <input
-                required
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                pattern="\d{4}"
-                placeholder="****"
-                value={confirmPasscode}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
-                  setConfirmPasscode(val);
-                }}
-                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black text-center outline-none focus:bg-white focus:border-green-400 transition-all tracking-[0.5em]"
-              />
+               <input required type="password" inputMode="numeric" maxLength={4} pattern="\d{4}" placeholder="****" value={confirmPasscode} onChange={(e) => setConfirmPasscode(e.target.value.replace(/\D/g, '').slice(0, 4))} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black text-center outline-none focus:bg-white focus:border-green-400 transition-all tracking-[0.5em]" />
             </div>
           )}
 
-          {/* Role & Cluster */}
           {(!isResetting) && (isSignUp || isCompletingProfile) && (
             <>
               <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">System Role</label>
-                  <select
-                    required
-                    value={role ?? ''}
-                    onChange={(e) => setRole(e.target.value as SystemRole)}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none"
-                  >
+                  <select required value={role ?? ''} onChange={(e) => setRole(e.target.value as SystemRole)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
                     <option value="" disabled>Select Role</option>
-                    {Object.values(SystemRole).map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
+                    {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
               </div>
-
               {role && CLUSTER_ROLES.includes(role) && (
                 <div className="space-y-1 animate-in slide-in-from-top-2 duration-300">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Cluster</label>
-                    <select
-                      required
-                      value={cluster}
-                      onChange={(e) => setCluster(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none"
-                    >
+                    <select required value={cluster} onChange={(e) => setCluster(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
                       <option value="" disabled>Select Cluster</option>
-                      {CLUSTERS.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
+                      {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>
               )}
             </>
           )}
 
-          {error && <div className="p-4 bg-red-50 text-red-600 text-xs font-bold rounded-xl">{error}</div>}
+          {error && <div className="p-4 bg-red-50 text-red-600 text-xs font-bold rounded-xl whitespace-pre-line">{error}</div>}
           {message && <div className="p-4 bg-green-50 text-green-600 text-xs font-bold rounded-xl">{message}</div>}
 
           <button disabled={loading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
             {loading && <i className="fas fa-spinner fa-spin"></i>}
-            {isResetting 
-              ? 'Reset & Login' 
-              : (isCompletingProfile ? 'Save & Activate' : (isSignUp ? 'Register Account' : 'Authenticate'))
-            }
+            {isResetting ? 'Reset & Login' : (isCompletingProfile ? 'Save & Activate' : (isSignUp ? 'Register Account' : 'Authenticate'))}
           </button>
           
           {!isResetting && !isSignUp && !isCompletingProfile && (
-            <button 
-              type="button"
-              onClick={() => { setIsResetting(true); setError(null); setMessage(null); }}
-              className="w-full text-center text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-black transition-colors"
-            >
+            <button type="button" onClick={() => { setIsResetting(true); setError(null); setMessage(null); }} className="w-full text-center text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-black transition-colors">
               Forgot Pin?
             </button>
           )}
-
         </form>
       </div>
     </div>
