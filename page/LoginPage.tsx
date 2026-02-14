@@ -302,6 +302,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           if (loginError) {
              setError("Registration successful. Please Login.");
              setIsSignUp(false);
+             setLoading(false);
              return;
           }
 
@@ -319,6 +320,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 createdAt: loginData.session.user.created_at,
                 email: loginData.session.user.email
              }, loginData.session.access_token);
+          } else {
+             setError("Registration successful. Please Login.");
+             setIsSignUp(false);
+             setLoading(false);
           }
 
         } else {
@@ -330,6 +335,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
           if (error) {
             setError("Invalid PIN or Phone. If you are new, ask Admin for an invite.");
+            setLoading(false);
             return;
           } 
           
@@ -367,6 +373,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     email: data.session.user.email
                 }, data.session.access_token);
             }
+          } else {
+             // Login successful but no session? (Edge case)
+             setLoading(false);
           }
         }
     } catch (err: any) {
