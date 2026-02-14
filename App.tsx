@@ -363,12 +363,12 @@ const App: React.FC = () => {
   // Listen for Supabase Auth Changes
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // HANDLE INVITES: If user is signed in (via magic link/invite) but has no profile, auto-create it.
+      // HANDLE LOGIN / INVITE
       if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
         const meta = session.user.user_metadata || {};
         
-        // 1. Check for existing profile
-        const { data: profile } = await supabase
+        // 1. Check for existing profile locally first to be fast
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
@@ -388,12 +388,14 @@ const App: React.FC = () => {
              }).eq('id', session.user.id);
           }
         } else {
-          // 2. Profile Missing (Ghost/Invite) -> Create it if metadata exists
+          // 2. Profile Missing? It's likely an Invited User clicking the link.
+          // We MUST create the profile row now, or they won't show up in the Users Table.
           if (meta.full_name && meta.role) {
              console.log("Auto-Creating Profile from Invite Metadata...");
-             // REST Call to bypass race conditions
+             
+             // Use REST API to bypass any client-side race conditions
              const url = `${getEnv('VITE_SUPABASE_URL')}/rest/v1/profiles`;
-             await fetch(url, {
+             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -404,7 +406,7 @@ const App: React.FC = () => {
                 body: JSON.stringify({
                     id: session.user.id,
                     name: meta.full_name,
-                    phone: meta.phone || session.user.email,
+                    phone: meta.phone || session.user.phone || session.user.email, // Use phone from metadata if available
                     role: meta.role,
                     cluster: meta.cluster || '-',
                     passcode: '0000',
@@ -413,7 +415,26 @@ const App: React.FC = () => {
                     provider: 'email_invite',
                     created_at: new Date().toISOString()
                 })
-             }).then(() => window.location.reload()); // Reload to fetch the new profile in next tick
+             });
+
+             if (response.ok) {
+                // Profile Created. Now load it to log them in fully.
+                const { data: newProfile } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', session.user.id)
+                  .single();
+                
+                if (newProfile) {
+                   const identity = newProfile as AgentIdentity;
+                   setAgentIdentity(identity);
+                   persistence.set('agent_session', JSON.stringify(identity));
+                   if (currentPortalRef.current === 'LOGIN') setCurrentPortal('HOME');
+                }
+                
+                // FORCE REFRESH of users list so Admin sees the new user immediately
+                if (syncPendingDataRef.current) syncPendingDataRef.current();
+             }
           } else {
              // 3. Metadata missing? Send to Login Page to complete profile manually
              setCurrentPortal('LOGIN');
