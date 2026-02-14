@@ -1,62 +1,137 @@
 
 import React, { useState } from 'react';
+import { SystemRole } from '../types';
+import { CLUSTERS } from '../App';
+
+const CLUSTER_ROLES: SystemRole[] = [
+  SystemRole.SALES_AGENT,
+  SystemRole.SUPPLIER,
+  SystemRole.CUSTOMER,
+];
 
 const AdminInvite: React.FC = () => {
-  const [copied, setCopied] = useState(false);
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState<SystemRole>(SystemRole.SALES_AGENT);
+  const [cluster, setCluster] = useState(CLUSTERS[0]);
   
-  // Create a direct registration link
-  const inviteLink = typeof window !== 'undefined' 
-    ? `${window.location.protocol}//${window.location.host}/?mode=register`
-    : '';
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
 
-  const handleShareWhatsApp = () => {
-    const text = `Join the KPL Food Coop Market. Create your account securely here: ${inviteLink}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    try {
+      const response = await fetch('/api/invite-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          role,
+          cluster: CLUSTER_ROLES.includes(role) ? cluster : null,
+          data: { // Pass name in metadata for auto-profile creation
+             full_name: fullName
+          }
+        })
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) throw new Error(result.error || "Invite failed");
+      
+      setMessage({ type: 'success', text: `Invitation sent to ${email}` });
+      setEmail('');
+      setFullName('');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-col items-center justify-center py-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="w-full max-w-[500px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-12 space-y-8 relative overflow-hidden text-center">
+      <div className="w-full max-w-[500px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-12 space-y-8 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-400 to-black"></div>
         
-        <div>
+        <div className="text-center">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100 shadow-sm">
-             <i className="fas fa-user-plus text-3xl text-black"></i>
+             <i className="fas fa-paper-plane text-3xl text-black"></i>
           </div>
-          <h2 className="text-2xl font-black text-black uppercase tracking-tight mb-2">Invite New Members</h2>
-          <p className="text-sm text-slate-500 font-medium">Share the secure access link below with new Suppliers, Agents, or Customers.</p>
+          <h2 className="text-2xl font-black text-black uppercase tracking-tight mb-2">Send Official Invite</h2>
+          <p className="text-sm text-slate-500 font-medium">Send a secure magic link via email. The system will automatically create their profile when they click it.</p>
         </div>
 
-        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col gap-4">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Direct Registration Link</p>
-           <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3">
-              <code className="flex-1 text-left text-xs font-bold text-slate-700 truncate">{inviteLink}</code>
-              <button 
-                onClick={handleCopy}
-                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${copied ? 'bg-green-500 text-white' : 'bg-black text-white hover:bg-slate-800'}`}
-              >
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
+        <form onSubmit={handleInvite} className="space-y-4">
+           <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Recipient Email</label>
+              <input 
+                type="email" 
+                required 
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all"
+                placeholder="name@example.com"
+              />
            </div>
-           
+
+           <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name (For Profile)</label>
+              <input 
+                type="text" 
+                required 
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all"
+                placeholder="John Doe"
+              />
+           </div>
+
+           <div className="grid grid-cols-2 gap-4">
+             <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Role</label>
+                <select 
+                  value={role}
+                  onChange={e => setRole(e.target.value as SystemRole)}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-xs"
+                >
+                  {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+             </div>
+             <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Cluster</label>
+                <select 
+                  value={cluster}
+                  onChange={e => setCluster(e.target.value)}
+                  disabled={!CLUSTER_ROLES.includes(role)}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-xs disabled:opacity-50"
+                >
+                  {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+             </div>
+           </div>
+
+           {message && (
+             <div className={`p-4 rounded-xl text-xs font-bold ${message.type === 'success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+               {message.text}
+             </div>
+           )}
+
            <button 
-             onClick={handleShareWhatsApp}
-             className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-2 shadow-md active:scale-95"
+             disabled={loading}
+             className="w-full py-4 bg-black hover:bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95 mt-4"
            >
-             <i className="fab fa-whatsapp text-lg"></i> Share via WhatsApp
+             {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-envelope"></i>}
+             Send Invitation
            </button>
-        </div>
+        </form>
 
         <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 text-left">
-           <h4 className="text-[11px] font-black text-blue-700 uppercase tracking-widest mb-2"><i className="fas fa-info-circle mr-1"></i> Note</h4>
+           <h4 className="text-[11px] font-black text-blue-700 uppercase tracking-widest mb-2"><i className="fas fa-info-circle mr-1"></i> How it works</h4>
            <p className="text-xs text-blue-600 leading-relaxed">
-             New accounts will be set to <strong>Active</strong> by default. <span className="opacity-80">Administrator access is required to modify user permissions or suspend accounts later.</span>
+             The user will receive an email with a secure link. When they click it, they will be logged in automatically, and their profile will be created with the details you entered above. They can set a password later.
            </p>
         </div>
       </div>
