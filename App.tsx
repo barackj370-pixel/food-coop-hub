@@ -616,6 +616,10 @@ const App: React.FC = () => {
     return { clusterPerformance };
   }, [records]);
 
+  // Calculate Grand Totals for Board Portal
+  const grandTotalVolume = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [boardMetrics]);
+  const grandTotalCommission = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0), [boardMetrics]);
+
   const handleAddProduce = async (data: {
     date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string; images: string[];
   }) => {
@@ -1562,16 +1566,41 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'BOARD' && agentIdentity && (
-          <div className="space-y-12 animate-in fade-in duration-300">
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Grand Totals Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-xl relative overflow-hidden">
+                  <div className="relative z-10">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Grand Total Sales Volume</p>
+                     <p className="text-4xl font-black text-white">KSh {grandTotalVolume.toLocaleString()}</p>
+                     <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase">All 7 Clusters Combined</p>
+                  </div>
+                  <div className="absolute right-0 bottom-0 opacity-10 p-6">
+                     <i className="fas fa-chart-line text-8xl"></i>
+                  </div>
+               </div>
+               
+               <div className="bg-green-600 rounded-[2.5rem] p-10 text-white shadow-xl relative overflow-hidden">
+                  <div className="relative z-10">
+                     <p className="text-[10px] font-black text-green-200 uppercase tracking-[0.3em] mb-2">Grand Total Coop Commission</p>
+                     <p className="text-4xl font-black text-white">KSh {grandTotalCommission.toLocaleString()}</p>
+                     <p className="text-[10px] font-bold text-green-200 mt-2 uppercase">Total Revenue Generated (10% Share)</p>
+                  </div>
+                  <div className="absolute right-0 bottom-0 opacity-10 p-6">
+                     <i className="fas fa-hand-holding-dollar text-8xl"></i>
+                  </div>
+               </div>
+            </div>
+
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
-                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Coops Summary Report</h3>
+                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Cluster Performance Breakdown</h3>
                 {renderExportButtons(true)}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                    <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales (Ksh)</th><th className="pb-6">Gross Profit (Ksh)</th></tr>
+                    <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales Volume (Ksh)</th><th className="pb-6">Coop Commission (10%)</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {boardMetrics.clusterPerformance.map(([cluster, stats]) => (
