@@ -28,7 +28,7 @@ export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apu
 const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='none' stroke='%23000000' stroke-width='30' stroke-linecap='round' stroke-linejoin='round' d='M64 96h64l48 240h256l48-176H192'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='208' cy='432' r='16'/%3E%3Ccircle fill='%23dc2626' cx='384' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='384' cy='432' r='16'/%3E%3Cpath fill='%2316a34a' d='M256 128c0-50-40-90-90-90s-60 40-40 90c20 40 60 70 130 50z'/%3E%3Cpath fill='%2322c55e' d='M256 128c0-50 40-90 90-90s60 40 40 90c-20 40-60 70-130 50z'/%3E%3Ccircle fill='%23dc2626' cx='256' cy='224' r='48'/%3E%3Cpath fill='none' stroke='%23000000' stroke-width='8' stroke-linecap='round' d='M256 176v48'/%3E%3C/svg%3E";
 
 // Bumped version to trigger safe migration logic
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 
 const persistence = {
   get: (key: string): string | null => {
@@ -1124,12 +1124,16 @@ const App: React.FC = () => {
     // Convert to keys array to ensure safe iteration
     const clusters = Object.keys(groupedData);
 
+    const grandTotalVolume = useMemo(() => data.reduce((sum, r) => sum + Number(r.totalSale), 0), [data]);
+    const grandTotalCommission = useMemo(() => data.reduce((sum, r) => sum + Number(r.coopProfit), 0), [data]);
+
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
         {clusters.map((cluster) => {
           const records = groupedData[cluster];
           const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
+          const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
 
           return (
             <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
@@ -1139,7 +1143,7 @@ const App: React.FC = () => {
               </h4>
               <table className="w-full text-left">
                 <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                  <tr><th className="pb-6">Date</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Commission</th><th className="pb-6 text-right">Status</th></tr>
+                  <tr><th className="pb-6">Date</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Coop Commission (10%)</th><th className="pb-6 text-right">Status</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {records.map(r => (
@@ -1185,13 +1189,37 @@ const App: React.FC = () => {
               </table>
               <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-8">
                 <div className="text-right">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Volume</p>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Sales Volume</p>
                   <p className="text-sm font-black text-black">KSh {clusterTotalGross.toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Commission</p>
+                  <p className="text-sm font-black text-green-600">KSh {clusterTotalComm.toLocaleString()}</p>
                 </div>
               </div>
             </div>
           );
         })}
+
+        {/* Ledger Grand Totals */}
+        {data.length > 0 && (
+            <div className="bg-slate-900 rounded-[2rem] p-8 border border-black shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                    <h4 className="text-white text-lg font-black uppercase tracking-tight">Ledger Grand Totals</h4>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Aggregate across all clusters</p>
+                </div>
+                <div className="flex gap-8">
+                    <div className="text-right">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Sales Volume</p>
+                        <p className="text-2xl font-black text-white">KSh {grandTotalVolume.toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mb-1">Total Commission</p>
+                        <p className="text-2xl font-black text-green-500">KSh {grandTotalCommission.toLocaleString()}</p>
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
     );
   };
