@@ -243,7 +243,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Unit Type</label>
           <select 
             value={formData.unitType}
-            onChange={(e) => setFormData({...formData, unitType: e.target.value})}
+            onChange={(e) => setFormData(prev => ({...prev, unitType: e.target.value, unitPrice: 0}))}
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
           >
             {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
