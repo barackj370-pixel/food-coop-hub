@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants';
 import { ProduceListing } from '../types';
@@ -57,28 +56,33 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
     // Determine the current commodity type
     const currentCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
     
-    if (!currentCropType || formData.unitsSold <= 0) {
+    if (!currentCropType) {
       setIsAutoFilled(false);
       return;
     }
 
     // Search for matching suppliers in the SAME cluster
+    // Relaxed Logic: Find ANY supplier with stock, regardless of specific quantity requested vs available
+    // This handles Bulk (Crates) vs Retail (Pieces) mismatches gracefully
     const matches = produceListings.filter(p => 
       p.cluster === formData.cluster && 
       p.cropType === currentCropType &&
-      p.unitsAvailable >= formData.unitsSold &&
+      p.unitsAvailable > 0 && 
       p.status === 'AVAILABLE'
     );
 
     if (matches.length > 0) {
       // Pick the best (lowest) price
       const bestMatch = matches.sort((a, b) => a.sellingPrice - b.sellingPrice)[0];
+      
       setFormData(prev => ({
         ...prev,
         farmerName: bestMatch.supplierName,
         farmerPhone: bestMatch.supplierPhone,
-        unitPrice: bestMatch.sellingPrice,
-        unitType: bestMatch.unitType || prev.unitType
+        // Only auto-fill price if the Unit Types match perfectly. 
+        // Otherwise, leave it for manual entry (prevents Crate price appearing for a Piece sale)
+        unitPrice: (bestMatch.unitType === prev.unitType) ? bestMatch.sellingPrice : prev.unitPrice,
+        // Do NOT overwrite Unit Type. Agent chooses "Piece" even if Supplier listed "Crate".
       }));
       setIsAutoFilled(true);
     } else {
@@ -87,13 +91,12 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         ...prev,
         farmerName: 'Food Coop',
         farmerPhone: 'COOP-INTERNAL',
-        // Don't overwrite unitPrice here if the user is already typing it, 
-        // but if it was previously auto-filled, reset it.
+        // Reset price if we fell back to Coop, unless user is typing
         unitPrice: isAutoFilled ? 0 : prev.unitPrice
       }));
       setIsAutoFilled(false);
     }
-  }, [formData.cluster, formData.cropType, formData.otherCropType, formData.unitsSold, produceListings]);
+  }, [formData.cluster, formData.cropType, formData.otherCropType, formData.unitsSold, formData.unitType, produceListings]);
 
   // Handle manual field synchronization from initialData (e.g. when fulfilling an order)
   useEffect(() => {
@@ -293,17 +296,18 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         </div>
 
         <div className="space-y-1.5">
-          <label className={`text-[10px] font-black uppercase ml-2 tracking-widest ${isAutoFilled ? 'text-slate-400' : 'text-red-600'}`}>
-            Unit Price (KSh) {isAutoFilled ? '' : '- Enter Manual'}
+          <label className={`text-[10px] font-black uppercase ml-2 tracking-widest ${isAutoFilled ? 'text-green-600' : 'text-red-600'}`}>
+            Unit Price (KSh) {isAutoFilled ? '- Auto Suggested' : '- Manual'}
           </label>
           <input 
             type="number" 
             step="0.01"
             placeholder="0.00"
-            readOnly={isAutoFilled}
+            // ALWAYS EDITABLE to allow agent to override bulk pricing for retail sales
+            readOnly={false} 
             value={formData.unitPrice || ''}
             onChange={(e) => setFormData({...formData, unitPrice: parseFloat(e.target.value) || 0})}
-            className={`w-full border rounded-2xl text-[13px] font-bold p-4 outline-none transition-all ${isAutoFilled ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-red-50 border-red-200 text-black focus:bg-white focus:border-red-400'}`}
+            className={`w-full border rounded-2xl text-[13px] font-bold p-4 outline-none transition-all ${isAutoFilled ? 'bg-green-50 border-green-200 text-black focus:bg-white focus:border-green-400' : 'bg-red-50 border-red-200 text-black focus:bg-white focus:border-red-400'}`}
           />
         </div>
 
