@@ -141,8 +141,7 @@ create table if not exists public.orders (
   status text,
   agent_phone text,
   cluster text,
-  agent_id uuid references public.profiles(id),
-  target_price numeric
+  agent_id uuid references public.profiles(id)
 );
 
 alter table public.orders enable row level security;
