@@ -1,5 +1,3 @@
-
-
 export const COMMODITY_CATEGORIES = {
   'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Other'],
   'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano', 'Other'],
@@ -8,27 +6,27 @@ export const COMMODITY_CATEGORIES = {
 
 export const CROP_CONFIG = {
   // Farm Food Products
-  'Tomatoes': ['Crate', 'Box', 'Kg'],
-  'Onions': ['Bag', 'Kg'],
-  'Vegetables': ['Bundle', 'Kg'],
-  'Cassava': ['Bag', 'Kg'],
-  'Maize': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
-  'Millet': ['2kg Tin', '1kg Tin', 'Kg'],
+  'Tomatoes': ['Crate', 'Box', 'Kg', 'Bag', 'Piece', 'Bundle'],
+  'Onions': ['Bag', 'Kg', 'Piece', 'Bundle', 'Net', 'Sack'],
+  'Vegetables': ['Bundle', 'Kg', 'Bag', 'Sack', 'Piece'],
+  'Cassava': ['Bag', 'Kg', 'Piece', 'Heap'],
+  'Maize': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg', 'Cob'],
+  'Millet': ['2kg Tin', '1kg Tin', 'Kg', 'Bag/Sack'],
   'Beans': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
   // Food Products
-  'Sugar': ['Kg', 'Packet'],
+  'Sugar': ['Kg', 'Packet', 'Bag', 'Cup'],
   'Salt': ['Packet', 'Kg'],
-  'Cooking Oil': ['Litre', 'Bottle'],
-  'Milk': ['Litre', 'Packet'],
+  'Cooking Oil': ['Litre', 'Bottle', 'Jerrican'],
+  'Milk': ['Litre', 'Packet', 'Bottle', 'Cup'],
   'Bread': ['Loaf'],
-  'Ngano': ['Kg', 'Packet'],
+  'Ngano': ['Kg', 'Packet', 'Bale'],
   // Non-food Products
-  'Books': ['Piece'],
-  'Cloths': ['Piece'],
-  'Soap': ['Piece', 'Bar'],
-  'Farm tools': ['Piece'],
+  'Books': ['Piece', 'Box'],
+  'Cloths': ['Piece', 'Pair', 'Bundle'],
+  'Soap': ['Piece', 'Bar', 'Box'],
+  'Farm tools': ['Piece', 'Set'],
   // Default for Other
-  'Other': ['Units', 'Kg', 'Bag', 'Litre', 'Piece', 'Packet']
+  'Other': ['Units', 'Kg', 'Bag', 'Litre', 'Piece', 'Packet', 'Bundle', 'Box', 'Crate', 'Sack']
 } as const;
 
 export const CROP_TYPES = Object.keys(CROP_CONFIG);
