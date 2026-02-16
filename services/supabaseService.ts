@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost } from '../types';
 
@@ -234,8 +233,7 @@ const mapOrderToDb = (o: MarketOrder) => ({
   customer_phone: o.customerPhone,
   status: o.status,
   agent_phone: o.agentPhone,
-  cluster: o.cluster,
-  target_price: o.targetPrice // Added target_price
+  cluster: o.cluster
 });
 
 const mapDbToOrder = (db: any): MarketOrder => ({
@@ -248,8 +246,7 @@ const mapDbToOrder = (db: any): MarketOrder => ({
   customerPhone: db.customer_phone || db.customerPhone,
   status: db.status,
   agentPhone: db.agent_phone || db.agentPhone,
-  cluster: db.cluster,
-  targetPrice: db.target_price ? Number(db.target_price) : undefined // Added targetPrice
+  cluster: db.cluster
 });
 
 export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
@@ -261,16 +258,6 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
       (payload as any).agent_id = userId;
     }
     const { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
-    
-    // Auto-fix for schema mismatch (missing target_price column)
-    if (error && (error.code === 'PGRST204' || error.code === '42703') && error.message.includes('target_price')) {
-       console.warn("Schema mismatch: 'target_price' column missing. Saving without it.");
-       const { target_price, ...safePayload } = payload;
-       const { error: retryError } = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
-       if (retryError) throw retryError;
-       return true;
-    }
-
     if (error) throw error;
     return true;
   } catch (err: any) {
