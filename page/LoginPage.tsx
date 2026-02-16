@@ -1,8 +1,7 @@
-
 import React, { useEffect, useState, useRef } from 'react';
-import { supabase } from './services/supabaseClient';
-import { SystemRole, AgentIdentity } from './types';
-import { getEnv } from './services/env';
+import { supabase } from '../services/supabaseClient';
+import { SystemRole, AgentIdentity } from '../types';
+import { getEnv } from '../services/env';
 
 /* ───────── CLUSTERS ───────── */
 const CLUSTERS = [
@@ -47,23 +46,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [isInviteFlow, setIsInviteFlow] = useState(false);
 
   const isMounted = useRef(true);
-  const loadingWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingWatchdog = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => { isMounted.current = false; };
   }, []);
 
   /* ───────── SAFETY WATCHDOG ───────── */
-  // Forces loading to stop if it runs longer than 60 seconds (Extended for Cold Starts)
+  // Forces loading to stop if it runs longer than 20 seconds
   useEffect(() => {
     if (loading) {
       if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
       loadingWatchdog.current = setTimeout(() => {
         if (isMounted.current && loading) {
           setLoading(false);
-          setError("Request timed out. The server might be waking up (Cold Start). Please try again.");
+          setError("Request timed out. Please check your connection and try again.");
         }
-      }, 60000); // 60 Seconds Hard Limit
+      }, 20000); // 20 Seconds Hard Limit
     } else {
       if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
     }
