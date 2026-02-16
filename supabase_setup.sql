@@ -1,4 +1,3 @@
-
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
@@ -142,7 +141,8 @@ create table if not exists public.orders (
   status text,
   agent_phone text,
   cluster text,
-  agent_id uuid references public.profiles(id)
+  agent_id uuid references public.profiles(id),
+  target_price numeric
 );
 
 alter table public.orders enable row level security;
