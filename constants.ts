@@ -1,5 +1,5 @@
 export const COMMODITY_CATEGORIES = {
-  'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Other'],
+  'Farm Food Products': ['Tomatoes', 'Onions', 'Vegetables', 'Cassava', 'Maize', 'Millet', 'Beans', 'Bananas', 'Other'],
   'Food Products': ['Sugar', 'Salt', 'Cooking Oil', 'Milk', 'Bread', 'Ngano', 'Other'],
   'Non-food Products': ['Books', 'Cloths', 'Soap', 'Farm tools', 'Other']
 } as const;
@@ -13,6 +13,7 @@ export const CROP_CONFIG = {
   'Maize': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg', 'Cob'],
   'Millet': ['2kg Tin', '1kg Tin', 'Kg', 'Bag/Sack'],
   'Beans': ['2kg Tin', '1kg Tin', '1/2 kg Tin', 'Bag/Sack', 'Kg'],
+  'Bananas': ['Bunch', 'Piece', 'Kg', 'Crate', 'Sack'],
   // Food Products
   'Sugar': ['Kg', 'Packet', 'Bag', 'Cup'],
   'Salt': ['Packet', 'Kg'],
