@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AgentIdentity, ForumPost, SystemRole } from '../types';
 import { fetchForumPosts, saveForumPost, deleteForumPost } from '../services/supabaseService';
@@ -32,24 +31,43 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
     if (!newTitle.trim() || !newContent.trim()) return;
 
     setCreating(true);
-    const success = await saveForumPost({
-      title: newTitle,
-      content: newContent,
-      authorName: currentUser.name,
-      authorRole: currentUser.role,
-      authorCluster: currentUser.cluster,
-      authorPhone: currentUser.phone
-    });
 
-    if (success) {
-      setNewTitle('');
-      setNewContent('');
-      setShowForm(false);
-      await loadPosts();
-    } else {
-      alert("Failed to post message.");
+    try {
+      // 1. Timeout Protection: Force failure if network/Supabase hangs for >20s
+      const timeoutPromise = new Promise<boolean>((_, reject) => 
+        setTimeout(() => reject(new Error("Request timed out. Please check your connection.")), 20000)
+      );
+
+      // 2. The Actual Request
+      const requestPromise = saveForumPost({
+        title: newTitle,
+        content: newContent,
+        authorName: currentUser.name,
+        authorRole: currentUser.role,
+        authorCluster: currentUser.cluster,
+        authorPhone: currentUser.phone
+      });
+
+      // 3. Race
+      const success = await Promise.race([requestPromise, timeoutPromise]);
+
+      if (success) {
+        setNewTitle('');
+        setNewContent('');
+        setShowForm(false);
+        // Refresh feed
+        await loadPosts();
+      } else {
+        alert("Failed to publish message. The server rejected the request.");
+      }
+    } catch (err) {
+      console.error("Forum Post Error:", err);
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
+      alert(`Error publishing post: ${msg}`);
+    } finally {
+      // 4. Always reset loading state
+      setCreating(false);
     }
-    setCreating(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -64,7 +82,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
 
   const canDelete = (post: ForumPost) => {
     // Admins (Dev, Manager, Director) can delete anything
-    const isAdmin = [SystemRole.SYSTEM_DEVELOPER, SystemRole.MANAGER, SystemRole.MANAGER].includes(currentUser.role as SystemRole); // Director is usually MANAGER role key
+    const isAdmin = [SystemRole.SYSTEM_DEVELOPER, SystemRole.MANAGER, SystemRole.MANAGER].includes(currentUser.role as SystemRole); 
     // Users can delete their own
     const isAuthor = post.authorPhone === currentUser.phone;
     return isAdmin || isAuthor;
@@ -72,7 +90,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
 
   const getRoleBadgeColor = (role: string) => {
     if (role === SystemRole.SYSTEM_DEVELOPER) return 'bg-purple-100 text-purple-700 border-purple-200';
-    if (role === SystemRole.MANAGER) return 'bg-black text-white border-black'; // Director
+    if (role === SystemRole.MANAGER) return 'bg-black text-white border-black'; 
     if (role === SystemRole.FINANCE_OFFICER || role === SystemRole.AUDITOR) return 'bg-blue-100 text-blue-700 border-blue-200';
     return 'bg-slate-100 text-slate-600 border-slate-200';
   };
@@ -86,7 +104,8 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
         </div>
         <button 
           onClick={() => setShowForm(!showForm)}
-          className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${showForm ? 'bg-slate-100 text-slate-500' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
+          disabled={creating}
+          className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${showForm ? 'bg-slate-100 text-slate-500' : 'bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed'}`}
         >
           {showForm ? <><i className="fas fa-times"></i> Cancel</> : <><i className="fas fa-pen"></i> New Post</>}
         </button>
@@ -104,6 +123,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-lg"
                 placeholder="Brief summary of the announcement..."
                 required
+                disabled={creating}
               />
             </div>
             <div>
@@ -114,16 +134,17 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-medium text-slate-700 outline-none focus:bg-white focus:border-green-400 transition-all min-h-[150px] resize-none leading-relaxed"
                 placeholder="Type your message here..."
                 required
+                disabled={creating}
               />
             </div>
             <div className="flex justify-end pt-4 border-t border-slate-50">
               <button 
                 type="submit" 
                 disabled={creating}
-                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all flex items-center gap-2"
+                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-wait"
               >
                 {creating ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-paper-plane"></i>}
-                Publish to Forum
+                {creating ? 'Publishing...' : 'Publish to Forum'}
               </button>
             </div>
           </div>
