@@ -1418,12 +1418,17 @@ const App: React.FC = () => {
 
         {currentPortal === 'ABOUT' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-8">
-              <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></h2>
-              <div className="space-y-6 text-slate-600 font-medium leading-relaxed">
-                <p>
-                  KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
-                </p>
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-12">
+              <div className="space-y-8">
+                <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center leading-tight">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></h2>
+                <div className="space-y-6 text-slate-600 font-medium leading-relaxed text-center max-w-2xl mx-auto">
+                  <p>
+                    KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
+                  </p>
+                  <p>
+                    We provide a unified platform where sales agents, suppliers, and consumers interact seamlessly, ensuring fresh produce reaches the market efficiently while maximizing returns for our farmers.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1431,12 +1436,13 @@ const App: React.FC = () => {
 
         {currentPortal === 'CONTACT' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto flex flex-col md:flex-row gap-12">
-              <div className="flex-1 space-y-8">
-                <h2 className="text-3xl font-black uppercase tracking-tight text-black">Get in Touch</h2>
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-red-600 border border-slate-100"><i className="fas fa-envelope"></i></div>
+            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-12">
+              
+              <div className="space-y-8">
+                <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center">Get in Touch</h2>
+                <div className="flex flex-col md:flex-row justify-center gap-8">
+                   <div className="flex items-center gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-red-600 border border-slate-100 shadow-sm"><i className="fas fa-envelope"></i></div>
                     <div>
                       <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Email Support</p>
                       <p className="text-sm font-black text-black">info@kplfoodcoopmarket.co.ke</p>
@@ -1444,6 +1450,60 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Contact Form - Moved Here */}
+              <div className="bg-slate-50 rounded-[2.5rem] p-8 md:p-12 border border-slate-100 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                    <i className="fas fa-envelope-open-text text-9xl text-slate-300"></i>
+                 </div>
+                 <div className="text-center mb-8 relative z-10">
+                    <h3 className="text-2xl font-black text-black uppercase tracking-tight">Contact The Team</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Partnerships • Support • Inquiries</p>
+                 </div>
+                 
+                 <form className="max-w-lg mx-auto space-y-5 relative z-10" onSubmit={(e) => {
+                    e.preventDefault();
+                    // Mock submission
+                    const form = e.currentTarget;
+                    const btn = form.querySelector('button');
+                    if(btn) {
+                        const originalText = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-check"></i> Sent Successfully';
+                        btn.classList.remove('bg-black', 'hover:bg-slate-800');
+                        btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                        setTimeout(() => {
+                           alert("Thank you! Your message has been received.");
+                           form.reset();
+                           btn.innerHTML = originalText;
+                           btn.classList.add('bg-black', 'hover:bg-slate-800');
+                           btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                        }, 500);
+                    }
+                 }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div>
+                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Your Name</label>
+                         <input required type="text" placeholder="Enter Full Name" className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 font-bold text-black outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all text-sm shadow-sm" />
+                      </div>
+                      <div>
+                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Contact Info</label>
+                         <input required type="text" placeholder="Email or Phone" className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 font-bold text-black outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all text-sm shadow-sm" />
+                      </div>
+                    </div>
+                    
+                    <div>
+                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3 mb-2 block">Your Message</label>
+                       <textarea required placeholder="How can we help you today?" className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 font-bold text-black outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all text-sm shadow-sm min-h-[140px] resize-none leading-relaxed"></textarea>
+                    </div>
+
+                    <div className="pt-2">
+                      <button type="submit" className="w-full bg-black hover:bg-slate-800 text-white py-4 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                         <i className="fas fa-paper-plane"></i> Send Message
+                      </button>
+                    </div>
+                 </form>
+              </div>
+
             </div>
           </div>
         )}
