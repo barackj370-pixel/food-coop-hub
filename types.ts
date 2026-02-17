@@ -1,7 +1,8 @@
-
 export enum RecordStatus {
-  DRAFT = 'DRAFT',
-  PAID = 'PAID',
+  DRAFT = 'DRAFT', // Legacy
+  PENDING = 'Pending Order',
+  PAID = 'PAID', // Legacy
+  COMPLETE = 'Order Complete',
   VALIDATED = 'VALIDATED',
   VERIFIED = 'VERIFIED'
 }
