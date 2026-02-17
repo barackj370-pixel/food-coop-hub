@@ -1519,52 +1519,7 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <>
-                <div className="flex flex-col md:flex-row justify-between items-center gap-6 bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                  <div>
-                    <h3 className="text-xl font-black text-black uppercase tracking-tighter">Sales Activity Overview</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Export Financial Performance Logs</p>
-                  </div>
-                  {renderExportButtons(false)}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatCard label="Pending Payment" icon="fa-clock" value={`KSh ${stats.dueComm.toLocaleString()}`} color="bg-white" accent="text-red-600" /><StatCard label="Processing" icon="fa-spinner" value={`KSh ${stats.awaitingFinanceComm.toLocaleString()}`} color="bg-white" accent="text-black" /><StatCard label="Awaiting Audit" icon="fa-clipboard-check" value={`KSh ${stats.awaitingAuditComm.toLocaleString()}`} color="bg-white" accent="text-slate-500" /><StatCard label="Verified Profit" icon="fa-check-circle" value={`KSh ${stats.approvedComm.toLocaleString()}`} color="bg-white" accent="text-green-600" /></div>
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
-                
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden mt-12 relative">
-                  <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-6">
-                    <div>
-                      <h3 className="text-sm font-black text-black uppercase tracking-widest">Market Demand Hub</h3>
-                      <p className="text-[9px] font-black text-red-600 uppercase tracking-[0.2em] mt-1">Pending Customer Requests</p>
-                    </div>
-                    <span className="bg-red-50 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">
-                      {marketOrders.filter(o => o.status === OrderStatus.OPEN).length} Orders Open
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                        <tr><th className="pb-4">Order Ref</th><th className="pb-4">Customer Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Requested</th><th className="pb-4 text-right">Action</th></tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {marketOrders.filter(o => o.status === OrderStatus.OPEN).map(o => (
-                          <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-6"><span className="text-[10px] font-black text-slate-400">{o.id}</span></td>
-                            <td className="py-6"><p className="text-[11px] font-black uppercase text-black">{o.customerName}</p><p className="text-[9px] text-slate-400 font-mono">{o.customerPhone}</p></td>
-                            <td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{o.cluster}</span></td>
-                            <td className="py-6"><p className="text-[11px] font-black uppercase text-red-600">{o.cropType}</p></td>
-                            <td className="py-6"><p className="text-[11px] font-black text-slate-700">{o.unitsRequested} {o.unitType}</p></td>
-                            <td className="py-6 text-right">
-                              <button onClick={() => handleFulfillOrder(o)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md flex items-center gap-2 ml-auto">
-                                <i className="fas fa-file-contract"></i> Fulfill Sale
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
                 <AuditLogTable data={records} title="Universal Ledger" onDelete={handleDeleteRecord} onEdit={handleEditRecord} />
               </>
             )}
