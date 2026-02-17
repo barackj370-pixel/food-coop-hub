@@ -27,7 +27,7 @@ export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apu
 const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='none' stroke='%23000000' stroke-width='30' stroke-linecap='round' stroke-linejoin='round' d='M64 96h64l48 240h256l48-176H192'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='208' cy='432' r='16'/%3E%3Ccircle fill='%23dc2626' cx='384' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='384' cy='432' r='16'/%3E%3Cpath fill='%2316a34a' d='M256 128c0-50-40-90-90-90s-60 40-40 90c20 40 60 70 130 50z'/%3E%3Cpath fill='%2322c55e' d='M256 128c0-50 40-90 90-90s60 40 40 90c-20 40-60 70-130 50z'/%3E%3Ccircle fill='%23dc2626' cx='256' cy='224' r='48'/%3E%3Cpath fill='none' stroke='%23000000' stroke-width='8' stroke-linecap='round' d='M256 176v48'/%3E%3C/svg%3E";
 
 // Bumped version to trigger safe migration logic
-const APP_VERSION = '1.2.3';
+const APP_VERSION = '1.2.4';
 
 const persistence = {
   get: (key: string): string | null => {
@@ -1135,6 +1135,20 @@ const App: React.FC = () => {
       return 'bg-red-50 text-red-600'; // Pending Order / Draft
     };
 
+    // Helper to check if record is editable
+    const isEditable = (r: SaleRecord) => {
+      // "Order Complete" and beyond are locked for editing to preserve audit trail
+      const isLocked = r.status === RecordStatus.COMPLETE || 
+                       r.status === RecordStatus.PAID || 
+                       r.status === RecordStatus.VERIFIED || 
+                       r.status === RecordStatus.VALIDATED;
+      
+      if (isLocked) return false;
+
+      // If not locked, allow System Dev or the Original Agent
+      return isSystemDev || (agentIdentity?.phone === r.agentPhone);
+    };
+
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
@@ -1178,7 +1192,7 @@ const App: React.FC = () => {
                         <div className="flex items-center justify-end gap-3">
                           <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusBadgeColor(r.status)}`}>{r.status}</span>
                           
-                          {onEdit && (isSystemDev || (agentIdentity?.phone === r.agentPhone && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING))) && (
+                          {onEdit && isEditable(r) && (
                              <button onClick={(e) => { e.stopPropagation(); onEdit(r); }} className="text-slate-300 hover:text-blue-600 transition-colors p-1">
                                <i className="fas fa-edit text-[10px]"></i>
                              </button>
