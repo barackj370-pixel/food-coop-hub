@@ -20,7 +20,7 @@ import {
 import { getEnv } from './services/env';
 
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM';
-type MarketView = 'SALES' | 'SUPPLIER' | 'CUSTOMER';
+type MarketView = 'SALES' | 'SUPPLIER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
@@ -211,9 +211,9 @@ const App: React.FC = () => {
     const saved = persistence.get('agent_session');
     if (saved) {
       const agent = JSON.parse(saved);
-      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'CUSTOMER';
+      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'SALES';
     }
-    return 'CUSTOMER';
+    return 'SALES';
   });
 
   const [showPublicSupplierStats, setShowPublicSupplierStats] = useState(false);
@@ -1300,7 +1300,6 @@ const App: React.FC = () => {
                     <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                       <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
                       <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
-                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('CUSTOMER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'CUSTOMER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-user mr-2"></i> Customer Portal</button>
                     </div>
                   )}
                 </div>
@@ -1517,7 +1516,6 @@ const App: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-4 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
                 <button type="button" onClick={() => setMarketView('SUPPLIER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SUPPLIER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-seedling"></i> Supplier Portal</button>
                 <button type="button" onClick={() => setMarketView('SALES')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'SALES' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-shopping-cart"></i> Sales Portal</button>
-                <button type="button" onClick={() => setMarketView('CUSTOMER')} className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${marketView === 'CUSTOMER' ? 'bg-black text-white shadow-lg' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}><i className="fas fa-user"></i> Customer Portal</button>
             </div>
             {marketView === 'SALES' && (
               <>
@@ -1599,7 +1597,6 @@ const App: React.FC = () => {
                 </tbody></table></div></div>
               </div>
             )}
-            {marketView === 'CUSTOMER' && renderCustomerPortal()}
           </div>
         )}
 
