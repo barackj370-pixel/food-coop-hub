@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { SaleRecord, RecordStatus } from '../types';
@@ -117,9 +116,10 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         synced: true
       }));
 
-      // Filter for valid financial records (Paid/Verified/Validated)
+      // Filter for valid financial records (Paid/Verified/Validated/Complete)
       const validRecords = mappedRecords.filter(r => 
         r.status === RecordStatus.PAID || 
+        r.status === RecordStatus.COMPLETE ||
         r.status === RecordStatus.VERIFIED || 
         r.status === RecordStatus.VALIDATED
       );
