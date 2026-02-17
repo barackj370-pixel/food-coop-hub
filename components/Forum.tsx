@@ -17,9 +17,22 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
 
   const loadPosts = async () => {
     setLoading(true);
-    const data = await fetchForumPosts();
-    setPosts(data);
-    setLoading(false);
+    try {
+      // Timeout Protection for Feed: Prevent infinite loading state
+      const fetchPromise = fetchForumPosts();
+      // 15s timeout for reading - fails gracefully to empty list so UI doesn't freeze
+      const timeoutPromise = new Promise<ForumPost[]>((resolve) => 
+        setTimeout(() => resolve([]), 15000)
+      );
+      
+      const data = await Promise.race([fetchPromise, timeoutPromise]);
+      setPosts(data);
+    } catch (error) {
+      console.error("Failed to load forum posts:", error);
+      setPosts([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -33,9 +46,9 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
     setCreating(true);
 
     try {
-      // 1. Timeout Protection: Force failure if network/Supabase hangs for >20s
+      // 1. Timeout Protection: Increased to 60s for cold starts/slow networks
       const timeoutPromise = new Promise<boolean>((_, reject) => 
-        setTimeout(() => reject(new Error("Request timed out. Please check your connection.")), 20000)
+        setTimeout(() => reject(new Error("Request timed out (60s). Please check your connection.")), 60000)
       );
 
       // 2. The Actual Request
