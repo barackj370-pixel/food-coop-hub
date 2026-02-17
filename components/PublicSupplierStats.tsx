@@ -42,14 +42,9 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     setLoading(true);
     
-    // Create a timeout promise to prevent infinite loading (15 seconds)
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 15000)
-    );
-
-    const searchPromise = (async () => {
+    // Define the async operation strictly
+    const performSearch = async () => {
         const searchTerm = normalizePhone(phone);
-        // Sanitize input phone to remove spaces/dashes for the 'eq' check to prevent syntax errors
         const cleanInputPhone = phone.replace(/[^0-9+]/g, ''); 
         
         let foundName = "Supplier";
@@ -95,7 +90,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const { data: clusterData, error: clusterError } = await supabase
           .from('records')
           .select('*')
-          .eq('cluster', foundCluster) // Fetching whole cluster
+          .eq('cluster', foundCluster)
           .order('date', { ascending: false });
 
         if (clusterError) throw clusterError;
@@ -123,7 +118,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           synced: true
         }));
 
-        // Filter for valid financial records (Paid/Verified/Validated/Complete)
+        // Filter for valid financial records
         const validRecords = mappedRecords.filter(r => 
           r.status === RecordStatus.PAID || 
           r.status === RecordStatus.COMPLETE ||
@@ -133,10 +128,14 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         setClusterRecords(validRecords);
         setView('STATS');
-    })();
+    };
+
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 15000)
+    );
 
     try {
-      await Promise.race([searchPromise, timeoutPromise]);
+      await Promise.race([performSearch(), timeout]);
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Network Error: Could not fetch records.");
