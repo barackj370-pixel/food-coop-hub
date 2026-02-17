@@ -18,9 +18,8 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
   const loadPosts = async () => {
     setLoading(true);
     try {
-      // Timeout Protection for Feed: Prevent infinite loading state
+      // Timeout Protection for Feed
       const fetchPromise = fetchForumPosts();
-      // 15s timeout for reading - fails gracefully to empty list so UI doesn't freeze
       const timeoutPromise = new Promise<ForumPost[]>((resolve) => 
         setTimeout(() => resolve([]), 15000)
       );
@@ -46,10 +45,9 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
     setCreating(true);
 
     try {
-      // 1. Timeout Protection: Increased to 60s for cold starts/slow networks
-      // Returns a consistent structure matching saveForumPost's new signature
+      // 1. Timeout Protection: Reduced to 20s for better UX
       const timeoutPromise = new Promise<{ success: boolean; message?: string }>((_, reject) => 
-        setTimeout(() => reject(new Error("Request timed out (60s). Please check your connection.")), 60000)
+        setTimeout(() => reject(new Error("Request timed out. Please check your internet connection or try again.")), 20000)
       );
 
       // 2. The Actual Request
@@ -72,7 +70,6 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
         // Refresh feed
         await loadPosts();
       } else {
-        // Display the specific error message from the server (e.g., Table Missing, Permission Denied)
         alert(`Failed to publish: ${result.message || "The server rejected the request."}`);
       }
     } catch (err) {
@@ -80,7 +77,6 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
       const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
       alert(`Error publishing post: ${msg}`);
     } finally {
-      // 4. Always reset loading state
       setCreating(false);
     }
   };
