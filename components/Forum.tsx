@@ -47,7 +47,8 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
 
     try {
       // 1. Timeout Protection: Increased to 60s for cold starts/slow networks
-      const timeoutPromise = new Promise<boolean>((_, reject) => 
+      // Returns a consistent structure matching saveForumPost's new signature
+      const timeoutPromise = new Promise<{ success: boolean; message?: string }>((_, reject) => 
         setTimeout(() => reject(new Error("Request timed out (60s). Please check your connection.")), 60000)
       );
 
@@ -62,16 +63,17 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
       });
 
       // 3. Race
-      const success = await Promise.race([requestPromise, timeoutPromise]);
+      const result = await Promise.race([requestPromise, timeoutPromise]);
 
-      if (success) {
+      if (result.success) {
         setNewTitle('');
         setNewContent('');
         setShowForm(false);
         // Refresh feed
         await loadPosts();
       } else {
-        alert("Failed to publish message. The server rejected the request.");
+        // Display the specific error message from the server (e.g., Table Missing, Permission Denied)
+        alert(`Failed to publish: ${result.message || "The server rejected the request."}`);
       }
     } catch (err) {
       console.error("Forum Post Error:", err);
