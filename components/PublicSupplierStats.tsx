@@ -41,95 +41,105 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
 
     setLoading(true);
-    try {
-      const searchTerm = normalizePhone(phone);
-      let foundName = "Supplier";
-      let foundCluster = "";
+    
+    // Create a timeout promise to prevent infinite loading (15 seconds)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 15000)
+    );
 
-      // 1. Identify the Supplier & Cluster
-      // Check Sales Records first
-      const { data: salesIdentity, error: salesError } = await supabase
-        .from('records')
-        .select('farmer_name, cluster')
-        .or(`farmer_phone.ilike.%${searchTerm}%,farmer_phone.eq.${phone}`)
-        .limit(1);
-
-      if (salesError) throw salesError;
-
-      if (salesIdentity && salesIdentity.length > 0) {
-        foundName = salesIdentity[0].farmer_name;
-        foundCluster = salesIdentity[0].cluster;
-      } else {
-        // If not in sales, check Produce Listings
-        const { data: produceIdentity, error: produceError } = await supabase
-          .from('produce')
-          .select('supplier_name, cluster')
-          .or(`supplier_phone.ilike.%${searchTerm}%,supplier_phone.eq.${phone}`)
-          .limit(1);
+    const searchPromise = (async () => {
+        const searchTerm = normalizePhone(phone);
+        // Sanitize input phone to remove spaces/dashes for the 'eq' check to prevent syntax errors
+        const cleanInputPhone = phone.replace(/[^0-9+]/g, ''); 
         
-        if (produceError) throw produceError;
+        let foundName = "Supplier";
+        let foundCluster = "";
 
-        if (produceIdentity && produceIdentity.length > 0) {
-          foundName = produceIdentity[0].supplier_name;
-          foundCluster = produceIdentity[0].cluster;
+        // 1. Identify the Supplier & Cluster
+        // Check Sales Records first
+        const { data: salesIdentity, error: salesError } = await supabase
+          .from('records')
+          .select('farmer_name, cluster')
+          .or(`farmer_phone.ilike.%${searchTerm}%,farmer_phone.eq.${cleanInputPhone}`)
+          .limit(1);
+
+        if (salesError) throw salesError;
+
+        if (salesIdentity && salesIdentity.length > 0) {
+          foundName = salesIdentity[0].farmer_name;
+          foundCluster = salesIdentity[0].cluster;
+        } else {
+          // If not in sales, check Produce Listings
+          const { data: produceIdentity, error: produceError } = await supabase
+            .from('produce')
+            .select('supplier_name, cluster')
+            .or(`supplier_phone.ilike.%${searchTerm}%,supplier_phone.eq.${cleanInputPhone}`)
+            .limit(1);
+          
+          if (produceError) throw produceError;
+
+          if (produceIdentity && produceIdentity.length > 0) {
+            foundName = produceIdentity[0].supplier_name;
+            foundCluster = produceIdentity[0].cluster;
+          }
         }
-      }
 
-      if (!foundCluster) {
-        alert("No records found. You may not be assigned to a cluster yet.");
-        setLoading(false);
-        return;
-      }
+        if (!foundCluster) {
+          throw new Error("No records found for this number. You may not be assigned to a cluster yet.");
+        }
 
-      setSupplierName(foundName);
-      setSupplierCluster(foundCluster);
+        setSupplierName(foundName);
+        setSupplierCluster(foundCluster);
 
-      // 2. Fetch ALL records for the identified Cluster
-      const { data: clusterData, error: clusterError } = await supabase
-        .from('records')
-        .select('*')
-        .eq('cluster', foundCluster) // Fetching whole cluster
-        .order('date', { ascending: false });
+        // 2. Fetch ALL records for the identified Cluster
+        const { data: clusterData, error: clusterError } = await supabase
+          .from('records')
+          .select('*')
+          .eq('cluster', foundCluster) // Fetching whole cluster
+          .order('date', { ascending: false });
 
-      if (clusterError) throw clusterError;
+        if (clusterError) throw clusterError;
 
-      // Map DB fields to TypeScript Interface
-      const mappedRecords: SaleRecord[] = (clusterData || []).map((r: any) => ({
-        id: r.id,
-        date: r.date,
-        cropType: r.crop_type,
-        unitType: r.unit_type,
-        farmerName: r.farmer_name,
-        farmerPhone: r.farmer_phone,
-        customerName: r.customer_name,
-        customerPhone: r.customer_phone,
-        unitsSold: Number(r.units_sold),
-        unitPrice: Number(r.unit_price),
-        totalSale: Number(r.total_sale),
-        coopProfit: Number(r.coop_profit),
-        status: r.status,
-        signature: r.signature,
-        createdAt: r.created_at,
-        agentPhone: r.agent_phone,
-        agentName: r.agent_name,
-        cluster: r.cluster,
-        synced: true
-      }));
+        // Map DB fields to TypeScript Interface
+        const mappedRecords: SaleRecord[] = (clusterData || []).map((r: any) => ({
+          id: r.id,
+          date: r.date,
+          cropType: r.crop_type,
+          unitType: r.unit_type,
+          farmerName: r.farmer_name,
+          farmerPhone: r.farmer_phone,
+          customerName: r.customer_name,
+          customerPhone: r.customer_phone,
+          unitsSold: Number(r.units_sold),
+          unitPrice: Number(r.unit_price),
+          totalSale: Number(r.total_sale),
+          coopProfit: Number(r.coop_profit),
+          status: r.status,
+          signature: r.signature,
+          createdAt: r.created_at,
+          agentPhone: r.agent_phone,
+          agentName: r.agent_name,
+          cluster: r.cluster,
+          synced: true
+        }));
 
-      // Filter for valid financial records (Paid/Verified/Validated/Complete)
-      const validRecords = mappedRecords.filter(r => 
-        r.status === RecordStatus.PAID || 
-        r.status === RecordStatus.COMPLETE ||
-        r.status === RecordStatus.VERIFIED || 
-        r.status === RecordStatus.VALIDATED
-      );
+        // Filter for valid financial records (Paid/Verified/Validated/Complete)
+        const validRecords = mappedRecords.filter(r => 
+          r.status === RecordStatus.PAID || 
+          r.status === RecordStatus.COMPLETE ||
+          r.status === RecordStatus.VERIFIED || 
+          r.status === RecordStatus.VALIDATED
+        );
 
-      setClusterRecords(validRecords);
-      setView('STATS');
+        setClusterRecords(validRecords);
+        setView('STATS');
+    })();
 
-    } catch (err) {
+    try {
+      await Promise.race([searchPromise, timeoutPromise]);
+    } catch (err: any) {
       console.error(err);
-      alert("Network Error: Could not fetch records.");
+      alert(err.message || "Network Error: Could not fetch records.");
     } finally {
       setLoading(false);
     }
