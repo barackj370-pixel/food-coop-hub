@@ -509,18 +509,15 @@ const App: React.FC = () => {
     if (!navigator.onLine) return; 
     setIsSyncing(true);
     try {
-      const [sbUsers, sbRecords, sbOrders, sbProduce] = await Promise.all([
-        fetchUsers(),
-        fetchRecords(),
-        fetchOrders(),
-        fetchProduce()
-      ]);
-      
+      // Use sequential fetching to prevent Navigator LockManager timeouts
+      // in preview environments/iframes where auth state locking can be brittle.
+      const sbUsers = await fetchUsers();
       if (sbUsers && sbUsers.length > 0) {
         setUsers(sbUsers);
         persistence.set('coop_users', JSON.stringify(sbUsers));
       }
 
+      const sbRecords = await fetchRecords();
       if (sbRecords && sbRecords.length > 0) {
         setRecords(prev => {
           const merged = mergeData(sbRecords, prev);
@@ -529,6 +526,7 @@ const App: React.FC = () => {
         });
       }
 
+      const sbOrders = await fetchOrders();
       if (sbOrders && sbOrders.length > 0) {
         setMarketOrders(prev => {
           const merged = mergeData(sbOrders, prev);
@@ -537,6 +535,7 @@ const App: React.FC = () => {
         });
       }
 
+      const sbProduce = await fetchProduce();
       if (sbProduce && sbProduce.length > 0) {
         setProduceListings(prev => {
           const merged = mergeData(sbProduce, prev);
