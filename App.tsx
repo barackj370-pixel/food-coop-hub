@@ -1598,7 +1598,6 @@ const App: React.FC = () => {
               </div>
             </div>
             <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
-            {renderCustomerPortal()}
           </div>
         )}
 
@@ -1630,7 +1629,6 @@ const App: React.FC = () => {
               </div>
             </div>
             <AuditLogTable data={records} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
-            {renderCustomerPortal()}
           </div>
         )}
 
@@ -1685,7 +1683,6 @@ const App: React.FC = () => {
               </div>
             </div>
             <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
-            {renderCustomerPortal()}
           </div>
         )}
 
