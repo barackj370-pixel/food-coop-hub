@@ -26,7 +26,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [supplierCluster, setSupplierCluster] = useState('');
   const [view, setView] = useState<'INPUT' | 'STATS'>('INPUT');
 
-  // Helper to normalize phone for search
+  // Helper to normalize phone for search (last 9 digits)
   const normalizePhone = (p: string | null | undefined) => {
     if (!p) return '';
     let s = p.trim().replace(/\D/g, '');
@@ -42,7 +42,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     setLoading(true);
     
-    // Define the async operation strictly
+    // Define the async operation strictly to isolate potential errors
     const performSearch = async () => {
         const searchTerm = normalizePhone(phone);
         const cleanInputPhone = phone.replace(/[^0-9+]/g, ''); 
@@ -130,16 +130,19 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setView('STATS');
     };
 
+    // Timeout Promise: Rejects if search takes longer than 15 seconds
     const timeout = new Promise((_, reject) => 
       setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 15000)
     );
 
     try {
+      // Race the search against the timeout
       await Promise.race([performSearch(), timeout]);
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Network Error: Could not fetch records.");
     } finally {
+      // Always reset loading state
       setLoading(false);
     }
   };
