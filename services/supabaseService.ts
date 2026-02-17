@@ -415,27 +415,6 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
     const userId = await getCurrentUserId();
     if (!userId) return { success: false, message: "Session expired. Please re-login." };
 
-    // --- SELF-HEALING: CHECK IF PROFILE EXISTS ---
-    // The 'forum_posts' table has a foreign key to 'profiles'. If the user's profile is missing (common with imported users),
-    // the insert will fail or hang. We check and heal it here.
-    const { data: profile } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
-    
-    if (!profile) {
-      console.log("Self-Healing: User profile missing in DB. Recreating...");
-      // Recreate profile to satisfy Foreign Key
-      const { error: healError } = await supabase.from('profiles').upsert({
-         id: userId,
-         name: post.authorName,
-         phone: post.authorPhone,
-         role: post.authorRole,
-         cluster: post.authorCluster,
-         status: 'ACTIVE',
-         created_at: new Date().toISOString()
-      });
-      if (healError) console.warn("Self-Healing failed:", healError.message);
-    }
-    // ---------------------------------------------
-
     // CLIENT-SIDE UUID: Generate ID here to avoid 'uuid-ossp' extension issues in DB
     const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined;
 
@@ -450,9 +429,36 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
       agent_id: userId
     };
 
-    // Use .select() to force a response and confirm the row was actually written
-    const { error } = await supabase.from('forum_posts').insert(payload).select();
+    // ATTEMPT 1: Optimistic Insert (Fast Path)
+    // We do NOT use .select() here to reduce response overhead on slow connections
+    let { error } = await supabase.from('forum_posts').insert(payload);
     
+    // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
+    // Code 23503: insert or update on table "forum_posts" violates foreign key constraint "forum_posts_agent_id_fkey"
+    if (error && error.code === '23503') {
+       console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
+       
+       // Create Profile to fix FK
+       const { error: healError } = await supabase.from('profiles').upsert({
+         id: userId,
+         name: post.authorName,
+         phone: post.authorPhone,
+         role: post.authorRole,
+         cluster: post.authorCluster,
+         status: 'ACTIVE',
+         created_at: new Date().toISOString()
+       });
+
+       if (healError) {
+         console.warn("Self-Healing failed:", healError.message);
+         return { success: false, message: "Account profile missing. Please log out and back in." };
+       }
+
+       // ATTEMPT 2: Retry Insert after healing
+       const retry = await supabase.from('forum_posts').insert(payload);
+       error = retry.error;
+    }
+
     if (error) {
        // Check for "Relation does not exist" (42P01) OR "Schema cache out of date" (PGRST205)
        if (error.code === '42P01' || error.code === 'PGRST205') {
@@ -461,10 +467,6 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
        // Check for RLS policy violation
        if (error.code === '42501') {
           return { success: false, message: "Permission denied. You are not authorized to post." };
-       }
-       // Foreign Key Violation (if healing failed)
-       if (error.code === '23503') {
-          return { success: false, message: "User profile mismatch. Try logging out and back in." };
        }
        throw error;
     }
