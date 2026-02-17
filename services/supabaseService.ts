@@ -25,7 +25,7 @@ const handleSupabaseError = (context: string, err: any) => {
     msg.includes('networkerror') || 
     msg.includes('network request failed') || 
     msg.includes('connection error') ||
-    msg.includes('load failed') ||
+    msg.includes('load failed') || 
     msg.includes('abort') || // Ignore AbortError
     msg.includes('signal is aborted')
   ) {
@@ -402,8 +402,8 @@ export const fetchForumPosts = async (): Promise<ForumPost[]> => {
     if (error) throw error;
     return (data || []).map(mapDbToForumPost);
   } catch (err: any) {
-    // Suppress missing table error to avoid console noise on new deployments
-    if (err.code !== '42P01') handleSupabaseError('fetchForumPosts', err);
+    // Suppress missing table error (42P01) and Schema Cache error (PGRST205) to avoid console noise
+    if (err.code !== '42P01' && err.code !== 'PGRST205') handleSupabaseError('fetchForumPosts', err);
     return [];
   }
 };
@@ -428,9 +428,10 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
     const { error } = await supabase.from('forum_posts').insert(payload);
     
     if (error) {
-       // Check for "Relation does not exist" (Table missing)
-       if (error.code === '42P01') {
-          return { success: false, message: "Forum feature not initialized (Missing Table). Contact Admin." };
+       // Check for "Relation does not exist" (42P01) OR "Schema cache out of date" (PGRST205)
+       // This happens if the table is missing or was just created and PostgREST hasn't seen it yet.
+       if (error.code === '42P01' || error.code === 'PGRST205') {
+          return { success: false, message: "Forum table missing. Please run the SQL setup script." };
        }
        // Check for RLS policy violation
        if (error.code === '42501') {
