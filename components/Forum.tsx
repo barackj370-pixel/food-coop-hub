@@ -45,9 +45,9 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
     setCreating(true);
 
     try {
-      // 1. Timeout Protection: Reduced to 20s for better UX
+      // 1. Timeout Protection: Increased to 45s for cold starts/slow mobile networks
       const timeoutPromise = new Promise<{ success: boolean; message?: string }>((_, reject) => 
-        setTimeout(() => reject(new Error("Request timed out. Please check your internet connection or try again.")), 20000)
+        setTimeout(() => reject(new Error("Request timed out (45s). The server might be waking up. Please try again.")), 45000)
       );
 
       // 2. The Actual Request
