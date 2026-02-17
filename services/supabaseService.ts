@@ -402,16 +402,18 @@ export const fetchForumPosts = async (): Promise<ForumPost[]> => {
     if (error) throw error;
     return (data || []).map(mapDbToForumPost);
   } catch (err: any) {
-    handleSupabaseError('fetchForumPosts', err);
+    // Suppress missing table error to avoid console noise on new deployments
+    if (err.code !== '42P01') handleSupabaseError('fetchForumPosts', err);
     return [];
   }
 };
 
-export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): Promise<boolean> => {
-  if (!isClientReady()) return false;
+// Updated signature to return specific error message
+export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): Promise<{ success: boolean; message?: string }> => {
+  if (!isClientReady()) return { success: false, message: "System offline" };
   try {
     const userId = await getCurrentUserId();
-    if (!userId) return false;
+    if (!userId) return { success: false, message: "Session expired. Please re-login." };
 
     const payload = {
       title: post.title,
@@ -424,11 +426,22 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
     };
 
     const { error } = await supabase.from('forum_posts').insert(payload);
-    if (error) throw error;
-    return true;
+    
+    if (error) {
+       // Check for "Relation does not exist" (Table missing)
+       if (error.code === '42P01') {
+          return { success: false, message: "Forum feature not initialized (Missing Table). Contact Admin." };
+       }
+       // Check for RLS policy violation
+       if (error.code === '42501') {
+          return { success: false, message: "Permission denied. You are not authorized to post." };
+       }
+       throw error;
+    }
+    return { success: true };
   } catch (err: any) {
     handleSupabaseError('saveForumPost', err);
-    return false;
+    return { success: false, message: err.message || "Database Error" };
   }
 };
 
