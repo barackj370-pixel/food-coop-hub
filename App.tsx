@@ -594,8 +594,9 @@ const App: React.FC = () => {
     const relevantRecords = filteredRecords;
     const verifiedComm = relevantRecords.filter(r => r.status === RecordStatus.VERIFIED).reduce((a, b) => a + Number(b.coopProfit), 0);
     const awaitingAuditComm = relevantRecords.filter(r => r.status === RecordStatus.VALIDATED).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID).reduce((a, b) => a + Number(b.coopProfit), 0);
-    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT).reduce((a, b) => a + Number(b.coopProfit), 0);
+    // Updated stats logic to group legacy statuses with new workflow statuses
+    const awaitingFinanceComm = relevantRecords.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE).reduce((a, b) => a + Number(b.coopProfit), 0);
+    const dueComm = relevantRecords.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING).reduce((a, b) => a + Number(b.coopProfit), 0);
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
 
@@ -891,8 +892,10 @@ const App: React.FC = () => {
       const coopProfit = totalSale * PROFIT_MARGIN;
       const signature = await computeHash({ ...data, id });
       const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
+      
+      // Updated to set initial status to PENDING (Pending Order) instead of DRAFT
       const newRecord: SaleRecord = {
-        ...data, id, totalSale, coopProfit, status: RecordStatus.DRAFT, signature,
+        ...data, id, totalSale, coopProfit, status: RecordStatus.PENDING, signature,
         createdAt: new Date().toISOString(), agentPhone: agentIdentity?.phone, agentName: agentIdentity?.name, cluster, synced: false
       };
       
@@ -1126,6 +1129,12 @@ const App: React.FC = () => {
     const grandTotalVolume = useMemo(() => data.reduce((sum, r) => sum + Number(r.totalSale), 0), [data]);
     const grandTotalCommission = useMemo(() => data.reduce((sum, r) => sum + Number(r.coopProfit), 0), [data]);
 
+    const getStatusBadgeColor = (status: string) => {
+      if (status === RecordStatus.VERIFIED) return 'bg-green-100 text-green-700';
+      if (status === RecordStatus.COMPLETE || status === RecordStatus.PAID) return 'bg-blue-50 text-blue-700'; // Order Complete
+      return 'bg-red-50 text-red-600'; // Pending Order / Draft
+    };
+
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
@@ -1167,15 +1176,15 @@ const App: React.FC = () => {
                       <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
                       <td className="py-6 text-right">
                         <div className="flex items-center justify-end gap-3">
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${r.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{r.status}</span>
+                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusBadgeColor(r.status)}`}>{r.status}</span>
                           
-                          {onEdit && (isSystemDev || (agentIdentity?.phone === r.agentPhone && r.status === RecordStatus.DRAFT)) && (
+                          {onEdit && (isSystemDev || (agentIdentity?.phone === r.agentPhone && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING))) && (
                              <button onClick={(e) => { e.stopPropagation(); onEdit(r); }} className="text-slate-300 hover:text-blue-600 transition-colors p-1">
                                <i className="fas fa-edit text-[10px]"></i>
                              </button>
                           )}
                           
-                          {onDelete && (isSystemDev || isPrivilegedRole(agentIdentity) || (agentIdentity?.phone === r.agentPhone && r.status === RecordStatus.DRAFT)) && (
+                          {onDelete && (isSystemDev || isPrivilegedRole(agentIdentity) || (agentIdentity?.phone === r.agentPhone && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING))) && (
                              <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1">
                                <i className="fas fa-trash-alt text-[10px]"></i>
                              </button>
@@ -1539,7 +1548,7 @@ const App: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {records.filter(r => r.status === RecordStatus.DRAFT).map(r => (
+                    {records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING).map(r => (
                       <tr key={r.id} className="hover:bg-slate-50/50">
                         <td className="py-6 font-bold">{r.date}</td>
                         <td className="py-6">
@@ -1552,7 +1561,7 @@ const App: React.FC = () => {
                         <td className="py-6 uppercase font-bold">{r.cropType}</td>
                         <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
                         <td className="py-6 text-right">
-                          <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.PAID)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
+                          <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.COMPLETE)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
                             <i className="fas fa-check"></i> Confirm Receipt
                           </button>
                         </td>
@@ -1580,7 +1589,7 @@ const App: React.FC = () => {
                     <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
                   </thead>
                   <tbody className="divide-y">
-                    {records.filter(r => r.status === RecordStatus.PAID).map(r => (
+                    {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE).map(r => (
                       <tr key={r.id} className="hover:bg-slate-800/50">
                         <td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td>
                         <td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td>
