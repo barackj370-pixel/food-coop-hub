@@ -969,6 +969,58 @@ const App: React.FC = () => {
     }
   };
 
+  const handleConfirmClusterRemittance = async (clusterName: string) => {
+    // 1. Identify records
+    const pendingClusterRecords = records.filter(r => 
+      (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && 
+      (r.cluster || 'Unassigned') === clusterName
+    );
+
+    if (pendingClusterRecords.length === 0) return;
+
+    const totalComm = pendingClusterRecords.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+
+    if (!window.confirm(`CONFIRM REMITTANCE?\n\nCluster: ${clusterName}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${pendingClusterRecords.length}\n\nThis confirms that the weekly commission for this cluster has been received. Proceed?`)) {
+      return;
+    }
+
+    // 2. Update Local State Optimistically
+    const updatedRecords = records.map(r => {
+      if ((r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && (r.cluster || 'Unassigned') === clusterName) {
+        return { ...r, status: RecordStatus.COMPLETE, synced: false };
+      }
+      return r;
+    });
+
+    setRecords(updatedRecords);
+    persistence.set('food_coop_data', JSON.stringify(updatedRecords));
+
+    // 3. Sync to Backend
+    let successCount = 0;
+    // We update sequentially or parallel. Parallel is fine.
+    await Promise.all(pendingClusterRecords.map(async (r) => {
+       const updated = { ...r, status: RecordStatus.COMPLETE };
+       const success = await saveRecord(updated);
+       if (success) successCount++;
+    }));
+
+    if (successCount > 0) {
+       // Mark synced
+       setRecords(prev => prev.map(r => {
+          if ((r.status === RecordStatus.COMPLETE) && (r.cluster || 'Unassigned') === clusterName && r.synced === false) {
+             // We check ID match to be safe
+             if (pendingClusterRecords.some(pr => pr.id === r.id)) {
+                return { ...r, synced: true };
+             }
+          }
+          return r;
+       }));
+       alert(`Successfully confirmed remittance for ${clusterName}. ${successCount} orders marked as Complete.`);
+    } else {
+       alert("Remittance confirmed locally. Will sync when online.");
+    }
+  };
+
   const handleDeleteRecord = async (id: string) => {
     if (!window.confirm("Action required: Permanent deletion of record ID: " + id + ". Continue?")) return;
     setRecords(prev => {
@@ -1558,42 +1610,77 @@ const App: React.FC = () => {
           <div className="space-y-8 animate-in fade-in duration-300">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
               <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-red-600 pl-4">Transactions Waiting Confirmation</h3>
+                <div>
+                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-red-600 pl-4">Weekly Cluster Remittances</h3>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 ml-5">Approve Total Commission per Cluster</p>
+                </div>
                 {renderExportButtons(false)}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                    <tr>
-                      <th className="pb-4">Date</th>
-                      <th className="pb-4">Participants</th>
-                      <th className="pb-4">Commodity</th>
-                      <th className="pb-4">Commission</th>
-                      <th className="pb-4 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING).map(r => (
-                      <tr key={r.id} className="hover:bg-slate-50/50">
-                        <td className="py-6 font-bold">{r.date}</td>
-                        <td className="py-6">
-                          <div className="text-[9px] space-y-1 uppercase font-bold text-slate-500">
-                            <p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p>
-                            <p>Supplier: {r.farmerName} ({r.farmerPhone})</p>
-                            <p>Buyer: {r.customerName} ({r.customerPhone})</p>
-                          </div>
-                        </td>
-                        <td className="py-6 uppercase font-bold">{r.cropType}</td>
-                        <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
-                        <td className="py-6 text-right">
-                          <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.COMPLETE)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-green-600 shadow-md flex items-center justify-end gap-2 ml-auto">
-                            <i className="fas fa-check"></i> Confirm Receipt
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {(() => {
+                   // Group Pending Records by Cluster
+                   const pending = records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING);
+                   if (pending.length === 0) {
+                     return (
+                       <div className="col-span-full py-12 text-center text-slate-400">
+                         <i className="fas fa-check-circle text-4xl mb-4 text-green-100"></i>
+                         <p className="text-[10px] font-black uppercase tracking-widest">All Remittances Cleared</p>
+                       </div>
+                     );
+                   }
+
+                   const clusters = Array.from(new Set(pending.map(r => r.cluster || 'Unassigned')));
+                   
+                   return clusters.map(clusterName => {
+                      const clusterRecs = pending.filter(r => (r.cluster || 'Unassigned') === clusterName);
+                      const totalComm = clusterRecs.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+                      const totalSales = clusterRecs.reduce((sum, r) => sum + Number(r.totalSale), 0);
+                      const txCount = clusterRecs.length;
+
+                      return (
+                        <div key={clusterName} className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 hover:shadow-lg transition-all relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-6 opacity-5">
+                              <i className="fas fa-coins text-8xl text-black"></i>
+                           </div>
+                           
+                           <div className="relative z-10">
+                              <div className="flex justify-between items-start mb-6">
+                                 <div>
+                                    <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 inline-block">
+                                      {clusterName}
+                                    </span>
+                                    <h4 className="text-3xl font-black text-black">KSh {totalComm.toLocaleString()}</h4>
+                                    <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Commission Due</p>
+                                 </div>
+                                 <div className="text-right">
+                                    <p className="text-2xl font-black text-slate-300">{txCount}</p>
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Orders</p>
+                                 </div>
+                              </div>
+                              
+                              <div className="mb-8">
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex justify-between">
+                                   <span>Total Sales Volume</span>
+                                   <span className="text-slate-600">KSh {totalSales.toLocaleString()}</span>
+                                 </p>
+                                 <div className="w-full bg-slate-200 h-1 mt-2 rounded-full overflow-hidden">
+                                   <div className="bg-green-500 h-full w-[10%]"></div>
+                                 </div>
+                                 <p className="text-[8px] text-slate-400 mt-1 text-right">10% Margin</p>
+                              </div>
+
+                              <button 
+                                onClick={() => handleConfirmClusterRemittance(clusterName)}
+                                className="w-full bg-black text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all flex items-center justify-center gap-2"
+                              >
+                                <i className="fas fa-check-double"></i> Confirm Remittance
+                              </button>
+                           </div>
+                        </div>
+                      );
+                   });
+                })()}
               </div>
             </div>
             <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
@@ -1802,7 +1889,7 @@ const App: React.FC = () => {
                
                <div 
                  className="prose prose-slate max-w-none font-medium text-slate-600 leading-relaxed"
-                 dangerouslySetInnerHTML={{ __html: viewingNewsArticle.content }}
+                 dangerouslySetInnerHTML={{ __html: `${viewingNewsArticle.content}` }}
                />
             </div>
           </div>
