@@ -230,6 +230,10 @@ const App: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
 
+  // Edit Produce State
+  const [editingProduceId, setEditingProduceId] = useState<string | null>(null);
+  const [produceInitialData, setProduceInitialData] = useState<ProduceListing | undefined>(undefined);
+
   // AI Report State
   const [reportData, setReportData] = useState<string | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -626,9 +630,53 @@ const App: React.FC = () => {
   const grandTotalVolume = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [boardMetrics]);
   const grandTotalCommission = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0), [boardMetrics]);
 
+  const handleEditProduce = (listing: ProduceListing) => {
+    setEditingProduceId(listing.id);
+    setProduceInitialData(listing);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleAddProduce = async (data: {
     date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string; images: string[];
   }) => {
+    
+    // Handle Editing Existing Listing
+    if (editingProduceId) {
+       const existing = produceListings.find(p => p.id === editingProduceId);
+       if (existing) {
+          const updated: ProduceListing = {
+             ...existing,
+             date: data.date,
+             cropType: data.cropType,
+             unitType: data.unitType,
+             unitsAvailable: data.unitsAvailable,
+             sellingPrice: data.sellingPrice,
+             supplierName: data.supplierName,
+             supplierPhone: data.supplierPhone,
+             images: data.images,
+             synced: false
+          };
+          
+          setProduceListings(prev => {
+              const updatedList = prev.map(p => p.id === editingProduceId ? updated : p);
+              persistence.set('food_coop_produce', JSON.stringify(updatedList));
+              return updatedList;
+          });
+          
+          setEditingProduceId(null);
+          setProduceInitialData(undefined);
+          
+          try {
+              const success = await saveProduce(updated);
+              if (success) {
+                   setProduceListings(prev => prev.map(p => p.id === updated.id ? { ...p, synced: true } : p));
+              }
+          } catch (err) { console.error("Update sync failed", err); }
+          return;
+       }
+    }
+
+    // Handle Creating New Listing
     const clusterValue = agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa';
     const newListing: ProduceListing = {
       id: 'LST-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -1576,12 +1624,23 @@ const App: React.FC = () => {
             )}
             {marketView === 'SUPPLIER' && (
               <div className="space-y-12">
-                {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (<ProduceForm userRole={agentIdentity.role} defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} onSubmit={handleAddProduce} />)}
+                {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (
+                  <ProduceForm 
+                    userRole={agentIdentity.role} 
+                    defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} 
+                    defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} 
+                    onSubmit={handleAddProduce} 
+                    initialData={produceInitialData}
+                  />
+                )}
                 <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
                   {produceListings.map(p => (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><div className="flex items-center gap-3">{p.images && p.images.length > 0 && <img src={p.images[0]} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200" />}<p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></div></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">
-                      {(isPrivilegedRole(agentIdentity) || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (
+                      {(isPrivilegedRole(agentIdentity) || agentIdentity.role === SystemRole.SALES_AGENT || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (
                         <>
+                          <button type="button" onClick={() => handleEditProduce(p)} className="text-blue-500 hover:text-blue-700 transition-all p-2 bg-blue-50 hover:bg-blue-100 rounded-xl">
+                            <i className="fas fa-pen text-[12px]"></i>
+                          </button>
                           <button type="button" onClick={() => {
                             const input = window.prompt(`Enter new stock quantity for ${p.cropType} (Available: ${p.unitsAvailable} ${p.unitType})`, String(p.unitsAvailable));
                             if (input !== null) {
