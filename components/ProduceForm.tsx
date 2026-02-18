@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN } from '../constants';
-import { SystemRole } from '../types';
+import { SystemRole, ProduceListing } from '../types';
 
 interface ProduceFormProps {
   userRole: SystemRole;
   defaultSupplierName?: string;
   defaultSupplierPhone?: string;
+  initialData?: ProduceListing;
   onSubmit: (data: {
     date: string;
     cropType: string;
@@ -19,7 +19,7 @@ interface ProduceFormProps {
   }) => void;
 }
 
-const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSupplierName, defaultSupplierPhone }) => {
+const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSupplierName, defaultSupplierPhone, initialData }) => {
   const isSupplier = userRole === SystemRole.SUPPLIER;
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -35,7 +35,32 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     images: [] as string[]
   });
 
+  // Populate form when editing
   useEffect(() => {
+    if (initialData) {
+      // Check if crop is standard or custom
+      const allStandardCrops = Object.values(COMMODITY_CATEGORIES).flat();
+      // Cast to string array to allow checking against generic string type from initialData
+      const isStandard = (allStandardCrops as readonly string[]).includes(initialData.cropType);
+
+      setFormData({
+        date: initialData.date,
+        cropType: isStandard ? initialData.cropType : 'Other',
+        otherCropType: isStandard ? '' : initialData.cropType,
+        unitType: initialData.unitType,
+        unitsAvailable: initialData.unitsAvailable,
+        // Reverse the margin calculation to show Base Price (Asking Price)
+        sellingPrice: initialData.sellingPrice / (1 + PROFIT_MARGIN),
+        supplierName: initialData.supplierName,
+        supplierPhone: initialData.supplierPhone,
+        images: initialData.images || []
+      });
+    }
+  }, [initialData]);
+
+  useEffect(() => {
+    // Only reset unit type if the current one isn't valid for the new crop type
+    // AND we are not in the middle of populating initial data (checked via simple logic)
     const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] as readonly string[];
     if (availableUnits && !availableUnits.includes(formData.unitType)) {
       setFormData(prev => ({ ...prev, unitType: availableUnits[0] }));
@@ -152,8 +177,8 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden relative mb-12">
       <div className="flex flex-col lg:flex-row justify-between items-center mb-10 gap-8">
         <div className="text-center lg:text-left">
-          <h3 className="text-xl font-black text-black uppercase tracking-tighter">New Supplies Entry</h3>
-          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">Listing Supplies for Market Hub</p>
+          <h3 className="text-xl font-black text-black uppercase tracking-tighter">{initialData ? 'Edit Listing' : 'New Supplies Entry'}</h3>
+          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">{initialData ? 'Update Details in Repository' : 'Listing Supplies for Market Hub'}</p>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Estimated Market Value (Incl. 10% Fee)</span>
@@ -304,7 +329,8 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
             type="submit"
             className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
           >
-            <i className="fas fa-seedling"></i> Post Product
+            {initialData ? <i className="fas fa-save"></i> : <i className="fas fa-seedling"></i>}
+            {initialData ? 'Update Listing' : 'Post Product'}
           </button>
         </div>
       </form>
