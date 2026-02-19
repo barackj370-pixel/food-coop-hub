@@ -1,15 +1,19 @@
-
 import React, { useEffect, useState } from 'react';
 import { fetchWeather, WeatherData, getWeatherDescription, getAgroAdvice, CLUSTER_COORDINATES } from '../services/weatherService';
 
 interface WeatherWidgetProps {
   defaultCluster: string;
+  readOnly?: boolean;
 }
 
-const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster }) => {
+const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly = false }) => {
   const [cluster, setCluster] = useState(defaultCluster);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setCluster(defaultCluster);
+  }, [defaultCluster]);
 
   useEffect(() => {
     // Validate cluster name, fallback to Mariwa if unknown
@@ -45,7 +49,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster }) => {
         <div className="text-center">
            <i className="fas fa-cloud-slash text-4xl text-red-300 mb-4"></i>
            <p className="text-[10px] font-black uppercase tracking-widest text-red-400">Weather Data Unavailable Offline</p>
-           <button onClick={() => setCluster(cluster)} className="mt-4 px-6 py-2 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest">Retry</button>
+           {!readOnly && <button onClick={() => setCluster(cluster)} className="mt-4 px-6 py-2 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest">Retry</button>}
         </div>
       </div>
     );
@@ -57,7 +61,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster }) => {
   const advice = getAgroAdvice(todayPrecip, todayMax);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* Header & Controls */}
       <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
@@ -66,15 +70,21 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster }) => {
         </div>
         <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
            <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm"><i className="fas fa-map-marker-alt text-red-500 text-xs"></i></div>
-           <select 
-             value={cluster} 
-             onChange={handleClusterChange}
-             className="bg-transparent text-[11px] font-black uppercase tracking-widest text-black outline-none cursor-pointer pr-4"
-           >
-             {Object.keys(CLUSTER_COORDINATES).map(c => (
-               <option key={c} value={c}>{c} Cluster</option>
-             ))}
-           </select>
+           {readOnly ? (
+             <span className="bg-transparent text-[11px] font-black uppercase tracking-widest text-black px-2 py-1">
+               {cluster} Cluster
+             </span>
+           ) : (
+             <select 
+               value={cluster} 
+               onChange={handleClusterChange}
+               className="bg-transparent text-[11px] font-black uppercase tracking-widest text-black outline-none cursor-pointer pr-4"
+             >
+               {Object.keys(CLUSTER_COORDINATES).map(c => (
+                 <option key={c} value={c}>{c} Cluster</option>
+               ))}
+             </select>
+           )}
         </div>
       </div>
 
