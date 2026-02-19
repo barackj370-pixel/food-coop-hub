@@ -4,6 +4,8 @@ import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
+import WeatherCarousel from './components/WeatherCarousel';
+import HeroCarousel from './components/HeroCarousel';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
@@ -1149,70 +1151,6 @@ const App: React.FC = () => {
     </div>
   );
 
-  const renderCustomerPortal = () => (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 mt-12">
-      <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-          <div>
-            <h3 className="text-sm font-black text-black uppercase tracking-widest">Coop Customer Storefront</h3>
-            <p className="text-[9px] font-black text-green-600 uppercase tracking-[0.2em] mt-1">Fresh Harvest Directly from Farmers</p>
-          </div>
-          <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-            <i className="fas fa-map-marker-alt text-red-600"></i>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Cluster: {agentIdentity?.cluster || 'Unassigned'}</span>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {produceListings.filter(p => p.status === 'AVAILABLE' && p.unitsAvailable > 0).map(p => {
-            const isSameCluster = p.cluster === agentIdentity?.cluster;
-            return (
-              <div key={p.id} className="bg-slate-50/50 rounded-[2rem] border border-slate-100 p-8 flex flex-col justify-between hover:bg-white hover:shadow-2xl transition-all group overflow-hidden">
-                {p.images && p.images.length > 0 ? (
-                  <div className="w-full h-40 mb-6 rounded-2xl overflow-hidden relative">
-                     <img src={p.images[0]} alt={p.cropType} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                     {p.images.length > 1 && (
-                       <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[8px] font-bold px-2 py-1 rounded-full backdrop-blur-sm">
-                         +{p.images.length - 1} more
-                       </div>
-                     )}
-                  </div>
-                ) : (
-                  <div className="w-full h-40 mb-6 rounded-2xl bg-slate-200 flex items-center justify-center text-slate-400">
-                     <i className="fas fa-image text-3xl opacity-50"></i>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isSameCluster ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>
-                      {p.cluster} {isSameCluster && ' (Local)'}
-                    </span>
-                    <i className="fas fa-basket-shopping text-slate-200 group-hover:text-green-500 transition-colors"></i>
-                  </div>
-                  <div>
-                    <p className="text-xl font-black text-black uppercase leading-tight">{p.cropType}</p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">{p.unitsAvailable} {p.unitType} in stock</p>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Listing Price</p>
-                    <p className="text-lg font-black text-black">KSh {p.sellingPrice.toLocaleString()} <span className="text-[10px] text-slate-400 font-bold">/ {p.unitType}</span></p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => handlePlaceOrder(p)}
-                  className="w-full mt-8 bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <i className="fas fa-shopping-cart"></i> Order Now
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-
   const AuditLogTable = ({ data, title, onDelete, onEdit }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void, onEdit?: (r: SaleRecord) => void }) => {
     // Explicitly type groupedData with useMemo to fix "Property ... does not exist on type 'unknown'"
     const groupedData = useMemo<Record<string, SaleRecord[]>>(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
@@ -1345,6 +1283,45 @@ const App: React.FC = () => {
     );
   };
 
+  const WelcomeCard = (
+    <div className="bg-white p-12 rounded-[3rem] shadow-none border-none flex flex-col md:flex-row gap-12 items-center h-full min-h-[400px]">
+      <div className="flex-1 space-y-6">
+        <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">WELCOME TO THE KPL FOOD COOPERATIVE MARKET</h2>
+        <p className="text-slate-600 font-medium leading-relaxed">
+          Our platform is designed to empower local farmers and consumers through a transparent, high-integrity marketplace. We leverage agroecological principles to ensure sustainable growth for our community.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          {agentIdentity ? (
+            <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button>
+          ) : (
+            <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Get Started</button>
+          )}
+          
+          <button 
+             onClick={() => setShowPublicSupplierStats(true)} 
+             className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-green-700 transition-all flex items-center gap-2"
+          >
+             <i className="fas fa-chart-pie"></i> SUPPLIERS: CHECK YOUR SHARES
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 grid grid-cols-2 gap-4 w-full">
+        <div className="bg-green-50 p-8 rounded-3xl border border-green-100 text-center">
+          <p className="text-3xl font-black text-green-600">{users.length}</p>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Members</p>
+        </div>
+        <div className="bg-red-50 p-8 rounded-3xl border border-red-100 text-center">
+          <p className="text-3xl font-black text-red-600">{records.length}</p>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed Trades</p>
+        </div>
+        <div className="bg-slate-900 p-8 rounded-3xl border border-black text-center col-span-2">
+          <p className="text-2xl font-black text-white">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}</p>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total Trade Volume</p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
       <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
@@ -1430,43 +1407,16 @@ const App: React.FC = () => {
 
         {currentPortal === 'HOME' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
-              <div className="flex-1 space-y-6">
-                <h2 className="text-4xl font-black uppercase tracking-tight text-black leading-tight">WELCOME TO THE KPL FOOD COOPERATIVE MARKET</h2>
-                <p className="text-slate-600 font-medium leading-relaxed">
-                  Our platform is designed to empower local farmers and consumers through a transparent, high-integrity marketplace. We leverage agroecological principles to ensure sustainable growth for our community.
-                </p>
-                <div className="flex flex-wrap gap-4">
-                  {agentIdentity ? (
-                    <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button>
-                  ) : (
-                    <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Get Started</button>
-                  )}
-                  
-                  {/* Public Supplier Stats Button */}
-                  <button 
-                     onClick={() => setShowPublicSupplierStats(true)} 
-                     className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-green-700 transition-all flex items-center gap-2"
-                  >
-                     <i className="fas fa-chart-pie"></i> SUPPLIERS: CHECK YOUR SHARES
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div className="bg-green-50 p-8 rounded-3xl border border-green-100 text-center">
-                  <p className="text-3xl font-black text-green-600">{users.length}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Members</p>
-                </div>
-                <div className="bg-red-50 p-8 rounded-3xl border border-red-100 text-center">
-                  <p className="text-3xl font-black text-red-600">{records.length}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed Trades</p>
-                </div>
-                <div className="bg-slate-900 p-8 rounded-3xl border border-black text-center col-span-2">
-                  <p className="text-2xl font-black text-white">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total Trade Volume</p>
-                </div>
-              </div>
-            </div>
+            {/* Weather Ticker Carousel - Top Position */}
+            <WeatherCarousel />
+
+            {/* Main Hero Carousel - Welcome + News */}
+            <HeroCarousel 
+               welcomeCard={WelcomeCard} 
+               newsArticles={NEWS_ARTICLES} 
+               onReadNews={(article) => setViewingNewsArticle(article)} 
+            />
+
             {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
           </div>
         )}
@@ -1948,7 +1898,7 @@ const App: React.FC = () => {
                
                <div 
                  className="prose prose-slate max-w-none font-medium text-slate-600 leading-relaxed"
-                 dangerouslySetInnerHTML={{ __html: `${viewingNewsArticle.content}` }}
+                 dangerouslySetInnerHTML={{ __html: String(viewingNewsArticle.content) }}
                />
             </div>
           </div>
