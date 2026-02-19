@@ -1182,8 +1182,8 @@ const App: React.FC = () => {
       
       if (isLocked) return false;
 
-      // If not locked, allow System Dev or the Original Agent
-      return isSystemDev || (agentIdentity?.phone === r.agentPhone);
+      // If not locked, allow System Dev or the Original Agent (using normalized phone check)
+      return isSystemDev || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone));
     };
 
     return (
@@ -1235,7 +1235,7 @@ const App: React.FC = () => {
                              </button>
                           )}
                           
-                          {onDelete && (isSystemDev || isPrivilegedRole(agentIdentity) || (agentIdentity?.phone === r.agentPhone && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING))) && (
+                          {onDelete && (isSystemDev || isPrivilegedRole(agentIdentity) || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone) && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING))) && (
                              <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1">
                                <i className="fas fa-trash-alt text-[10px]"></i>
                              </button>
