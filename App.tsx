@@ -3,9 +3,9 @@ import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, Accou
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
+import HeroCarousel from './components/HeroCarousel';
 import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
-import HeroCarousel from './components/HeroCarousel';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
