@@ -46,7 +46,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [isInviteFlow, setIsInviteFlow] = useState(false);
 
   const isMounted = useRef(true);
-  const loadingWatchdog = useRef<NodeJS.Timeout | null>(null);
+  const loadingWatchdog = useRef<any>(null);
 
   useEffect(() => {
     return () => { isMounted.current = false; };
