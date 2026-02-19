@@ -21,7 +21,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
@@ -484,11 +484,11 @@ const App: React.FC = () => {
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
-    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'CONTACT'];
+    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT'];
     if (!agentIdentity) return guestPortals;
     
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'ABOUT', 'MARKET', 'CONTACT', 'FORUM'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'CONTACT', 'FORUM'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
@@ -1361,13 +1361,14 @@ const App: React.FC = () => {
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
               <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
+              <button onClick={() => setCurrentPortal('WEATHER')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'WEATHER' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Agro-Weather</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
               <button onClick={() => setCurrentPortal('CONTACT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'CONTACT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Contact Us</button>
             </div>
           </div>
         </div>
         <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN'].includes(p)).map(p => {
+          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER'].includes(p)).map(p => {
             if (p === 'MARKET') {
               return (
                 <div key={p} className="relative">
@@ -1407,15 +1408,15 @@ const App: React.FC = () => {
 
         {currentPortal === 'HOME' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Weather Ticker Carousel - Top Position */}
-            <WeatherCarousel />
-
             {/* Main Hero Carousel - Welcome + News */}
             <HeroCarousel 
                welcomeCard={WelcomeCard} 
                newsArticles={NEWS_ARTICLES} 
                onReadNews={(article) => setViewingNewsArticle(article)} 
             />
+
+            {/* Weather Ticker Carousel */}
+            <WeatherCarousel />
 
             {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
           </div>
@@ -1461,6 +1462,22 @@ const App: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {currentPortal === 'WEATHER' && (
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-center max-w-2xl mx-auto space-y-4">
+               <div className="w-16 h-16 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto text-blue-500 shadow-sm border border-blue-100">
+                  <i className="fas fa-cloud-sun-rain text-2xl"></i>
+               </div>
+               <h2 className="text-3xl font-black uppercase tracking-tight text-black">Agro-Weather Department</h2>
+               <p className="text-slate-500 font-medium leading-relaxed">
+                 Access real-time hyperlocal weather data for all our agricultural clusters. This department provides essential climate insights to help farmers plan sowing, harvesting, and fertilizer application effectively.
+               </p>
+            </div>
+            
+            <WeatherWidget defaultCluster={agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa'} />
           </div>
         )}
 
