@@ -298,7 +298,7 @@ const App: React.FC = () => {
 
     try {
       // 1. Sync Pending Records
-      const pendingRecords = records.filter(r => r.synced === false);
+      const pendingRecords = records.filter(r => r.synced === false || r.synced === undefined);
       if (pendingRecords.length > 0) {
         console.log(`Syncing ${pendingRecords.length} pending records...`);
         let syncedCount = 0;
@@ -317,7 +317,7 @@ const App: React.FC = () => {
       }
 
       // 2. Sync Pending Produce
-      const pendingProduce = produceListings.filter(p => p.synced === false);
+      const pendingProduce = produceListings.filter(p => p.synced === false || p.synced === undefined);
       if (pendingProduce.length > 0) {
         for (const item of pendingProduce) {
            const success = await saveProduce(item);
@@ -332,7 +332,7 @@ const App: React.FC = () => {
       }
 
       // 3. Sync Pending Orders
-      const pendingOrders = marketOrders.filter(o => o.synced === false);
+      const pendingOrders = marketOrders.filter(o => o.synced === false || o.synced === undefined);
       if (pendingOrders.length > 0) {
         for (const order of pendingOrders) {
            const success = await saveOrder(order);
