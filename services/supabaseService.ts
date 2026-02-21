@@ -246,7 +246,8 @@ const mapDbToOrder = (db: any): MarketOrder => ({
   customerPhone: db.customer_phone || db.customerPhone,
   status: db.status,
   agentPhone: db.agent_phone || db.agentPhone,
-  cluster: db.cluster
+  cluster: db.cluster,
+  synced: true
 });
 
 export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
@@ -316,7 +317,8 @@ const mapDbToProduce = (db: any): ProduceListing => ({
   supplierPhone: db.supplier_phone || db.supplierPhone,
   cluster: db.cluster,
   status: db.status,
-  images: db.images ? JSON.parse(db.images) : []
+  images: db.images ? JSON.parse(db.images) : [],
+  synced: true
 });
 
 export const saveProduce = async (produce: ProduceListing): Promise<boolean> => {
