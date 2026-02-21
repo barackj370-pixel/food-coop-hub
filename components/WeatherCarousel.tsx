@@ -4,16 +4,7 @@ import { CLUSTER_COORDINATES } from '../services/weatherService';
 
 const WeatherCarousel: React.FC = () => {
   const clusters = Object.keys(CLUSTER_COORDINATES);
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % clusters.length);
-    }, 10000); // 10 seconds per cluster to allow reading
-    return () => clearInterval(timer);
-  }, [clusters.length]);
-
-  const currentCluster = clusters[currentIndex];
+  const [currentCluster, setCurrentCluster] = useState(clusters[0]);
 
   return (
     <div className="animate-in fade-in slide-in-from-top-4 duration-700">
@@ -23,7 +14,7 @@ const WeatherCarousel: React.FC = () => {
          <div className="h-px bg-red-100 flex-1"></div>
          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Monitoring {clusters.length} Regions</p>
       </div>
-      <WeatherWidget defaultCluster={currentCluster} readOnly={true} />
+      <WeatherWidget defaultCluster={currentCluster} readOnly={false} />
     </div>
   );
 };
