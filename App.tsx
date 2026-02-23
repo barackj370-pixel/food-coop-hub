@@ -615,12 +615,19 @@ const App: React.FC = () => {
         return acc;
     }, {} as Record<string, ClusterMetric>);
 
-    // 2. Aggregate data
+    // 2. Aggregate data (Only approved and verified records)
     rLog.forEach(r => {
-      const cluster = r.cluster || 'Unknown';
-      if (!clusterMap[cluster]) clusterMap[cluster] = { volume: 0, profit: 0 };
-      clusterMap[cluster].volume += Number(r.totalSale);
-      clusterMap[cluster].profit += Number(r.coopProfit);
+      if (
+        r.status === RecordStatus.COMPLETE || 
+        r.status === RecordStatus.PAID || 
+        r.status === RecordStatus.VERIFIED || 
+        r.status === RecordStatus.VALIDATED
+      ) {
+        const cluster = r.cluster || 'Unknown';
+        if (!clusterMap[cluster]) clusterMap[cluster] = { volume: 0, profit: 0 };
+        clusterMap[cluster].volume += Number(r.totalSale);
+        clusterMap[cluster].profit += Number(r.coopProfit);
+      }
     });
     
     // Explicitly cast Object.entries result to assist TS inference
@@ -1019,24 +1026,25 @@ const App: React.FC = () => {
     }
   };
 
-  const handleConfirmClusterRemittance = async (clusterName: string) => {
+  const handleConfirmClusterRemittance = async (clusterName: string, date: string) => {
     // 1. Identify records
     const pendingClusterRecords = records.filter(r => 
       (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && 
-      (r.cluster || 'Unassigned') === clusterName
+      (r.cluster || 'Unassigned') === clusterName &&
+      r.date === date
     );
 
     if (pendingClusterRecords.length === 0) return;
 
     const totalComm = pendingClusterRecords.reduce((sum, r) => sum + Number(r.coopProfit), 0);
 
-    if (!window.confirm(`CONFIRM REMITTANCE?\n\nCluster: ${clusterName}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${pendingClusterRecords.length}\n\nThis confirms that the weekly commission for this cluster has been received. Proceed?`)) {
+    if (!window.confirm(`CONFIRM REMITTANCE?\n\nCluster: ${clusterName}\nDate: ${date}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${pendingClusterRecords.length}\n\nThis confirms that the commission for this cluster on this date has been received. Proceed?`)) {
       return;
     }
 
     // 2. Update Local State Optimistically
     const updatedRecords = records.map(r => {
-      if ((r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && (r.cluster || 'Unassigned') === clusterName) {
+      if ((r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && (r.cluster || 'Unassigned') === clusterName && r.date === date) {
         return { ...r, status: RecordStatus.COMPLETE, synced: false };
       }
       return r;
@@ -1057,7 +1065,7 @@ const App: React.FC = () => {
     if (successCount > 0) {
        // Mark synced
        setRecords(prev => prev.map(r => {
-          if ((r.status === RecordStatus.COMPLETE) && (r.cluster || 'Unassigned') === clusterName && r.synced === false) {
+          if ((r.status === RecordStatus.COMPLETE) && (r.cluster || 'Unassigned') === clusterName && r.date === date && r.synced === false) {
              // We check ID match to be safe
              if (pendingClusterRecords.some(pr => pr.id === r.id)) {
                 return { ...r, synced: true };
@@ -1065,7 +1073,7 @@ const App: React.FC = () => {
           }
           return r;
        }));
-       alert(`Successfully confirmed remittance for ${clusterName}. ${successCount} orders marked as Complete.`);
+       alert(`Successfully confirmed remittance for ${clusterName} on ${date}. ${successCount} orders marked as Complete.`);
     } else {
        alert("Remittance confirmed locally. Will sync when online.");
     }
@@ -1645,7 +1653,7 @@ const App: React.FC = () => {
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {(() => {
-                   // Group Pending Records by Cluster
+                   // Group Pending Records by Cluster AND Date
                    const pending = records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING);
                    if (pending.length === 0) {
                      return (
@@ -1656,16 +1664,21 @@ const App: React.FC = () => {
                      );
                    }
 
-                   const clusters = Array.from(new Set(pending.map(r => r.cluster || 'Unassigned')));
+                   const groups = pending.reduce((acc, r) => {
+                     const key = `${r.cluster || 'Unassigned'}|${r.date}`;
+                     if (!acc[key]) acc[key] = [];
+                     acc[key].push(r);
+                     return acc;
+                   }, {} as Record<string, SaleRecord[]>);
                    
-                   return clusters.map(clusterName => {
-                      const clusterRecs = pending.filter(r => (r.cluster || 'Unassigned') === clusterName);
+                   return Object.entries(groups).map(([key, clusterRecs]) => {
+                      const [clusterName, date] = key.split('|');
                       const totalComm = clusterRecs.reduce((sum, r) => sum + Number(r.coopProfit), 0);
                       const totalSales = clusterRecs.reduce((sum, r) => sum + Number(r.totalSale), 0);
                       const txCount = clusterRecs.length;
 
                       return (
-                        <div key={clusterName} className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 hover:shadow-lg transition-all relative overflow-hidden group">
+                        <div key={key} className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 hover:shadow-lg transition-all relative overflow-hidden group">
                            <div className="absolute top-0 right-0 p-6 opacity-5">
                               <i className="fas fa-coins text-8xl text-black"></i>
                            </div>
@@ -1674,7 +1687,7 @@ const App: React.FC = () => {
                               <div className="flex justify-between items-start mb-6">
                                  <div>
                                     <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 inline-block">
-                                      {clusterName}
+                                      {clusterName} • {date}
                                     </span>
                                     <h4 className="text-3xl font-black text-black">KSh {totalComm.toLocaleString()}</h4>
                                     <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Commission Due</p>
@@ -1697,7 +1710,7 @@ const App: React.FC = () => {
                               </div>
 
                               <button 
-                                onClick={() => handleConfirmClusterRemittance(clusterName)}
+                                onClick={() => handleConfirmClusterRemittance(clusterName, date)}
                                 className="w-full bg-black text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-green-600 transition-all flex items-center justify-center gap-2"
                               >
                                 <i className="fas fa-check-double"></i> Confirm Remittance
