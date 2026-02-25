@@ -102,7 +102,35 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
       (payload as any).agent_id = userId;
     }
     
-    const { error } = await supabase.from('records').upsert(payload, { onConflict: 'id' });
+    let { error } = await supabase.from('records').upsert(payload, { onConflict: 'id' });
+    
+    // Auto-fix for schema mismatch (missing columns like order_id, produce_id, agent_id)
+    if (error && error.code === '42703') {
+      console.warn("Schema mismatch in records. Retrying with safe payload.");
+      const { order_id, produce_id, agent_id, ...safePayload } = payload as any;
+      const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
+      error = retry.error;
+    }
+
+    // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
+    if (error && error.code === '23503' && userId) {
+       console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
+       const { error: healError } = await supabase.from('profiles').upsert({
+         id: userId,
+         name: record.agentName || 'Unknown',
+         phone: record.agentPhone || 'Unknown',
+         role: 'Sales Agent', // Default fallback
+         cluster: record.cluster || 'Unassigned',
+         status: 'ACTIVE',
+         created_at: new Date().toISOString()
+       });
+       if (!healError) {
+         const { order_id, produce_id, agent_id, ...safePayload } = payload as any;
+         const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
+         error = retry.error;
+       }
+    }
+
     if (error) throw error;
     return true;
   } catch (err: any) {
@@ -258,7 +286,35 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
     if (userId) {
       (payload as any).agent_id = userId;
     }
-    const { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
+    let { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
+    
+    // Auto-fix for schema mismatch
+    if (error && error.code === '42703') {
+      console.warn("Schema mismatch in orders. Retrying with safe payload.");
+      const { agent_id, ...safePayload } = payload as any;
+      const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
+      error = retry.error;
+    }
+
+    // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
+    if (error && error.code === '23503' && userId) {
+       console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
+       const { error: healError } = await supabase.from('profiles').upsert({
+         id: userId,
+         name: order.customerName || 'Unknown',
+         phone: order.customerPhone || 'Unknown',
+         role: 'Sales Agent', // Default fallback
+         cluster: order.cluster || 'Unassigned',
+         status: 'ACTIVE',
+         created_at: new Date().toISOString()
+       });
+       if (!healError) {
+         const { agent_id, ...safePayload } = payload as any;
+         const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
+         error = retry.error;
+       }
+    }
+
     if (error) throw error;
     return true;
   } catch (err: any) {
@@ -329,16 +385,35 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
     if (userId) {
       (payload as any).agent_id = userId;
     }
-    const { error } = await supabase.from('produce').upsert(payload, { onConflict: 'id' });
+    let { error } = await supabase.from('produce').upsert(payload, { onConflict: 'id' });
     
-    // Auto-fix for schema mismatch (missing images column in DB)
+    // Auto-fix for schema mismatch (missing images or agent_id column in DB)
     const msg = error?.message?.toLowerCase() || '';
-    if (error && (error.code === 'PGRST204' || error.code === '42703') && (msg.includes('images') || msg.includes('column'))) {
-      console.warn("Schema mismatch detected: 'images' column likely missing in DB. Retrying without images.");
-      const { images, ...safePayload } = payload;
-      const { error: retryError } = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
-      if (retryError) throw retryError;
-      return true;
+    if (error && (error.code === 'PGRST204' || error.code === '42703')) {
+      console.warn("Schema mismatch detected in produce. Retrying with safe payload.");
+      const { images, agent_id, ...safePayload } = payload as any;
+      const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
+      error = retry.error;
+    }
+
+    // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
+    if (error && error.code === '23503' && userId) {
+       console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
+       const { error: healError } = await supabase.from('profiles').upsert({
+         id: userId,
+         name: produce.supplierName || 'Unknown',
+         phone: produce.supplierPhone || 'Unknown',
+         role: 'Supplier', // Default fallback
+         cluster: produce.cluster || 'Unassigned',
+         status: 'ACTIVE',
+         created_at: new Date().toISOString()
+       });
+       if (!healError) {
+         const { images, agent_id, ...safePayload } = payload as any;
+         // Try with safe payload just in case images or agent_id column is missing
+         const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
+         error = retry.error;
+       }
     }
 
     if (error) throw error;
