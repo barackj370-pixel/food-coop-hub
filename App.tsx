@@ -81,14 +81,20 @@ const computeHash = async (record: HashableRecord): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
 };
 
-// Helper: Merge cloud data with local data, preserving local-only records
-const mergeData = <T extends { id: string, date?: string, createdAt?: string }>(cloudItems: T[], localItems: T[]): T[] => {
+// Helper: Merge cloud data with local data, preserving local-only and unsynced records
+const mergeData = <T extends { id: string, date?: string, createdAt?: string, synced?: boolean }>(cloudItems: T[], localItems: T[]): T[] => {
   const cloudMap = new Map(cloudItems.map(i => [i.id, i]));
   const merged = [...cloudItems];
   
   localItems.forEach(localItem => {
     if (!cloudMap.has(localItem.id)) {
       merged.push(localItem);
+    } else if (localItem.synced === false) {
+      // Preserve local modifications that haven't been synced yet
+      const index = merged.findIndex(i => i.id === localItem.id);
+      if (index !== -1) {
+        merged[index] = localItem;
+      }
     }
   });
 
@@ -301,18 +307,15 @@ const App: React.FC = () => {
       const pendingRecords = records.filter(r => r.synced === false || r.synced === undefined);
       if (pendingRecords.length > 0) {
         console.log(`Syncing ${pendingRecords.length} pending records...`);
-        let syncedCount = 0;
         for (const record of pendingRecords) {
            const success = await saveRecord(record);
-           if (success) syncedCount++;
-        }
-        if (syncedCount > 0) {
-           // Update local state to mark as synced
-           setRecords(prev => {
-             const updated = prev.map(r => pendingRecords.some(pr => pr.id === r.id) ? { ...r, synced: true } : r);
-             persistence.set('food_coop_data', JSON.stringify(updated));
-             return updated;
-           });
+           if (success) {
+             setRecords(prev => {
+               const updated = prev.map(r => r.id === record.id ? { ...r, synced: true } : r);
+               persistence.set('food_coop_data', JSON.stringify(updated));
+               return updated;
+             });
+           }
         }
       }
 
@@ -565,7 +568,12 @@ const App: React.FC = () => {
   }, [loadCloudData]);
 
   useEffect(() => {
-    const interval = setInterval(() => { if (navigator.onLine) loadCloudData(); }, SYNC_POLLING_INTERVAL);
+    const interval = setInterval(() => { 
+      if (navigator.onLine) {
+        loadCloudData();
+        syncPendingData();
+      } 
+    }, SYNC_POLLING_INTERVAL);
     const channel = supabase.channel('global_changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
         if (navigator.onLine) {
@@ -638,6 +646,13 @@ const App: React.FC = () => {
   // Calculate Grand Totals for Board Portal
   const grandTotalVolume = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [boardMetrics]);
   const grandTotalCommission = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0), [boardMetrics]);
+
+  const pendingSyncCount = useMemo(() => {
+    const pRecords = records.filter(r => r.synced === false || r.synced === undefined).length;
+    const pProduce = produceListings.filter(p => p.synced === false || p.synced === undefined).length;
+    const pOrders = marketOrders.filter(o => o.synced === false || o.synced === undefined).length;
+    return pRecords + pProduce + pOrders;
+  }, [records, produceListings, marketOrders]);
 
   const handleEditProduce = (listing: ProduceListing) => {
     setEditingProduceId(listing.id);
@@ -1054,29 +1069,20 @@ const App: React.FC = () => {
     persistence.set('food_coop_data', JSON.stringify(updatedRecords));
 
     // 3. Sync to Backend
-    let successCount = 0;
-    // We update sequentially or parallel. Parallel is fine.
-    await Promise.all(pendingClusterRecords.map(async (r) => {
+    // We update sequentially to ensure we can track success per record
+    for (const r of pendingClusterRecords) {
        const updated = { ...r, status: RecordStatus.COMPLETE };
        const success = await saveRecord(updated);
-       if (success) successCount++;
-    }));
-
-    if (successCount > 0) {
-       // Mark synced
-       setRecords(prev => prev.map(r => {
-          if ((r.status === RecordStatus.COMPLETE) && (r.cluster || 'Unassigned') === clusterName && r.date === date && r.synced === false) {
-             // We check ID match to be safe
-             if (pendingClusterRecords.some(pr => pr.id === r.id)) {
-                return { ...r, synced: true };
-             }
-          }
-          return r;
-       }));
-       alert(`Successfully confirmed remittance for ${clusterName} on ${date}. ${successCount} orders marked as Complete.`);
-    } else {
-       alert("Remittance confirmed locally. Will sync when online.");
+       if (success) {
+          setRecords(prev => {
+             const updatedList = prev.map(item => item.id === r.id ? { ...item, status: RecordStatus.COMPLETE, synced: true } : item);
+             persistence.set('food_coop_data', JSON.stringify(updatedList));
+             return updatedList;
+          });
+       }
     }
+
+    alert(`Remittance confirmation process completed for ${clusterName} on ${date}. Check the ledger for sync status.`);
   };
 
   const handleDeleteRecord = async (id: string) => {
@@ -1344,15 +1350,24 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
             {agentIdentity ? (
-              <div className={`bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6 ${!isOnline ? 'border-red-200 bg-red-50' : ''}`}>
+              <div className={`bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6 ${!isOnline || pendingSyncCount > 0 ? 'border-red-200 bg-red-50' : ''}`}>
                    <div className="text-right">
-                     <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${!isOnline ? 'text-red-600' : 'text-slate-400'}`}>
-                       {isOnline ? 'Network Sync v1.2' : 'OFFLINE MODE'}
+                     <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${!isOnline || pendingSyncCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                       {isOnline ? (pendingSyncCount > 0 ? `${pendingSyncCount} PENDING SYNC` : 'Network Sync v1.2') : 'OFFLINE MODE'}
                      </p>
                      <p className="text-[10px] font-bold text-black">
                        {isSyncing ? 'Syncing...' : (!isOnline ? 'Queued' : (lastSyncTime?.toLocaleTimeString() || 'Connected'))}
                      </p>
                    </div>
+                   {pendingSyncCount > 0 && isOnline && !isSyncing && (
+                     <button 
+                       onClick={() => syncPendingData()}
+                       className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-all shadow-lg animate-pulse"
+                       title="Sync Pending Data"
+                     >
+                       <i className="fas fa-sync-alt text-xs"></i>
+                     </button>
+                   )}
                    <button 
                      type="button" 
                      onClick={handleLogout} 
