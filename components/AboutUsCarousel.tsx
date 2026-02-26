@@ -5,11 +5,22 @@ const AboutUsCarousel: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const currentItem = ABOUT_US_DATA[currentIndex];
+    const isLongContent = currentItem.content.length > 300;
+    const delay = isLongContent ? 15000 : 8000; // 15 seconds for long, 8 seconds for short
+
+    const timer = setTimeout(() => {
       setCurrentIndex((prev) => (prev + 1) % ABOUT_US_DATA.length);
-    }, 8000); // Change every 8 seconds
-    return () => clearInterval(interval);
-  }, []);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [currentIndex]);
+
+  const handleReadMore = (id: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('section', id);
+    window.location.href = window.location.pathname + '?' + params.toString() + '#about';
+  };
 
   return (
     <div className="bg-slate-900 text-white rounded-[3rem] p-10 md:p-16 shadow-2xl relative overflow-hidden">
@@ -31,6 +42,14 @@ const AboutUsCarousel: React.FC = () => {
               {ABOUT_US_DATA[currentIndex].content.length > 300 
                 ? ABOUT_US_DATA[currentIndex].content.substring(0, 300) + '...' 
                 : ABOUT_US_DATA[currentIndex].content}
+              {ABOUT_US_DATA[currentIndex].content.length > 300 && (
+                <button 
+                  onClick={() => handleReadMore(ABOUT_US_DATA[currentIndex].id)}
+                  className="ml-2 text-green-400 hover:text-green-300 font-bold underline decoration-2 underline-offset-4"
+                >
+                  Read more
+                </button>
+              )}
             </div>
           </div>
         </div>
