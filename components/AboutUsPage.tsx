@@ -1,8 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ABOUT_US_DATA } from '../constants';
 
 const AboutUsPage: React.FC = () => {
-  const [activeSection, setActiveSection] = useState(ABOUT_US_DATA[0].id);
+  const [activeSection, setActiveSection] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const section = params.get('section');
+    return section && ABOUT_US_DATA.some(s => s.id === section) ? section : ABOUT_US_DATA[0].id;
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const section = params.get('section');
+      if (section && ABOUT_US_DATA.some(s => s.id === section)) {
+        setActiveSection(section);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleSectionClick = (id: string) => {
+    setActiveSection(id);
+    const params = new URLSearchParams(window.location.search);
+    params.set('section', id);
+    window.history.replaceState(null, '', window.location.pathname + '?' + params.toString() + window.location.hash);
+  };
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -15,7 +38,7 @@ const AboutUsPage: React.FC = () => {
             {ABOUT_US_DATA.map((section: any) => (
               <button
                 key={section.id}
-                onClick={() => setActiveSection(section.id)}
+                onClick={() => handleSectionClick(section.id)}
                 className={`text-left px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${
                   activeSection === section.id
                     ? 'bg-black text-white shadow-lg scale-105'
