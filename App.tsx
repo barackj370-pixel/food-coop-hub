@@ -237,12 +237,22 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let newSearch = window.location.search;
+    
+    // Clean up registration query params if we are no longer on the login page
+    if (currentPortal !== 'LOGIN' && newSearch.includes('mode=register')) {
+      newSearch = '';
+    }
+
     if (currentPortal === 'HOME') {
-      if (window.location.hash) {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      if (window.location.hash || window.location.search !== newSearch) {
+        window.history.replaceState(null, '', window.location.pathname + newSearch);
       }
     } else {
-      window.location.hash = currentPortal.toLowerCase();
+      const newHash = '#' + currentPortal.toLowerCase();
+      if (window.location.hash !== newHash || window.location.search !== newSearch) {
+        window.history.replaceState(null, '', window.location.pathname + newSearch + newHash);
+      }
     }
   }, [currentPortal]);
 
