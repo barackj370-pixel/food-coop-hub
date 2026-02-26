@@ -12,6 +12,7 @@ const CLUSTERS = [
   'Nyamagagana',
   'Kangemi',
   'Apuoyo',
+  'Sibembe',
 ];
 
 const CLUSTER_ROLES: SystemRole[] = [
