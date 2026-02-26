@@ -216,7 +216,36 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : null;
   });
   
-  const [currentPortal, setCurrentPortal] = useState<PortalType>('HOME');
+  const [currentPortal, setCurrentPortal] = useState<PortalType>(() => {
+    const hash = window.location.hash.replace('#', '').toUpperCase();
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER'];
+    return validPortals.includes(hash as PortalType) ? (hash as PortalType) : 'HOME';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '').toUpperCase();
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER'];
+      if (validPortals.includes(hash as PortalType)) {
+        setCurrentPortal(hash as PortalType);
+      } else if (!window.location.hash) {
+        setCurrentPortal('HOME');
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    if (currentPortal === 'HOME') {
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    } else {
+      window.location.hash = currentPortal.toLowerCase();
+    }
+  }, [currentPortal]);
+
   const [marketView, setMarketView] = useState<MarketView>(() => {
     const saved = persistence.get('agent_session');
     if (saved) {
