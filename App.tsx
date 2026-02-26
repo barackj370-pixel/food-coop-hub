@@ -6,6 +6,8 @@ import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
 import HeroCarousel from './components/HeroCarousel';
+import AboutUsCarousel from './components/AboutUsCarousel';
+import AboutUsPage from './components/AboutUsPage';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
@@ -1441,6 +1443,9 @@ const App: React.FC = () => {
             {/* Weather Ticker Carousel */}
             <WeatherCarousel />
 
+            {/* About Us Carousel */}
+            <AboutUsCarousel />
+
             {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
           </div>
         )}
@@ -1505,21 +1510,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'ABOUT' && (
-          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-12 rounded-[3rem] shadow-xl border border-slate-100 max-w-4xl mx-auto space-y-12">
-              <div className="space-y-8">
-                <h2 className="text-4xl font-black uppercase tracking-tight text-black text-center leading-tight">Connecting <span className="text-green-600">Suppliers</span> with <span className="text-red-600">Consumers</span></h2>
-                <div className="space-y-6 text-slate-600 font-medium leading-relaxed text-center max-w-2xl mx-auto">
-                  <p>
-                    KPL Food Coop Market was founded with a singular vision: to bridge the gap between rural agricultural productivity and urban consumer demand through a model built on transparency, fairness, and mutual growth.
-                  </p>
-                  <p>
-                    We provide a unified platform where sales agents, suppliers, and consumers interact seamlessly, ensuring fresh produce reaches the market efficiently while maximizing returns for our farmers.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <AboutUsPage />
         )}
 
         {currentPortal === 'CONTACT' && (
@@ -1949,6 +1940,13 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Copyright Footer */}
+      <footer className="container mx-auto px-6 py-8 mt-12 border-t border-slate-100 text-center relative z-20">
+        <p className="text-slate-400 text-xs font-medium">
+          &copy; {new Date().getFullYear()} Kenyan Peasants League (KPL) Food Coop Market. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 };
