@@ -15,6 +15,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly 
 
   useEffect(() => {
     setCluster(defaultCluster);
+    setCurrentSlide(0);
   }, [defaultCluster]);
 
   useEffect(() => {
@@ -39,6 +40,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly 
 
   const handleClusterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setCluster(e.target.value);
+    setCurrentSlide(0);
   };
 
   if (loading && !weather) {
