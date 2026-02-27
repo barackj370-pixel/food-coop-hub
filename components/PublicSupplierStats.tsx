@@ -55,7 +55,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const { data: salesIdentity, error: salesError } = await supabase
           .from('records')
           .select('farmer_name, cluster')
-          .or(`farmer_phone.ilike.%${searchTerm}%,farmer_phone.eq.${cleanInputPhone}`)
+          .ilike('farmer_phone', `%${searchTerm}%`)
           .limit(1);
 
         if (salesError) throw salesError;
@@ -68,7 +68,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           const { data: produceIdentity, error: produceError } = await supabase
             .from('produce')
             .select('supplier_name, cluster')
-            .or(`supplier_phone.ilike.%${searchTerm}%,supplier_phone.eq.${cleanInputPhone}`)
+            .ilike('supplier_phone', `%${searchTerm}%`)
             .limit(1);
           
           if (produceError) throw produceError;
@@ -130,9 +130,9 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setView('STATS');
     };
 
-    // Timeout Promise: Rejects if search takes longer than 15 seconds
+    // Timeout Promise: Rejects if search takes longer than 60 seconds
     const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 15000)
+      setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 60000)
     );
 
     try {
