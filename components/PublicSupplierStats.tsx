@@ -130,14 +130,8 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setView('STATS');
     };
 
-    // Timeout Promise: Rejects if search takes longer than 60 seconds
-    const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 60000)
-    );
-
     try {
-      // Race the search against the timeout
-      await Promise.race([performSearch(), timeout]);
+      await performSearch();
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Network Error: Could not fetch records.");
