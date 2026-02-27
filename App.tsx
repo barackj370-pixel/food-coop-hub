@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types';
 import SaleForm from './components/SaleForm';
@@ -136,6 +137,40 @@ interface NewsArticle {
 }
 
 const NEWS_ARTICLES: NewsArticle[] = [
+  {
+    id: 'news-003',
+    category: 'Sustainable Farming',
+    title: 'The Kenyan Peasant League’s Composting Initiative',
+    summary: 'To strengthen local food cooperatives and ensure maximum agricultural production, the KPL has launched a strategic composting initiative.',
+    content: `
+      <p>To strengthen local food cooperatives and ensure maximum agricultural production, the Kenyan Peasant League (KPL) has launched a strategic composting initiative. This program is designed to build soil health and increase manure production by transforming common homestead waste into valuable organic resources, ultimately driving the community toward total food sovereignty.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">A Hands-On Approach to Waste Management</h4>
+      <p>The initiative is rooted in direct community engagement through homestead visits. During these visits, members undergo practical training that begins with a joint identification of the various types of waste generated within the home. Participants are then taught how this waste is currently managed and, more importantly, how it should be managed to benefit the farm.</p>
+      <br/>
+      <p>The core strategy revolves around systematic sorting to ensure every material is directed to its most productive use:</p>
+      <ul class="list-disc pl-5 mb-4 space-y-2">
+        <li><strong>Sink Composting:</strong> A dedicated "square sink" (typically 4 x 4 x 2 feet) is used for all animal remains and kitchen waste, including both raw and cooked food.</li>
+        <li><strong>Open Composting:</strong> Dry leaves and other bulky leafy materials are diverted to larger open composting squares, often 10 x 10 feet, depending on the space available at the homestead.</li>
+        <li><strong>Metal Recovery:</strong> Specific collection points are established for metal objects, which are later repurposed or sold to scrap dealers to generate supplemental income.</li>
+        <li><strong>Plastic Management:</strong> Plastic waste is collected separately; some items are recycled for use on the farm, while others are sold as an additional source of homestead income.</li>
+      </ul>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Regional Impact and Reach</h4>
+      <p>This initiative was successfully rolled out across the Southwestern region, specifically targeting four key food cooperative clusters:</p>
+      <ul class="list-disc pl-5 mb-4">
+        <li>Rabolo</li>
+        <li>Mulo</li>
+        <li>Mariwa</li>
+        <li>Nyamagagana</li>
+      </ul>
+      <p>In total, 20 homesteads across these clusters were selected to lead the way in these improved waste management and soil-building practices. By turning "waste" into wealth, the KPL is ensuring that the foundation of their food system—the soil—remains fertile and productive for generations to come.</p>
+    `,
+    author: 'Admin Desk',
+    role: 'Coop HQ',
+    date: 'Feb 27, 2026',
+    image: 'https://drive.google.com/thumbnail?id=1UD0M5Nh1BnsKiiTmbtq3S3WGC77AILrP&sz=w1000'
+  },
   {
     id: 'news-001',
     category: 'Sustainable Farming',
