@@ -137,6 +137,48 @@ interface NewsArticle {
 
 const NEWS_ARTICLES: NewsArticle[] = [
   {
+    id: 'news-005',
+    category: 'Cooperative Movement',
+    title: 'Rabolo Food Cooperative Market and School',
+    summary: 'The Rabolo Food Cooperative is redefining how smallholder farmers and consumers connect by blending a streamlined digital ordering system with an integrated educational program.',
+    content: `
+      <p>The Rabolo Food Cooperative is redefining how smallholder farmers and consumers connect. By blending a streamlined digital ordering system with an integrated educational program, the cooperative is building a sustainable future.</p>
+      <p>By establishing a direct link between smallholder producers and consumers, the cooperative is ensuring that fresh, local food is more accessible than ever before.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">A Direct Link to the Local Market</h4>
+      <p>The heartbeat of the Rabolo initiative is its weekly market, held every Sunday. The primary objective is to "capture the local market," creating a streamlined pipeline that bypasses unnecessary intermediaries to connect the person who grows the food directly with the person who eats it.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">The Digital Market Hub: Efficiency by Design</h4>
+      <p>The cooperative has recently moved away from labor-intensive manual processes toward a streamlined digital system. This shift has significantly reduced paperwork and simplified the calculation of profit margins.</p>
+      <p>The market operates on a precise, order-based model to curb time wastage:</p>
+      <ul class="list-disc pl-5 mb-4 space-y-2">
+        <li><strong>Advance Ordering:</strong> Three days before the Sunday market, members enter their orders into the KPL digital market hub.</li>
+        <li><strong>Early Logistics:</strong> This lead time allows commodities to arrive early at the market site for organized packing.</li>
+        <li><strong>Committee Oversight:</strong> Two hours before the market opens, the Food Coop Committee meets to confirm all supplies and begin the physical packing of orders.</li>
+        <li><strong>Pure Order Picking:</strong> Because the administrative work is done via the portal, the physical market is dedicated strictly to efficient "order picking".</li>
+      </ul>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Financial Sustainability and Governance</h4>
+      <p>The cooperative follows a transparent financial model guided by total sales. A 10% portion of total sales is channeled to a national treasury. This 10% is then distributed as follows:</p>
+      <ul class="list-disc pl-5 mb-4 space-y-2">
+        <li>60% is retained by the Rabolo Food Cooperative to fund local operations.</li>
+        <li>40% remains with the national treasury.</li>
+      </ul>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">The Rabolo Food Coop School</h4>
+      <p>The cooperative's impact extends beyond commerce through its self-driven school. Immediately following the order-picking session, members engage in educational workshops to build the technical and leadership skills necessary for long-term success. Topics tackled include:</p>
+      <ul class="list-disc pl-5 mb-4 space-y-2">
+        <li><strong>Order and Supply:</strong> Managing the flow of goods.</li>
+        <li><strong>Committee Roles:</strong> Understanding the leadership structure and responsibilities within the coop.</li>
+        <li><strong>Digital Data Entry:</strong> Ensuring all members are proficient in using the digital portal.</li>
+      </ul>
+    `,
+    author: 'Admin Desk',
+    role: 'Coop HQ',
+    date: 'Feb 28, 2026',
+    image: 'https://drive.google.com/thumbnail?id=1S7iSFoE_3cujLSL25ItheSEZMwrFpM7V&sz=w1000'
+  }
+  {
     id: 'news-004',
     category: 'Cooperative Movement',
     title: 'The Rise of Kenya Peasant League Food Cooperatives',
