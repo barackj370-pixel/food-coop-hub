@@ -177,7 +177,7 @@ const NEWS_ARTICLES: NewsArticle[] = [
     role: 'Coop HQ',
     date: 'Feb 28, 2026',
     image: 'https://drive.google.com/thumbnail?id=1S7iSFoE_3cujLSL25ItheSEZMwrFpM7V&sz=w1000'
-  }
+  },
   {
     id: 'news-004',
     category: 'Cooperative Movement',
