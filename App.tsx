@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types';
 import SaleForm from './components/SaleForm';
@@ -250,6 +249,45 @@ const App: React.FC = () => {
     const saved = persistence.get('agent_session');
     return saved ? JSON.parse(saved) : null;
   });
+
+  const combinedUsers = useMemo(() => {
+    const allUsers = [...users];
+    const existingPhones = new Set(users.map(u => normalizePhone(u.phone)));
+
+    records.forEach(r => {
+      const phone = normalizePhone(r.farmerPhone);
+      if (phone && !existingPhones.has(phone)) {
+        existingPhones.add(phone);
+        allUsers.push({
+          id: `supplier-${phone}`,
+          name: r.farmerName || 'Unknown Supplier',
+          phone: r.farmerPhone,
+          role: SystemRole.SUPPLIER,
+          cluster: r.cluster,
+          status: 'ACTIVE',
+          createdAt: r.createdAt || r.date,
+        } as AgentIdentity);
+      }
+    });
+
+    produceListings.forEach(p => {
+      const phone = normalizePhone(p.supplierPhone);
+      if (phone && !existingPhones.has(phone)) {
+        existingPhones.add(phone);
+        allUsers.push({
+          id: `supplier-${phone}`,
+          name: p.supplierName || 'Unknown Supplier',
+          phone: p.supplierPhone,
+          role: SystemRole.SUPPLIER,
+          cluster: p.cluster,
+          status: 'ACTIVE',
+          createdAt: p.date,
+        } as AgentIdentity);
+      }
+    });
+
+    return allUsers;
+  }, [users, records, produceListings]);
   
   const [currentPortal, setCurrentPortal] = useState<PortalType>(() => {
     const hash = window.location.hash.replace('#', '').toUpperCase();
@@ -1397,7 +1435,7 @@ const App: React.FC = () => {
       </div>
       <div className="flex-1 grid grid-cols-2 gap-4 w-full">
         <div className="bg-green-50 p-8 rounded-3xl border border-green-100 text-center">
-          <p className="text-3xl font-black text-green-600">{users.length}</p>
+          <p className="text-3xl font-black text-green-600">{combinedUsers.length}</p>
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Members</p>
         </div>
         <div className="bg-red-50 p-8 rounded-3xl border border-red-100 text-center">
@@ -1918,7 +1956,7 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-xl"><h3 className="text-sm font-black text-black uppercase tracking-tighter mb-8 border-l-4 border-red-600 pl-4">Agent Activation & Security</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">User Identity</th><th className="pb-4">Role / Node</th><th className="pb-4">Metadata</th><th className="pb-4">Status</th><th className="pb-4 text-right">Access Control</th></tr></thead><tbody className="divide-y">
-            {users.map(u => (
+            {combinedUsers.map(u => (
               <tr key={u.phone} className="group hover:bg-slate-50/50">
                 <td className="py-6">
                   <p className="text-sm font-black uppercase text-black">{u.name}</p>
