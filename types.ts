@@ -15,6 +15,7 @@ export enum OrderStatus {
 
 export enum SystemRole {
   SALES_AGENT = 'Sales Agent',
+  GENERAL_SALES_MANAGER = 'General Sales Manager',
   FINANCE_OFFICER = 'Finance Officer',
   AUDITOR = 'Audit Officer',
   MANAGER = 'Director',
@@ -111,4 +112,16 @@ export interface ForumPost {
 export interface ClusterMetric {
   volume: number;
   profit: number;
+}
+
+export interface NewsArticle {
+  id: string;
+  title: string;
+  summary: string;
+  content: string; // can contain HTML breaks <br/>
+  author: string;
+  role: string;
+  date: string;
+  category: string;
+  image: string;
 }
