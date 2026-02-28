@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric } from './types';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric, NewsArticle } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
 import HeroCarousel from './components/HeroCarousel';
+import CreateNewsForm from './components/CreateNewsForm';
 import AboutUsCarousel from './components/AboutUsCarousel';
 import AboutUsPage from './components/AboutUsPage';
 import LoginPage from './page/LoginPage';
@@ -123,19 +124,7 @@ interface SaleFormSubmission {
 }
 
 // News Data Structure
-interface NewsArticle {
-  id: string;
-  title: string;
-  summary: string;
-  content: string; // can contain HTML breaks <br/>
-  author: string;
-  role: string;
-  date: string;
-  category: string;
-  image: string;
-}
-
-const NEWS_ARTICLES: NewsArticle[] = [
+const INITIAL_NEWS_ARTICLES: NewsArticle[] = [
   {
     id: 'news-005',
     category: 'Cooperative Movement',
@@ -325,6 +314,14 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>(() => {
+    const saved = persistence.get('food_coop_news');
+    if (saved) {
+      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : INITIAL_NEWS_ARTICLES; } catch (e) { return INITIAL_NEWS_ARTICLES; }
+    }
+    return INITIAL_NEWS_ARTICLES;
+  });
+
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
@@ -421,6 +418,7 @@ const App: React.FC = () => {
 
   const [showPublicSupplierStats, setShowPublicSupplierStats] = useState(false);
   const [viewingNewsArticle, setViewingNewsArticle] = useState<NewsArticle | null>(null);
+  const [isCreatingNews, setIsCreatingNews] = useState(false);
   
   // Connectivity & Sync State
   const [isSyncing, setIsSyncing] = useState(false);
@@ -678,7 +676,8 @@ const App: React.FC = () => {
     return isSystemDev || 
            agent.role === SystemRole.MANAGER || 
            agent.role === SystemRole.FINANCE_OFFICER || 
-           agent.role === SystemRole.AUDITOR;
+           agent.role === SystemRole.AUDITOR ||
+           agent.role === SystemRole.GENERAL_SALES_MANAGER;
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
@@ -704,6 +703,10 @@ const App: React.FC = () => {
       // Director/Manager Access: Finance, Audit, Board, Invite.
       // EXPLICITLY NO SYSTEM PORTAL.
       base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD', 'INVITE');
+    }
+    else if (agentIdentity.role === SystemRole.GENERAL_SALES_MANAGER) {
+      // General Sales Manager Access: Invite
+      base.splice(4, 0, 'INVITE');
     }
     
     return base;
@@ -1629,7 +1632,7 @@ const App: React.FC = () => {
             {/* Main Hero Carousel - Welcome + News */}
             <HeroCarousel 
                welcomeCard={WelcomeCard} 
-               newsArticles={NEWS_ARTICLES} 
+               newsArticles={newsArticles} 
                onReadNews={(article) => setViewingNewsArticle(article)} 
             />
 
@@ -1645,10 +1648,38 @@ const App: React.FC = () => {
 
         {currentPortal === 'NEWS' && (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center">Cooperative News & Updates</h2>
+            <div className="flex justify-between items-center flex-col md:flex-row gap-4">
+              <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center md:text-left">Cooperative News & Updates</h2>
+              {(agentIdentity?.role === SystemRole.GENERAL_SALES_MANAGER || isPrivilegedRole(agentIdentity)) && !isCreatingNews && (
+                <button 
+                  onClick={() => setIsCreatingNews(true)}
+                  className="bg-black text-white px-6 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all"
+                >
+                  <i className="fas fa-plus mr-2"></i> Create Post
+                </button>
+              )}
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {NEWS_ARTICLES.map(article => (
+            {isCreatingNews ? (
+              <CreateNewsForm 
+                onCancel={() => setIsCreatingNews(false)}
+                onSubmit={(article) => {
+                  const newArticle: NewsArticle = {
+                    ...article,
+                    id: `news-${Date.now()}`,
+                    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  };
+                  setNewsArticles(prev => {
+                    const updated = [newArticle, ...prev];
+                    persistence.set('food_coop_news', JSON.stringify(updated));
+                    return updated;
+                  });
+                  setIsCreatingNews(false);
+                }}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {newsArticles.map(article => (
                 <div 
                   key={article.id} 
                   onClick={() => setViewingNewsArticle(article)}
@@ -1683,6 +1714,7 @@ const App: React.FC = () => {
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
