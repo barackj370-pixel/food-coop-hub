@@ -8,8 +8,8 @@ interface HeroCarouselProps {
 
 const HeroCarousel: React.FC<HeroCarouselProps> = ({ welcomeCard, newsArticles, onReadNews }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  // Total slides: 1 (Welcome) + up to 2 News Articles
-  const slidesCount = 1 + Math.min(newsArticles.length, 2);
+  // Total slides: 1 (Welcome) + up to 3 News Articles
+  const slidesCount = 1 + Math.min(newsArticles.length, 3);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -34,8 +34,8 @@ const HeroCarousel: React.FC<HeroCarouselProps> = ({ welcomeCard, newsArticles, 
              {welcomeCard}
           </div>
 
-          {/* Slide 2 & 3: News Articles */}
-          {newsArticles.slice(0, 2).map((article, idx) => (
+          {/* Slide 2, 3 & 4: News Articles */}
+          {newsArticles.slice(0, 3).map((article, idx) => (
              <div key={article.id} className="w-full shrink-0 relative bg-white min-h-[400px] flex flex-col md:flex-row">
                 <div className="flex-1 p-12 flex flex-col justify-center space-y-6">
                    <div className="flex items-center gap-3">
