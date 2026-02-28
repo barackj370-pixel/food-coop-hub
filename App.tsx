@@ -137,6 +137,45 @@ interface NewsArticle {
 
 const NEWS_ARTICLES: NewsArticle[] = [
   {
+    id: 'news-004',
+    category: 'Cooperative Movement',
+    title: 'The Rise of Kenya Peasant League Food Cooperatives',
+    summary: 'Within the Kenya Peasant League (KPL) movement, seven functional food cooperatives are spearheading a revolution in how smallholder produce reaches the plate.',
+    content: `
+      <p>Within the Kenya Peasant League (KPL) movement, seven functional food cooperatives—Mulo, Mariwa, Rabolo, Kangemi, Kabarnet, Apuoyo, Sibembe, and Nyamagagana—are spearheading a revolution in how smallholder produce reaches the plate. By integrating market logistics with grassroots education, these cooperatives are reclaiming the value chain from traditional intermediaries.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Direct Links and Market Objectives</h4>
+      <p>The core mission of these cooperatives is to capture local markets. Historically, smallholder farmers have lost significant portions of their income to middlemen. The KPL cooperatives eliminate these third parties, creating a direct link between the producer and the consumer. This ensures that farmers receive a fair price while consumers access fresh, high-quality commodities.</p>
+      <p>Each cooperative is guided by a committee of five dedicated individuals who oversee daily operations to ensure the market remains clean, transparent, and streamlined.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">The Digital Market Hub: Efficiency Through Data</h4>
+      <p>To manage the complexities of modern trade, the cooperatives have moved away from manual systems in favor of a digital portal system. This technological shift has yielded several key benefits:</p>
+      <ul class="list-disc pl-5 mb-4 space-y-2">
+        <li><strong>Reduced Paperwork:</strong> The digital system automates record-keeping, allowing for more time spent on community growth.</li>
+        <li><strong>Profit Accuracy:</strong> The portal simplifies the calculation of the 10% profit margin on total sales.</li>
+        <li><strong>Sales Agent Integration:</strong> Each cluster school has a designated sales agent responsible for ensuring all orders and supplies are entered accurately into the portal.</li>
+      </ul>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">The Order-Based Model</h4>
+      <p>Efficiency is maintained through a strict "order-only" format. Recognizing that food is a universal necessity, members are encouraged to place their orders three days prior to the actual market day. This window allows the cooperative to coordinate logistics, ensuring that all ordered commodities reach the market in time for efficient packing and distribution.</p>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">Strategic Pricing and Value</h4>
+      <p>Setting a fair price requires a deep understanding of the broader economy. The cooperative committees actively monitor weekly market trends. By confirming prevailing prices at the farm gate, wholesale, and retail levels across both local and terrestrial markets, they can:</p>
+      <ol class="list-decimal pl-5 mb-4 space-y-2">
+        <li>Establish standardized pricing for all commodities.</li>
+        <li>Identify and react to price fluctuations in the wider market.</li>
+      </ol>
+      <br/>
+      <h4 class="text-lg font-bold text-black mb-2">A Self-Driven School for Sustainable Growth</h4>
+      <p>The cooperative's work does not end with a sale. Following the weekly market, the cooperatives transition into self-driven schools. These educational sessions cover varying topics designed to empower members with the technical and leadership skills needed to sustain the movement.</p>
+      <p>Through this blend of digital innovation, strategic pricing, and continuous learning, the KPL food cooperatives are not just selling food—they are building a resilient, farmer-led future.</p>
+    `,
+    author: 'Admin Desk',
+    role: 'Coop HQ',
+    date: 'Feb 28, 2026',
+    image: 'https://drive.google.com/thumbnail?id=1s8X_bpqYlrOJ4MTIlNRzNI7BV0vRuBZG&sz=w1000'
+  },
+  {
     id: 'news-003',
     category: 'Sustainable Farming',
     title: 'The Kenyan Peasant League’s Composting Initiative',
