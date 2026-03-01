@@ -15,6 +15,17 @@ const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ onSubmit, onCancel }) =
   const [author, setAuthor] = useState('');
   const [role, setRole] = useState('');
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !summary || !content || !image || !author) {
@@ -100,16 +111,24 @@ const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ onSubmit, onCancel }) =
         </div>
 
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Image URL *</label>
-          <input 
-            type="url" 
-            value={image} 
-            onChange={e => setImage(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-medium focus:outline-none focus:border-black transition-colors"
-            placeholder="https://..."
-            required
-          />
-          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Provide a direct image link or Google Drive thumbnail link.</p>
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cover Image *</label>
+          <div className="flex items-center gap-4">
+            <label className="cursor-pointer bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold hover:bg-slate-100 transition-colors flex-1 text-center">
+              <i className="fas fa-upload mr-2"></i> {image ? 'Change Image' : 'Upload Image'}
+              <input 
+                type="file" 
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                required={!image}
+              />
+            </label>
+            {image && (
+              <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 shrink-0">
+                <img src={image} alt="Preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -132,7 +151,7 @@ const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ onSubmit, onCancel }) =
               value={role} 
               onChange={e => setRole(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-black transition-colors"
-              placeholder="e.g. General Sales Manager"
+              placeholder="e.g. Sales Manager"
             />
           </div>
         </div>
