@@ -15,7 +15,7 @@ export enum OrderStatus {
 
 export enum SystemRole {
   SALES_AGENT = 'Sales Agent',
-  GENERAL_SALES_MANAGER = 'General Sales Manager',
+  SALES_MANAGER = 'Sales Manager',
   FINANCE_OFFICER = 'Finance Officer',
   AUDITOR = 'Audit Officer',
   MANAGER = 'Director',
