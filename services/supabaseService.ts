@@ -115,7 +115,7 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
     // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
     if (error && error.code === '23503' && userId) {
        console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
-       const { error: healError } = await supabase.from('profiles').upsert({
+       await supabase.from('profiles').upsert({
          id: userId,
          name: record.agentName || 'Unknown',
          phone: record.agentPhone || 'Unknown',
@@ -124,11 +124,11 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
          status: 'ACTIVE',
          created_at: new Date().toISOString()
        });
-       if (!healError) {
-         const { order_id, produce_id, agent_id, ...safePayload } = payload as any;
-         const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
-         error = retry.error;
-       }
+       
+       // Always retry without agent_id to ensure the record is saved
+       const { agent_id, ...safePayload } = payload as any;
+       const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
+       error = retry.error;
     }
 
     if (error) throw error;
@@ -299,7 +299,7 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
     // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
     if (error && error.code === '23503' && userId) {
        console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
-       const { error: healError } = await supabase.from('profiles').upsert({
+       await supabase.from('profiles').upsert({
          id: userId,
          name: order.customerName || 'Unknown',
          phone: order.customerPhone || 'Unknown',
@@ -308,11 +308,11 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
          status: 'ACTIVE',
          created_at: new Date().toISOString()
        });
-       if (!healError) {
-         const { agent_id, ...safePayload } = payload as any;
-         const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
-         error = retry.error;
-       }
+       
+       // Always retry without agent_id to ensure the record is saved
+       const { agent_id, ...safePayload } = payload as any;
+       const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
+       error = retry.error;
     }
 
     if (error) throw error;
@@ -399,7 +399,7 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
     // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
     if (error && error.code === '23503' && userId) {
        console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
-       const { error: healError } = await supabase.from('profiles').upsert({
+       await supabase.from('profiles').upsert({
          id: userId,
          name: produce.supplierName || 'Unknown',
          phone: produce.supplierPhone || 'Unknown',
@@ -408,12 +408,11 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
          status: 'ACTIVE',
          created_at: new Date().toISOString()
        });
-       if (!healError) {
-         const { images, agent_id, ...safePayload } = payload as any;
-         // Try with safe payload just in case images or agent_id column is missing
-         const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
-         error = retry.error;
-       }
+       
+       // Always retry without agent_id to ensure the record is saved
+       const { agent_id, ...safePayload } = payload as any;
+       const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
+       error = retry.error;
     }
 
     if (error) throw error;
