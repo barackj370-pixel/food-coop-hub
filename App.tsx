@@ -677,7 +677,7 @@ const App: React.FC = () => {
            agent.role === SystemRole.MANAGER || 
            agent.role === SystemRole.FINANCE_OFFICER || 
            agent.role === SystemRole.AUDITOR ||
-           agent.role === SystemRole.GENERAL_SALES_MANAGER;
+           agent.role === SystemRole.SALES_MANAGER;
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
@@ -704,7 +704,7 @@ const App: React.FC = () => {
       // EXPLICITLY NO SYSTEM PORTAL.
       base.splice(4, 0, 'FINANCE', 'AUDIT', 'BOARD', 'INVITE');
     }
-    else if (agentIdentity.role === SystemRole.GENERAL_SALES_MANAGER) {
+    else if (agentIdentity.role === SystemRole.SALES_MANAGER) {
       // General Sales Manager Access: Invite
       base.splice(4, 0, 'INVITE');
     }
@@ -1650,7 +1650,7 @@ const App: React.FC = () => {
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center flex-col md:flex-row gap-4">
               <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center md:text-left">Cooperative News & Updates</h2>
-              {(agentIdentity?.role === SystemRole.GENERAL_SALES_MANAGER || isPrivilegedRole(agentIdentity)) && !isCreatingNews && (
+              {(agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.role === SystemRole.MANAGER || agentIdentity?.role === SystemRole.SALES_MANAGER) && !isCreatingNews && (
                 <button 
                   onClick={() => setIsCreatingNews(true)}
                   className="bg-black text-white px-6 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all"
