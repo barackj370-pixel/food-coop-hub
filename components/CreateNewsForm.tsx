@@ -139,20 +139,22 @@ const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ onSubmit, onCancel }) =
               value={author} 
               onChange={e => setAuthor(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-black transition-colors"
-              placeholder="e.g. Clifford Ochieng"
+              placeholder="Enter author name..."
               required
             />
           </div>
           
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Author Role</label>
-            <input 
-              type="text" 
+            <select 
               value={role} 
               onChange={e => setRole(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-black transition-colors"
-              placeholder="e.g. Sales Manager"
-            />
+            >
+              <option value="" disabled>Select Role</option>
+              <option value="Sales Manager">Sales Manager</option>
+              <option value="Director">Director</option>
+            </select>
           </div>
         </div>
 
