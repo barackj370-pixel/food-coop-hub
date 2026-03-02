@@ -11,7 +11,27 @@ const isClientReady = (): boolean => {
 
 // HELPER: Get current User ID
 const getCurrentUserId = async (): Promise<string | undefined> => {
-  const { data: { session } } = await supabase.auth.getSession();
+  let { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    try {
+      const saved = localStorage.getItem('agent_session');
+      if (saved) {
+        const agent = JSON.parse(saved);
+        if (agent.phone && agent.passcode) {
+          const password = agent.passcode.length === 4 ? `${agent.passcode}00` : agent.passcode;
+          const { data } = await supabase.auth.signInWithPassword({
+            phone: agent.phone,
+            password
+          });
+          session = data.session;
+        }
+      }
+    } catch (e) {
+      console.warn("Auto-login failed", e);
+    }
+  }
+  
   return session?.user?.id;
 };
 
@@ -107,7 +127,7 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
     // Auto-fix for schema mismatch (missing columns like order_id, produce_id, agent_id)
     if (error && error.code === '42703') {
       console.warn("Schema mismatch in records. Retrying with safe payload.");
-      const { order_id, produce_id, agent_id, ...safePayload } = payload as any;
+      const { order_id, produce_id, agent_id, synced, cluster, agent_phone, agent_name, ...safePayload } = payload as any;
       const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
     }
@@ -291,7 +311,7 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
     // Auto-fix for schema mismatch
     if (error && error.code === '42703') {
       console.warn("Schema mismatch in orders. Retrying with safe payload.");
-      const { agent_id, ...safePayload } = payload as any;
+      const { agent_id, cluster, agent_phone, ...safePayload } = payload as any;
       const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
     }
@@ -391,7 +411,7 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
     const msg = error?.message?.toLowerCase() || '';
     if (error && (error.code === 'PGRST204' || error.code === '42703')) {
       console.warn("Schema mismatch detected in produce. Retrying with safe payload.");
-      const { images, agent_id, ...safePayload } = payload as any;
+      const { images, agent_id, cluster, ...safePayload } = payload as any;
       const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
     }
