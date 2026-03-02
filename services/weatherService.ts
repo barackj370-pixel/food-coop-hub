@@ -37,11 +37,11 @@ export const getWeatherDescription = (code: number): { label: string; icon: stri
 };
 
 export const getAgroAdvice = (precipProb: number, tempMax: number): string => {
-  if (precipProb > 60) return "High chance of rain. Avoid applying fertilizer or pesticides today. Ensure drainage channels are clear.";
-  if (precipProb > 30) return "Moderate rain expected. Good day for planting if soil is ready, but delay drying crops outside.";
-  if (tempMax > 28) return "High temperatures expected. Ensure irrigation for vegetables and keep livestock hydrated.";
-  if (tempMax < 18) return "Cooler temperatures. Monitor young chicks and seedlings for cold stress.";
-  return "Conditions are stable. Ideal for general field work, weeding, and harvesting.";
+  if (precipProb > 60) return "High chance of heavy rain. Avoid applying manure or organic sprays today as they may wash away. Ensure field drainage channels are clear to prevent waterlogging. Good time to harvest rainwater.";
+  if (precipProb > 30) return "Moderate rain expected. Excellent conditions for planting seeds and transplanting seedlings if the soil is prepared. Delay sun-drying harvested crops outside to prevent mold.";
+  if (tempMax > 28) return "High temperatures expected. Prioritize early morning or late evening irrigation for vegetables to reduce evaporation. Provide ample shade and clean drinking water for livestock and poultry.";
+  if (tempMax < 18) return "Cooler temperatures expected. Monitor young chicks and delicate seedlings for cold stress. Consider mulching around plant bases to retain soil warmth and moisture.";
+  return "Conditions are stable and favorable. Ideal weather for general field work, weeding, preparing compost, and applying well-rotted manure to your plots. Safe for harvesting and sun-drying crops.";
 };
 
 export const fetchWeather = async (cluster: string): Promise<WeatherData | null> => {
