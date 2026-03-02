@@ -20,7 +20,7 @@ export const CLUSTER_COORDINATES: Record<string, { lat: number; lng: number }> =
   'Nyamagagana': { lat: -1.130265, lng: 34.571417 }, // Kuria West, Migori County
   'Kangemi': { lat: -1.269275, lng: 36.744238 },   // Nairobi County
   'Kabarnet': { lat: 0.4940, lng: 35.7440 },       // Baringo County
-  'Apuoyo': { lat: -0.092, lng: 34.758 },          // Kisumu Region (Pending Siaya coordinates)
+  'Apuoyo': { lat: -0.003066, lng: 34.396335 },    // Siaya County
   'Sibembe': { lat: 0.84019, lng: 34.86705 },      // Sikhendu, Trans-Nzoia County
 };
 
