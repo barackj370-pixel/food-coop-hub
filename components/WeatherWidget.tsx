@@ -83,7 +83,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly 
            <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm"><i className="fas fa-map-marker-alt text-red-500 text-xs"></i></div>
            {readOnly ? (
              <span className="bg-transparent text-[11px] font-black uppercase tracking-widest text-black px-2 py-1">
-               {cluster} Cluster
+               {cluster} Food Coop
              </span>
            ) : (
              <select 
@@ -92,7 +92,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly 
                className="bg-transparent text-[11px] font-black uppercase tracking-widest text-black outline-none cursor-pointer pr-4"
              >
                {Object.keys(CLUSTER_COORDINATES).map(c => (
-                 <option key={c} value={c}>{c} Cluster</option>
+                 <option key={c} value={c}>{c} Food Coop</option>
                ))}
              </select>
            )}
