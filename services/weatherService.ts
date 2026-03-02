@@ -14,14 +14,14 @@ export interface WeatherData {
 }
 
 export const CLUSTER_COORDINATES: Record<string, { lat: number; lng: number }> = {
-  'Mariwa': { lat: -0.783, lng: 34.467 },      // Migori Region
-  'Mulo': { lat: -0.833, lng: 34.617 },        // Migori Region
-  'Rabolo': { lat: 0.067, lng: 34.317 },       // Siaya/Yala Region
-  'Nyamagagana': { lat: -0.517, lng: 37.083 }, // Central Region (Approx)
-  'Kangemi': { lat: -1.258, lng: 36.746 },     // Nairobi
-  'Kabarnet': { lat: 0.492, lng: 35.743 },     // Baringo
-  'Apuoyo': { lat: -0.092, lng: 34.758 },      // Kisumu Region
-  'Sibembe': { lat: 0.56, lng: 34.56 },        // Bungoma Region
+  'Mariwa': { lat: -0.97135, lng: 34.57364 },      // Migori County
+  'Mulo': { lat: -0.95156, lng: 34.59694 },        // Migori County
+  'Rabolo': { lat: -0.86146, lng: 34.56653 },      // Ranen, Migori County
+  'Nyamagagana': { lat: -1.130265, lng: 34.571417 }, // Kuria West, Migori County
+  'Kangemi': { lat: -1.269275, lng: 36.744238 },   // Nairobi County
+  'Kabarnet': { lat: 0.4940, lng: 35.7440 },       // Baringo County
+  'Apuoyo': { lat: -0.092, lng: 34.758 },          // Kisumu Region (Pending Siaya coordinates)
+  'Sibembe': { lat: 0.84019, lng: 34.86705 },      // Sikhendu, Trans-Nzoia County
 };
 
 // WMO Weather interpretation
@@ -52,11 +52,6 @@ export const fetchWeather = async (cluster: string): Promise<WeatherData | null>
     const response = await fetch(url);
     if (!response.ok) throw new Error('Weather fetch failed');
     const data = await response.json();
-    
-    // Override for Mariwa to reflect actual local conditions (Rain)
-    if (cluster === 'Mariwa') {
-      data.current_weather.weathercode = 61; // Rain
-    }
     
     // Cache for offline use
     localStorage.setItem(`weather_cache_${cluster}`, JSON.stringify({
