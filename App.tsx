@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric, NewsArticle } from './types';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric, NewsArticle, ForumPost } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
@@ -20,7 +20,8 @@ import {
   fetchRecords, saveRecord, deleteRecord, deleteAllRecords,
   fetchUsers, saveUser, deleteUser, deleteAllUsers,
   fetchOrders, saveOrder, deleteAllOrders,
-  fetchProduce, saveProduce, deleteProduce, deleteAllProduce
+  fetchProduce, saveProduce, deleteProduce, deleteAllProduce,
+  fetchForumPosts
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
@@ -309,6 +310,18 @@ const App: React.FC = () => {
     return [];
   });
 
+  const [forumPosts, setForumPosts] = useState<ForumPost[]>(() => {
+    const saved = persistence.get('food_coop_forum_posts');
+    if (saved) {
+      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+    }
+    return [];
+  });
+
+  const [lastReadForumPost, setLastReadForumPost] = useState<string>(() => {
+    return persistence.get('last_read_forum_post') || '';
+  });
+
   const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
     const saved = persistence.get('deleted_produce_blacklist');
     return saved ? JSON.parse(saved) : [];
@@ -375,7 +388,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '').toUpperCase();
+      let hash = window.location.hash.replace('#', '');
+      
+      // Handle query params in hash (e.g. #FORUM?post=123)
+      const queryIndex = hash.indexOf('?');
+      if (queryIndex !== -1) {
+        hash = hash.substring(0, queryIndex);
+      }
+      
+      hash = hash.toUpperCase();
+      
       const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER'];
       if (validPortals.includes(hash as PortalType)) {
         setCurrentPortal(hash as PortalType);
@@ -407,6 +429,16 @@ const App: React.FC = () => {
     }
   }, [currentPortal]);
 
+  useEffect(() => {
+    if (currentPortal === 'FORUM' && forumPosts.length > 0) {
+      const latestPostId = forumPosts[0].id;
+      if (latestPostId !== lastReadForumPost) {
+        setLastReadForumPost(latestPostId);
+        persistence.set('last_read_forum_post', latestPostId);
+      }
+    }
+  }, [currentPortal, forumPosts, lastReadForumPost]);
+
   const [marketView, setMarketView] = useState<MarketView>(() => {
     const saved = persistence.get('agent_session');
     if (saved) {
@@ -419,6 +451,41 @@ const App: React.FC = () => {
   const [showPublicSupplierStats, setShowPublicSupplierStats] = useState(false);
   const [viewingNewsArticle, setViewingNewsArticle] = useState<NewsArticle | null>(null);
   const [isCreatingNews, setIsCreatingNews] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const articleId = params.get('article');
+    if (articleId && newsArticles.length > 0) {
+      const article = newsArticles.find(a => a.id === articleId);
+      if (article) {
+        setViewingNewsArticle(article);
+      }
+    }
+  }, [newsArticles]);
+
+  const handleOpenNews = (article: NewsArticle) => {
+    window.history.pushState(null, '', `/#NEWS?article=${article.id}`);
+    setViewingNewsArticle(article);
+  };
+
+  const handleCloseNews = () => {
+    window.history.pushState(null, '', `/#NEWS`);
+    setViewingNewsArticle(null);
+  };
+
+  const handleShareNews = (article: NewsArticle) => {
+    const url = `${window.location.origin}/#NEWS?article=${article.id}`;
+    if (navigator.share) {
+      navigator.share({
+        title: article.title,
+        text: `Check out this news article from Food Coop: ${article.title}`,
+        url: url,
+      }).catch(console.error);
+    } else {
+      navigator.clipboard.writeText(url);
+      alert('Link copied to clipboard!');
+    }
+  };
   
   // Connectivity & Sync State
   const [isSyncing, setIsSyncing] = useState(false);
@@ -747,6 +814,15 @@ const App: React.FC = () => {
         setProduceListings(prev => {
           const merged = mergeData(sbProduce, prev);
           persistence.set('food_coop_produce', JSON.stringify(merged));
+          return merged;
+        });
+      }
+
+      const sbForumPosts = await fetchForumPosts();
+      if (sbForumPosts && sbForumPosts.length > 0) {
+        setForumPosts(prev => {
+          const merged = mergeData(sbForumPosts, prev);
+          persistence.set('food_coop_forum_posts', JSON.stringify(merged));
           return merged;
         });
       }
@@ -1607,7 +1683,16 @@ const App: React.FC = () => {
             // Double check: If 'SYSTEM' somehow got into the list for a non-dev, don't render the button.
             if (p === 'SYSTEM' && !isSystemDev) return null;
 
-            return (<button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>{p}</button>);
+            const hasUnreadForum = p === 'FORUM' && forumPosts.length > 0 && forumPosts[0].id !== lastReadForumPost;
+
+            return (
+              <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
+                {p}
+                {hasUnreadForum && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                )}
+              </button>
+            );
           })}
         </nav>
       </header>
@@ -1633,7 +1718,7 @@ const App: React.FC = () => {
             <HeroCarousel 
                welcomeCard={WelcomeCard} 
                newsArticles={newsArticles} 
-               onReadNews={(article) => setViewingNewsArticle(article)} 
+               onReadNews={handleOpenNews} 
             />
 
             {/* Weather Ticker Carousel */}
@@ -1682,7 +1767,7 @@ const App: React.FC = () => {
                 {newsArticles.map(article => (
                 <div 
                   key={article.id} 
-                  onClick={() => setViewingNewsArticle(article)}
+                  onClick={() => handleOpenNews(article)}
                   className="bg-white rounded-3xl overflow-hidden shadow-lg border border-slate-100 flex flex-col cursor-pointer group hover:shadow-2xl transition-all hover:scale-[1.02]"
                 >
                   <div className="h-56 bg-slate-200 relative overflow-hidden">
@@ -1813,7 +1898,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'FORUM' && agentIdentity && (
-           <Forum currentUser={agentIdentity} />
+           <Forum currentUser={agentIdentity} posts={forumPosts} onPostsUpdated={loadCloudData} />
         )}
 
         {currentPortal === 'MARKET' && agentIdentity && (
@@ -2128,14 +2213,19 @@ const App: React.FC = () => {
 
       {/* News Article Modal */}
       {viewingNewsArticle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setViewingNewsArticle(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={handleCloseNews}>
           <div className="bg-white w-full max-w-3xl max-h-[85vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="relative h-64 shrink-0">
                <img src={viewingNewsArticle.image} alt={viewingNewsArticle.title} className="w-full h-full object-cover" />
                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-               <button onClick={() => setViewingNewsArticle(null)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
-                  <i className="fas fa-times"></i>
-               </button>
+               <div className="absolute top-4 right-4 flex gap-2">
+                 <button onClick={() => handleShareNews(viewingNewsArticle)} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
+                    <i className="fas fa-share-alt"></i>
+                 </button>
+                 <button onClick={handleCloseNews} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
+                    <i className="fas fa-times"></i>
+                 </button>
+               </div>
                <div className="absolute bottom-6 left-8 right-8">
                   <span className="px-3 py-1 bg-green-500 text-white rounded-full text-[9px] font-black uppercase tracking-widest mb-3 inline-block">{viewingNewsArticle.category}</span>
                   <h2 className="text-2xl md:text-3xl font-black text-white leading-tight">{viewingNewsArticle.title}</h2>
