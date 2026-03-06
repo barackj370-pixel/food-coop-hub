@@ -1,41 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { AgentIdentity, ForumPost, SystemRole } from '../types';
-import { fetchForumPosts, saveForumPost, deleteForumPost } from '../services/supabaseService';
+import { saveForumPost, deleteForumPost } from '../services/supabaseService';
 
 interface ForumProps {
   currentUser: AgentIdentity;
+  posts: ForumPost[];
+  onPostsUpdated: () => void;
 }
 
-const Forum: React.FC<ForumProps> = ({ currentUser }) => {
-  const [posts, setPosts] = useState<ForumPost[]>([]);
-  const [loading, setLoading] = useState(true);
+const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => {
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
   
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-
-  const loadPosts = async () => {
-    setLoading(true);
-    try {
-      // Timeout Protection for Feed
-      const fetchPromise = fetchForumPosts();
-      const timeoutPromise = new Promise<ForumPost[]>((resolve) => 
-        setTimeout(() => resolve([]), 15000)
-      );
-      
-      const data = await Promise.race([fetchPromise, timeoutPromise]);
-      setPosts(data);
-    } catch (error) {
-      console.error("Failed to load forum posts:", error);
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadPosts();
+    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const postId = params.get('post');
+    if (postId) {
+      setHighlightedPostId(postId);
+      setTimeout(() => {
+        const el = document.getElementById(`post-${postId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+    }
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -68,7 +60,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
         setNewContent('');
         setShowForm(false);
         // Refresh feed
-        await loadPosts();
+        onPostsUpdated();
       } else {
         alert(`Failed to publish: ${result.message || "The server rejected the request."}`);
       }
@@ -85,7 +77,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     const success = await deleteForumPost(id);
     if (success) {
-      setPosts(prev => prev.filter(p => p.id !== id));
+      onPostsUpdated();
     } else {
       alert("Could not delete post. You may not have permission.");
     }
@@ -162,12 +154,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
         </form>
       )}
 
-      {loading ? (
-        <div className="text-center py-20 opacity-50 animate-pulse">
-          <i className="fas fa-circle-notch fa-spin text-3xl text-slate-300"></i>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-4">Loading Feed...</p>
-        </div>
-      ) : posts.length === 0 ? (
+      {posts.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-[2.5rem] border border-slate-200 border-dashed">
           <i className="fas fa-comments text-4xl text-slate-200 mb-4"></i>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No updates posted yet.</p>
@@ -175,7 +162,11 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
       ) : (
         <div className="space-y-6">
           {posts.map(post => (
-            <div key={post.id} className="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-md hover:shadow-xl transition-shadow group relative overflow-hidden">
+            <div 
+              id={`post-${post.id}`}
+              key={post.id} 
+              className={`bg-white p-8 md:p-10 rounded-[2.5rem] border ${highlightedPostId === post.id ? 'border-blue-400 shadow-blue-100' : 'border-slate-200'} shadow-md hover:shadow-xl transition-all duration-500 group relative overflow-hidden`}
+            >
               <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4 relative z-10">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 font-black text-xl shadow-sm shrink-0">
@@ -201,15 +192,17 @@ const Forum: React.FC<ForumProps> = ({ currentUser }) => {
                     </div>
                   </div>
                 </div>
-                {canDelete(post) && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDelete(post.id); }}
-                    className="text-slate-300 hover:text-red-500 transition-colors p-2"
-                    title="Delete Post"
-                  >
-                    <i className="fas fa-trash-alt"></i>
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {canDelete(post) && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(post.id); }}
+                      className="text-slate-300 hover:text-red-500 transition-colors p-2"
+                      title="Delete Post"
+                    >
+                      <i className="fas fa-trash-alt"></i>
+                    </button>
+                  )}
+                </div>
               </div>
               
               <div className="pl-0 md:pl-16 relative z-10">
