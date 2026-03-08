@@ -1503,17 +1503,33 @@ const App: React.FC = () => {
     </div>
   );
 
-  const AuditLogTable = ({ data, title, onDelete, onEdit }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void, onEdit?: (r: SaleRecord) => void }) => {
+  const AuditLogTable = ({ data, title, onDelete, onEdit, groupBy = 'cluster' }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void, onEdit?: (r: SaleRecord) => void, groupBy?: 'cluster' | 'date' | 'cluster_and_date' }) => {
     // Explicitly type groupedData with useMemo to fix "Property ... does not exist on type 'unknown'"
     const groupedData = useMemo<Record<string, SaleRecord[]>>(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
-        const cluster = r.cluster || 'Unassigned';
-        if (!acc[cluster]) acc[cluster] = [];
-        acc[cluster].push(r);
+        let key = r.cluster || 'Unassigned';
+        if (groupBy === 'date') {
+          key = r.date || 'Unknown Date';
+        } else if (groupBy === 'cluster_and_date') {
+          key = `${r.cluster || 'Unassigned'} | ${r.date || 'Unknown Date'}`;
+        }
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(r);
         return acc;
-      }, {} as Record<string, SaleRecord[]>), [data]);
+      }, {} as Record<string, SaleRecord[]>), [data, groupBy]);
     
-    // Convert to keys array to ensure safe iteration
-    const clusters = Object.keys(groupedData);
+    // Convert to keys array to ensure safe iteration, sort dates descending if grouped by date
+    const groups = Object.keys(groupedData).sort((a, b) => {
+      if (groupBy === 'date') {
+        return new Date(b).getTime() - new Date(a).getTime();
+      }
+      if (groupBy === 'cluster_and_date') {
+        const [clusterA, dateA] = a.split(' | ');
+        const [clusterB, dateB] = b.split(' | ');
+        if (clusterA !== clusterB) return clusterA.localeCompare(clusterB);
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      }
+      return a.localeCompare(b);
+    });
 
     const grandTotalVolume = useMemo(() => data.reduce((sum, r) => sum + Number(r.totalSale), 0), [data]);
     const grandTotalCommission = useMemo(() => data.reduce((sum, r) => sum + Number(r.coopProfit), 0), [data]);
@@ -1541,26 +1557,29 @@ const App: React.FC = () => {
     return (
       <div className="space-y-12">
         <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {clusters.map((cluster) => {
-          const records = groupedData[cluster];
-          const clusterTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
-          const clusterTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+        {groups.map((groupKey) => {
+          const records = groupedData[groupKey];
+          const groupTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
+          const groupTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
 
           return (
-            <div key={cluster} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
+            <div key={groupKey} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
               <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
-                <span><i className="fas fa-map-marker-alt mr-2"></i> Cluster: {cluster}</span>
+                <span>
+                  {groupBy === 'date' ? <i className="fas fa-calendar-alt mr-2"></i> : <i className="fas fa-map-marker-alt mr-2"></i>}
+                  {groupBy === 'date' ? 'Date: ' : groupBy === 'cluster_and_date' ? 'Cluster & Date: ' : 'Cluster: '} {groupKey}
+                </span>
                 <span className="text-slate-400 font-bold">{records.length} Transactions</span>
               </h4>
               <table className="w-full text-left">
                 <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                  <tr><th className="pb-6">Date</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Coop Commission (10%)</th><th className="pb-6 text-right">Status</th></tr>
+                  <tr><th className="pb-6">{groupBy === 'date' ? 'Cluster' : groupBy === 'cluster_and_date' ? 'Date' : 'Date'}</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Coop Commission (10%)</th><th className="pb-6 text-right">Status</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {records.map(r => (
                     <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
                       <td className="py-6 text-slate-400">
-                        {r.date}
+                        {groupBy === 'date' ? (r.cluster || 'Unassigned') : r.date}
                         {r.synced === false && (
                           <span className="block text-[8px] text-red-500 font-black uppercase mt-1">Pending Sync</span>
                         )}
@@ -1600,12 +1619,12 @@ const App: React.FC = () => {
               </table>
               <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-8">
                 <div className="text-right">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Sales Volume</p>
-                  <p className="text-sm font-black text-black">KSh {clusterTotalGross.toLocaleString()}</p>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{groupBy === 'date' ? 'Daily' : groupBy === 'cluster_and_date' ? 'Daily Cluster' : 'Cluster'} Sales Volume</p>
+                  <p className="text-sm font-black text-black">KSh {groupTotalGross.toLocaleString()}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Commission</p>
-                  <p className="text-sm font-black text-green-600">KSh {clusterTotalComm.toLocaleString()}</p>
+                  <p className="text-sm font-black text-green-600">KSh {groupTotalComm.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -2109,7 +2128,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" groupBy="cluster_and_date" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
@@ -2191,7 +2210,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Awaiting Verification Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Verified Orders Ledger" groupBy="cluster_and_date" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
