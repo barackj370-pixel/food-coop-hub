@@ -2109,7 +2109,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
@@ -2191,7 +2191,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Awaiting Verification Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
           </div>
         )}
 
