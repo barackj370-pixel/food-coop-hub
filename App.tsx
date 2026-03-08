@@ -427,8 +427,11 @@ const App: React.FC = () => {
         window.history.replaceState(null, '', window.location.pathname + newSearch);
       }
     } else {
-      const newHash = '#' + currentPortal.toLowerCase();
-      if (window.location.hash !== newHash || window.location.search !== newSearch) {
+      const currentBaseHash = window.location.hash.split('?')[0].toUpperCase();
+      const expectedBaseHash = '#' + currentPortal.toUpperCase();
+      
+      if (currentBaseHash !== expectedBaseHash || window.location.search !== newSearch) {
+        const newHash = '#' + currentPortal.toUpperCase();
         window.history.replaceState(null, '', window.location.pathname + newSearch + newHash);
       }
     }
@@ -491,16 +494,8 @@ const App: React.FC = () => {
 
   const handleShareNews = (article: NewsArticle) => {
     const url = `${window.location.origin}/#NEWS?article=${article.id}`;
-    if (navigator.share) {
-      navigator.share({
-        title: article.title,
-        text: `Check out this news article from Food Coop: ${article.title}`,
-        url: url,
-      }).catch(console.error);
-    } else {
-      navigator.clipboard.writeText(url);
-      alert('Link copied to clipboard!');
-    }
+    navigator.clipboard.writeText(url);
+    alert('Link copied to clipboard!');
   };
   
   // Connectivity & Sync State
@@ -2251,8 +2246,8 @@ const App: React.FC = () => {
                <img src={viewingNewsArticle.image} alt={viewingNewsArticle.title} className="w-full h-full object-cover" />
                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
                <div className="absolute top-4 right-4 flex gap-2">
-                 <button onClick={() => handleShareNews(viewingNewsArticle)} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
-                    <i className="fas fa-share-alt"></i>
+                 <button onClick={() => handleShareNews(viewingNewsArticle)} title="Copy Link" className="w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
+                    <i className="fas fa-link"></i>
                  </button>
                  <button onClick={handleCloseNews} className="w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
                     <i className="fas fa-times"></i>
