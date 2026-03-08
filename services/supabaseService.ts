@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost } from '../types';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle } from '../types';
 
 const isClientReady = (): boolean => {
   if (!supabase) {
@@ -107,6 +107,32 @@ const mapDbToRecord = (db: any): SaleRecord => ({
   synced: true,
   orderId: db.order_id || db.orderId,
   produceId: db.produce_id || db.produceId
+});
+
+// HELPER: Map DB News Article to App News Article
+const mapDbToNewsArticle = (db: any): NewsArticle => ({
+  id: db.id,
+  title: db.title,
+  summary: db.summary,
+  content: db.content,
+  author: db.author,
+  role: db.role,
+  date: db.date,
+  image: db.image,
+  category: db.category
+});
+
+// HELPER: Map App News Article to DB News Article
+const mapNewsArticleToDb = (article: NewsArticle) => ({
+  id: article.id,
+  title: article.title,
+  summary: article.summary,
+  content: article.content,
+  author: article.author,
+  role: article.role,
+  date: article.date,
+  image: article.image,
+  category: article.category
 });
 
 /* SALE RECORDS */
@@ -479,7 +505,43 @@ export const deleteAllProduce = async (): Promise<boolean> => {
   }
 };
 
-/* FORUM POSTS */
+/* NEWS ARTICLES */
+export const saveNewsArticle = async (article: NewsArticle): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const payload = mapNewsArticleToDb(article);
+    let { error } = await supabase.from('news_articles').upsert(payload, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveNewsArticle', err);
+    return false;
+  }
+};
+
+export const fetchNewsArticles = async (): Promise<NewsArticle[]> => {
+  if (!isClientReady()) return [];
+  try {
+    const { data, error } = await supabase.from('news_articles').select('*').order('date', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbToNewsArticle);
+  } catch (err: any) {
+    if (err.code !== '42P01' && err.code !== 'PGRST205') handleSupabaseError('fetchNewsArticles', err);
+    return [];
+  }
+};
+
+export const deleteNewsArticle = async (id: string): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const { error } = await supabase.from('news_articles').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteNewsArticle', err);
+    return false;
+  }
+};
 const mapDbToForumPost = (db: any): ForumPost => ({
   id: db.id,
   title: db.title,
