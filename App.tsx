@@ -1340,7 +1340,7 @@ const App: React.FC = () => {
     const pendingClusterRecords = records.filter(r => 
       (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && 
       (r.cluster || 'Unassigned') === clusterName &&
-      r.date === date
+      (r.date || 'Unknown Date') === date
     );
 
     if (pendingClusterRecords.length === 0) return;
@@ -1353,7 +1353,7 @@ const App: React.FC = () => {
 
     // 2. Update Local State Optimistically
     const updatedRecords = records.map(r => {
-      if ((r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && (r.cluster || 'Unassigned') === clusterName && r.date === date) {
+      if ((r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && (r.cluster || 'Unassigned') === clusterName && (r.date || 'Unknown Date') === date) {
         return { ...r, status: RecordStatus.COMPLETE, synced: false };
       }
       return r;
@@ -1384,7 +1384,7 @@ const App: React.FC = () => {
     const awaitingClusterRecords = records.filter(r => 
       (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && 
       (r.cluster || 'Unassigned') === clusterName &&
-      r.date === date
+      (r.date || 'Unknown Date') === date
     );
 
     if (awaitingClusterRecords.length === 0) return;
@@ -1397,7 +1397,7 @@ const App: React.FC = () => {
 
     // 2. Update Local State Optimistically
     const updatedRecords = records.map(r => {
-      if ((r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && (r.cluster || 'Unassigned') === clusterName && r.date === date) {
+      if ((r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && (r.cluster || 'Unassigned') === clusterName && (r.date || 'Unknown Date') === date) {
         return { ...r, status: RecordStatus.VERIFIED, synced: false };
       }
       return r;
@@ -2071,7 +2071,7 @@ const App: React.FC = () => {
                    }
 
                    const groups = pending.reduce((acc, r) => {
-                     const key = `${r.cluster || 'Unassigned'}|${r.date}`;
+                     const key = `${r.cluster || 'Unassigned'}|${r.date || 'Unknown Date'}`;
                      if (!acc[key]) acc[key] = [];
                      acc[key].push(r);
                      return acc;
@@ -2153,7 +2153,7 @@ const App: React.FC = () => {
                    }
 
                    const groups = awaiting.reduce((acc, r) => {
-                     const key = `${r.cluster || 'Unassigned'}|${r.date}`;
+                     const key = `${r.cluster || 'Unassigned'}|${r.date || 'Unknown Date'}`;
                      if (!acc[key]) acc[key] = [];
                      acc[key].push(r);
                      return acc;
