@@ -1379,6 +1379,50 @@ const App: React.FC = () => {
     alert(`Remittance confirmation process completed for ${clusterName} on ${date}. Check the ledger for sync status.`);
   };
 
+  const handleVerifyClusterRemittance = async (clusterName: string, date: string) => {
+    // 1. Identify records
+    const awaitingClusterRecords = records.filter(r => 
+      (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && 
+      (r.cluster || 'Unassigned') === clusterName &&
+      r.date === date
+    );
+
+    if (awaitingClusterRecords.length === 0) return;
+
+    const totalComm = awaitingClusterRecords.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+
+    if (!window.confirm(`VERIFY & SEAL?\n\nCluster: ${clusterName}\nDate: ${date}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${awaitingClusterRecords.length}\n\nThis confirms that the commission for this cluster on this date has been verified and sealed. Proceed?`)) {
+      return;
+    }
+
+    // 2. Update Local State Optimistically
+    const updatedRecords = records.map(r => {
+      if ((r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && (r.cluster || 'Unassigned') === clusterName && r.date === date) {
+        return { ...r, status: RecordStatus.VERIFIED, synced: false };
+      }
+      return r;
+    });
+
+    setRecords(updatedRecords);
+    persistence.set('food_coop_data', JSON.stringify(updatedRecords));
+
+    // 3. Sync to Backend
+    // We update sequentially to ensure we can track success per record
+    for (const r of awaitingClusterRecords) {
+       const updated = { ...r, status: RecordStatus.VERIFIED };
+       const success = await saveRecord(updated);
+       if (success) {
+          setRecords(prev => {
+             const updatedList = prev.map(item => item.id === r.id ? { ...item, status: RecordStatus.VERIFIED, synced: true } : item);
+             persistence.set('food_coop_data', JSON.stringify(updatedList));
+             return updatedList;
+          });
+       }
+    }
+
+    alert(`Verification process completed for ${clusterName} on ${date}. Check the ledger for sync status.`);
+  };
+
   const handleDeleteRecord = async (id: string) => {
     if (!window.confirm("Action required: Permanent deletion of record ID: " + id + ". Continue?")) return;
     setRecords(prev => {
@@ -2076,24 +2120,75 @@ const App: React.FC = () => {
                 <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-black pl-4">Awaiting Approval & Verification</h3>
                 {renderExportButtons(false)}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4">
-                    <tr><th className="pb-4">Details</th><th className="pb-4">Participants</th><th className="pb-4">Financials</th><th className="pb-4 text-right">Action</th></tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE).map(r => (
-                      <tr key={r.id} className="hover:bg-slate-800/50">
-                        <td className="py-6"><p className="font-bold uppercase text-black">{r.cropType}</p><p className="text-[9px] text-slate-400">{r.unitsSold} {r.unitType}</p></td>
-                        <td className="py-6"><div className="text-[9px] space-y-1 uppercase font-bold text-slate-500"><p className="text-black">Agent: {r.agentName} ({r.agentPhone})</p><p>Supplier: {r.farmerName} ({r.farmerPhone})</p><p>Buyer: {r.customerName} ({r.customerPhone})</p></div></td>
-                        <td className="py-6 font-black text-black"><p>Gross: KSh {Number(r.totalSale).toLocaleString()}</p><p className="text-green-600">Comm: KSh {Number(r.coopProfit).toLocaleString()}</p></td>
-                        <td className="py-6 text-right">
-                           <button type="button" onClick={() => handleUpdateStatus(r.id, RecordStatus.VERIFIED)} className="bg-black text-white px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-md ml-auto flex items-center gap-2"><i className="fas fa-stamp"></i> Verify & Seal</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {(() => {
+                   // Group Pending Records by Cluster AND Date
+                   const awaiting = records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE);
+                   if (awaiting.length === 0) {
+                     return (
+                       <div className="col-span-full py-12 text-center text-slate-400">
+                         <i className="fas fa-check-circle text-4xl mb-4 text-green-100"></i>
+                         <p className="text-[10px] font-black uppercase tracking-widest">All Records Verified</p>
+                       </div>
+                     );
+                   }
+
+                   const groups = awaiting.reduce((acc, r) => {
+                     const key = `${r.cluster || 'Unassigned'}|${r.date}`;
+                     if (!acc[key]) acc[key] = [];
+                     acc[key].push(r);
+                     return acc;
+                   }, {} as Record<string, SaleRecord[]>);
+                   
+                   return Object.entries(groups).map(([key, clusterRecs]) => {
+                      const [clusterName, date] = key.split('|');
+                      const totalComm = clusterRecs.reduce((sum, r) => sum + Number(r.coopProfit), 0);
+                      const totalSales = clusterRecs.reduce((sum, r) => sum + Number(r.totalSale), 0);
+                      const txCount = clusterRecs.length;
+
+                      return (
+                        <div key={key} className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 hover:shadow-lg transition-all relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-6 opacity-5">
+                              <i className="fas fa-stamp text-8xl text-black"></i>
+                           </div>
+                           
+                           <div className="relative z-10">
+                              <div className="flex justify-between items-start mb-6">
+                                 <div>
+                                    <span className="px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 inline-block">
+                                      {clusterName} • {date}
+                                    </span>
+                                    <h4 className="text-3xl font-black text-black">KSh {totalComm.toLocaleString()}</h4>
+                                    <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Commission Verified</p>
+                                 </div>
+                                 <div className="text-right">
+                                    <p className="text-2xl font-black text-slate-300">{txCount}</p>
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Orders</p>
+                                 </div>
+                              </div>
+                              
+                              <div className="mb-8">
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex justify-between">
+                                   <span>Total Sales Volume</span>
+                                   <span className="text-slate-600">KSh {totalSales.toLocaleString()}</span>
+                                 </p>
+                                 <div className="w-full bg-slate-200 h-1 mt-2 rounded-full overflow-hidden">
+                                   <div className="bg-green-500 h-full w-[10%]"></div>
+                                 </div>
+                                 <p className="text-[8px] text-slate-400 mt-1 text-right">10% Margin</p>
+                              </div>
+
+                              <button 
+                                onClick={() => handleVerifyClusterRemittance(clusterName, date)}
+                                className="w-full bg-black text-white py-4 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                              >
+                                <i className="fas fa-stamp"></i> Verify & Seal
+                              </button>
+                           </div>
+                        </div>
+                      );
+                   });
+                })()}
               </div>
             </div>
             <AuditLogTable data={records} title="System Integrity Log" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
