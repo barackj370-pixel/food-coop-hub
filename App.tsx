@@ -21,7 +21,7 @@ import {
   fetchUsers, saveUser, deleteUser, deleteAllUsers,
   fetchOrders, saveOrder, deleteAllOrders,
   fetchProduce, saveProduce, deleteProduce, deleteAllProduce,
-  fetchForumPosts
+  fetchForumPosts, saveNewsArticle, fetchNewsArticles
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
@@ -381,7 +381,12 @@ const App: React.FC = () => {
   }, [users, records, produceListings]);
   
   const [currentPortal, setCurrentPortal] = useState<PortalType>(() => {
-    const hash = window.location.hash.replace('#', '').toUpperCase();
+    let hash = window.location.hash.replace('#', '');
+    const queryIndex = hash.indexOf('?');
+    if (queryIndex !== -1) {
+      hash = hash.substring(0, queryIndex);
+    }
+    hash = hash.toUpperCase();
     const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER'];
     return validPortals.includes(hash as PortalType) ? (hash as PortalType) : 'HOME';
   });
@@ -453,14 +458,25 @@ const App: React.FC = () => {
   const [isCreatingNews, setIsCreatingNews] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
-    const articleId = params.get('article');
-    if (articleId && newsArticles.length > 0) {
-      const article = newsArticles.find(a => a.id === articleId);
-      if (article) {
-        setViewingNewsArticle(article);
+    const checkArticleInHash = () => {
+      const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+      const articleId = params.get('article');
+      if (articleId && newsArticles.length > 0) {
+        const article = newsArticles.find(a => a.id === articleId);
+        if (article) {
+          setViewingNewsArticle(article);
+        }
+      } else {
+        setViewingNewsArticle(null);
       }
-    }
+    };
+
+    // Check on mount and when newsArticles change
+    checkArticleInHash();
+
+    // Also check on hash change
+    window.addEventListener('hashchange', checkArticleInHash);
+    return () => window.removeEventListener('hashchange', checkArticleInHash);
   }, [newsArticles]);
 
   const handleOpenNews = (article: NewsArticle) => {
@@ -823,6 +839,15 @@ const App: React.FC = () => {
         setForumPosts(prev => {
           const merged = mergeData(sbForumPosts, prev);
           persistence.set('food_coop_forum_posts', JSON.stringify(merged));
+          return merged;
+        });
+      }
+
+      const sbNewsArticles = await fetchNewsArticles();
+      if (sbNewsArticles && sbNewsArticles.length > 0) {
+        setNewsArticles(prev => {
+          const merged = mergeData(sbNewsArticles, prev);
+          persistence.set('food_coop_news', JSON.stringify(merged));
           return merged;
         });
       }
@@ -1748,7 +1773,7 @@ const App: React.FC = () => {
             {isCreatingNews ? (
               <CreateNewsForm 
                 onCancel={() => setIsCreatingNews(false)}
-                onSubmit={(article) => {
+                onSubmit={async (article) => {
                   const newArticle: NewsArticle = {
                     ...article,
                     id: `news-${Date.now()}`,
@@ -1760,6 +1785,13 @@ const App: React.FC = () => {
                     return updated;
                   });
                   setIsCreatingNews(false);
+                  
+                  // Sync to cloud
+                  try {
+                    await saveNewsArticle(newArticle);
+                  } catch (e) {
+                    console.error("Failed to sync news article", e);
+                  }
                 }}
               />
             ) : (
