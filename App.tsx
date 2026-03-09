@@ -285,6 +285,129 @@ const INITIAL_NEWS_ARTICLES: NewsArticle[] = [
   }
 ];
 
+const MOCK_MISSING_RECORDS: SaleRecord[] = [
+  {
+    id: 'mock-missing-1',
+    date: '2026-01-31',
+    cropType: 'Tomatoes',
+    unitType: 'Box',
+    farmerName: 'Food Coop',
+    farmerPhone: 'COOP-INTERNAL',
+    customerName: 'John Nyarienga',
+    customerPhone: '0115371350',
+    unitsSold: 2,
+    unitPrice: 100,
+    totalSale: 200,
+    coopProfit: 20,
+    status: RecordStatus.DRAFT,
+    signature: '',
+    createdAt: '2026-01-31T10:00:00.000Z',
+    agentPhone: '0700043146',
+    agentName: 'Melanie Atieno',
+    cluster: 'Kangemi'
+  },
+  {
+    id: 'mock-missing-2',
+    date: '2026-01-31',
+    cropType: 'Tomatoes',
+    unitType: 'Box',
+    farmerName: 'Food Coop',
+    farmerPhone: 'COOP-INTERNAL',
+    customerName: 'Judith Awori',
+    customerPhone: '0799727980',
+    unitsSold: 2,
+    unitPrice: 100,
+    totalSale: 200,
+    coopProfit: 20,
+    status: RecordStatus.DRAFT,
+    signature: '',
+    createdAt: '2026-01-31T10:05:00.000Z',
+    agentPhone: '0700043146',
+    agentName: 'Melanie Atieno',
+    cluster: 'Kangemi'
+  },
+  {
+    id: 'mock-missing-3',
+    date: '2026-01-31',
+    cropType: 'Onions',
+    unitType: 'Bag',
+    farmerName: 'Food coop',
+    farmerPhone: '0759630461',
+    customerName: 'Judith Awori',
+    customerPhone: '0799727980',
+    unitsSold: 1,
+    unitPrice: 22,
+    totalSale: 22,
+    coopProfit: 2.2,
+    status: RecordStatus.DRAFT,
+    signature: '',
+    createdAt: '2026-01-31T10:10:00.000Z',
+    agentPhone: '0700043146',
+    agentName: 'Melanie Atieno',
+    cluster: 'Kangemi'
+  },
+  {
+    id: 'mock-missing-4',
+    date: '2026-01-31',
+    cropType: 'Onions',
+    unitType: 'Bag',
+    farmerName: 'Food coop',
+    farmerPhone: '0759630461',
+    customerName: 'Catherine',
+    customerPhone: '0717826150',
+    unitsSold: 1,
+    unitPrice: 22,
+    totalSale: 22,
+    coopProfit: 2.2,
+    status: RecordStatus.DRAFT,
+    signature: '',
+    createdAt: '2026-01-31T10:15:00.000Z',
+    agentPhone: '0700043146',
+    agentName: 'Melanie Atieno',
+    cluster: 'Kangemi'
+  },
+  {
+    id: 'mock-missing-5',
+    date: '2026-01-30',
+    cropType: 'Fish',
+    unitType: 'Piece',
+    farmerName: 'Susan Owiti',
+    farmerPhone: '0705518192',
+    customerName: 'Imaculate awino',
+    customerPhone: '0712153732',
+    unitsSold: 1,
+    unitPrice: 330,
+    totalSale: 330,
+    coopProfit: 33,
+    status: RecordStatus.DRAFT,
+    signature: '',
+    createdAt: '2026-01-30T10:00:00.000Z',
+    agentPhone: '0700043146',
+    agentName: 'Melanie Atieno',
+    cluster: 'Kangemi'
+  },
+  {
+    id: 'mock-missing-6',
+    date: '2026-01-30',
+    cropType: 'Tomatoes (nyanya)',
+    unitType: 'Bag',
+    farmerName: 'Food Coop',
+    farmerPhone: 'COOP-INTERNAL',
+    customerName: 'Susan owiti',
+    customerPhone: '0705518192',
+    unitsSold: 1,
+    unitPrice: 100,
+    totalSale: 100,
+    coopProfit: 10,
+    status: RecordStatus.DRAFT,
+    signature: '',
+    createdAt: '2026-01-30T10:05:00.000Z',
+    agentPhone: '0700043146',
+    agentName: 'Melanie Atieno',
+    cluster: 'Kangemi'
+  }
+];
+
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
     const saved = persistence.get('food_coop_data');
@@ -446,6 +569,19 @@ const App: React.FC = () => {
       }
     }
   }, [currentPortal, forumPosts, lastReadForumPost]);
+
+  useEffect(() => {
+    const hasSeededMissingOrders = persistence.get('seeded_missing_orders_v3');
+    if (!hasSeededMissingOrders) {
+      setRecords(prev => {
+        // Filter out any previous mock orders if they exist, or just append
+        const newRecords = [...MOCK_MISSING_RECORDS, ...prev.filter(r => !r.id.startsWith('mock-missing-'))];
+        persistence.set('food_coop_data', JSON.stringify(newRecords));
+        return newRecords;
+      });
+      persistence.set('seeded_missing_orders_v3', 'true');
+    }
+  }, []);
 
   const [marketView, setMarketView] = useState<MarketView>(() => {
     const saved = persistence.get('agent_session');
@@ -1600,13 +1736,13 @@ const App: React.FC = () => {
                         <div className="flex items-center justify-end gap-3">
                           <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusBadgeColor(r.status)}`}>{r.status}</span>
                           
-                          {onEdit && isEditable(r) && (
+                          {onEdit && currentPortal === 'MARKET' && marketView === 'SALES' && isEditable(r) && (
                              <button onClick={(e) => { e.stopPropagation(); onEdit(r); }} className="text-slate-300 hover:text-blue-600 transition-colors p-1">
                                <i className="fas fa-edit text-[10px]"></i>
                              </button>
                           )}
                           
-                          {onDelete && (isSystemDev || isPrivilegedRole(agentIdentity) || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone) && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING))) && (
+                          {onDelete && currentPortal === 'MARKET' && marketView === 'SALES' && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && (isSystemDev || isPrivilegedRole(agentIdentity) || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone))) && (
                              <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1">
                                <i className="fas fa-trash-alt text-[10px]"></i>
                              </button>
