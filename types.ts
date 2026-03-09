@@ -1,3 +1,4 @@
+
 export enum RecordStatus {
   DRAFT = 'DRAFT', // Legacy
   PENDING = 'Pending Order',
@@ -98,6 +99,15 @@ export interface SaleRecord {
   produceId?: string;
 }
 
+export interface ForumComment {
+  id: string;
+  content: string;
+  authorName: string;
+  authorRole: string;
+  authorPhone: string;
+  createdAt: string;
+}
+
 export interface ForumPost {
   id: string;
   title: string;
@@ -107,6 +117,8 @@ export interface ForumPost {
   authorCluster: string;
   authorPhone: string; // Used for permission checks on delete
   createdAt: string;
+  likes?: string[];
+  comments?: ForumComment[];
 }
 
 export interface ClusterMetric {
