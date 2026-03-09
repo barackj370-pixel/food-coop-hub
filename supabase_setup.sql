@@ -203,3 +203,72 @@ create policy "Users can delete their own posts or admins can delete all" on pub
     )
   )
 );
+
+-- 7. STORAGE BUCKETS
+insert into storage.buckets (id, name, public) 
+values ('page_images', 'page_images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public Access" on storage.objects;
+create policy "Public Access" on storage.objects for select using (bucket_id = 'page_images');
+
+drop policy if exists "Managers can upload" on storage.objects;
+create policy "Managers can upload" on storage.objects for insert with check (
+  bucket_id = 'page_images' and auth.role() = 'authenticated' and exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('Sales Manager', 'System Developer', 'Director')
+  )
+);
+
+drop policy if exists "Managers can update" on storage.objects;
+create policy "Managers can update" on storage.objects for update using (
+  bucket_id = 'page_images' and auth.role() = 'authenticated' and exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('Sales Manager', 'System Developer', 'Director')
+  )
+);
+
+drop policy if exists "Managers can delete" on storage.objects;
+create policy "Managers can delete" on storage.objects for delete using (
+  bucket_id = 'page_images' and auth.role() = 'authenticated' and exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('Sales Manager', 'System Developer', 'Director')
+  )
+);
+create table if not exists public.pages (
+  id text primary key,
+  title text not null,
+  content text not null,
+  image_url text,
+  order_index integer default 0,
+  updated_at timestamptz default now()
+);
+
+alter table public.pages enable row level security;
+
+drop policy if exists "Pages viewable by everyone" on public.pages;
+create policy "Pages viewable by everyone" on public.pages for select using (true);
+
+drop policy if exists "Managers can update pages" on public.pages;
+create policy "Managers can update pages" on public.pages for update using (
+  auth.role() = 'authenticated' and exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('Sales Manager', 'System Developer', 'Director')
+  )
+);
+
+drop policy if exists "Managers can insert pages" on public.pages;
+create policy "Managers can insert pages" on public.pages for insert with check (
+  auth.role() = 'authenticated' and exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('Sales Manager', 'System Developer', 'Director')
+  )
+);
+
+drop policy if exists "Managers can delete pages" on public.pages;
+create policy "Managers can delete pages" on public.pages for delete using (
+  auth.role() = 'authenticated' and exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('Sales Manager', 'System Developer', 'Director')
+  )
+);
