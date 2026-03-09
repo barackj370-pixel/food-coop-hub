@@ -1,26 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { ABOUT_US_DATA } from '../constants';
+import { Page } from '../types';
+import { fetchPages } from '../services/supabaseService';
 
 const AboutUsCarousel: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [pages, setPages] = useState<Page[]>([]);
 
   useEffect(() => {
-    const currentItem = ABOUT_US_DATA[currentIndex];
+    const loadPages = async () => {
+      const fetchedPages = await fetchPages();
+      if (fetchedPages.length > 0) {
+        setPages(fetchedPages);
+      } else {
+        setPages(ABOUT_US_DATA.map((item, index) => ({
+          id: item.id,
+          title: item.title,
+          content: item.content,
+          orderIndex: index
+        })));
+      }
+    };
+    loadPages();
+  }, []);
+
+  useEffect(() => {
+    if (pages.length === 0) return;
+    const currentItem = pages[currentIndex];
     const isLongContent = currentItem.content.length > 300;
     const delay = isLongContent ? 15000 : 8000; // 15 seconds for long, 8 seconds for short
 
     const timer = setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % ABOUT_US_DATA.length);
+      setCurrentIndex((prev) => (prev + 1) % pages.length);
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [currentIndex]);
+  }, [currentIndex, pages]);
 
   const handleReadMore = (id: string) => {
     const params = new URLSearchParams(window.location.search);
     params.set('section', id);
     window.location.href = window.location.pathname + '?' + params.toString() + '#about';
   };
+
+  if (pages.length === 0) return null;
 
   return (
     <div className="bg-slate-900 text-white rounded-[3rem] p-10 md:p-16 shadow-2xl relative overflow-hidden">
@@ -36,15 +59,15 @@ const AboutUsCarousel: React.FC = () => {
         <div className="min-h-[200px] flex flex-col justify-center">
           <div className="transition-opacity duration-500 ease-in-out">
             <h4 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-4">
-              {ABOUT_US_DATA[currentIndex].title}
+              {pages[currentIndex].title}
             </h4>
             <div className="text-slate-300 font-medium leading-relaxed max-w-3xl text-sm md:text-base whitespace-pre-line">
-              {ABOUT_US_DATA[currentIndex].content.length > 300 
-                ? ABOUT_US_DATA[currentIndex].content.substring(0, 300) + '...' 
-                : ABOUT_US_DATA[currentIndex].content}
-              {ABOUT_US_DATA[currentIndex].content.length > 300 && (
+              {pages[currentIndex].content.length > 300 
+                ? pages[currentIndex].content.substring(0, 300) + '...' 
+                : pages[currentIndex].content}
+              {pages[currentIndex].content.length > 300 && (
                 <button 
-                  onClick={() => handleReadMore(ABOUT_US_DATA[currentIndex].id)}
+                  onClick={() => handleReadMore(pages[currentIndex].id)}
                   className="ml-2 text-green-400 hover:text-green-300 font-bold underline decoration-2 underline-offset-4"
                 >
                   Read more
@@ -55,7 +78,7 @@ const AboutUsCarousel: React.FC = () => {
         </div>
 
         <div className="flex gap-2 mt-8">
-          {ABOUT_US_DATA.map((_: any, idx: number) => (
+          {pages.map((_: any, idx: number) => (
             <button
               key={idx}
               onClick={() => setCurrentIndex(idx)}
