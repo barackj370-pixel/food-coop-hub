@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { AgentIdentity, ForumPost, SystemRole } from '../types';
-import { saveForumPost, deleteForumPost } from '../services/supabaseService';
+import { AgentIdentity, ForumPost, SystemRole, ForumComment } from '../types';
+import { saveForumPost, deleteForumPost, updateForumPost } from '../services/supabaseService';
 
 interface ForumProps {
   currentUser: AgentIdentity;
@@ -10,6 +10,8 @@ interface ForumProps {
 
 const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => {
   const [creating, setCreating] = useState(false);
+  const [commentingOn, setCommentingOn] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState('');
   const [showForm, setShowForm] = useState(false);
   
   const [newTitle, setNewTitle] = useState('');
@@ -80,6 +82,43 @@ const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => 
       onPostsUpdated();
     } else {
       alert("Could not delete post. You may not have permission.");
+    }
+  };
+
+  const handleLike = async (post: ForumPost) => {
+    const currentLikes = post.likes || [];
+    const hasLiked = currentLikes.includes(currentUser.phone);
+    let newLikes;
+    if (hasLiked) {
+      newLikes = currentLikes.filter(p => p !== currentUser.phone);
+    } else {
+      newLikes = [...currentLikes, currentUser.phone];
+    }
+    const success = await updateForumPost(post.id, { likes: newLikes });
+    if (success) {
+      onPostsUpdated();
+    }
+  };
+
+  const handleComment = async (post: ForumPost) => {
+    if (!newComment.trim()) return;
+    const currentComments = post.comments || [];
+    const comment: ForumComment = {
+      id: crypto.randomUUID(),
+      content: newComment,
+      authorName: currentUser.name,
+      authorRole: currentUser.role,
+      authorPhone: currentUser.phone,
+      createdAt: new Date().toISOString()
+    };
+    const newComments = [...currentComments, comment];
+    const success = await updateForumPost(post.id, { comments: newComments });
+    if (success) {
+      setNewComment('');
+      setCommentingOn(null);
+      onPostsUpdated();
+    } else {
+      alert("Could not post comment.");
     }
   };
 
@@ -209,6 +248,63 @@ const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => 
                 <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">
                   {post.content}
                 </p>
+
+                <div className="mt-6 flex items-center gap-4">
+                  <button 
+                    onClick={() => handleLike(post)}
+                    className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all ${post.likes?.includes(currentUser.phone) ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-100'}`}
+                  >
+                    <i className={`${post.likes?.includes(currentUser.phone) ? 'fas' : 'far'} fa-thumbs-up`}></i>
+                    {post.likes?.length || 0} Likes
+                  </button>
+                  <button 
+                    onClick={() => setCommentingOn(commentingOn === post.id ? null : post.id)}
+                    className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all ${commentingOn === post.id ? 'bg-purple-50 text-purple-600 border border-purple-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-100'}`}
+                  >
+                    <i className="far fa-comment"></i>
+                    {post.comments?.length || 0} Comments
+                  </button>
+                </div>
+
+                {post.comments && post.comments.length > 0 && (
+                  <div className="mt-6 space-y-4">
+                    {post.comments.map(comment => (
+                      <div key={comment.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-black text-black uppercase">{comment.authorName}</span>
+                          <span className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-wider ${getRoleBadgeColor(comment.authorRole)}`}>{comment.authorRole}</span>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase ml-auto">{new Date(comment.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-xs font-medium text-slate-600">{comment.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {commentingOn === post.id && (
+                  <div className="mt-4 flex gap-2">
+                    <input 
+                      type="text" 
+                      value={newComment}
+                      onChange={e => setNewComment(e.target.value)}
+                      placeholder="Write a comment..."
+                      className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs font-medium text-slate-700 outline-none focus:bg-white focus:border-purple-400 transition-all"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleComment(post);
+                        }
+                      }}
+                    />
+                    <button 
+                      onClick={() => handleComment(post)}
+                      disabled={!newComment.trim()}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-700 disabled:opacity-50 transition-all"
+                    >
+                      Post
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
