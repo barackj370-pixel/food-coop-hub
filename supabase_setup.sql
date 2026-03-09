@@ -168,9 +168,22 @@ create table if not exists public.forum_posts (
   author_role text not null,
   author_cluster text,
   author_phone text,
+  likes jsonb default '[]'::jsonb,
+  comments jsonb default '[]'::jsonb,
   created_at timestamptz default now(),
-  agent_id uuid references public.profiles(id)
+  agent_id uuid references public.profiles(id) on delete set null
 );
+
+-- Add likes and comments columns if they don't exist
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_name = 'forum_posts' and column_name = 'likes') then
+    alter table public.forum_posts add column likes jsonb default '[]'::jsonb;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'forum_posts' and column_name = 'comments') then
+    alter table public.forum_posts add column comments jsonb default '[]'::jsonb;
+  end if;
+end $$;
 
 alter table public.forum_posts enable row level security;
 
