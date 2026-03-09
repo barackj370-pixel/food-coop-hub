@@ -2037,7 +2037,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'ABOUT' && (
-          <AboutUsPage />
+          <AboutUsPage currentUser={agentIdentity} />
         )}
 
         {currentPortal === 'CONTACT' && (
