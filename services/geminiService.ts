@@ -8,7 +8,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
   }
 
   // Initialize the GoogleGenAI client with the API key
-  const ai = new GoogleGenAI({ apiKey: getEnv('API_KEY') });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   
   // Create a streamlined dataset for the AI
   const salesSummary = records.map(r => ({
