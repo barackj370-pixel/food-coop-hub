@@ -551,6 +551,8 @@ const mapDbToForumPost = (db: any): ForumPost => ({
   authorCluster: db.author_cluster,
   authorPhone: db.author_phone,
   createdAt: db.created_at,
+  likes: db.likes || [],
+  comments: db.comments || [],
 });
 
 export const fetchForumPosts = async (): Promise<ForumPost[]> => {
@@ -643,6 +645,22 @@ export const deleteForumPost = async (id: string): Promise<boolean> => {
     return true;
   } catch (err: any) {
     handleSupabaseError('deleteForumPost', err);
+    return false;
+  }
+};
+
+export const updateForumPost = async (id: string, updates: Partial<ForumPost>): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const payload: any = {};
+    if (updates.likes !== undefined) payload.likes = updates.likes;
+    if (updates.comments !== undefined) payload.comments = updates.comments;
+    
+    const { error } = await supabase.from('forum_posts').update(payload).eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('updateForumPost', err);
     return false;
   }
 };
