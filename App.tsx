@@ -1639,7 +1639,7 @@ const App: React.FC = () => {
     </div>
   );
 
-  const AuditLogTable = ({ data, title, onDelete, onEdit, groupBy = 'cluster' }: { data: SaleRecord[], title: string, onDelete?: (id: string) => void, onEdit?: (r: SaleRecord) => void, groupBy?: 'cluster' | 'date' | 'cluster_and_date' }) => {
+  const AuditLogTable = ({ data, title, onEdit, groupBy = 'cluster' }: { data: SaleRecord[], title: string, onEdit?: (r: SaleRecord) => void, groupBy?: 'cluster' | 'date' | 'cluster_and_date' }) => {
     // Explicitly type groupedData with useMemo to fix "Property ... does not exist on type 'unknown'"
     const groupedData = useMemo<Record<string, SaleRecord[]>>(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
         let key = r.cluster || 'Unassigned';
@@ -1678,15 +1678,12 @@ const App: React.FC = () => {
 
     // Helper to check if record is editable
     const isEditable = (r: SaleRecord) => {
-      // "Order Complete" and beyond are locked for editing to preserve audit trail
-      const isLocked = r.status === RecordStatus.COMPLETE || 
-                       r.status === RecordStatus.PAID || 
-                       r.status === RecordStatus.VERIFIED || 
-                       r.status === RecordStatus.VALIDATED;
+      // Only pending orders can be edited
+      const isPending = r.status === RecordStatus.PENDING || r.status === RecordStatus.DRAFT;
       
-      if (isLocked) return false;
+      if (!isPending) return false;
 
-      // If not locked, allow System Dev or the Original Agent (using normalized phone check)
+      // If pending, allow System Dev or the Original Agent (using normalized phone check)
       return isSystemDev || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone));
     };
 
@@ -1739,12 +1736,6 @@ const App: React.FC = () => {
                           {onEdit && currentPortal === 'MARKET' && marketView === 'SALES' && isEditable(r) && (
                              <button onClick={(e) => { e.stopPropagation(); onEdit(r); }} className="text-slate-300 hover:text-blue-600 transition-colors p-1">
                                <i className="fas fa-edit text-[10px]"></i>
-                             </button>
-                          )}
-                          
-                          {onDelete && currentPortal === 'MARKET' && marketView === 'SALES' && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && (isSystemDev || isPrivilegedRole(agentIdentity) || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone))) && (
-                             <button onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1">
-                               <i className="fas fa-trash-alt text-[10px]"></i>
                              </button>
                           )}
                         </div>
@@ -2136,7 +2127,7 @@ const App: React.FC = () => {
             {marketView === 'SALES' && (
               <>
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
-                <AuditLogTable data={records} title="Universal Ledger" onDelete={handleDeleteRecord} onEdit={handleEditRecord} />
+                <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} />
               </>
             )}
             {marketView === 'SUPPLIER' && (
@@ -2264,7 +2255,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" groupBy="cluster_and_date" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" groupBy="cluster_and_date" />
           </div>
         )}
 
@@ -2346,7 +2337,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Verified Orders Ledger" groupBy="cluster_and_date" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Verified Orders Ledger" groupBy="cluster_and_date" />
           </div>
         )}
 
@@ -2400,7 +2391,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={records} title="Universal Ledger" onDelete={isPrivilegedRole(agentIdentity) ? handleDeleteRecord : undefined} />
+            <AuditLogTable data={records} title="Universal Ledger" />
           </div>
         )}
 
@@ -2460,7 +2451,7 @@ const App: React.FC = () => {
                 <td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td>
               </tr>
             ))}
-          </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" onDelete={handleDeleteRecord} /></div>
+          </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" /></div>
         )}
       </main>
 
