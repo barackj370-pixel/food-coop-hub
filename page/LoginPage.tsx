@@ -3,18 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import { SystemRole, AgentIdentity } from '../types';
 import { getEnv } from '../services/env';
 
-/* ───────── CLUSTERS ───────── */
-const CLUSTERS = [
-  'Mariwa',
-  'Rabolo',
-  'Mulo',
-  'Kabarnet',
-  'Nyamagagana',
-  'Kangemi',
-  'Apuoyo',
-  'Sibembe',
-];
-
+/* ───────── CLUSTER ROLES ───────── */
 const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.SALES_AGENT,
   SystemRole.SUPPLIER,
@@ -297,7 +286,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     const formattedPhone = normalizeKenyanPhone(phone);
     const isSystemDev = formattedPhone === '+254725717170';
-    const targetName = isSystemDev ? 'Barack James' : fullName;
+    const targetName = isSystemDev ? 'Ottoypro' : fullName;
     const targetRole = isSystemDev ? SystemRole.SYSTEM_DEVELOPER : role;
     const targetCluster = isSystemDev ? '-' : cluster;
 
@@ -509,10 +498,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     {isInviteFlow ? (
                         <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-500">{cluster}</div>
                     ) : (
-                        <select required value={cluster} onChange={(e) => setCluster(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
-                        <option value="" disabled>Select Cluster</option>
-                        {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <input required type="text" placeholder="Enter Cluster / Food Coop" value={cluster} onChange={(e) => setCluster(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all" />
                     )}
                 </div>
               )}
