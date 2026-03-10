@@ -1043,12 +1043,20 @@ const App: React.FC = () => {
     return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
   }, [filteredRecords]);
 
+  const dynamicClusters = useMemo(() => {
+    const fromUsers = users.map(u => u.cluster).filter((c): c is string => Boolean(c));
+    const fromRecords = records.map(r => r.cluster).filter((c): c is string => Boolean(c));
+    const fromProduce = produceListings.map(p => p.cluster).filter((c): c is string => Boolean(c));
+    const fromOrders = marketOrders.map(o => o.cluster).filter((c): c is string => Boolean(c));
+    return Array.from(new Set([...CLUSTERS, ...fromUsers, ...fromRecords, ...fromProduce, ...fromOrders])).filter((c): c is string => c !== '-');
+  }, [users, records, produceListings, marketOrders]);
+
   // Explicit typing for useMemo to avoid inference errors
   const boardMetrics = useMemo<{ clusterPerformance: [string, ClusterMetric][] }>(() => {
     const rLog = records; 
     
-    // 1. Initialize ALL clusters with 0 values to ensure 7 clusters always show
-    const clusterMap: Record<string, ClusterMetric> = CLUSTERS.reduce((acc, c) => {
+    // 1. Initialize ALL clusters with 0 values to ensure clusters always show
+    const clusterMap: Record<string, ClusterMetric> = dynamicClusters.reduce((acc, c) => {
         acc[c] = { volume: 0, profit: 0 };
         return acc;
     }, {} as Record<string, ClusterMetric>);
@@ -1071,7 +1079,7 @@ const App: React.FC = () => {
     // Explicitly cast Object.entries result to assist TS inference
     const clusterPerformance = (Object.entries(clusterMap) as [string, ClusterMetric][]).sort((a, b) => b[1].profit - a[1].profit);
     return { clusterPerformance };
-  }, [records]);
+  }, [records, dynamicClusters]);
 
   // Calculate Grand Totals for Board Portal
   const grandTotalVolume = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [boardMetrics]);
@@ -2126,7 +2134,7 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <>
-                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={CLUSTERS} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
+                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} />
               </>
             )}
