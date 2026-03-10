@@ -1,7 +1,5 @@
-
 import React, { useState } from 'react';
 import { SystemRole } from '../types';
-import { CLUSTERS } from '../App';
 
 const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.SALES_AGENT,
@@ -13,7 +11,7 @@ const AdminInvite: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<SystemRole>(SystemRole.SALES_AGENT);
-  const [cluster, setCluster] = useState(CLUSTERS[0]);
+  const [cluster, setCluster] = useState('');
   
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [showCopied, setShowCopied] = useState(false);
@@ -114,14 +112,14 @@ const AdminInvite: React.FC = () => {
              </div>
              <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Cluster</label>
-                <select 
+                <input 
+                  type="text"
                   value={cluster}
                   onChange={e => setCluster(e.target.value)}
                   disabled={!CLUSTER_ROLES.includes(role)}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-xs disabled:opacity-50"
-                >
-                  {CLUSTERS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                  placeholder="Enter Cluster / Food Coop"
+                />
              </div>
            </div>
 
