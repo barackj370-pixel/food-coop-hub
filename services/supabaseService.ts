@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle } from '../types';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle, Page } from '../types';
 
 const isClientReady = (): boolean => {
   if (!supabase) {
@@ -540,6 +540,70 @@ export const deleteNewsArticle = async (id: string): Promise<boolean> => {
   } catch (err: any) {
     handleSupabaseError('deleteNewsArticle', err);
     return false;
+  }
+};
+
+const mapDbToPage = (db: any): Page => ({
+  id: db.id,
+  title: db.title,
+  content: db.content,
+  imageUrl: db.image_url,
+  orderIndex: db.order_index
+});
+
+export const fetchPages = async (): Promise<Page[]> => {
+  if (!isClientReady()) return [];
+  try {
+    const { data, error } = await supabase.from('pages').select('*').order('order_index', { ascending: true });
+    if (error) throw error;
+    return (data || []).map(mapDbToPage);
+  } catch (err: any) {
+    if (err.code !== '42P01' && err.code !== 'PGRST205') handleSupabaseError('fetchPages', err);
+    return [];
+  }
+};
+
+export const savePage = async (page: Page): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const payload = {
+      id: page.id,
+      title: page.title,
+      content: page.content,
+      image_url: page.imageUrl,
+      order_index: page.orderIndex,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('pages').upsert(payload);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('savePage', err);
+    return false;
+  }
+};
+
+export const uploadPageImage = async (file: File): Promise<string | null> => {
+  if (!isClientReady()) return null;
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('page_images')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('page_images')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  } catch (err: any) {
+    handleSupabaseError('uploadPageImage', err);
+    return null;
   }
 };
 const mapDbToForumPost = (db: any): ForumPost => ({
