@@ -54,3 +54,5 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     return `Error generating AI report: ${error instanceof Error ? error.message : "Unknown error"}`;
+  }
+};
