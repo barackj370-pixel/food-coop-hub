@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { AgentIdentity, ForumPost, SystemRole, ForumComment } from '../types';
+import { AgentIdentity, ForumPost, SystemRole, ForumComment } from '../sharedTypes';
 import { saveForumPost, deleteForumPost, updateForumPost } from '../services/supabaseService';
 
 interface ForumProps {
@@ -50,7 +51,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => 
         content: newContent,
         authorName: currentUser.name,
         authorRole: currentUser.role,
-        authorCluster: currentUser.cluster,
+        authorFoodCoop: currentUser.cluster,
         authorPhone: currentUser.phone
       });
 
@@ -220,9 +221,9 @@ const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => 
                       <span className={`px-2 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-wider ${getRoleBadgeColor(post.authorRole)}`}>
                         {post.authorRole}
                       </span>
-                      {post.authorCluster && post.authorCluster !== '-' && (
+                      {post.authorFoodCoop && post.authorFoodCoop !== '-' && (
                         <span className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-500 border border-slate-100 text-[8px] font-bold uppercase tracking-wider">
-                          <i className="fas fa-map-marker-alt mr-1"></i> {post.authorCluster}
+                          <i className="fas fa-map-marker-alt mr-1"></i> {post.authorFoodCoop}
                         </span>
                       )}
                       <span className="text-[8px] font-bold text-slate-400 uppercase ml-1">
