@@ -16,9 +16,10 @@ const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 interface LoginPageProps {
   onLoginSuccess: (identity: AgentIdentity) => void;
+  foodCoops: string[];
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isCompletingProfile, setIsCompletingProfile] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -220,7 +221,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     try {
         if (!validatePin(passcode)) throw new Error('PIN must be exactly 4 digits.');
         if (!role) throw new Error('Please select a role.');
-        if (CLUSTER_ROLES.includes(role) && !cluster) throw new Error('Please select a cluster.');
+        if (CLUSTER_ROLES.includes(role) && !cluster) throw new Error('Please select a Food Coop.');
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) throw new Error('Session expired. Please reload.');
@@ -296,7 +297,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         if (isSignUp) {
           if (!targetRole) throw new Error('Please select a role.');
-          if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) throw new Error('Please select a cluster.');
+          if (CLUSTER_ROLES.includes(targetRole) && !targetCluster) throw new Error('Please select a Food Coop.');
 
           // 1. Sign Up
           let { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -494,11 +495,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </div>
               {role && CLUSTER_ROLES.includes(role) && (
                 <div className="space-y-1 animate-in slide-in-from-top-2 duration-300">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Cluster</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Food Coop</label>
                     {isInviteFlow ? (
                         <div className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-500">{cluster}</div>
                     ) : (
-                        <input required type="text" placeholder="Enter Cluster / Food Coop" value={cluster} onChange={(e) => setCluster(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all" />
+                        <select required value={cluster} onChange={(e) => setCluster(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
+                            <option value="" disabled>Select Food Coop</option>
+                            {foodCoops.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
                     )}
                 </div>
               )}
