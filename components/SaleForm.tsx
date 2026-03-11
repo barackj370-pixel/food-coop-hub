@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants';
 import { ProduceListing } from '../types';
@@ -187,7 +188,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Customer Cluster</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Customer Food Coop</label>
           <select 
             value={formData.cluster}
             onChange={(e) => setFormData({...formData, cluster: e.target.value})}
@@ -325,7 +326,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
           <i className="fas fa-info-circle text-red-600"></i>
           <p className="text-[10px] font-bold text-red-700 uppercase tracking-tight">
-            No supplier matches found in cluster <span className="underline">{formData.cluster}</span> for this quantity. Transaction defaulting to Food Coop internal pool. Please enter current market price.
+            No supplier matches found in Food Coop <span className="underline">{formData.cluster}</span> for this quantity. Transaction defaulting to Food Coop internal pool. Please enter current market price.
           </p>
         </div>
       )}
