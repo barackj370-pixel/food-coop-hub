@@ -7,7 +7,11 @@ const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.CUSTOMER,
 ];
 
-const AdminInvite: React.FC = () => {
+interface AdminInviteProps {
+  foodCoops: string[];
+}
+
+const AdminInvite: React.FC<AdminInviteProps> = ({ foodCoops }) => {
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<SystemRole>(SystemRole.SALES_AGENT);
@@ -111,15 +115,16 @@ const AdminInvite: React.FC = () => {
                 </select>
              </div>
              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Cluster</label>
-                <input 
-                  type="text"
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-3">Food Coop</label>
+                <select 
                   value={cluster}
                   onChange={e => setCluster(e.target.value)}
                   disabled={!CLUSTER_ROLES.includes(role)}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-xs disabled:opacity-50"
-                  placeholder="Enter Cluster / Food Coop"
-                />
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-xs disabled:opacity-50 appearance-none"
+                >
+                  <option value="" disabled>Select Food Coop</option>
+                  {foodCoops.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
              </div>
            </div>
 
