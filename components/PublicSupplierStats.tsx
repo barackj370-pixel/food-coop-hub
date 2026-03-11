@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { SaleRecord, RecordStatus } from '../types';
+import { SaleRecord, RecordStatus } from '../sharedTypes';
 
 interface StatsPayload {
   totalSales: number;
@@ -224,7 +225,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 className="w-full bg-green-600 hover:bg-green-700 text-white py-6 rounded-3xl font-black uppercase text-sm tracking-[0.2em] shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"
               >
                 {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>}
-                View Cluster Data
+                View Food Coop Data
               </button>
             </form>
           </div>
@@ -244,7 +245,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             <i className="fas fa-arrow-left text-lg"></i>
           </button>
           <div className="text-right">
-             <h2 className="text-xl font-black text-black uppercase tracking-tight">{supplierCluster} Cluster</h2>
+             <h2 className="text-xl font-black text-black uppercase tracking-tight">{supplierCluster} Food Coop</h2>
              <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">
                 <i className="fas fa-user mr-1"></i> {supplierName}
              </p>
@@ -269,7 +270,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
                 <div className="grid grid-cols-2 gap-8">
                    <div>
-                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Cluster Sales</p>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Food Coop Sales</p>
                       <p className="text-xl font-bold">KSh {clusterStats?.allTime.totalSales.toLocaleString()}</p>
                    </div>
                    <div>
@@ -280,7 +281,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
              </div>
           </div>
 
-          {/* Weekly & Monthly Cluster Stats */}
+          {/* Weekly & Monthly Food Coop Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Weekly */}
             <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl relative overflow-hidden group">
@@ -290,7 +291,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-widest">This Week</span>
                </div>
                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Fund Growth</p>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Food Coop Fund Growth</p>
                   <p className="text-3xl font-black text-black">KSh {clusterStats?.weekly.clusterShare.toLocaleString()}</p>
                   <p className="text-[10px] font-bold text-slate-400 mt-2">Total Sales: KSh {clusterStats?.weekly.totalSales.toLocaleString()}</p>
                </div>
@@ -304,7 +305,7 @@ const PublicSupplierStats: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <span className="px-3 py-1 bg-purple-50 text-purple-600 rounded-full text-[9px] font-black uppercase tracking-widest">This Month</span>
                </div>
                <div>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cluster Fund Growth</p>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Food Coop Fund Growth</p>
                   <p className="text-3xl font-black text-black">KSh {clusterStats?.monthly.clusterShare.toLocaleString()}</p>
                   <p className="text-[10px] font-bold text-slate-400 mt-2">Total Sales: KSh {clusterStats?.monthly.totalSales.toLocaleString()}</p>
                </div>
