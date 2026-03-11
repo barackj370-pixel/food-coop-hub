@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle, Page } from '../types';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle, Page } from '../sharedTypes';
 
 const isClientReady = (): boolean => {
   if (!supabase) {
@@ -612,7 +612,7 @@ const mapDbToForumPost = (db: any): ForumPost => ({
   content: db.content,
   authorName: db.author_name,
   authorRole: db.author_role,
-  authorCluster: db.author_cluster,
+  authorFoodCoop: db.author_cluster,
   authorPhone: db.author_phone,
   createdAt: db.created_at,
   likes: db.likes || [],
@@ -648,7 +648,7 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
       content: post.content,
       author_name: post.authorName,
       author_role: post.authorRole,
-      author_cluster: post.authorCluster,
+      author_cluster: post.authorFoodCoop,
       author_phone: post.authorPhone,
       agent_id: userId
     };
@@ -668,7 +668,7 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
          name: post.authorName,
          phone: post.authorPhone,
          role: post.authorRole,
-         cluster: post.authorCluster,
+         cluster: post.authorFoodCoop,
          status: 'ACTIVE',
          created_at: new Date().toISOString()
        });
