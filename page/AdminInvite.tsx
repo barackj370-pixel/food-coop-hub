@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SystemRole } from '../types';
+import { SystemRole } from '../sharedTypes';
 
 const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.SALES_AGENT,
