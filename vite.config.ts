@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     build: {
       outDir: 'dist',
-      sourcemap: true,
+      sourcemap: false,
     },
     server: {
       port: 3000,
@@ -19,9 +19,9 @@ export default defineConfig(({ mode }) => {
       watch: disableHmr ? null : undefined,
     },
     define: {
-      // Polyfill process.env for libraries or legacy code that expects it.
-      // Stringify the env object to ensure it is injected as a value, not a reference.
-      'process.env': JSON.stringify(env)
+      // Only polyfill process.env.NODE_ENV for libraries that expect it.
+      'process.env.NODE_ENV': JSON.stringify(mode),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || '')
     }
   };
 });
