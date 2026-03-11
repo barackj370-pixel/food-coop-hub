@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { SaleRecord } from "../types";
+import { SaleRecord } from "../sharedTypes";
 import { getEnv } from "./env";
 
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
@@ -29,7 +29,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
     
     Your report should include:
     1. **Executive Summary**: A brief overview of the sales volume and revenue.
-    2. **Cluster Performance**: Compare sales activity across different clusters.
+    2. **Food Coop Performance**: Compare sales activity across different food coops.
     3. **Pricing Analysis**: Identify any pricing inconsistencies or anomalies for similar crops.
     4. **Key Insights**: Highlight top-performing farmers, frequent buyers, or unusual trends.
     5. **Recommendations**: Strategic advice for the cooperative management.
