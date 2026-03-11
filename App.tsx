@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, ClusterMetric, NewsArticle, ForumPost } from './types';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
@@ -28,7 +28,7 @@ import { getEnv } from './services/env';
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER';
 type MarketView = 'SALES' | 'SUPPLIER';
 
-export const CLUSTERS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe'];
+export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop'];
 
 const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='none' stroke='%23000000' stroke-width='30' stroke-linecap='round' stroke-linejoin='round' d='M64 96h64l48 240h256l48-176H192'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='208' cy='432' r='16'/%3E%3Ccircle fill='%23dc2626' cx='384' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='384' cy='432' r='16'/%3E%3Cpath fill='%2316a34a' d='M256 128c0-50-40-90-90-90s-60 40-40 90c20 40 60 70 130 50z'/%3E%3Cpath fill='%2322c55e' d='M256 128c0-50 40-90 90-90s60 40 40 90c-20 40-60 70-130 50z'/%3E%3Ccircle fill='%23dc2626' cx='256' cy='224' r='48'/%3E%3Cpath fill='none' stroke='%23000000' stroke-width='8' stroke-linecap='round' d='M256 176v48'/%3E%3C/svg%3E";
 
@@ -249,11 +249,11 @@ const INITIAL_NEWS_ARTICLES: NewsArticle[] = [
     content: `
       <p>Trained specialists from the KPL Food Coop are currently touring all clusters to educate farmers on the preparation and application of organic fertilizer. This initiative aims to reduce input costs and improve soil health across the cooperative.</p>
       <br/>
-      <h4 class="text-lg font-bold text-black mb-2">Mulo Cluster Covered</h4>
-      <p>We have successfully covered the <strong>Mulo Cluster</strong>, which was the first stop on this educational tour. Farmers in Mulo participated actively and have started implementing organic compost techniques.</p>
+      <h4 class="text-lg font-bold text-black mb-2">Mulo Food Coop Covered</h4>
+      <p>We have successfully covered the <strong>Mulo Food Coop</strong>, which was the first stop on this educational tour. Farmers in Mulo participated actively and have started implementing organic compost techniques.</p>
       <br/>
-      <h4 class="text-lg font-bold text-black mb-2">Next Stop: Rabolo Cluster</h4>
-      <p>The next visit, scheduled for next week, will be to the <strong>Rabolo Cluster in Ranen</strong>. Farmers in this region are encouraged to attend to learn vital organic farming skills.</p>
+      <h4 class="text-lg font-bold text-black mb-2">Next Stop: Rabolo Food Coop</h4>
+      <p>The next visit, scheduled for next week, will be to the <strong>Rabolo Food Coop in Ranen</strong>. Farmers in this region are encouraged to attend to learn vital organic farming skills.</p>
       <br/>
       <h4 class="text-lg font-bold text-black mb-2">Leadership Support</h4>
       <p>The training team is led by the <strong>Director of Food Coop, David Otieno</strong>, and <strong>Manager Clifford Ochieng</strong>, demonstrating the cooperative's commitment to hands-on support for our farming community.</p>
@@ -272,7 +272,7 @@ const INITIAL_NEWS_ARTICLES: NewsArticle[] = [
     content: `
       <p>We are excited to announce the establishment of the <strong>Digital Innovation Department</strong>, headed by <strong>Barack James</strong>. This department is pivotal in modernizing our cooperative's operations.</p>
       <br/>
-      <h4 class="text-lg font-bold text-black mb-2">Cluster Tour & Platform Launch</h4>
+      <h4 class="text-lg font-bold text-black mb-2">Food Coop Tour & Platform Launch</h4>
       <p>Barack James is currently visiting all 7 clusters to introduce the new <strong>Food Coop Digital Platform</strong>. This state-of-the-art system is expected to be fully functional and live by <strong>February 17th</strong>. It will streamline operations, improve record-keeping transparency, and facilitate faster transactions.</p>
       <br/>
       <h4 class="text-lg font-bold text-black mb-2">Upcoming: Local Weather Portal</h4>
@@ -459,6 +459,20 @@ const App: React.FC = () => {
   });
 
   const [users, setUsers] = useState<AgentIdentity[]>([]);
+  const [customFoodCoops, setCustomFoodCoops] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const fetchCustomFoodCoops = async () => {
+      const { data } = await supabase.from('pages').select('content').eq('id', 'system_food_coops').single();
+      if (data && data.content) {
+        try {
+          setCustomFoodCoops(JSON.parse(data.content));
+        } catch (e) {}
+      }
+    };
+    fetchCustomFoodCoops();
+  }, []);
+
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
     return saved ? JSON.parse(saved) : null;
@@ -1048,18 +1062,18 @@ const App: React.FC = () => {
     const fromRecords = records.map(r => r.cluster).filter((c): c is string => Boolean(c));
     const fromProduce = produceListings.map(p => p.cluster).filter((c): c is string => Boolean(c));
     const fromOrders = marketOrders.map(o => o.cluster).filter((c): c is string => Boolean(c));
-    return Array.from(new Set([...CLUSTERS, ...fromUsers, ...fromRecords, ...fromProduce, ...fromOrders])).filter((c): c is string => c !== '-');
-  }, [users, records, produceListings, marketOrders]);
+    return Array.from(new Set([...FOOD_COOPS, ...customFoodCoops, ...fromUsers, ...fromRecords, ...fromProduce, ...fromOrders])).filter((c): c is string => c !== '-');
+  }, [users, records, produceListings, marketOrders, customFoodCoops]);
 
   // Explicit typing for useMemo to avoid inference errors
-  const boardMetrics = useMemo<{ clusterPerformance: [string, ClusterMetric][] }>(() => {
+  const boardMetrics = useMemo<{ clusterPerformance: [string, FoodCoopMetric][] }>(() => {
     const rLog = records; 
     
     // 1. Initialize ALL clusters with 0 values to ensure clusters always show
-    const clusterMap: Record<string, ClusterMetric> = dynamicClusters.reduce((acc, c) => {
+    const clusterMap: Record<string, FoodCoopMetric> = dynamicClusters.reduce((acc, c) => {
         acc[c] = { volume: 0, profit: 0 };
         return acc;
-    }, {} as Record<string, ClusterMetric>);
+    }, {} as Record<string, FoodCoopMetric>);
 
     // 2. Aggregate data (Only approved and verified records)
     rLog.forEach(r => {
@@ -1077,7 +1091,7 @@ const App: React.FC = () => {
     });
     
     // Explicitly cast Object.entries result to assist TS inference
-    const clusterPerformance = (Object.entries(clusterMap) as [string, ClusterMetric][]).sort((a, b) => b[1].profit - a[1].profit);
+    const clusterPerformance = (Object.entries(clusterMap) as [string, FoodCoopMetric][]).sort((a, b) => b[1].profit - a[1].profit);
     return { clusterPerformance };
   }, [records, dynamicClusters]);
 
@@ -1491,7 +1505,7 @@ const App: React.FC = () => {
 
     const totalComm = pendingClusterRecords.reduce((sum, r) => sum + Number(r.coopProfit), 0);
 
-    if (!window.confirm(`CONFIRM REMITTANCE?\n\nCluster: ${clusterName}\nDate: ${date}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${pendingClusterRecords.length}\n\nThis confirms that the commission for this cluster on this date has been received. Proceed?`)) {
+    if (!window.confirm(`CONFIRM REMITTANCE?\n\nFood Coop: ${clusterName}\nDate: ${date}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${pendingClusterRecords.length}\n\nThis confirms that the commission for this food coop on this date has been received. Proceed?`)) {
       return;
     }
 
@@ -1535,7 +1549,7 @@ const App: React.FC = () => {
 
     const totalComm = awaitingClusterRecords.reduce((sum, r) => sum + Number(r.coopProfit), 0);
 
-    if (!window.confirm(`VERIFY & SEAL?\n\nCluster: ${clusterName}\nDate: ${date}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${awaitingClusterRecords.length}\n\nThis confirms that the commission for this cluster on this date has been verified and sealed. Proceed?`)) {
+    if (!window.confirm(`VERIFY & SEAL?\n\nFood Coop: ${clusterName}\nDate: ${date}\nTotal Commission: KSh ${totalComm.toLocaleString()}\nOrders: ${awaitingClusterRecords.length}\n\nThis confirms that the commission for this food coop on this date has been verified and sealed. Proceed?`)) {
       return;
     }
 
@@ -1708,13 +1722,13 @@ const App: React.FC = () => {
               <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
                 <span>
                   {groupBy === 'date' ? <i className="fas fa-calendar-alt mr-2"></i> : <i className="fas fa-map-marker-alt mr-2"></i>}
-                  {groupBy === 'date' ? 'Date: ' : groupBy === 'cluster_and_date' ? 'Cluster & Date: ' : 'Cluster: '} {groupKey}
+                  {groupBy === 'date' ? 'Date: ' : groupBy === 'cluster_and_date' ? 'Food Coop & Date: ' : 'Food Coop: '} {groupKey}
                 </span>
                 <span className="text-slate-400 font-bold">{records.length} Transactions</span>
               </h4>
               <table className="w-full text-left">
                 <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                  <tr><th className="pb-6">{groupBy === 'date' ? 'Cluster' : groupBy === 'cluster_and_date' ? 'Date' : 'Date'}</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Coop Commission (10%)</th><th className="pb-6 text-right">Status</th></tr>
+                  <tr><th className="pb-6">{groupBy === 'date' ? 'Food Coop' : groupBy === 'cluster_and_date' ? 'Date' : 'Date'}</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Coop Commission (10%)</th><th className="pb-6 text-right">Status</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {records.map(r => (
@@ -1754,7 +1768,7 @@ const App: React.FC = () => {
               </table>
               <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-8">
                 <div className="text-right">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{groupBy === 'date' ? 'Daily' : groupBy === 'cluster_and_date' ? 'Daily Cluster' : 'Cluster'} Sales Volume</p>
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{groupBy === 'date' ? 'Daily' : groupBy === 'cluster_and_date' ? 'Daily Food Coop' : 'Food Coop'} Sales Volume</p>
                   <p className="text-sm font-black text-black">KSh {groupTotalGross.toLocaleString()}</p>
                 </div>
                 <div className="text-right">
@@ -1771,7 +1785,7 @@ const App: React.FC = () => {
             <div className="bg-slate-900 rounded-[2rem] p-8 border border-black shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
                 <div>
                     <h4 className="text-white text-lg font-black uppercase tracking-tight">Ledger Grand Totals</h4>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Aggregate across all clusters</p>
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Aggregate across all Food Coops</p>
                 </div>
                 <div className="flex gap-8">
                     <div className="text-right">
@@ -1837,7 +1851,7 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
               <div className="flex items-center space-x-2 mt-1.5"><span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-green-600">Producers</span> with <span className="text-red-600">Consumers</span></span></div>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{agentIdentity ? (isSystemDev ? 'Master Node Access' : `${agentIdentity.name} - ${agentIdentity.cluster} Cluster`) : 'Guest Hub Access'}</p>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{agentIdentity ? (isSystemDev ? 'Master Node Access' : `${agentIdentity.name} - ${agentIdentity.cluster} Food Coop`) : 'Guest Hub Access'}</p>
             </div>
           </div>
           <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
@@ -1921,12 +1935,12 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'LOGIN' && !agentIdentity && (
-          <LoginPage onLoginSuccess={handleLoginSuccess} />
+          <LoginPage onLoginSuccess={handleLoginSuccess} foodCoops={dynamicClusters} />
         )}
 
         {currentPortal === 'INVITE' && agentIdentity && (
           <div className="space-y-12 animate-in fade-in duration-300">
-             <AdminInvite />
+             <AdminInvite foodCoops={dynamicClusters} />
           </div>
         )}
 
@@ -2036,7 +2050,7 @@ const App: React.FC = () => {
                </div>
                <h2 className="text-3xl font-black uppercase tracking-tight text-black">Agro-Weather Department</h2>
                <p className="text-slate-500 font-medium leading-relaxed">
-                 Access real-time hyperlocal weather data for all our agricultural clusters. This department provides essential climate insights to help farmers plan sowing, harvesting, and fertilizer application effectively.
+                 Access real-time hyperlocal weather data for all our agricultural food coops. This department provides essential climate insights to help farmers plan sowing, harvesting, and fertilizer application effectively.
                </p>
             </div>
             
@@ -2149,7 +2163,7 @@ const App: React.FC = () => {
                     initialData={produceInitialData}
                   />
                 )}
-                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Cluster</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
+                <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden relative"><div className="absolute top-0 right-0 p-8 opacity-5"><i className="fas fa-warehouse text-8xl text-black"></i></div><h3 className="text-sm font-black text-black uppercase tracking-widest mb-8">Available Products Repository</h3><div className="overflow-x-auto"><table className="w-full text-left"><thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-4"><tr><th className="pb-4">Date Posted</th><th className="pb-4">Supplier Identity</th><th className="pb-4">Food Coop</th><th className="pb-4">Commodity</th><th className="pb-4">Qty Available</th><th className="pb-4">Asking Price</th><th className="pb-4 text-right">Action</th></tr></thead><tbody className="divide-y">
                   {produceListings.map(p => (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors"><td className="py-6"><span className="text-[10px] font-bold text-slate-400 uppercase">{p.date || 'N/A'}</span></td><td className="py-6"><p className="text-[11px] font-black uppercase text-black">{p.supplierName || 'Anonymous'}</p><p className="text-[9px] text-slate-400 font-mono">{p.supplierPhone || 'N/A'}</p></td><td className="py-6"><span className="text-[10px] font-bold text-slate-500 uppercase">{p.cluster || 'N/A'}</span></td><td className="py-6"><div className="flex items-center gap-3">{p.images && p.images.length > 0 && <img src={p.images[0]} alt="" className="w-8 h-8 rounded-lg object-cover border border-slate-200" />}<p className="text-[11px] font-black uppercase text-green-600">{p.cropType || 'Other'}</p></div></td><td className="py-6"><p className="text-[11px] font-black text-slate-700">{p.unitsAvailable} {p.unitType}</p></td><td className="py-6"><p className="text-[11px] font-black text-black">KSh {p.sellingPrice.toLocaleString()} / {p.unitType}</p></td><td className="py-6 text-right"><div className="flex items-center justify-end gap-3">
                       {(isPrivilegedRole(agentIdentity) || agentIdentity.role === SystemRole.SALES_AGENT || (agentIdentity.role === SystemRole.SUPPLIER && normalizePhone(agentIdentity.phone) === normalizePhone(p.supplierPhone))) && (
@@ -2186,8 +2200,8 @@ const App: React.FC = () => {
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
               <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                 <div>
-                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-red-600 pl-4">Weekly Cluster Remittances</h3>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 ml-5">Approve Total Commission per Cluster</p>
+                   <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-red-600 pl-4">Weekly Food Coop Remittances</h3>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 ml-5">Approve Total Commission per Food Coop</p>
                 </div>
                 {renderExportButtons(false)}
               </div>
@@ -2357,7 +2371,7 @@ const App: React.FC = () => {
                   <div className="relative z-10">
                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Grand Total Sales Volume</p>
                      <p className="text-4xl font-black text-white">KSh {grandTotalVolume.toLocaleString()}</p>
-                     <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase">All 7 Clusters Combined</p>
+                     <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase">All Food Coops Combined</p>
                   </div>
                   <div className="absolute right-0 bottom-0 opacity-10 p-6">
                      <i className="fas fa-chart-line text-8xl"></i>
@@ -2378,13 +2392,13 @@ const App: React.FC = () => {
 
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
-                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Cluster Performance Breakdown</h3>
+                <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Food Coop Performance Breakdown</h3>
                 {renderExportButtons(true)}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                    <tr><th className="pb-6">Food Coop Clusters</th><th className="pb-6">Total Sales Volume (Ksh)</th><th className="pb-6">Coop Commission (10%)</th></tr>
+                    <tr><th className="pb-6">Food Coops</th><th className="pb-6">Total Sales Volume (Ksh)</th><th className="pb-6">Coop Commission (10%)</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {boardMetrics.clusterPerformance.map(([cluster, stats]) => (
@@ -2405,7 +2419,43 @@ const App: React.FC = () => {
 
         {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
           <div className="space-y-12 animate-in fade-in duration-300">
-            <AdminInvite />
+            <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
+              <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-blue-500 pl-4 mb-6">Food Coop Management</h3>
+              <div className="flex flex-col md:flex-row gap-4">
+                <input 
+                  type="text" 
+                  id="newFoodCoopInput"
+                  placeholder="Enter new Food Coop name" 
+                  className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-blue-400 transition-all"
+                />
+                <button 
+                  onClick={async () => {
+                    const input = document.getElementById('newFoodCoopInput') as HTMLInputElement;
+                    if (input && input.value.trim()) {
+                      const newCoop = input.value.trim();
+                      if (!dynamicClusters.includes(newCoop)) {
+                        const newCoops = [...customFoodCoops, newCoop];
+                        setCustomFoodCoops(newCoops);
+                        await supabase.from('pages').upsert({ id: 'system_food_coops', title: 'Food Coops', content: JSON.stringify(newCoops) });
+                        input.value = '';
+                        alert(`Successfully added ${newCoop}`);
+                      } else {
+                        alert('Food Coop already exists.');
+                      }
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap"
+                >
+                  <i className="fas fa-plus mr-2"></i> Add Food Coop
+                </button>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {dynamicClusters.map(c => (
+                  <span key={c} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest">{c}</span>
+                ))}
+              </div>
+            </div>
+            <AdminInvite foodCoops={dynamicClusters} />
             <WeatherWidget defaultCluster="Mariwa" />
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
