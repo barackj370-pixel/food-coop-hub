@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ABOUT_US_DATA } from '../constants';
-import { Page } from '../types';
+import { Page } from '../sharedTypes';
 import { fetchPages } from '../services/supabaseService';
 
 const AboutUsCarousel: React.FC = () => {
