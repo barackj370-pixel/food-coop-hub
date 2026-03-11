@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ABOUT_US_DATA } from '../constants';
-import { Page, AgentIdentity, SystemRole } from '../types';
+import { Page, AgentIdentity, SystemRole } from '../sharedTypes';
 import { fetchPages, savePage, uploadPageImage } from '../services/supabaseService';
 
 interface AboutUsPageProps {
