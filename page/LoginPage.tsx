@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { SystemRole, AgentIdentity } from '../types';
+import { SystemRole, AgentIdentity } from '../sharedTypes';
 import { getEnv } from '../services/env';
 
 /* ───────── CLUSTER ROLES ───────── */
