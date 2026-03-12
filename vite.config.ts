@@ -19,8 +19,6 @@ export default defineConfig(({ mode }) => {
       watch: disableHmr ? null : undefined,
     },
     define: {
-      // Only polyfill process.env.NODE_ENV for libraries that expect it.
-      'process.env.NODE_ENV': JSON.stringify(mode),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || '')
     }
   };
