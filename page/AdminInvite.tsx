@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SystemRole } from '../sharedTypes';
+import { SystemRole } from '../types';
 
 const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.SALES_AGENT,
@@ -111,7 +111,7 @@ const AdminInvite: React.FC<AdminInviteProps> = ({ foodCoops }) => {
                   onChange={e => setRole(e.target.value as SystemRole)}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-xs"
                 >
-                  {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
+                  {Object.values(SystemRole).map(r => <option key={String(r)} value={String(r)}>{String(r)}</option>)}
                 </select>
              </div>
              <div>
