@@ -113,14 +113,14 @@ export interface ForumPost {
   content: string;
   authorName: string;
   authorRole: string;
-  authorCluster: string;
+  authorFoodCoop: string;
   authorPhone: string; // Used for permission checks on delete
   createdAt: string;
   likes?: string[];
   comments?: ForumComment[];
 }
 
-export interface ClusterMetric {
+export interface FoodCoopMetric {
   volume: number;
   profit: number;
 }
