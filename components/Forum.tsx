@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AgentIdentity, ForumPost, SystemRole, ForumComment } from '../sharedTypes';
 import { saveForumPost, deleteForumPost, updateForumPost } from '../services/supabaseService';
