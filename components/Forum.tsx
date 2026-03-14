@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AgentIdentity, ForumPost, SystemRole, ForumComment } from '../sharedTypes';
+import { AgentIdentity, ForumPost, SystemRole, ForumComment } from '../types';
 import { saveForumPost, deleteForumPost, updateForumPost } from '../services/supabaseService';
 
 interface ForumProps {
@@ -268,7 +268,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => 
 
                 {post.comments && post.comments.length > 0 && (
                   <div className="mt-6 space-y-4">
-                    {post.comments.map(comment => (
+                    {post.comments.map((comment: any) => (
                       <div key={comment.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-[10px] font-black text-black uppercase">{comment.authorName}</span>
