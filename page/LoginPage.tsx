@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { SystemRole, AgentIdentity } from '../sharedTypes';
+import { SystemRole, AgentIdentity } from '../types';
 import { getEnv } from '../services/env';
 
 /* ───────── CLUSTER ROLES ───────── */
@@ -489,7 +489,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
                   ) : (
                     <select required value={role ?? ''} onChange={(e) => setRole(e.target.value as SystemRole)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all appearance-none">
                       <option value="" disabled>Select Role</option>
-                      {Object.values(SystemRole).map(r => <option key={r} value={r}>{r}</option>)}
+                      {Object.values(SystemRole).map(r => <option key={String(r)} value={String(r)}>{String(r)}</option>)}
                     </select>
                   )}
               </div>
