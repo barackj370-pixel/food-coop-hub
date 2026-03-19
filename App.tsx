@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost } from './sharedTypes';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
@@ -1952,6 +1952,9 @@ const App: React.FC = () => {
                newsArticles={newsArticles} 
                onReadNews={handleOpenNews} 
             />
+
+            {/* Retail Price Carousel */}
+            {/* <RetailPriceCarousel /> */}
 
             {/* Weather Ticker Carousel */}
             <WeatherCarousel />
