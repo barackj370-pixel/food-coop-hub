@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN } from '../constants';
-import { SystemRole, ProduceListing } from '../sharedTypes';
+// Updated import path to types
+import { SystemRole, ProduceListing } from '../types';
 
 interface ProduceFormProps {
   userRole: SystemRole;
