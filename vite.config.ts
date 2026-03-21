@@ -14,8 +14,11 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
     },
     server: {
+      host: '0.0.0.0',
       port: 3000,
-      hmr: disableHmr ? false : undefined,
+      hmr: disableHmr ? false : {
+        clientPort: 443
+      },
       watch: disableHmr ? null : undefined,
     },
     define: {
