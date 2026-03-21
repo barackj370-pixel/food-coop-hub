@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 
@@ -20,29 +20,30 @@ if (typeof window !== 'undefined') {
 }
 */
 
+const Bootstrap = () => {
+  useEffect(() => {
+    // Immediate call to hide loader once the wrapper is ready
+    if ((window as any).hideHubLoader) {
+      (window as any).hideHubLoader();
+    }
+  }, []);
+
+  return <App />;
+};
+
 const boot = () => {
   const rootElement = document.getElementById('root');
   if (!rootElement) return;
 
+  if ((window as any).hideHubLoader) {
+    (window as any).hideHubLoader();
+  }
+
   try {
     const root = createRoot(rootElement);
-    
-    const Bootstrap = () => {
-      React.useEffect(() => {
-        // Immediate call to hide loader once the wrapper is ready
-        if ((window as any).hideHubLoader) {
-          (window as any).hideHubLoader();
-        }
-      }, []);
-
-      return <App />;
-    };
-
     root.render(<Bootstrap />);
-    
   } catch (err) {
     console.error("Mount Failure:", err);
-    if ((window as any).hideHubLoader) (window as any).hideHubLoader();
   }
 };
 
