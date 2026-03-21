@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants';
-import { ProduceListing } from '../sharedTypes';
+import { ProduceListing } from '../types';
 
 interface SaleFormProps {
   clusters: string[];
   produceListings: ProduceListing[];
+  agentCluster?: string;
   initialData?: {
     cropType?: string;
     unitsSold?: number;
@@ -34,7 +36,7 @@ interface SaleFormProps {
   }) => void;
 }
 
-const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, produceListings }: SaleFormProps) => {
+const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, produceListings, agentCluster }: SaleFormProps) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cropType: 'Maize',
@@ -46,7 +48,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
     customerPhone: '',
     unitsSold: 0,
     unitPrice: 0.00,
-    cluster: clusters[0] || 'Mariwa'
+    cluster: clusters[0] || 'Mariwa',
+    produceId: undefined as string | undefined
   });
 
   const [isAutoFilled, setIsAutoFilled] = useState(false);
@@ -83,6 +86,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         // Otherwise, leave it for manual entry (prevents Crate price appearing for a Piece sale)
         unitPrice: (bestMatch.unitType === prev.unitType) ? bestMatch.sellingPrice : prev.unitPrice,
         // Do NOT overwrite Unit Type. Agent chooses "Piece" even if Supplier listed "Crate".
+        produceId: bestMatch.id
       }));
       setIsAutoFilled(true);
     } else {
@@ -92,7 +96,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         farmerName: 'Food Coop',
         farmerPhone: 'COOP-INTERNAL',
         // Reset price if we fell back to Coop, unless user is typing
-        unitPrice: isAutoFilled ? 0 : prev.unitPrice
+        unitPrice: isAutoFilled ? 0 : prev.unitPrice,
+        produceId: undefined
       }));
       setIsAutoFilled(false);
     }
@@ -111,7 +116,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         farmerName: initialData.farmerName !== undefined ? initialData.farmerName : prev.farmerName,
         farmerPhone: initialData.farmerPhone !== undefined ? initialData.farmerPhone : prev.farmerPhone,
         unitPrice: initialData.unitPrice !== undefined ? initialData.unitPrice : prev.unitPrice,
-        cluster: initialData.cluster !== undefined ? initialData.cluster : prev.cluster
+        cluster: initialData.cluster !== undefined ? initialData.cluster : prev.cluster,
+        produceId: initialData.produceId !== undefined ? initialData.produceId : prev.produceId
       }));
     }
   }, [initialData]);
@@ -124,7 +130,15 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
   }, [formData.cropType]);
 
   const totalSale = formData.unitsSold * formData.unitPrice;
-  const ourShare = totalSale * PROFIT_MARGIN;
+  let ourShare = totalSale * PROFIT_MARGIN;
+  
+  const isKangemi = (formData.cluster || agentCluster) === 'New Kangemi Food Coop';
+  if (isKangemi && formData.produceId) {
+    const produce = produceListings.find(p => p.id === formData.produceId);
+    if (produce && produce.wholesalePrice !== undefined) {
+      ourShare = (formData.unitPrice - produce.wholesalePrice) * formData.unitsSold;
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +155,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
       ...submissionData, 
       cropType: finalCropType, 
       orderId: initialData?.orderId,
-      produceId: initialData?.produceId 
+      produceId: formData.produceId 
     });
     
     setFormData({
