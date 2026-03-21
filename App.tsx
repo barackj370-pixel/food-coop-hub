@@ -1114,7 +1114,7 @@ const App: React.FC = () => {
   };
 
   const handleAddProduce = async (data: {
-    date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; supplierName: string; supplierPhone: string; images: string[];
+    date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; wholesalePrice?: number; supplierName: string; supplierPhone: string; images: string[];
   }) => {
     
     // Handle Editing Existing Listing
@@ -1128,6 +1128,7 @@ const App: React.FC = () => {
              unitType: data.unitType,
              unitsAvailable: data.unitsAvailable,
              sellingPrice: data.sellingPrice,
+             wholesalePrice: data.wholesalePrice,
              supplierName: data.supplierName,
              supplierPhone: data.supplierPhone,
              images: data.images,
@@ -1162,6 +1163,7 @@ const App: React.FC = () => {
       unitsAvailable: data.unitsAvailable,
       unitType: data.unitType,
       sellingPrice: data.sellingPrice,
+      wholesalePrice: data.wholesalePrice,
       supplierName: data.supplierName,
       supplierPhone: data.supplierPhone,
       cluster: clusterValue,
@@ -1380,8 +1382,17 @@ const App: React.FC = () => {
       // UPDATE EXISTING RECORD
       const existing = records.find(r => r.id === editingId);
       if (existing) {
+        const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
         const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
-        const coopProfit = totalSale * PROFIT_MARGIN;
+        let coopProfit = totalSale * PROFIT_MARGIN;
+        
+        if (cluster === 'New Kangemi Food Coop' && data.produceId) {
+          const produce = produceListings.find(p => p.id === data.produceId);
+          if (produce && produce.wholesalePrice !== undefined) {
+            coopProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
+          }
+        }
+        
         const signature = await computeHash({ ...data, id: editingId });
         
         const updatedRecord: SaleRecord = {
@@ -1412,10 +1423,18 @@ const App: React.FC = () => {
     } else {
       // CREATE NEW RECORD
       const id = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
-      const coopProfit = totalSale * PROFIT_MARGIN;
-      const signature = await computeHash({ ...data, id });
       const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
+      const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
+      let coopProfit = totalSale * PROFIT_MARGIN;
+      
+      if (cluster === 'New Kangemi Food Coop' && data.produceId) {
+        const produce = produceListings.find(p => p.id === data.produceId);
+        if (produce && produce.wholesalePrice !== undefined) {
+          coopProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
+        }
+      }
+      
+      const signature = await computeHash({ ...data, id });
       
       // Updated to set initial status to PENDING (Pending Order) instead of DRAFT
       const newRecord: SaleRecord = {
@@ -2152,7 +2171,7 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <>
-                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
+                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} />
               </>
             )}
@@ -2161,6 +2180,7 @@ const App: React.FC = () => {
                 {agentIdentity.role !== SystemRole.FINANCE_OFFICER && agentIdentity.role !== SystemRole.AUDITOR && (
                   <ProduceForm 
                     userRole={agentIdentity.role} 
+                    agentCluster={agentIdentity.cluster}
                     defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} 
                     defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} 
                     onSubmit={handleAddProduce} 
