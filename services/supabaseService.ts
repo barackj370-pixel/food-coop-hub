@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle, Page } from '../sharedTypes';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle, Page } from '../types';
 
 const isClientReady = (): boolean => {
   if (!supabase) {
@@ -401,6 +401,7 @@ const mapProduceToDb = (p: ProduceListing) => ({
   units_available: p.unitsAvailable,
   unit_type: p.unitType,
   selling_price: p.sellingPrice,
+  wholesale_price: p.wholesalePrice,
   supplier_name: p.supplierName,
   supplier_phone: p.supplierPhone,
   cluster: p.cluster,
@@ -415,6 +416,7 @@ const mapDbToProduce = (db: any): ProduceListing => ({
   unitsAvailable: Number(db.units_available || db.unitsAvailable || 0),
   unitType: db.unit_type || db.unitType,
   sellingPrice: Number(db.selling_price || db.sellingPrice || 0),
+  wholesalePrice: db.wholesale_price ? Number(db.wholesale_price) : undefined,
   supplierName: db.supplier_name || db.supplierName,
   supplierPhone: db.supplier_phone || db.supplierPhone,
   cluster: db.cluster,
