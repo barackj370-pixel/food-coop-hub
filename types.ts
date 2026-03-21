@@ -1,3 +1,4 @@
+
 export enum RecordStatus {
   DRAFT = 'DRAFT', // Legacy
   PENDING = 'Pending Order',
@@ -64,6 +65,7 @@ export interface ProduceListing {
   unitsAvailable: number;
   unitType: string;
   sellingPrice: number;
+  wholesalePrice?: number;
   supplierName: string;
   supplierPhone: string;
   cluster: string;
