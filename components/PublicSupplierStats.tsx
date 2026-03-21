@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { SaleRecord, RecordStatus } from '../sharedTypes';
+// Updated import path to types
+import { SaleRecord, RecordStatus } from '../types';
 
 interface StatsPayload {
   totalSales: number;
