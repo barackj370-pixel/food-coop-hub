@@ -100,7 +100,7 @@ const RetailPriceCarousel: React.FC<Props> = ({ records, produceListings }) => {
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] font-bold text-slate-400 mr-1">KSh</span>
-                    <span className="text-sm font-black text-emerald-600">{Number(product.sellingPrice).toFixed(2)}</span>
+                    <span className="text-sm font-black text-emerald-600">{Number(product.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">per {product.unitType}</p>
                   </div>
                 </div>
