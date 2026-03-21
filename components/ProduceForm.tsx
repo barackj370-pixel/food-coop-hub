@@ -6,6 +6,7 @@ import { SystemRole, ProduceListing } from '../types';
 
 interface ProduceFormProps {
   userRole: SystemRole;
+  agentCluster?: string;
   defaultSupplierName?: string;
   defaultSupplierPhone?: string;
   initialData?: ProduceListing;
@@ -15,14 +16,16 @@ interface ProduceFormProps {
     unitType: string;
     unitsAvailable: number;
     sellingPrice: number;
+    wholesalePrice?: number;
     supplierName: string;
     supplierPhone: string;
     images: string[];
   }) => void;
 }
 
-const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSupplierName, defaultSupplierPhone, initialData }) => {
+const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentCluster, defaultSupplierName, defaultSupplierPhone, initialData }) => {
   const isSupplier = userRole === SystemRole.SUPPLIER;
+  const isKangemi = agentCluster === 'New Kangemi Food Coop';
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
@@ -31,7 +34,8 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     otherCropType: '',
     unitType: 'Bag',
     unitsAvailable: 0,
-    sellingPrice: 0, // Treated as the "Base Price" entered by the user
+    sellingPrice: 0, // Treated as the "Base Price" or "Wholesale Price"
+    retailPrice: 0, // Used for Kangemi's explicit retail price
     supplierName: defaultSupplierName || '',
     supplierPhone: defaultSupplierPhone || '',
     images: [] as string[]
@@ -51,14 +55,15 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
         otherCropType: isStandard ? '' : initialData.cropType,
         unitType: initialData.unitType,
         unitsAvailable: initialData.unitsAvailable,
-        // Reverse the margin calculation to show Base Price (Asking Price)
-        sellingPrice: initialData.sellingPrice / (1 + PROFIT_MARGIN),
+        // Reverse the margin calculation to show Base Price (Asking Price) if not Kangemi
+        sellingPrice: isKangemi ? (initialData.wholesalePrice || initialData.sellingPrice) : (initialData.sellingPrice / (1 + PROFIT_MARGIN)),
+        retailPrice: isKangemi ? initialData.sellingPrice : 0,
         supplierName: initialData.supplierName,
         supplierPhone: initialData.supplierPhone,
         images: initialData.images || []
       });
     }
-  }, [initialData]);
+  }, [initialData, isKangemi]);
 
   useEffect(() => {
     // Only reset unit type if the current one isn't valid for the new crop type
@@ -70,7 +75,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
   }, [formData.cropType]);
 
   // Calculate the final market price including the coop commission
-  const marketPrice = formData.sellingPrice * (1 + PROFIT_MARGIN);
+  const marketPrice = isKangemi ? formData.retailPrice : formData.sellingPrice * (1 + PROFIT_MARGIN);
   const totalValue = formData.unitsAvailable * marketPrice;
 
   // Helper: Compress and Convert Image to Base64
@@ -146,19 +151,23 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
     
     const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
 
-    if (formData.unitsAvailable <= 0 || formData.sellingPrice <= 0 || !formData.supplierName || !formData.supplierPhone || (formData.cropType === 'Other' && !finalCropType)) {
+    if (formData.unitsAvailable <= 0 || formData.sellingPrice <= 0 || !formData.supplierName || !formData.supplierPhone || (formData.cropType === 'Other' && !finalCropType) || (isKangemi && formData.retailPrice <= 0)) {
       alert("Validation Error: Please provide valid quantity, price, supplier details, and commodity information.");
       return;
     }
     
-    const { otherCropType, sellingPrice, ...submissionData } = formData;
-    // The submitted sellingPrice now includes the 10% commission
-    const finalSellingPrice = sellingPrice * (1 + PROFIT_MARGIN);
+    const { otherCropType, sellingPrice, retailPrice, ...submissionData } = formData;
+    
+    // For Kangemi, sellingPrice is the wholesale price, and retailPrice is the final selling price.
+    // Otherwise, calculate the 10% commission.
+    const finalSellingPrice = isKangemi ? retailPrice : sellingPrice * (1 + PROFIT_MARGIN);
+    const finalWholesalePrice = isKangemi ? sellingPrice : undefined;
     
     onSubmit({ 
       ...submissionData, 
       cropType: finalCropType, 
-      sellingPrice: finalSellingPrice 
+      sellingPrice: finalSellingPrice,
+      wholesalePrice: finalWholesalePrice
     });
     
     setFormData({
@@ -166,6 +175,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
       otherCropType: '',
       unitsAvailable: 0,
       sellingPrice: 0,
+      retailPrice: 0,
       images: [],
       supplierName: isSupplier ? (defaultSupplierName || '') : '',
       supplierPhone: isSupplier ? (defaultSupplierPhone || '') : '07'
@@ -278,23 +288,56 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, defaultSu
           />
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Asking Price (Base)</label>
-          <input 
-            type="number" 
-            step="0.01"
-            placeholder="0.00"
-            value={formData.sellingPrice || ''}
-            onChange={(e) => setFormData({...formData, sellingPrice: parseFloat(e.target.value) || 0})}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
-          />
-          {formData.sellingPrice > 0 && (
-            <div className="px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 animate-in fade-in duration-300">
-               <p className="text-[9px] font-black text-green-700 uppercase tracking-tight">Market Price: KSh {marketPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
-               <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mt-0.5">Incl. 10% Coop Fee</p>
+        {isKangemi ? (
+          <>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Wholesale Price (KSh)</label>
+              <input 
+                type="number" 
+                step="0.01"
+                placeholder="0.00"
+                value={formData.sellingPrice || ''}
+                onChange={(e) => setFormData({...formData, sellingPrice: parseFloat(e.target.value) || 0})}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+              />
             </div>
-          )}
-        </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Retail Price (KSh)</label>
+              <input 
+                type="number" 
+                step="0.01"
+                placeholder="0.00"
+                value={formData.retailPrice || ''}
+                onChange={(e) => setFormData({...formData, retailPrice: parseFloat(e.target.value) || 0})}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+              />
+              {formData.retailPrice > 0 && formData.sellingPrice > 0 && (
+                <div className="px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 animate-in fade-in duration-300">
+                   <p className="text-[9px] font-black text-green-700 uppercase tracking-tight">Est. Profit: KSh {(formData.retailPrice - formData.sellingPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} / {formData.unitType}</p>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mt-0.5">Item-based margin</p>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Asking Price (Base)</label>
+            <input 
+              type="number" 
+              step="0.01"
+              placeholder="0.00"
+              value={formData.sellingPrice || ''}
+              onChange={(e) => setFormData({...formData, sellingPrice: parseFloat(e.target.value) || 0})}
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+            />
+            {formData.sellingPrice > 0 && (
+              <div className="px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 animate-in fade-in duration-300">
+                 <p className="text-[9px] font-black text-green-700 uppercase tracking-tight">Market Price: KSh {marketPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mt-0.5">Incl. 10% Coop Fee</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Image Upload Section */}
         <div className="col-span-1 md:col-span-2 lg:col-span-4 xl:col-span-5 border-t border-slate-100 pt-6">
