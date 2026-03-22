@@ -14,9 +14,11 @@ import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
 import Forum from './components/Forum';
+import FarmForms from './components/FarmForms';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
+import { updateClusterCoordinates } from './services/weatherService';
 import { 
   fetchRecords, saveRecord, deleteRecord, deleteAllRecords,
   fetchUsers, saveUser, deleteUser, deleteAllUsers,
@@ -26,7 +28,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop'];
@@ -461,17 +463,26 @@ const App: React.FC = () => {
 
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [customFoodCoops, setCustomFoodCoops] = useState<string[]>([]);
+  const [customCoordinates, setCustomCoordinates] = useState<Record<string, { lat: number; lng: number }>>({});
   
   useEffect(() => {
-    const fetchCustomFoodCoops = async () => {
-      const { data } = await supabase.from('pages').select('content').eq('id', 'system_food_coops').single();
-      if (data && data.content) {
+    const fetchCustomData = async () => {
+      const { data: coopsData } = await supabase.from('pages').select('content').eq('id', 'system_food_coops').single();
+      if (coopsData && coopsData.content) {
         try {
-          setCustomFoodCoops(JSON.parse(data.content));
+          setCustomFoodCoops(JSON.parse(coopsData.content));
+        } catch (e) {}
+      }
+      const { data: coordsData } = await supabase.from('pages').select('content').eq('id', 'system_food_coop_coords').single();
+      if (coordsData && coordsData.content) {
+        try {
+          const parsed = JSON.parse(coordsData.content);
+          setCustomCoordinates(parsed);
+          updateClusterCoordinates(parsed);
         } catch (e) {}
       }
     };
-    fetchCustomFoodCoops();
+    fetchCustomData();
   }, []);
 
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
@@ -914,7 +925,7 @@ const App: React.FC = () => {
     if (!agentIdentity) return guestPortals;
     
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'CONTACT', 'FORUM'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'FORMS', 'CONTACT', 'FORUM'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
@@ -2441,6 +2452,12 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {currentPortal === 'FORMS' && agentIdentity && (
+          <div className="animate-in fade-in duration-300">
+            <FarmForms agentCluster={agentIdentity.cluster} dynamicClusters={dynamicClusters} />
+          </div>
+        )}
+
         {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
           <div className="space-y-12 animate-in fade-in duration-300">
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl">
@@ -2458,6 +2475,20 @@ const App: React.FC = () => {
                     if (input && input.value.trim()) {
                       const newCoop = input.value.trim();
                       if (!dynamicClusters.includes(newCoop)) {
+                        const latStr = window.prompt(`Enter Latitude for ${newCoop} (e.g., -1.269275) for Agro-Weather:`);
+                        const lngStr = window.prompt(`Enter Longitude for ${newCoop} (e.g., 36.744238) for Agro-Weather:`);
+                        const lat = parseFloat(latStr || '');
+                        const lng = parseFloat(lngStr || '');
+                        
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                          const newCoords = { ...customCoordinates, [newCoop]: { lat, lng } };
+                          setCustomCoordinates(newCoords);
+                          updateClusterCoordinates(newCoords);
+                          await supabase.from('pages').upsert({ id: 'system_food_coop_coords', title: 'Food Coop Coordinates', content: JSON.stringify(newCoords) });
+                        } else {
+                          alert('Invalid coordinates provided. The Food Coop will be added, but weather data may be inaccurate until updated.');
+                        }
+
                         const newCoops = [...customFoodCoops, newCoop];
                         setCustomFoodCoops(newCoops);
                         await supabase.from('pages').upsert({ id: 'system_food_coops', title: 'Food Coops', content: JSON.stringify(newCoops) });
