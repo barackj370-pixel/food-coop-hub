@@ -49,15 +49,6 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {activeForm === 'daily' && (
-            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-6">
-              <p className="text-emerald-800 font-medium text-sm">
-                <i className="fas fa-info-circle mr-2"></i>
-                Please provide the exact fields from your Google Forms so we can build the native inputs here. The Food Coop list is already dynamically linked!
-              </p>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Date of Activity</label>
@@ -238,13 +229,13 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
               </div>
             </div>
           ) : (
-            <div className="space-y-2 animate-in fade-in duration-300">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Notes / Description</label>
-              <textarea 
-                rows={4}
-                placeholder="Enter details here..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"
-              ></textarea>
+            <div className="animate-in fade-in duration-300">
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-center border-dashed">
+                <p className="text-slate-500 font-medium text-sm">
+                  <i className="fas fa-hourglass-half mr-2"></i>
+                  Waiting for the rest of the Farm Activities fields...
+                </p>
+              </div>
             </div>
           )}
 
