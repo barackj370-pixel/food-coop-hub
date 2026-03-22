@@ -1,3 +1,4 @@
+
 export interface WeatherData {
   daily: {
     time: string[];
@@ -22,6 +23,10 @@ export const CLUSTER_COORDINATES: Record<string, { lat: number; lng: number }> =
   'Kabarnet': { lat: 0.4940, lng: 35.7440 },       // Baringo County
   'Apuoyo': { lat: -0.003066, lng: 34.396335 },    // Siaya County
   'Sibembe': { lat: 0.84019, lng: 34.86705 },      // Sikhendu, Trans-Nzoia County
+};
+
+export const updateClusterCoordinates = (newCoords: Record<string, { lat: number; lng: number }>) => {
+  Object.assign(CLUSTER_COORDINATES, newCoords);
 };
 
 // WMO Weather interpretation
