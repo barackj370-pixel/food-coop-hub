@@ -156,6 +156,87 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
                 ></textarea>
               </div>
             </div>
+          ) : activeForm === 'homestead' ? (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Name of Food Coop Production Officer</label>
+                  <input type="text" required placeholder="Enter officer name" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Contact of Food Coop Production Officer</label>
+                  <input type="text" required placeholder="Enter officer contact" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Name of Homestead Visited</label>
+                  <input type="text" required placeholder="Enter homestead name" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Name of Homestead Convener</label>
+                  <input type="text" required placeholder="Enter convener name" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Contact of Homestead Convener</label>
+                  <input type="text" required placeholder="Enter convener contact" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Type of Work Done</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                  {['Ploughing', 'Planting', 'Weeding', 'Harvesting', 'Slashing', 'Washing', 'Sweeping', 'Fetching water', 'Watering crops', 'Feeding animals', 'Other'].map(work => (
+                    <label key={work} className="flex items-center space-x-3 cursor-pointer group">
+                      <div className="relative flex items-center justify-center">
+                        <input type="checkbox" value={work} className="peer sr-only" />
+                        <div className="w-6 h-6 rounded-lg border-2 border-slate-300 peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all flex items-center justify-center">
+                          <i className="fas fa-check text-white text-xs opacity-0 peer-checked:opacity-100 transition-opacity"></i>
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-slate-600 group-hover:text-slate-900 transition-colors">{work}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Total Number of Participants</label>
+                <input type="number" min="1" required placeholder="e.g. 5" className="w-full md:w-1/3 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Farm Details</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Types of Soil in Your Farm</label>
+                    <textarea rows={3} required placeholder="List soil types..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Source of Water</label>
+                    <textarea rows={3} required placeholder="List water sources..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Types of Farm Inputs & Sources</label>
+                    <textarea rows={3} required placeholder="List inputs and their sources..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Types of Waste Produced</label>
+                    <textarea rows={3} required placeholder="List waste types..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">How do you handle the waste?</label>
+                    <textarea rows={3} required placeholder="Describe waste handling..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Products to Supply the Food Coop Market</label>
+                    <textarea rows={3} required placeholder="List farm food, processed food, or non-food products..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="space-y-2 animate-in fade-in duration-300">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Notes / Description</label>
