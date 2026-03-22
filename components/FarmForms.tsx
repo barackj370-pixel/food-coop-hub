@@ -49,7 +49,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {activeForm !== 'solidarity' && (
+          {activeForm === 'daily' && (
             <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-6">
               <p className="text-emerald-800 font-medium text-sm">
                 <i className="fas fa-info-circle mr-2"></i>
