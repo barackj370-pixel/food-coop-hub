@@ -679,6 +679,7 @@ const App: React.FC = () => {
   const [reportData, setReportData] = useState<string | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [boardTimeFilter, setBoardTimeFilter] = useState<'7' | '14' | '28' | 'all'>('all');
 
   // VERSION CHECK - Force re-auth but SAFEGUARD data
   useEffect(() => {
@@ -1077,9 +1078,41 @@ const App: React.FC = () => {
     return Array.from(new Set([...FOOD_COOPS, ...customFoodCoops, ...fromUsers, ...fromRecords, ...fromProduce, ...fromOrders])).filter((c): c is string => c !== '-');
   }, [users, records, produceListings, marketOrders, customFoodCoops]);
 
+  const homeMetrics = useMemo<{ clusterPerformance: [string, FoodCoopMetric][] }>(() => {
+    const rLog = records;
+    const clusterMap: Record<string, FoodCoopMetric> = dynamicClusters.reduce((acc, c) => {
+        acc[c] = { volume: 0, profit: 0 };
+        return acc;
+    }, {} as Record<string, FoodCoopMetric>);
+
+    rLog.forEach(r => {
+      if (
+        r.status === RecordStatus.COMPLETE || 
+        r.status === RecordStatus.PAID || 
+        r.status === RecordStatus.VERIFIED || 
+        r.status === RecordStatus.VALIDATED
+      ) {
+        const cluster = r.cluster || 'Unknown';
+        if (!clusterMap[cluster]) clusterMap[cluster] = { volume: 0, profit: 0 };
+        clusterMap[cluster].volume += Number(r.totalSale);
+        clusterMap[cluster].profit += Number(r.coopProfit);
+      }
+    });
+    
+    const clusterPerformance = (Object.entries(clusterMap) as [string, FoodCoopMetric][]).sort((a, b) => b[1].profit - a[1].profit);
+    return { clusterPerformance };
+  }, [records, dynamicClusters]);
+
   // Explicit typing for useMemo to avoid inference errors
   const boardMetrics = useMemo<{ clusterPerformance: [string, FoodCoopMetric][] }>(() => {
-    const rLog = records; 
+    const now = new Date();
+    const rLog = records.filter(r => {
+      if (boardTimeFilter === 'all') return true;
+      const recordDate = new Date(r.createdAt || r.date);
+      const diffTime = Math.abs(now.getTime() - recordDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= parseInt(boardTimeFilter);
+    });
     
     // 1. Initialize ALL clusters with 0 values to ensure clusters always show
     const clusterMap: Record<string, FoodCoopMetric> = dynamicClusters.reduce((acc, c) => {
@@ -1105,7 +1138,7 @@ const App: React.FC = () => {
     // Explicitly cast Object.entries result to assist TS inference
     const clusterPerformance = (Object.entries(clusterMap) as [string, FoodCoopMetric][]).sort((a, b) => b[1].profit - a[1].profit);
     return { clusterPerformance };
-  }, [records, dynamicClusters]);
+  }, [records, dynamicClusters, boardTimeFilter]);
 
   // Calculate Grand Totals for Board Portal
   const grandTotalVolume = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [boardMetrics]);
@@ -1866,7 +1899,7 @@ const App: React.FC = () => {
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Completed Trades</p>
         </div>
         <div className="bg-slate-900 p-8 rounded-3xl border border-black text-center col-span-2">
-          <p className="text-2xl font-black text-white">KSh {boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}</p>
+          <p className="text-2xl font-black text-white">KSh {homeMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0).toLocaleString()}</p>
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Total Trade Volume</p>
         </div>
       </div>
@@ -2428,7 +2461,19 @@ const App: React.FC = () => {
             <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
                 <h3 className="text-sm font-black text-black uppercase tracking-tighter border-l-4 border-green-500 pl-4">Food Coop Performance Breakdown</h3>
-                {renderExportButtons(true)}
+                <div className="flex items-center gap-4">
+                  <select 
+                    value={boardTimeFilter} 
+                    onChange={(e) => setBoardTimeFilter(e.target.value as any)}
+                    className="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-2.5 outline-none focus:border-green-500 transition-all cursor-pointer"
+                  >
+                    <option value="7">Last 7 Days</option>
+                    <option value="14">Last 14 Days</option>
+                    <option value="28">Last 28 Days</option>
+                    <option value="all">All Time</option>
+                  </select>
+                  {renderExportButtons(true)}
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
