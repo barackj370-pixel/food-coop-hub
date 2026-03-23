@@ -1140,9 +1140,9 @@ const App: React.FC = () => {
     return { clusterPerformance };
   }, [records, dynamicClusters, boardTimeFilter]);
 
-  // Calculate Grand Totals for Board Portal
-  const grandTotalVolume = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [boardMetrics]);
-  const grandTotalCommission = useMemo(() => boardMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0), [boardMetrics]);
+  // Calculate Grand Totals for Board Portal (All Time)
+  const grandTotalVolume = useMemo(() => homeMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [homeMetrics]);
+  const grandTotalCommission = useMemo(() => homeMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0), [homeMetrics]);
 
   const pendingSyncCount = useMemo(() => {
     const pRecords = records.filter(r => r.synced === false || r.synced === undefined).length;
@@ -2437,7 +2437,7 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-xl relative overflow-hidden">
                   <div className="relative z-10">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Grand Total Sales Volume</p>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">All Time Grand Total Sales Volume</p>
                      <p className="text-4xl font-black text-white">KSh {grandTotalVolume.toLocaleString()}</p>
                      <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase">All Food Coops Combined</p>
                   </div>
@@ -2448,7 +2448,7 @@ const App: React.FC = () => {
                
                <div className="bg-green-600 rounded-[2.5rem] p-10 text-white shadow-xl relative overflow-hidden">
                   <div className="relative z-10">
-                     <p className="text-[10px] font-black text-green-200 uppercase tracking-[0.3em] mb-2">Grand Total Coop Commission</p>
+                     <p className="text-[10px] font-black text-green-200 uppercase tracking-[0.3em] mb-2">All Time Grand Total Coop Commission</p>
                      <p className="text-4xl font-black text-white">KSh {grandTotalCommission.toLocaleString()}</p>
                      <p className="text-[10px] font-bold text-green-200 mt-2 uppercase">Total Revenue Generated (10% Share)</p>
                   </div>
