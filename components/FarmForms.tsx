@@ -7,7 +7,7 @@ interface FarmFormsProps {
 }
 
 const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) => {
-  const [activeForm, setActiveForm] = useState<'daily' | 'solidarity' | 'homestead'>('daily');
+  const [activeForm, setActiveForm] = useState<'weekly' | 'solidarity' | 'homestead'>('weekly');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,10 +29,10 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
         
         <div className="flex flex-wrap gap-4 mb-8">
           <button 
-            onClick={() => setActiveForm('daily')}
-            className={`px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${activeForm === 'daily' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            onClick={() => setActiveForm('weekly')}
+            className={`px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${activeForm === 'weekly' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
           >
-            Daily Farm Activity
+            Weekly Farm Activity
           </button>
           <button 
             onClick={() => setActiveForm('solidarity')}
@@ -49,6 +49,14 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {activeForm === 'weekly' && (
+            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-6">
+              <h3 className="text-sm font-black text-emerald-900 uppercase tracking-widest mb-2">Weekly Farm Activities Capture Form</h3>
+              <p className="text-[11px] font-bold text-emerald-700 italic">
+                Farm - means Homestead or Household including all the activities like ploughing, weeding etc that goes on in the farm
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Date of Activity</label>
@@ -229,12 +237,82 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
               </div>
             </div>
           ) : (
-            <div className="animate-in fade-in duration-300">
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-center border-dashed">
-                <p className="text-slate-500 font-medium text-sm">
-                  <i className="fas fa-hourglass-half mr-2"></i>
-                  Waiting for the rest of the Farm Activities fields...
-                </p>
+            <div className="space-y-8 animate-in fade-in duration-300">
+              {/* Crops and Livestock Kept */}
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Crops and Livestock Kept</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Crops grown in my Household or Homestead</label>
+                    <textarea rows={3} required placeholder="List crops grown..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Livestock Kept in my Household or Homestead</label>
+                    <textarea rows={3} required placeholder="List livestock kept..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weekly Farm Activities and Challenges Faced */}
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Weekly Farm Activities and Challenges Faced</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">List the weekly farm activities in household or homestead</label>
+                    <textarea rows={3} required placeholder="List weekly activities..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">List the challenges faced in conducting the farm activities in household or homestead</label>
+                    <textarea rows={3} required placeholder="List challenges faced..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              {/* Food and None Food Consumption */}
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Food and None Food Consumption</h3>
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">List the types of Farm Food, Processed Food and None Food Products consumed daily in household or homestead</label>
+                    <textarea rows={3} required placeholder="List products consumed daily..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">State the average amount spent on each of types of Farm Food, Processed Food and None Food Products consumed daily in household or homestead</label>
+                    <textarea rows={3} required placeholder="State average amount spent..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">State the source of the types of Farm Food, Processed Food and None Food Products consumed daily in household or homestead</label>
+                    <textarea rows={3} required placeholder="State source of products..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">List the types of Farm Food, Processed Food and None Food Products consumed daily in household or homestead that you need to be supplied with</label>
+                    <textarea rows={3} required placeholder="List products needed for supply..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quantity and Value of Harvested Crops and Livestock Products */}
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Quantity and Value of Harvested Crops and Livestock Products</h3>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">List the Varieties, Quantities and Value of Harvested Crops and Livestock Products</label>
+                  <textarea rows={4} required placeholder="List varieties, quantities and value..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                </div>
+              </div>
+
+              {/* Soil Erosion and Conservation */}
+              <div className="space-y-6 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Soil Erosion and Conservation</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">List the Type of Soil Erosion Experienced in Household or Homestead</label>
+                    <textarea rows={3} required placeholder="List types of soil erosion..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">List the Strategies for Curbing Soil Erosion Experienced in Household or Homestead</label>
+                    <textarea rows={3} required placeholder="List strategies for curbing erosion..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"></textarea>
+                  </div>
+                </div>
               </div>
             </div>
           )}
