@@ -10,6 +10,7 @@ import HeroCarousel from './components/HeroCarousel';
 import CreateNewsForm from './components/CreateNewsForm';
 import AboutUsCarousel from './components/AboutUsCarousel';
 import AboutUsPage from './components/AboutUsPage';
+import { Leaderboard } from './components/Leaderboard';
 import LoginPage from './page/LoginPage';
 import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
@@ -1158,7 +1159,7 @@ const App: React.FC = () => {
   };
 
   const handleAddProduce = async (data: {
-    date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; wholesalePrice?: number; supplierName: string; supplierPhone: string; images: string[];
+    date: string; cropType: string; unitType: string; unitsAvailable: number; sellingPrice: number; wholesalePrice?: number; supplierName: string; supplierPhone: string; images: string[]; cluster?: string;
   }) => {
     
     // Handle Editing Existing Listing
@@ -1176,6 +1177,7 @@ const App: React.FC = () => {
              supplierName: data.supplierName,
              supplierPhone: data.supplierPhone,
              images: data.images,
+             cluster: data.cluster || existing.cluster,
              synced: false
           };
           
@@ -1199,7 +1201,7 @@ const App: React.FC = () => {
     }
 
     // Handle Creating New Listing
-    const clusterValue = agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa';
+    const clusterValue = data.cluster || (agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa');
     const newListing: ProduceListing = {
       id: 'LST-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       date: data.date,
@@ -1824,6 +1826,11 @@ const App: React.FC = () => {
                                <i className="fas fa-edit text-[10px]"></i>
                              </button>
                           )}
+                          {agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER && r.status === RecordStatus.PENDING && (
+                             <button onClick={(e) => { e.stopPropagation(); handleDeleteRecord(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1 ml-2">
+                               <i className="fas fa-trash-can text-[10px]"></i>
+                             </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2023,6 +2030,9 @@ const App: React.FC = () => {
             {/* Weather Ticker Carousel */}
             <WeatherCarousel />
 
+            {/* Leaderboard */}
+            <Leaderboard clusterPerformance={homeMetrics.clusterPerformance} />
+
             {/* About Us Carousel */}
             <AboutUsCarousel />
 
@@ -2215,7 +2225,7 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <>
-                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
+                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} />
               </>
             )}
@@ -2225,6 +2235,7 @@ const App: React.FC = () => {
                   <ProduceForm 
                     userRole={agentIdentity.role} 
                     agentCluster={agentIdentity.cluster}
+                    clusters={dynamicClusters}
                     defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} 
                     defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} 
                     onSubmit={handleAddProduce} 
