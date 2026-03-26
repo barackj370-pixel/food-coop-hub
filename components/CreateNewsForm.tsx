@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NewsArticle } from '../sharedTypes';
+import { NewsArticle } from '../types';
 
 interface CreateNewsFormProps {
   onSubmit: (article: Omit<NewsArticle, 'id' | 'date'>) => void;
