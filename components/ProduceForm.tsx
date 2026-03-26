@@ -7,6 +7,7 @@ import { SystemRole, ProduceListing } from '../types';
 interface ProduceFormProps {
   userRole: SystemRole;
   agentCluster?: string;
+  clusters?: string[];
   defaultSupplierName?: string;
   defaultSupplierPhone?: string;
   initialData?: ProduceListing;
@@ -20,13 +21,12 @@ interface ProduceFormProps {
     supplierName: string;
     supplierPhone: string;
     images: string[];
+    cluster: string;
   }) => void;
 }
 
-const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentCluster, defaultSupplierName, defaultSupplierPhone, initialData }) => {
+const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentCluster, clusters = [], defaultSupplierName, defaultSupplierPhone, initialData }) => {
   const isSupplier = userRole === SystemRole.SUPPLIER;
-  const isKangemi = agentCluster === 'New Kangemi Food Coop';
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -38,8 +38,12 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
     retailPrice: 0, // Used for Kangemi's explicit retail price
     supplierName: defaultSupplierName || '',
     supplierPhone: defaultSupplierPhone || '',
-    images: [] as string[]
+    images: [] as string[],
+    cluster: agentCluster || (clusters.length > 0 ? clusters[0] : 'Mariwa')
   });
+
+  const isKangemi = formData.cluster === 'New Kangemi Food Coop';
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Populate form when editing
   useEffect(() => {
@@ -60,7 +64,8 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
         retailPrice: isKangemi ? initialData.sellingPrice : 0,
         supplierName: initialData.supplierName,
         supplierPhone: initialData.supplierPhone,
-        images: initialData.images || []
+        images: initialData.images || [],
+        cluster: initialData.cluster || agentCluster || (clusters.length > 0 ? clusters[0] : 'Mariwa')
       });
     }
   }, [initialData, isKangemi]);
@@ -210,6 +215,19 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
           />
         </div>
+
+        {(userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) && clusters.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
+            <select 
+              value={formData.cluster}
+              onChange={(e) => setFormData({...formData, cluster: e.target.value})}
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
+            >
+              {clusters.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        )}
         
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity</label>
