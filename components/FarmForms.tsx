@@ -238,6 +238,18 @@ const FarmForms: React.FC<FarmFormsProps> = ({ agentCluster, dynamicClusters }) 
             </div>
           ) : (
             <div className="space-y-8 animate-in fade-in duration-300">
+              {/* Household/Homestead Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Household/Homestead Name</label>
+                  <input type="text" required placeholder="Enter household or homestead name" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Household/Homestead Contact</label>
+                  <input type="text" required placeholder="Enter contact number or email" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+              </div>
+
               {/* Crops and Livestock Kept */}
               <div className="space-y-6 pt-6 border-t border-slate-100">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Crops and Livestock Kept</h3>
