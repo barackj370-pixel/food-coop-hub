@@ -2024,17 +2024,17 @@ const App: React.FC = () => {
                onReadNews={handleOpenNews} 
             />
 
-            {/* Retail Price Carousel */}
-            <RetailPriceCarousel records={records} produceListings={produceListings} />
-
             {/* Weather Ticker Carousel */}
             <WeatherCarousel />
+
+            {/* Retail Price Carousel */}
+            <RetailPriceCarousel records={records} produceListings={produceListings} />
 
             {/* Leaderboard */}
             <Leaderboard clusterPerformance={homeMetrics.clusterPerformance} />
 
-            {/* About Us Carousel */}
-            <AboutUsCarousel />
+            {/* About Us Carousel - Only visible when NOT logged in */}
+            {!agentIdentity && <AboutUsCarousel />}
 
             {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
           </div>
