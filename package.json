@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "start": "npx serve -s dist",
     "lint": "echo 'No linting'"
   },
   "dependencies": {
