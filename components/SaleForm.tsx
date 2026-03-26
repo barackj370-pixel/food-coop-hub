@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants';
-import { ProduceListing } from '../types';
+import { ProduceListing, SystemRole } from '../types';
 
 interface SaleFormProps {
   clusters: string[];
   produceListings: ProduceListing[];
   agentCluster?: string;
+  userRole?: SystemRole;
   initialData?: {
     cropType?: string;
     unitsSold?: number;
@@ -36,7 +37,7 @@ interface SaleFormProps {
   }) => void;
 }
 
-const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, produceListings, agentCluster }: SaleFormProps) => {
+const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, produceListings, agentCluster, userRole }: SaleFormProps) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cropType: 'Maize',
@@ -48,7 +49,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
     customerPhone: '',
     unitsSold: 0,
     unitPrice: 0.00,
-    cluster: clusters[0] || 'Mariwa',
+    cluster: agentCluster || (clusters.length > 0 ? clusters[0] : 'Mariwa'),
     produceId: undefined as string | undefined
   });
 
@@ -200,16 +201,18 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
           />
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Customer Food Coop</label>
-          <select 
-            value={formData.cluster}
-            onChange={(e) => setFormData({...formData, cluster: e.target.value})}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
-          >
-            {clusters.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+        {(userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) && clusters.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
+            <select 
+              value={formData.cluster}
+              onChange={(e) => setFormData({...formData, cluster: e.target.value})}
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
+            >
+              {clusters.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        )}
         
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity</label>
