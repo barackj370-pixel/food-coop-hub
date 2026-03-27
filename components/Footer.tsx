@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 const Footer: React.FC = () => {
@@ -8,7 +7,7 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
           <div className="col-span-1 lg:col-span-1">
             <div className="flex items-center space-x-2 mb-6">
-              <img src="/logo.png" alt="Onedigispot" className="h-24 w-auto object-contain" />
+              <img src="https://drive.google.com/uc?export=view&id=1EVxFLKS-6_O6Pyo1-9z_sXU-afmF2xJD" alt="Onedigispot" className="h-24 w-auto object-contain mix-blend-multiply" />
             </div>
             <p className="text-slate-500 mb-6 leading-relaxed">
               Kenya's premier digital innovation hub. We craft world-class custom applications and web platforms for global-minded organizations.
