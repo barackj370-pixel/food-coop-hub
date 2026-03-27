@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -20,7 +19,7 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center">
           <Link to="/" className="flex items-center space-x-2">
-            <img src="/logo.png" alt="Onedigispot" className="h-16 w-auto object-contain" />
+            <img src="https://drive.google.com/uc?export=view&id=1EVxFLKS-6_O6Pyo1-9z_sXU-afmF2xJD" alt="Onedigispot" className="h-16 w-auto object-contain mix-blend-multiply" />
           </Link>
           
           <div className="hidden md:flex items-center space-x-8">
