@@ -1,129 +1,115 @@
+import React, { useState, useMemo } from 'react';
+import { ProduceListing } from '../types';
+import { COMMODITY_CATEGORIES } from '../constants';
+import { Search, Store } from 'lucide-react';
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App';
-
-interface ErrorBoundaryProps {
-  children: ReactNode;
+interface Props {
+  produceListings: ProduceListing[];
 }
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
+const ProductsPage: React.FC<Props> = ({ produceListings }) => {
+  const [searchTerm, setSearchTerm] = useState('');
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: '20px', fontFamily: 'sans-serif', color: 'red' }}>
-          <h1>Something went wrong.</h1>
-          <pre style={{ whiteSpace: 'pre-wrap' }}>{this.state.error?.toString()}</pre>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
-// Domain Redirection Logic: Force traffic to kplfoodcoopmarket.co.ke
-// NOTE: Temporarily disabled to prevent "Server IP address not found" errors in preview 
-// while the main domain DNS is propagating or being configured.
-/*
-const MAIN_DOMAIN = 'kplfoodcoopmarket.co.ke';
-if (typeof window !== 'undefined') {
-  const hostname = window.location.hostname;
-  
-  // Only redirect if we are on a vercel.app subdomain
-  if (hostname.endsWith('.vercel.app')) {
-    const targetUrl = `https://${MAIN_DOMAIN}${window.location.pathname}${window.location.search}`;
-    console.log(`Redirecting to main domain: ${targetUrl}`);
-    window.location.replace(targetUrl);
-  }
-}
-*/
-
-const boot = () => {
-  const rootElement = document.getElementById('root');
-  if (!rootElement) return;
-
-  if ((window as any).hideHubLoader) {
-    (window as any).hideHubLoader();
-  }
-
-  try {
-    const root = createRoot(rootElement);
-    root.render(
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
+  const categorizedProducts = useMemo(() => {
+    const available = produceListings.filter(p => p.status === 'AVAILABLE');
+    const filtered = available.filter(p => 
+      p.cropType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.cluster.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  } catch (err) {
-    console.error("Mount Failure:", err);
-  }
-};
-
-// Service Worker Registration Logic
-const registerServiceWorker = () => {
-  // Check if we are in a secure context or localhost (Service Workers require HTTPS or localhost)
-  const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
-  if ('serviceWorker' in navigator && isSecure) {
-    const handleRegistration = async () => {
-       // specific delay to allow iframe/preview environments to settle
-       await new Promise(resolve => setTimeout(resolve, 2000));
-
-       try {
-        // Use root-relative path '/sw.js'. 
-        // We remove the explicit scope to let the browser determine the default scope (location of sw.js).
-        // This often resolves 'origin mismatch' errors in cloud preview environments where base URLs might be proxied.
-        const registration = await navigator.serviceWorker.register('/sw.js');
-        console.log('SW Registered:', registration.scope);
-       } catch (err: any) {
-         // Filter out known environment-specific errors that aren't critical
-         // We convert everything to string to ensure we catch the error message content
-         const errorText = (err?.message || String(err)).toLowerCase();
-         
-         if (errorText.includes('invalid state') || 
-             errorText.includes('origin') || 
-             errorText.includes('mismatch') ||
-             errorText.includes('script resource is behind a redirect') ||
-             errorText.includes('failed to register')) {
-           console.log('SW Registration Skipped (Preview Environment limitation):', errorText);
-         } else {
-           console.warn('SW Registration Failed:', err);
-         }
-       }
+    
+    const categories = {
+      'Farm Food Products': [] as ProduceListing[],
+      'Food Products': [] as ProduceListing[],
+      'Non-food Products': [] as ProduceListing[]
     };
 
-    if (document.readyState === 'complete') {
-      handleRegistration();
-    } else {
-      window.addEventListener('load', handleRegistration);
-    }
-  }
+    filtered.forEach(product => {
+      let categoryFound = false;
+      for (const [category, items] of Object.entries(COMMODITY_CATEGORIES)) {
+        if ((items as readonly string[]).includes(product.cropType)) {
+          categories[category as keyof typeof categories].push(product);
+          categoryFound = true;
+          break;
+        }
+      }
+      if (!categoryFound) {
+        categories['Farm Food Products'].push(product);
+      }
+    });
+
+    return categories;
+  }, [produceListings, searchTerm]);
+
+  return (
+    <div className="animate-in fade-in slide-in-from-top-4 duration-700 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Available Products</h1>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Browse all repository products</p>
+        </div>
+        
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search products or coops..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-12">
+        {Object.entries(categorizedProducts).map(([category, products]) => (
+          <div key={category}>
+            <div className="flex items-center gap-3 mb-6">
+              <Store className="w-6 h-6 text-emerald-500" />
+              <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">{category}</h2>
+              <div className="h-px bg-slate-200 flex-1 ml-4"></div>
+            </div>
+            
+            {products.length === 0 ? (
+              <div className="bg-white rounded-3xl p-8 text-center border border-slate-100">
+                <p className="text-sm font-bold text-slate-400">No products found in this category.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products.map((product, pIdx) => (
+                  <div key={pIdx} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
+                    
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-800 line-clamp-1">{product.cropType}</h3>
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">{product.cluster}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                        <span className="text-xs font-bold text-slate-500">Available</span>
+                        <span className="text-sm font-black text-slate-800">{product.unitsAvailable} {product.unitType}s</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center pt-2">
+                        <span className="text-xs font-bold text-slate-500">Retail Price</span>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold text-slate-400 mr-1">KSh</span>
+                          <span className="text-lg font-black text-emerald-600">{Number(product.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">per {product.unitType}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
-// Execution Control
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', boot);
-} else {
-  boot();
-}
-
-// Start SW registration
-registerServiceWorker();
+export default ProductsPage;

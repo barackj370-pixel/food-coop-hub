@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import WeatherWidget from './WeatherWidget';
 import { CLUSTER_COORDINATES } from '../services/weatherService';

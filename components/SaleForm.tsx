@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES } from '../constants';
+import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES, TEN_PERCENT_COOPS } from '../constants';
 import { ProduceListing, SystemRole } from '../types';
 
 interface SaleFormProps {
@@ -133,8 +133,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
   const totalSale = formData.unitsSold * formData.unitPrice;
   let ourShare = totalSale * PROFIT_MARGIN;
   
-  const isKangemi = (formData.cluster || agentCluster) === 'New Kangemi Food Coop';
-  if (isKangemi && formData.produceId) {
+  const isProfitPerItem = !TEN_PERCENT_COOPS.includes(formData.cluster || agentCluster || '');
+  if (isProfitPerItem && formData.produceId) {
     const produce = produceListings.find(p => p.id === formData.produceId);
     if (produce && produce.wholesalePrice !== undefined) {
       ourShare = (formData.unitPrice - produce.wholesalePrice) * formData.unitsSold;
