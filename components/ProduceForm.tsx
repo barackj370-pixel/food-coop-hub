@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN } from '../constants';
+import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN, TEN_PERCENT_COOPS } from '../constants';
 // Updated import path to types
 import { SystemRole, ProduceListing } from '../types';
 
@@ -42,7 +41,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
     cluster: agentCluster || (clusters.length > 0 ? clusters[0] : 'Mariwa')
   });
 
-  const isKangemi = formData.cluster === 'New Kangemi Food Coop';
+  const isProfitPerItem = !TEN_PERCENT_COOPS.includes(formData.cluster);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Populate form when editing
@@ -59,16 +58,16 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
         otherCropType: isStandard ? '' : initialData.cropType,
         unitType: initialData.unitType,
         unitsAvailable: initialData.unitsAvailable,
-        // Reverse the margin calculation to show Base Price (Asking Price) if not Kangemi
-        sellingPrice: isKangemi ? (initialData.wholesalePrice || initialData.sellingPrice) : (initialData.sellingPrice / (1 + PROFIT_MARGIN)),
-        retailPrice: isKangemi ? initialData.sellingPrice : 0,
+        // Reverse the margin calculation to show Base Price (Asking Price) if not profit per item
+        sellingPrice: isProfitPerItem ? (initialData.wholesalePrice || initialData.sellingPrice) : (initialData.sellingPrice / (1 + PROFIT_MARGIN)),
+        retailPrice: isProfitPerItem ? initialData.sellingPrice : 0,
         supplierName: initialData.supplierName,
         supplierPhone: initialData.supplierPhone,
         images: initialData.images || [],
         cluster: initialData.cluster || agentCluster || (clusters.length > 0 ? clusters[0] : 'Mariwa')
       });
     }
-  }, [initialData, isKangemi]);
+  }, [initialData, isProfitPerItem]);
 
   useEffect(() => {
     // Only reset unit type if the current one isn't valid for the new crop type
@@ -80,7 +79,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
   }, [formData.cropType]);
 
   // Calculate the final market price including the coop commission
-  const marketPrice = isKangemi ? formData.retailPrice : formData.sellingPrice * (1 + PROFIT_MARGIN);
+  const marketPrice = isProfitPerItem ? formData.retailPrice : formData.sellingPrice * (1 + PROFIT_MARGIN);
   const totalValue = formData.unitsAvailable * marketPrice;
 
   // Helper: Compress and Convert Image to Base64
@@ -156,17 +155,17 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
     
     const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
 
-    if (formData.unitsAvailable <= 0 || formData.sellingPrice <= 0 || !formData.supplierName || !formData.supplierPhone || (formData.cropType === 'Other' && !finalCropType) || (isKangemi && formData.retailPrice <= 0)) {
+    if (formData.unitsAvailable <= 0 || formData.sellingPrice <= 0 || !formData.supplierName || !formData.supplierPhone || (formData.cropType === 'Other' && !finalCropType) || (isProfitPerItem && formData.retailPrice <= 0)) {
       alert("Validation Error: Please provide valid quantity, price, supplier details, and commodity information.");
       return;
     }
     
     const { otherCropType, sellingPrice, retailPrice, ...submissionData } = formData;
     
-    // For Kangemi, sellingPrice is the wholesale price, and retailPrice is the final selling price.
+    // For profit per item, sellingPrice is the wholesale price, and retailPrice is the final selling price.
     // Otherwise, calculate the 10% commission.
-    const finalSellingPrice = isKangemi ? retailPrice : sellingPrice * (1 + PROFIT_MARGIN);
-    const finalWholesalePrice = isKangemi ? sellingPrice : undefined;
+    const finalSellingPrice = isProfitPerItem ? retailPrice : sellingPrice * (1 + PROFIT_MARGIN);
+    const finalWholesalePrice = isProfitPerItem ? sellingPrice : undefined;
     
     onSubmit({ 
       ...submissionData, 
@@ -306,7 +305,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
           />
         </div>
 
-        {isKangemi ? (
+        {isProfitPerItem ? (
           <>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Wholesale Price (KSh)</label>
