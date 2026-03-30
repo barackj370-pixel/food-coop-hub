@@ -5,7 +5,8 @@ import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
-import RetailPriceCarousel from './components/RetailPriceCarousel';
+import AvailableProducts from './components/AvailableProducts';
+import ProductsPage from './components/ProductsPage';
 import HeroCarousel from './components/HeroCarousel';
 import CreateNewsForm from './components/CreateNewsForm';
 import AboutUsCarousel from './components/AboutUsCarousel';
@@ -16,7 +17,7 @@ import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
 import Forum from './components/Forum';
 import FarmForms from './components/FarmForms';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL } from './constants';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
 import { updateClusterCoordinates } from './services/weatherService';
@@ -29,7 +30,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop'];
@@ -537,7 +538,7 @@ const App: React.FC = () => {
       hash = hash.substring(0, queryIndex);
     }
     hash = hash.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS'];
     return validPortals.includes(hash as PortalType) ? (hash as PortalType) : 'HOME';
   });
 
@@ -553,7 +554,7 @@ const App: React.FC = () => {
       
       hash = hash.toUpperCase();
       
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS'];
       if (validPortals.includes(hash as PortalType)) {
         setCurrentPortal(hash as PortalType);
       } else if (!window.location.hash) {
@@ -923,11 +924,11 @@ const App: React.FC = () => {
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
-    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT'];
+    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS'];
     if (!agentIdentity) return guestPortals;
     
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'FORMS', 'CONTACT', 'FORUM'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'FORMS', 'CONTACT', 'FORUM', 'PRODUCTS'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
@@ -1432,7 +1433,7 @@ const App: React.FC = () => {
         const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
         let coopProfit = totalSale * PROFIT_MARGIN;
         
-        if (cluster === 'New Kangemi Food Coop' && data.produceId) {
+        if (!TEN_PERCENT_COOPS.includes(cluster) && data.produceId) {
           const produce = produceListings.find(p => p.id === data.produceId);
           if (produce && produce.wholesalePrice !== undefined) {
             coopProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
@@ -1473,7 +1474,7 @@ const App: React.FC = () => {
       const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
       let coopProfit = totalSale * PROFIT_MARGIN;
       
-      if (cluster === 'New Kangemi Food Coop' && data.produceId) {
+      if (!TEN_PERCENT_COOPS.includes(cluster) && data.produceId) {
         const produce = produceListings.find(p => p.id === data.produceId);
         if (produce && produce.wholesalePrice !== undefined) {
           coopProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
@@ -1960,6 +1961,7 @@ const App: React.FC = () => {
             )}
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
+              <button onClick={() => setCurrentPortal('PRODUCTS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'PRODUCTS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Products</button>
               <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
               <button onClick={() => setCurrentPortal('WEATHER')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'WEATHER' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Agro-Weather</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
@@ -1968,7 +1970,7 @@ const App: React.FC = () => {
           </div>
         </div>
         <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER'].includes(p)).map(p => {
+          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS'].includes(p)).map(p => {
             if (p === 'MARKET') {
               return (
                 <div key={p} className="relative">
@@ -2027,8 +2029,8 @@ const App: React.FC = () => {
             {/* Weather Ticker Carousel */}
             <WeatherCarousel />
 
-            {/* Retail Price Carousel */}
-            <RetailPriceCarousel records={records} produceListings={produceListings} />
+            {/* Available Products */}
+            <AvailableProducts produceListings={produceListings} onViewAll={() => setCurrentPortal('PRODUCTS')} />
 
             {/* Leaderboard */}
             <Leaderboard clusterPerformance={homeMetrics.clusterPerformance} />
@@ -2038,6 +2040,10 @@ const App: React.FC = () => {
 
             {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
           </div>
+        )}
+
+        {currentPortal === 'PRODUCTS' && (
+          <ProductsPage produceListings={produceListings} />
         )}
 
         {currentPortal === 'NEWS' && (
