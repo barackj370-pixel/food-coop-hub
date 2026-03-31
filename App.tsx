@@ -7,6 +7,7 @@ import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
 import AvailableProducts from './components/AvailableProducts';
 import ProductsPage from './components/ProductsPage';
+import OrderModal from './components/OrderModal';
 import HeroCarousel from './components/HeroCarousel';
 import CreateNewsForm from './components/CreateNewsForm';
 import AboutUsCarousel from './components/AboutUsCarousel';
@@ -127,6 +128,7 @@ interface SaleFormSubmission {
   cluster: string;
   orderId?: string;
   produceId?: string;
+  deliveryFee?: number;
 }
 
 // News Data Structure
@@ -672,6 +674,47 @@ const App: React.FC = () => {
   const [fulfillmentData, setFulfillmentData] = useState<Partial<SaleFormSubmission> | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
+  const [orderingProduct, setOrderingProduct] = useState<ProduceListing | null>(null);
+
+  const handleOrderNow = (product: ProduceListing) => {
+    if (!agentIdentity) {
+      alert("Please login or register as a Customer to place an order.");
+      setCurrentPortal('LOGIN');
+      return;
+    }
+    setOrderingProduct(product);
+  };
+
+  const handleFulfillDirectOrder = (order: MarketOrder) => {
+    const product = produceListings.find(p => p.id === order.produceId);
+    const unitPrice = product ? product.sellingPrice : 0;
+    
+    setFulfillmentData({
+      date: new Date().toISOString().split('T')[0],
+      cropType: order.cropType,
+      unitType: order.unitType,
+      farmerName: order.supplierName || '',
+      farmerPhone: order.supplierPhone || '',
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      unitsSold: order.unitsRequested,
+      unitPrice: unitPrice,
+      cluster: order.cluster,
+      orderId: order.id,
+      produceId: order.produceId,
+      deliveryFee: order.deliveryFee
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const directOrders = useMemo(() => {
+    if (!agentIdentity) return [];
+    return marketOrders.filter(o => 
+      o.isDirectOrder && 
+      o.status === OrderStatus.OPEN && 
+      (agentIdentity.role === SystemRole.MANAGER || agentIdentity.role === SystemRole.SYSTEM_DEVELOPER || o.cluster === agentIdentity.cluster)
+    );
+  }, [marketOrders, agentIdentity]);
 
   // Edit Produce State
   const [editingProduceId, setEditingProduceId] = useState<string | null>(null);
@@ -2030,7 +2073,7 @@ const App: React.FC = () => {
             <WeatherCarousel />
 
             {/* Available Products */}
-            <AvailableProducts produceListings={produceListings} onViewAll={() => setCurrentPortal('PRODUCTS')} />
+            <AvailableProducts produceListings={produceListings} onViewAll={() => setCurrentPortal('PRODUCTS')} onOrderNow={handleOrderNow} />
 
             {/* Leaderboard */}
             <Leaderboard clusterPerformance={homeMetrics.clusterPerformance} />
@@ -2043,7 +2086,7 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'PRODUCTS' && (
-          <ProductsPage produceListings={produceListings} />
+          <ProductsPage produceListings={produceListings} onOrderNow={handleOrderNow} />
         )}
 
         {currentPortal === 'NEWS' && (
@@ -2231,6 +2274,46 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <>
+                {agentIdentity.role !== SystemRole.SUPPLIER && directOrders.length > 0 && (
+                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm mb-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <i className="fas fa-truck text-emerald-600"></i>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black text-slate-800 tracking-tight">Customers Direct Orders</h2>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Pending Fulfillment</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {directOrders.map(order => (
+                        <div key={order.id} className="bg-slate-50 rounded-2xl p-5 border border-slate-100 flex flex-col justify-between">
+                          <div>
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="text-sm font-black text-slate-800">{order.cropType}</h3>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Qty: {order.unitsRequested} {order.unitType}s</p>
+                              </div>
+                              <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-widest">Pending</span>
+                            </div>
+                            <div className="space-y-2 text-xs font-bold text-slate-600 mb-4">
+                              <p><i className="fas fa-user w-4 text-slate-400"></i> {order.customerName} ({order.customerPhone})</p>
+                              <p><i className="fas fa-map-marker-alt w-4 text-slate-400"></i> {order.deliveryAddress}</p>
+                              <p><i className="fas fa-store w-4 text-slate-400"></i> Supplier: {order.supplierName}</p>
+                              <p><i className="fas fa-truck w-4 text-slate-400"></i> Delivery Fee: KSh {order.deliveryFee}</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => handleFulfillDirectOrder(order)}
+                            className="w-full bg-black hover:bg-slate-800 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                          >
+                            <i className="fas fa-check-circle"></i> Fulfill Order
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} />
               </>
@@ -2629,6 +2712,33 @@ const App: React.FC = () => {
           </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" /></div>
         )}
       </main>
+
+      {/* Order Modal */}
+      {orderingProduct && agentIdentity && (
+        <OrderModal 
+          product={orderingProduct} 
+          agentIdentity={agentIdentity} 
+          onClose={() => setOrderingProduct(null)} 
+          onSubmit={async (order) => {
+            const newOrders = [...marketOrders, order];
+            setMarketOrders(newOrders);
+            persistence.set('food_coop_orders', JSON.stringify(newOrders));
+            setOrderingProduct(null);
+            alert("Order placed successfully! You pay on delivery.");
+            // Sync immediately if online
+            if (navigator.onLine) {
+              const success = await saveOrder(order);
+              if (success) {
+                setMarketOrders(prev => {
+                  const updated = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
+                  persistence.set('food_coop_orders', JSON.stringify(updated));
+                  return updated;
+                });
+              }
+            }
+          }} 
+        />
+      )}
 
       {/* AI Report Modal */}
       {isReportOpen && reportData && (
