@@ -25,7 +25,7 @@ import { updateClusterCoordinates } from './services/weatherService';
 import { 
   fetchRecords, saveRecord, deleteRecord, deleteAllRecords,
   fetchUsers, saveUser, deleteUser, deleteAllUsers,
-  fetchOrders, saveOrder, deleteAllOrders,
+  fetchOrders, saveOrder, deleteOrder, deleteAllOrders,
   fetchProduce, saveProduce, deleteProduce, deleteAllProduce,
   fetchForumPosts, saveNewsArticle, fetchNewsArticles
 } from './services/supabaseService';
@@ -682,7 +682,26 @@ const App: React.FC = () => {
       setCurrentPortal('LOGIN');
       return;
     }
+    
+    if (agentIdentity.role !== SystemRole.CUSTOMER && 
+        agentIdentity.role !== SystemRole.SYSTEM_DEVELOPER && 
+        agentIdentity.role !== SystemRole.MANAGER) {
+      alert("Only Customers can place direct orders.");
+      return;
+    }
+    
     setOrderingProduct(product);
+  };
+
+  const handleClearTestOrder = async (orderId: string) => {
+    if (window.confirm("Are you sure you want to clear this test record?")) {
+      const success = await deleteOrder(orderId);
+      if (success) {
+        setMarketOrders(prev => prev.filter(o => o.id !== orderId));
+      } else {
+        alert("Failed to clear test record.");
+      }
+    }
   };
 
   const handleFulfillDirectOrder = (order: MarketOrder) => {
@@ -1870,7 +1889,7 @@ const App: React.FC = () => {
                                <i className="fas fa-edit text-[10px]"></i>
                              </button>
                           )}
-                          {agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER && r.status === RecordStatus.PENDING && (
+                          {(agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.role === SystemRole.MANAGER) && (
                              <button onClick={(e) => { e.stopPropagation(); handleDeleteRecord(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1 ml-2">
                                <i className="fas fa-trash-can text-[10px]"></i>
                              </button>
@@ -2303,12 +2322,22 @@ const App: React.FC = () => {
                               <p><i className="fas fa-truck w-4 text-slate-400"></i> Delivery Fee: KSh {order.deliveryFee}</p>
                             </div>
                           </div>
-                          <button 
-                            onClick={() => handleFulfillDirectOrder(order)}
-                            className="w-full bg-black hover:bg-slate-800 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                          >
-                            <i className="fas fa-check-circle"></i> Fulfill Order
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <button 
+                              onClick={() => handleFulfillDirectOrder(order)}
+                              className="w-full bg-black hover:bg-slate-800 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                              <i className="fas fa-check-circle"></i> Fulfill Order
+                            </button>
+                            {(agentIdentity.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity.role === SystemRole.MANAGER) && (
+                              <button 
+                                onClick={() => handleClearTestOrder(order.id)}
+                                className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-2 rounded-xl font-black uppercase text-[9px] tracking-[0.15em] transition-colors flex items-center justify-center gap-2"
+                              >
+                                <i className="fas fa-trash"></i> Clear Test Record
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
