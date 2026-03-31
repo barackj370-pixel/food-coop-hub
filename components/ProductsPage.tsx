@@ -1,43 +1,34 @@
 import React, { useState, useMemo } from 'react';
 import { ProduceListing } from '../types';
-import { COMMODITY_CATEGORIES } from '../constants';
-import { Search, Store } from 'lucide-react';
+import { Search, ShoppingCart } from 'lucide-react';
 
 interface Props {
   produceListings: ProduceListing[];
+  onOrderNow: (product: ProduceListing) => void;
 }
 
-const ProductsPage: React.FC<Props> = ({ produceListings }) => {
+const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const categorizedProducts = useMemo(() => {
+  const groupedProducts = useMemo(() => {
     const available = produceListings.filter(p => p.status === 'AVAILABLE');
     const filtered = available.filter(p => 
       p.cropType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.cluster.toLowerCase().includes(searchTerm.toLowerCase())
+      p.cluster.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.supplierName.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
-    const categories = {
-      'Farm Food Products': [] as ProduceListing[],
-      'Food Products': [] as ProduceListing[],
-      'Non-food Products': [] as ProduceListing[]
-    };
+    const groups: Record<string, ProduceListing[]> = {};
 
     filtered.forEach(product => {
-      let categoryFound = false;
-      for (const [category, items] of Object.entries(COMMODITY_CATEGORIES)) {
-        if ((items as readonly string[]).includes(product.cropType)) {
-          categories[category as keyof typeof categories].push(product);
-          categoryFound = true;
-          break;
-        }
+      const key = product.cropType;
+      if (!groups[key]) {
+        groups[key] = [];
       }
-      if (!categoryFound) {
-        categories['Farm Food Products'].push(product);
-      }
+      groups[key].push(product);
     });
 
-    return categories;
+    return groups;
   }, [produceListings, searchTerm]);
 
   return (
@@ -61,52 +52,56 @@ const ProductsPage: React.FC<Props> = ({ produceListings }) => {
       </div>
 
       <div className="space-y-12">
-        {Object.entries(categorizedProducts).map(([category, products]) => (
-          <div key={category}>
-            <div className="flex items-center gap-3 mb-6">
-              <Store className="w-6 h-6 text-emerald-500" />
-              <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">{category}</h2>
-              <div className="h-px bg-slate-200 flex-1 ml-4"></div>
-            </div>
-            
-            {products.length === 0 ? (
-              <div className="bg-white rounded-3xl p-8 text-center border border-slate-100">
-                <p className="text-sm font-bold text-slate-400">No products found in this category.</p>
+        {Object.keys(groupedProducts).length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 text-center border border-slate-100">
+            <p className="text-sm font-bold text-slate-400">No products found.</p>
+          </div>
+        ) : (
+          Object.entries(groupedProducts).sort(([a], [b]) => a.localeCompare(b)).map(([cropType, products]) => (
+            <div key={cropType} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -z-10"></div>
+              
+              <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <span className="text-emerald-600 font-black text-lg">{cropType.charAt(0).toUpperCase()}</span>
+                </div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">{cropType}</h2>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map((product, pIdx) => (
-                  <div key={pIdx} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
-                    
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-black text-slate-800 line-clamp-1">{product.cropType}</h3>
-                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">{product.cluster}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                        <span className="text-xs font-bold text-slate-500">Available</span>
-                        <span className="text-sm font-black text-slate-800">{product.unitsAvailable} {product.unitType}s</span>
-                      </div>
-                      
-                      <div className="flex justify-between items-center pt-2">
-                        <span className="text-xs font-bold text-slate-500">Retail Price</span>
+                  <div key={pIdx} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 hover:border-emerald-200 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="text-sm font-black text-slate-800">{product.cluster}</h3>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Supplier: {product.supplierName}</p>
+                        </div>
                         <div className="text-right">
                           <span className="text-[10px] font-bold text-slate-400 mr-1">KSh</span>
                           <span className="text-lg font-black text-emerald-600">{Number(product.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">per {product.unitType}</p>
                         </div>
                       </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-xs font-bold text-slate-500">Available:</span>
+                        <span className="text-sm font-black text-slate-800">{product.unitsAvailable} {product.unitType}s</span>
+                      </div>
                     </div>
+                    
+                    <button 
+                      onClick={() => onOrderNow(product)}
+                      className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Order Now
+                    </button>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
