@@ -40,7 +40,9 @@ const AboutUsCarousel: React.FC = () => {
   const handleReadMore = (id: string) => {
     const params = new URLSearchParams(window.location.search);
     params.set('section', id);
-    window.location.href = window.location.pathname + '?' + params.toString() + '#about';
+    window.history.pushState(null, '', '/about?' + params.toString());
+    // Dispatch popstate event to trigger routing update in App.tsx
+    window.dispatchEvent(new Event('popstate'));
   };
 
   if (pages.length === 0) return null;
