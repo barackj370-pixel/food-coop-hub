@@ -2626,16 +2626,33 @@ const App: React.FC = () => {
                   type="text" 
                   id="newFoodCoopInput"
                   placeholder="Enter new Food Coop name" 
-                  className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-blue-400 transition-all"
+                  className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-blue-400 transition-all min-w-[200px]"
+                />
+                <input 
+                  type="number" 
+                  step="any"
+                  id="newFoodCoopLat"
+                  placeholder="Latitude (e.g., -1.269)" 
+                  className="w-full md:w-48 bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-blue-400 transition-all"
+                />
+                <input 
+                  type="number" 
+                  step="any"
+                  id="newFoodCoopLng"
+                  placeholder="Longitude (e.g., 36.744)" 
+                  className="w-full md:w-48 bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-blue-400 transition-all"
                 />
                 <button 
                   onClick={async () => {
                     const input = document.getElementById('newFoodCoopInput') as HTMLInputElement;
+                    const latInput = document.getElementById('newFoodCoopLat') as HTMLInputElement;
+                    const lngInput = document.getElementById('newFoodCoopLng') as HTMLInputElement;
+                    
                     if (input && input.value.trim()) {
                       const newCoop = input.value.trim();
                       if (!dynamicClusters.includes(newCoop)) {
-                        const latStr = window.prompt(`Enter Latitude for ${newCoop} (e.g., -1.269275) for Agro-Weather:`);
-                        const lngStr = window.prompt(`Enter Longitude for ${newCoop} (e.g., 36.744238) for Agro-Weather:`);
+                        const latStr = latInput?.value;
+                        const lngStr = lngInput?.value;
                         const lat = parseFloat(latStr || '');
                         const lng = parseFloat(lngStr || '');
                         
@@ -2645,13 +2662,17 @@ const App: React.FC = () => {
                           updateClusterCoordinates(newCoords);
                           await supabase.from('pages').upsert({ id: 'system_food_coop_coords', title: 'Food Coop Coordinates', content: JSON.stringify(newCoords) });
                         } else {
-                          alert('Invalid coordinates provided. The Food Coop will be added, but weather data may be inaccurate until updated.');
+                          alert('Invalid or missing coordinates provided. The Food Coop will be added, but weather data may be inaccurate until updated.');
                         }
 
                         const newCoops = [...customFoodCoops, newCoop];
                         setCustomFoodCoops(newCoops);
                         await supabase.from('pages').upsert({ id: 'system_food_coops', title: 'Food Coops', content: JSON.stringify(newCoops) });
+                        
                         input.value = '';
+                        if (latInput) latInput.value = '';
+                        if (lngInput) lngInput.value = '';
+                        
                         alert(`Successfully added ${newCoop}`);
                       } else {
                         alert('Food Coop already exists.');
