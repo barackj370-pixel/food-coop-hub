@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ProduceListing } from '../types';
 import { ShoppingCart, ArrowRight } from 'lucide-react';
+import { normalizeProductName } from '../constants';
 
 interface Props {
   produceListings: ProduceListing[];
@@ -15,7 +16,7 @@ const AvailableProducts: React.FC<Props> = ({ produceListings, onViewAll, onOrde
     const groups: Record<string, ProduceListing[]> = {};
 
     available.forEach(product => {
-      const key = product.cropType;
+      const key = normalizeProductName(product.cropType);
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -47,27 +48,27 @@ const AvailableProducts: React.FC<Props> = ({ produceListings, onViewAll, onOrde
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {topCropTypes.map(([cropType, products]) => (
-          <div key={cropType} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+          <div key={cropType} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all flex flex-col h-full">
             <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
             
             <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-50">
-              <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
                 <span className="text-emerald-600 font-black text-sm">{cropType.charAt(0).toUpperCase()}</span>
               </div>
-              <h3 className="text-lg font-black text-slate-800 tracking-tight">{cropType}</h3>
+              <h3 className="text-lg font-black text-slate-800 tracking-tight truncate">{cropType}</h3>
             </div>
             
-            <div className="space-y-4">
+            <div className="flex-grow space-y-4 flex flex-col">
               {products.slice(0, 3).map((product, pIdx) => (
-                <div key={pIdx} className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex flex-col gap-2">
+                <div key={pIdx} className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex flex-col gap-2 flex-grow justify-between">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 pr-2">
-                      <p className="text-xs font-bold text-slate-800">{product.cluster}</p>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{product.supplierName}</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{product.cluster}</p>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 truncate">{product.supplierName}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right shrink-0">
                       <span className="text-[10px] font-bold text-slate-400 mr-1">KSh</span>
                       <span className="text-sm font-black text-emerald-600">{Number(product.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">per {product.unitType}</p>
@@ -75,7 +76,7 @@ const AvailableProducts: React.FC<Props> = ({ produceListings, onViewAll, onOrde
                   </div>
                   <button 
                     onClick={() => onOrderNow(product)}
-                    className="w-full bg-emerald-100 hover:bg-emerald-200 text-emerald-700 py-2 rounded-lg font-black uppercase text-[9px] tracking-[0.1em] transition-colors flex items-center justify-center gap-1"
+                    className="w-full bg-emerald-100 hover:bg-emerald-200 text-emerald-700 py-2 rounded-lg font-black uppercase text-[9px] tracking-[0.1em] transition-colors flex items-center justify-center gap-1 mt-auto"
                   >
                     <ShoppingCart className="w-3 h-3" />
                     Order Now
@@ -87,7 +88,7 @@ const AvailableProducts: React.FC<Props> = ({ produceListings, onViewAll, onOrde
             {products.length > 3 && (
               <button 
                 onClick={onViewAll}
-                className="w-full mt-4 py-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
+                className="w-full mt-4 py-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors shrink-0"
               >
                 +{products.length - 3} More Suppliers
               </button>
