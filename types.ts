@@ -56,6 +56,13 @@ export interface MarketOrder {
   agentPhone: string;
   cluster: string;
   synced?: boolean;
+  deliveryAddress?: string;
+  deliveryFee?: number;
+  supplierName?: string;
+  supplierPhone?: string;
+  produceId?: string;
+  isDirectOrder?: boolean;
+  customerFoodCoop?: string;
 }
 
 export interface ProduceListing {
