@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ProduceListing } from '../types';
 import { Search, ShoppingCart } from 'lucide-react';
+import { normalizeProductName } from '../constants';
 
 interface Props {
   produceListings: ProduceListing[];
@@ -21,7 +22,7 @@ const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
     const groups: Record<string, ProduceListing[]> = {};
 
     filtered.forEach(product => {
-      const key = product.cropType;
+      const key = normalizeProductName(product.cropType);
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -70,14 +71,14 @@ const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map((product, pIdx) => (
-                  <div key={pIdx} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 hover:border-emerald-200 transition-colors flex flex-col justify-between">
+                  <div key={pIdx} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 hover:border-emerald-200 transition-colors flex flex-col justify-between h-full">
                     <div>
                       <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="text-sm font-black text-slate-800">{product.cluster}</h3>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Supplier: {product.supplierName}</p>
+                        <div className="flex-1 pr-2">
+                          <h3 className="text-sm font-black text-slate-800 truncate">{product.cluster}</h3>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5 truncate">Supplier: {product.supplierName}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           <span className="text-[10px] font-bold text-slate-400 mr-1">KSh</span>
                           <span className="text-lg font-black text-emerald-600">{Number(product.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">per {product.unitType}</p>
@@ -91,7 +92,7 @@ const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
                     
                     <button 
                       onClick={() => onOrderNow(product)}
-                      className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                      className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 mt-auto"
                     >
                       <ShoppingCart className="w-4 h-4" />
                       Order Now
