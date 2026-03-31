@@ -307,7 +307,14 @@ const mapOrderToDb = (o: MarketOrder) => ({
   customer_phone: o.customerPhone,
   status: o.status,
   agent_phone: o.agentPhone,
-  cluster: o.cluster
+  cluster: o.cluster,
+  delivery_address: o.deliveryAddress,
+  delivery_fee: o.deliveryFee,
+  supplier_name: o.supplierName,
+  supplier_phone: o.supplierPhone,
+  produce_id: o.produceId,
+  is_direct_order: o.isDirectOrder,
+  customer_food_coop: o.customerFoodCoop
 });
 
 const mapDbToOrder = (db: any): MarketOrder => ({
@@ -321,6 +328,13 @@ const mapDbToOrder = (db: any): MarketOrder => ({
   status: db.status,
   agentPhone: db.agent_phone || db.agentPhone,
   cluster: db.cluster,
+  deliveryAddress: db.delivery_address || db.deliveryAddress,
+  deliveryFee: db.delivery_fee !== undefined ? Number(db.delivery_fee) : (db.deliveryFee !== undefined ? Number(db.deliveryFee) : undefined),
+  supplierName: db.supplier_name || db.supplierName,
+  supplierPhone: db.supplier_phone || db.supplierPhone,
+  produceId: db.produce_id || db.produceId,
+  isDirectOrder: db.is_direct_order !== undefined ? Boolean(db.is_direct_order) : (db.isDirectOrder !== undefined ? Boolean(db.isDirectOrder) : undefined),
+  customerFoodCoop: db.customer_food_coop || db.customerFoodCoop,
   synced: true
 });
 
@@ -337,7 +351,7 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
     // Auto-fix for schema mismatch
     if (error && error.code === '42703') {
       console.warn("Schema mismatch in orders. Retrying with safe payload.");
-      const { agent_id, cluster, agent_phone, ...safePayload } = payload as any;
+      const { agent_id, cluster, agent_phone, delivery_address, delivery_fee, supplier_name, supplier_phone, produce_id, is_direct_order, customer_food_coop, ...safePayload } = payload as any;
       const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
     }
