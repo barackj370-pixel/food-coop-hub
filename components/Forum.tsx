@@ -20,7 +20,7 @@ const Forum: React.FC<ForumProps> = ({ currentUser, posts, onPostsUpdated }) => 
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const params = new URLSearchParams(window.location.search);
     const postId = params.get('post');
     if (postId) {
       setHighlightedPostId(postId);
