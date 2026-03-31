@@ -395,6 +395,17 @@ export const fetchOrders = async (): Promise<MarketOrder[]> => {
   }
 };
 
+export const deleteOrder = async (id: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    handleSupabaseError('deleteOrder', err);
+    return false;
+  }
+};
+
 export const deleteAllOrders = async (): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
