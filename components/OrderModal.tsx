@@ -65,8 +65,8 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, onClose, onSubmit
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden">
-          <div className="p-5 space-y-4 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden flex-1">
+          <div className="p-5 space-y-4 overflow-y-auto flex-1">
             <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
             <h3 className="font-black text-slate-800 text-lg">{product.cropType}</h3>
             <p className="text-xs font-bold text-slate-500 mt-1">From: {product.supplierName} ({product.cluster})</p>
