@@ -534,37 +534,30 @@ const App: React.FC = () => {
   }, [users, records, produceListings]);
   
   const [currentPortal, setCurrentPortal] = useState<PortalType>(() => {
-    let hash = window.location.hash.replace('#', '');
-    const queryIndex = hash.indexOf('?');
-    if (queryIndex !== -1) {
-      hash = hash.substring(0, queryIndex);
-    }
-    hash = hash.toUpperCase();
+    let path = window.location.pathname.split('/')[1] || '';
+    if (!path) return 'HOME';
+    path = path.toUpperCase();
     const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS'];
-    return validPortals.includes(hash as PortalType) ? (hash as PortalType) : 'HOME';
+    return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
   useEffect(() => {
-    const handleHashChange = () => {
-      let hash = window.location.hash.replace('#', '');
-      
-      // Handle query params in hash (e.g. #FORUM?post=123)
-      const queryIndex = hash.indexOf('?');
-      if (queryIndex !== -1) {
-        hash = hash.substring(0, queryIndex);
+    const handlePopState = () => {
+      let path = window.location.pathname.split('/')[1] || '';
+      if (!path) {
+        setCurrentPortal('HOME');
+        return;
       }
-      
-      hash = hash.toUpperCase();
-      
+      path = path.toUpperCase();
       const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS'];
-      if (validPortals.includes(hash as PortalType)) {
-        setCurrentPortal(hash as PortalType);
-      } else if (!window.location.hash) {
+      if (validPortals.includes(path as PortalType)) {
+        setCurrentPortal(path as PortalType);
+      } else {
         setCurrentPortal('HOME');
       }
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useEffect(() => {
@@ -575,18 +568,10 @@ const App: React.FC = () => {
       newSearch = '';
     }
 
-    if (currentPortal === 'HOME') {
-      if (window.location.hash || window.location.search !== newSearch) {
-        window.history.replaceState(null, '', window.location.pathname + newSearch);
-      }
-    } else {
-      const currentBaseHash = window.location.hash.split('?')[0].toUpperCase();
-      const expectedBaseHash = '#' + currentPortal.toUpperCase();
-      
-      if (currentBaseHash !== expectedBaseHash || window.location.search !== newSearch) {
-        const newHash = '#' + currentPortal.toUpperCase();
-        window.history.replaceState(null, '', window.location.pathname + newSearch + newHash);
-      }
+    const expectedPath = currentPortal === 'HOME' ? '/' : `/${currentPortal.toLowerCase()}`;
+    
+    if (window.location.pathname !== expectedPath || window.location.search !== newSearch) {
+      window.history.pushState(null, '', expectedPath + newSearch);
     }
   }, [currentPortal]);
 
@@ -627,8 +612,8 @@ const App: React.FC = () => {
   const [isCreatingNews, setIsCreatingNews] = useState(false);
 
   useEffect(() => {
-    const checkArticleInHash = () => {
-      const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const checkArticleInUrl = () => {
+      const params = new URLSearchParams(window.location.search);
       const articleId = params.get('article');
       if (articleId && newsArticles.length > 0) {
         const article = newsArticles.find(a => a.id === articleId);
@@ -641,25 +626,25 @@ const App: React.FC = () => {
     };
 
     // Check on mount and when newsArticles change
-    checkArticleInHash();
+    checkArticleInUrl();
 
-    // Also check on hash change
-    window.addEventListener('hashchange', checkArticleInHash);
-    return () => window.removeEventListener('hashchange', checkArticleInHash);
+    // Also check on popstate
+    window.addEventListener('popstate', checkArticleInUrl);
+    return () => window.removeEventListener('popstate', checkArticleInUrl);
   }, [newsArticles]);
 
   const handleOpenNews = (article: NewsArticle) => {
-    window.history.pushState(null, '', `/#NEWS?article=${article.id}`);
+    window.history.pushState(null, '', `/news?article=${article.id}`);
     setViewingNewsArticle(article);
   };
 
   const handleCloseNews = () => {
-    window.history.pushState(null, '', `/#NEWS`);
+    window.history.pushState(null, '', `/news`);
     setViewingNewsArticle(null);
   };
 
   const handleShareNews = (article: NewsArticle) => {
-    const url = `${window.location.origin}/#NEWS?article=${article.id}`;
+    const url = `${window.location.origin}/news?article=${article.id}`;
     navigator.clipboard.writeText(url);
     alert('Link copied to clipboard!');
   };
@@ -2782,7 +2767,7 @@ const App: React.FC = () => {
               </div>
               <button onClick={() => setIsReportOpen(false)} className="w-10 h-10 rounded-full bg-slate-200 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center justify-center"><i className="fas fa-times"></i></button>
             </div>
-            <div className="p-8 overflow-y-auto bg-white font-medium text-slate-600 leading-relaxed text-sm whitespace-pre-wrap">
+            <div className="p-8 overflow-y-auto flex-1 bg-white font-medium text-slate-600 leading-relaxed text-sm whitespace-pre-wrap">
               {reportData}
             </div>
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end">
