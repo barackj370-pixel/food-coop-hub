@@ -54,19 +54,20 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, onClose, onSubmit
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-emerald-600 p-6 flex justify-between items-center text-white">
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        <div className="bg-emerald-600 p-5 flex justify-between items-center text-white shrink-0">
           <div>
             <h2 className="text-xl font-black tracking-tight">Place Order</h2>
             <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mt-1">Direct from Supplier</p>
           </div>
-          <button onClick={onClose} className="p-2 bg-emerald-700/50 hover:bg-emerald-700 rounded-full transition-colors">
+          <button type="button" onClick={onClose} className="p-2 bg-emerald-700/50 hover:bg-emerald-700 rounded-full transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+        <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden">
+          <div className="p-5 space-y-4 overflow-y-auto">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
             <h3 className="font-black text-slate-800 text-lg">{product.cropType}</h3>
             <p className="text-xs font-bold text-slate-500 mt-1">From: {product.supplierName} ({product.cluster})</p>
             <div className="mt-3 flex justify-between items-center">
@@ -103,13 +104,15 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, onClose, onSubmit
                 value={deliveryAddress}
                 onChange={e => setDeliveryAddress(e.target.value)}
                 placeholder="Enter specific delivery instructions..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none h-24"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none h-16"
                 required
               />
             </div>
           </div>
+          </div>
 
-          <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 space-y-2">
+          <div className="p-5 pt-0 shrink-0 space-y-4 bg-white">
+            <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 space-y-2 shrink-0">
             <div className="flex justify-between items-center text-sm font-bold text-slate-600">
               <span>Subtotal:</span>
               <span>KSh {product.sellingPrice * quantity}</span>
@@ -133,10 +136,11 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, onClose, onSubmit
 
           <button 
             type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-black uppercase text-xs tracking-[0.15em] shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black uppercase text-xs tracking-[0.15em] shadow-lg shadow-emerald-600/20 transition-all active:scale-95 shrink-0"
           >
             Confirm Order
           </button>
+          </div>
         </form>
       </div>
     </div>
