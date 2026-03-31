@@ -73,7 +73,7 @@ const AboutUsPage: React.FC<AboutUsPageProps> = ({ currentUser }) => {
     setActiveSection(id);
     const params = new URLSearchParams(window.location.search);
     params.set('section', id);
-    window.history.replaceState(null, '', window.location.pathname + '?' + params.toString() + window.location.hash);
+    window.history.replaceState(null, '', window.location.pathname + '?' + params.toString());
   };
 
   const startEditing = () => {
