@@ -20,6 +20,7 @@ interface SaleFormProps {
     farmerPhone?: string;
     unitPrice?: number;
     cluster?: string;
+    deliveryFee?: number;
   };
   onSubmit: (data: {
     date: string;
@@ -34,6 +35,7 @@ interface SaleFormProps {
     cluster: string;
     orderId?: string;
     produceId?: string;
+    deliveryFee?: number;
   }) => void;
 }
 
@@ -156,7 +158,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
       ...submissionData, 
       cropType: finalCropType, 
       orderId: initialData?.orderId,
-      produceId: formData.produceId 
+      produceId: formData.produceId,
+      deliveryFee: initialData?.deliveryFee
     });
     
     setFormData({
@@ -184,7 +187,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation { (initialData?.orderId || initialData?.produceId || isAutoFilled) && "(System Match)"}</span>
            <p className="text-[13px] font-black text-white uppercase tracking-tight">
-             Total: KSh {totalSale.toLocaleString()} | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
+             Total: KSh {totalSale.toLocaleString()} {initialData?.deliveryFee ? `(+ KSh ${initialData.deliveryFee} Delivery)` : ''} | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
            </p>
         </div>
       </div>
