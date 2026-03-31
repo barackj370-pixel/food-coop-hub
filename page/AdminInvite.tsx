@@ -38,7 +38,7 @@ const AdminInvite: React.FC<AdminInviteProps> = ({ foodCoops }) => {
       params.set('cluster', cluster);
     }
 
-    const link = `${baseUrl}/?${params.toString()}`;
+    const link = `${baseUrl}/login?${params.toString()}`;
     setGeneratedLink(link);
   };
 
