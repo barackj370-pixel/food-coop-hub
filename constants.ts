@@ -38,6 +38,31 @@ export const TEN_PERCENT_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarn
 // Background Sync Polling Interval (30 Seconds)
 export const SYNC_POLLING_INTERVAL = 30000;
 
+export const normalizeProductName = (name: string): string => {
+  const lower = name.toLowerCase().trim();
+  
+  if (lower === 'banana' || lower === 'bananas') return 'Bananas';
+  if (lower === 'tomato' || lower === 'tomatoes') return 'Tomatoes';
+  if (lower === 'onion' || lower === 'onions') return 'Onions';
+  if (lower === 'vegetable' || lower === 'vegetables') return 'Vegetables';
+  if (lower === 'bean' || lower === 'beans') return 'Beans';
+  if (lower === 'book' || lower === 'books') return 'Books';
+  if (lower === 'cloth' || lower === 'cloths' || lower === 'clothes') return 'Cloths';
+  if (lower === 'farm tool' || lower === 'farm tools') return 'Farm tools';
+  if (lower === 'bar soap' || lower === 'barsoap' || lower === 'soap' || lower === 'soaps') return 'Soap';
+  if (lower === 'cassava' || lower === 'cassavas') return 'Cassava';
+  if (lower === 'maize') return 'Maize';
+  if (lower === 'millet') return 'Millet';
+  if (lower === 'sugar') return 'Sugar';
+  if (lower === 'salt') return 'Salt';
+  if (lower === 'cooking oil' || lower === 'oil') return 'Cooking Oil';
+  if (lower === 'milk') return 'Milk';
+  if (lower === 'bread' || lower === 'breads') return 'Bread';
+  if (lower === 'ngano') return 'Ngano';
+  
+  return lower.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
 export const ABOUT_US_DATA = [
   {
     id: 'vision',
