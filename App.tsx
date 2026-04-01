@@ -2653,20 +2653,36 @@ const App: React.FC = () => {
                   className="w-full md:w-48 bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-blue-400 transition-all"
                 />
                 <button 
-                  onClick={async () => {
+                  onClick={async (e) => {
+                    const btn = e.currentTarget;
+                    const originalText = btn.innerHTML;
+                    
+                    const showFeedback = (msg: string, colorClass: string, duration = 3000) => {
+                      btn.innerHTML = msg;
+                      btn.className = `text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl whitespace-nowrap transition-all ${colorClass}`;
+                      setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.className = "bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap transition-all";
+                        btn.disabled = false;
+                      }, duration);
+                    };
+
                     try {
+                      btn.disabled = true;
+                      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Processing...';
+
                       const input = document.getElementById('newFoodCoopInput') as HTMLInputElement;
                       const latInput = document.getElementById('newFoodCoopLat') as HTMLInputElement;
                       const lngInput = document.getElementById('newFoodCoopLng') as HTMLInputElement;
                       
                       if (!input || !input.value.trim()) {
-                        alert('Please enter a Food Coop name.');
+                        showFeedback('<i class="fas fa-exclamation-circle mr-2"></i> Enter Name', 'bg-orange-500');
                         return;
                       }
                       
                       const newCoop = input.value.trim();
                       if (dynamicClusters.includes(newCoop)) {
-                        alert('Food Coop already exists.');
+                        showFeedback('<i class="fas fa-exclamation-circle mr-2"></i> Already Exists', 'bg-orange-500');
                         return;
                       }
 
@@ -2675,6 +2691,7 @@ const App: React.FC = () => {
                       const lat = parseFloat(latStr || '');
                       const lng = parseFloat(lngStr || '');
                       
+                      let coordsWarning = '';
                       if (!isNaN(lat) && !isNaN(lng)) {
                         const newCoords = { ...customCoordinates, [newCoop]: { lat, lng } };
                         setCustomCoordinates(newCoords);
@@ -2682,7 +2699,7 @@ const App: React.FC = () => {
                         const { error: coordsError } = await supabase.from('pages').upsert({ id: 'system_food_coop_coords', title: 'Food Coop Coordinates', content: JSON.stringify(newCoords) });
                         if (coordsError) throw coordsError;
                       } else {
-                        alert('Invalid or missing coordinates provided. The Food Coop will be added, but weather data may be inaccurate until updated.');
+                        coordsWarning = ' (No Coords)';
                       }
 
                       const newCoops = [...customFoodCoops, newCoop];
@@ -2694,13 +2711,13 @@ const App: React.FC = () => {
                       if (latInput) latInput.value = '';
                       if (lngInput) lngInput.value = '';
                       
-                      alert(`Successfully added ${newCoop}`);
+                      showFeedback(`<i class="fas fa-check mr-2"></i> Added${coordsWarning}`, 'bg-green-600');
                     } catch (err: any) {
                       console.error('Error adding Food Coop:', err);
-                      alert(`Failed to add Food Coop. Error: ${err.message || JSON.stringify(err)}`);
+                      showFeedback(`<i class="fas fa-times mr-2"></i> Error`, 'bg-red-600');
                     }
                   }}
-                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap"
+                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap transition-all"
                 >
                   <i className="fas fa-plus mr-2"></i> Add Food Coop
                 </button>
