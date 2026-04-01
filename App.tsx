@@ -853,9 +853,19 @@ const App: React.FC = () => {
 
   // Listen for Supabase Auth Changes
   useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        setAgentIdentity(null);
+        persistence.remove('agent_session');
+      }
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // HANDLE LOGIN / INVITE
-      if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
+      if (event === 'INITIAL_SESSION' && !session) {
+        setAgentIdentity(null);
+        persistence.remove('agent_session');
+      } else if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
         const meta = session.user.user_metadata || {};
         
         // 1. Check for existing profile locally first to be fast
@@ -2687,7 +2697,7 @@ const App: React.FC = () => {
                       alert(`Successfully added ${newCoop}`);
                     } catch (err: any) {
                       console.error('Error adding Food Coop:', err);
-                      alert(`Failed to add Food Coop: ${err.message || 'Unknown error'}`);
+                      alert(`Failed to add Food Coop. Error: ${err.message || JSON.stringify(err)}`);
                     }
                   }}
                   className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap"
