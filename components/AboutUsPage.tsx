@@ -30,24 +30,41 @@ const AboutUsPage: React.FC<AboutUsPageProps> = ({ currentUser }) => {
     setLoading(true);
     let fetchedPages = await fetchPages();
     
-    // Fallback to constants if DB is empty
-    if (fetchedPages.length === 0) {
-      fetchedPages = ABOUT_US_DATA.map((item, index) => ({
+    // Merge fetched pages with ABOUT_US_DATA to ensure all default sections are always present
+    const mergedPages: Page[] = ABOUT_US_DATA.map((item, index) => {
+      const dbPage = fetchedPages.find(p => p.id === item.id);
+      if (dbPage) {
+        return {
+          ...dbPage,
+          orderIndex: dbPage.orderIndex !== undefined ? dbPage.orderIndex : index
+        };
+      }
+      return {
         id: item.id,
         title: item.title,
         content: item.content,
         orderIndex: index
-      }));
-    }
-    
-    setPages(fetchedPages);
+      };
+    });
+
+    // Add any custom pages from DB that are NOT in ABOUT_US_DATA
+    fetchedPages.forEach(dbPage => {
+      if (!dbPage.id.startsWith('system_') && !mergedPages.some(p => p.id === dbPage.id)) {
+        mergedPages.push(dbPage);
+      }
+    });
+
+    // Sort by orderIndex
+    mergedPages.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+
+    setPages(mergedPages);
     
     const params = new URLSearchParams(window.location.search);
     const section = params.get('section');
-    if (section && fetchedPages.some(s => s.id === section)) {
+    if (section && mergedPages.some(s => s.id === section)) {
       setActiveSection(section);
-    } else if (fetchedPages.length > 0) {
-      setActiveSection(fetchedPages[0].id);
+    } else if (mergedPages.length > 0) {
+      setActiveSection(mergedPages[0].id);
     }
     
     setLoading(false);
