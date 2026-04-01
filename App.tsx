@@ -2644,39 +2644,50 @@ const App: React.FC = () => {
                 />
                 <button 
                   onClick={async () => {
-                    const input = document.getElementById('newFoodCoopInput') as HTMLInputElement;
-                    const latInput = document.getElementById('newFoodCoopLat') as HTMLInputElement;
-                    const lngInput = document.getElementById('newFoodCoopLng') as HTMLInputElement;
-                    
-                    if (input && input.value.trim()) {
-                      const newCoop = input.value.trim();
-                      if (!dynamicClusters.includes(newCoop)) {
-                        const latStr = latInput?.value;
-                        const lngStr = lngInput?.value;
-                        const lat = parseFloat(latStr || '');
-                        const lng = parseFloat(lngStr || '');
-                        
-                        if (!isNaN(lat) && !isNaN(lng)) {
-                          const newCoords = { ...customCoordinates, [newCoop]: { lat, lng } };
-                          setCustomCoordinates(newCoords);
-                          updateClusterCoordinates(newCoords);
-                          await supabase.from('pages').upsert({ id: 'system_food_coop_coords', title: 'Food Coop Coordinates', content: JSON.stringify(newCoords) });
-                        } else {
-                          alert('Invalid or missing coordinates provided. The Food Coop will be added, but weather data may be inaccurate until updated.');
-                        }
-
-                        const newCoops = [...customFoodCoops, newCoop];
-                        setCustomFoodCoops(newCoops);
-                        await supabase.from('pages').upsert({ id: 'system_food_coops', title: 'Food Coops', content: JSON.stringify(newCoops) });
-                        
-                        input.value = '';
-                        if (latInput) latInput.value = '';
-                        if (lngInput) lngInput.value = '';
-                        
-                        alert(`Successfully added ${newCoop}`);
-                      } else {
-                        alert('Food Coop already exists.');
+                    try {
+                      const input = document.getElementById('newFoodCoopInput') as HTMLInputElement;
+                      const latInput = document.getElementById('newFoodCoopLat') as HTMLInputElement;
+                      const lngInput = document.getElementById('newFoodCoopLng') as HTMLInputElement;
+                      
+                      if (!input || !input.value.trim()) {
+                        alert('Please enter a Food Coop name.');
+                        return;
                       }
+                      
+                      const newCoop = input.value.trim();
+                      if (dynamicClusters.includes(newCoop)) {
+                        alert('Food Coop already exists.');
+                        return;
+                      }
+
+                      const latStr = latInput?.value;
+                      const lngStr = lngInput?.value;
+                      const lat = parseFloat(latStr || '');
+                      const lng = parseFloat(lngStr || '');
+                      
+                      if (!isNaN(lat) && !isNaN(lng)) {
+                        const newCoords = { ...customCoordinates, [newCoop]: { lat, lng } };
+                        setCustomCoordinates(newCoords);
+                        updateClusterCoordinates(newCoords);
+                        const { error: coordsError } = await supabase.from('pages').upsert({ id: 'system_food_coop_coords', title: 'Food Coop Coordinates', content: JSON.stringify(newCoords) });
+                        if (coordsError) throw coordsError;
+                      } else {
+                        alert('Invalid or missing coordinates provided. The Food Coop will be added, but weather data may be inaccurate until updated.');
+                      }
+
+                      const newCoops = [...customFoodCoops, newCoop];
+                      setCustomFoodCoops(newCoops);
+                      const { error: coopsError } = await supabase.from('pages').upsert({ id: 'system_food_coops', title: 'Food Coops', content: JSON.stringify(newCoops) });
+                      if (coopsError) throw coopsError;
+                      
+                      input.value = '';
+                      if (latInput) latInput.value = '';
+                      if (lngInput) lngInput.value = '';
+                      
+                      alert(`Successfully added ${newCoop}`);
+                    } catch (err: any) {
+                      console.error('Error adding Food Coop:', err);
+                      alert(`Failed to add Food Coop: ${err.message || 'Unknown error'}`);
                     }
                   }}
                   className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap"
