@@ -10,16 +10,35 @@ const AboutUsCarousel: React.FC = () => {
   useEffect(() => {
     const loadPages = async () => {
       const fetchedPages = await fetchPages();
-      if (fetchedPages.length > 0) {
-        setPages(fetchedPages);
-      } else {
-        setPages(ABOUT_US_DATA.map((item, index) => ({
+      
+      // Merge fetched pages with ABOUT_US_DATA to ensure all default sections are always present
+      const mergedPages: Page[] = ABOUT_US_DATA.map((item, index) => {
+        const dbPage = fetchedPages.find(p => p.id === item.id);
+        if (dbPage) {
+          return {
+            ...dbPage,
+            orderIndex: dbPage.orderIndex !== undefined ? dbPage.orderIndex : index
+          };
+        }
+        return {
           id: item.id,
           title: item.title,
           content: item.content,
           orderIndex: index
-        })));
-      }
+        };
+      });
+
+      // Add any custom pages from DB that are NOT in ABOUT_US_DATA
+      fetchedPages.forEach(dbPage => {
+        if (!dbPage.id.startsWith('system_') && !mergedPages.some(p => p.id === dbPage.id)) {
+          mergedPages.push(dbPage);
+        }
+      });
+
+      // Sort by orderIndex
+      mergedPages.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+
+      setPages(mergedPages);
     };
     loadPages();
   }, []);
