@@ -468,6 +468,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [customFoodCoops, setCustomFoodCoops] = useState<string[]>([]);
   const [customCoordinates, setCustomCoordinates] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [addCoopStatus, setAddCoopStatus] = useState<{ status: 'idle' | 'loading' | 'success' | 'error' | 'warning', message?: string }>({ status: 'idle' });
   
   useEffect(() => {
     const fetchCustomData = async () => {
@@ -2194,7 +2195,7 @@ const App: React.FC = () => {
                </p>
             </div>
             
-            <WeatherWidget defaultCluster={agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa'} />
+            <WeatherWidget defaultCluster={agentIdentity?.cluster && agentIdentity.cluster !== '-' ? agentIdentity.cluster : 'Mariwa'} clusters={dynamicClusters} />
           </div>
         )}
 
@@ -2653,36 +2654,25 @@ const App: React.FC = () => {
                   className="w-full md:w-48 bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 font-bold text-black outline-none focus:bg-white focus:border-blue-400 transition-all"
                 />
                 <button 
-                  onClick={async (e) => {
-                    const btn = e.currentTarget;
-                    const originalText = btn.innerHTML;
-                    
-                    const showFeedback = (msg: string, colorClass: string, duration = 3000) => {
-                      btn.innerHTML = msg;
-                      btn.className = `text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl whitespace-nowrap transition-all ${colorClass}`;
-                      setTimeout(() => {
-                        btn.innerHTML = originalText;
-                        btn.className = "bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap transition-all";
-                        btn.disabled = false;
-                      }, duration);
-                    };
-
+                  disabled={addCoopStatus.status === 'loading'}
+                  onClick={async () => {
                     try {
-                      btn.disabled = true;
-                      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Processing...';
+                      setAddCoopStatus({ status: 'loading' });
 
                       const input = document.getElementById('newFoodCoopInput') as HTMLInputElement;
                       const latInput = document.getElementById('newFoodCoopLat') as HTMLInputElement;
                       const lngInput = document.getElementById('newFoodCoopLng') as HTMLInputElement;
                       
                       if (!input || !input.value.trim()) {
-                        showFeedback('<i class="fas fa-exclamation-circle mr-2"></i> Enter Name', 'bg-orange-500');
+                        setAddCoopStatus({ status: 'warning', message: 'Enter Name' });
+                        setTimeout(() => setAddCoopStatus({ status: 'idle' }), 3000);
                         return;
                       }
                       
                       const newCoop = input.value.trim();
                       if (dynamicClusters.includes(newCoop)) {
-                        showFeedback('<i class="fas fa-exclamation-circle mr-2"></i> Already Exists', 'bg-orange-500');
+                        setAddCoopStatus({ status: 'warning', message: 'Already Exists' });
+                        setTimeout(() => setAddCoopStatus({ status: 'idle' }), 3000);
                         return;
                       }
 
@@ -2711,15 +2701,32 @@ const App: React.FC = () => {
                       if (latInput) latInput.value = '';
                       if (lngInput) lngInput.value = '';
                       
-                      showFeedback(`<i class="fas fa-check mr-2"></i> Added${coordsWarning}`, 'bg-green-600');
+                      setAddCoopStatus({ status: 'success', message: `Added${coordsWarning}` });
+                      setTimeout(() => setAddCoopStatus({ status: 'idle' }), 3000);
                     } catch (err: any) {
                       console.error('Error adding Food Coop:', err);
-                      showFeedback(`<i class="fas fa-times mr-2"></i> Error`, 'bg-red-600');
+                      setAddCoopStatus({ status: 'error', message: 'Error' });
+                      setTimeout(() => setAddCoopStatus({ status: 'idle' }), 3000);
                     }
                   }}
-                  className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-blue-700 shadow-xl whitespace-nowrap transition-all"
+                  className={`text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl whitespace-nowrap transition-all ${
+                    addCoopStatus.status === 'success' ? 'bg-green-600' :
+                    addCoopStatus.status === 'error' ? 'bg-red-600' :
+                    addCoopStatus.status === 'warning' ? 'bg-orange-500' :
+                    'bg-blue-600 hover:bg-blue-700'
+                  }`}
                 >
-                  <i className="fas fa-plus mr-2"></i> Add Food Coop
+                  {addCoopStatus.status === 'loading' ? (
+                    <><i className="fas fa-spinner fa-spin mr-2"></i> Processing...</>
+                  ) : addCoopStatus.status === 'success' ? (
+                    <><i className="fas fa-check mr-2"></i> {addCoopStatus.message}</>
+                  ) : addCoopStatus.status === 'error' ? (
+                    <><i className="fas fa-times mr-2"></i> {addCoopStatus.message}</>
+                  ) : addCoopStatus.status === 'warning' ? (
+                    <><i className="fas fa-exclamation-circle mr-2"></i> {addCoopStatus.message}</>
+                  ) : (
+                    <><i className="fas fa-plus mr-2"></i> Add Food Coop</>
+                  )}
                 </button>
               </div>
               <div className="mt-6 flex flex-wrap gap-2">
@@ -2729,7 +2736,7 @@ const App: React.FC = () => {
               </div>
             </div>
             <AdminInvite foodCoops={dynamicClusters} />
-            <WeatherWidget defaultCluster="Mariwa" />
+            <WeatherWidget defaultCluster="Mariwa" clusters={dynamicClusters} />
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 border border-black shadow-2xl relative overflow-hidden">
               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
