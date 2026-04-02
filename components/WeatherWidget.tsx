@@ -4,9 +4,10 @@ import { fetchWeather, WeatherData, getWeatherDescription, getAgroAdvice, CLUSTE
 interface WeatherWidgetProps {
   defaultCluster: string;
   readOnly?: boolean;
+  clusters?: string[];
 }
 
-const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly = false }) => {
+const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly = false, clusters = [] }) => {
   const [cluster, setCluster] = useState(defaultCluster);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly 
 
   useEffect(() => {
     // Validate cluster name, fallback to Mariwa if unknown
-    const safeCluster = Object.keys(CLUSTER_COORDINATES).includes(cluster) ? cluster : 'Mariwa';
+    const safeCluster = cluster;
     
     const loadData = async () => {
       setLoading(true);
@@ -91,7 +92,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ defaultCluster, readOnly 
                onChange={handleClusterChange}
                className="bg-transparent text-[11px] font-black uppercase tracking-widest text-black outline-none cursor-pointer pr-4"
              >
-               {Object.keys(CLUSTER_COORDINATES).map(c => (
+               {(clusters.length > 0 ? clusters : Object.keys(CLUSTER_COORDINATES)).map(c => (
                  <option key={c} value={c}>{c} Food Coop</option>
                ))}
              </select>
