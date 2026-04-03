@@ -1,3 +1,4 @@
+
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
@@ -272,3 +273,75 @@ create policy "Managers can delete pages" on public.pages for delete using (
     where id = auth.uid() and role in ('Sales Manager', 'System Developer', 'Director')
   )
 );
+
+-- 9. STORAGE BUCKETS
+-- Create a bucket for produce images
+insert into storage.buckets (id, name, public)
+values ('produce_images', 'produce_images', true)
+on conflict (id) do nothing;
+
+-- Set up access controls for the bucket
+drop policy if exists "Produce Images Public Access" on storage.objects;
+create policy "Produce Images Public Access" on storage.objects for select
+using ( bucket_id = 'produce_images' );
+
+drop policy if exists "Produce Images Upload" on storage.objects;
+create policy "Produce Images Upload" on storage.objects for insert
+with check ( bucket_id = 'produce_images' );
+
+drop policy if exists "Produce Images Update" on storage.objects;
+create policy "Produce Images Update" on storage.objects for update
+using ( bucket_id = 'produce_images' );
+
+drop policy if exists "Produce Images Delete" on storage.objects;
+create policy "Produce Images Delete" on storage.objects for delete
+using ( bucket_id = 'produce_images' );
+
+-- 10. WEEKLY FARM ACTIVITIES
+create table if not exists public.farm_activities (
+  id uuid default gen_random_uuid() primary key,
+  date timestamp with time zone default timezone('utc'::text, now()) not null,
+  cluster text not null,
+  farmer_name text not null,
+  farmer_phone text,
+  activity_type text not null,
+  description text,
+  hours_spent numeric,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.farm_activities enable row level security;
+
+drop policy if exists "Farm activities viewable by everyone" on public.farm_activities;
+create policy "Farm activities viewable by everyone" on public.farm_activities for select using (true);
+
+drop policy if exists "Authenticated users can insert farm activities" on public.farm_activities;
+create policy "Authenticated users can insert farm activities" on public.farm_activities for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Users can update own farm activities" on public.farm_activities;
+create policy "Users can update own farm activities" on public.farm_activities for update using (auth.role() = 'authenticated');
+
+-- 11. SOLIDARITY FORMS
+create table if not exists public.solidarity_forms (
+  id uuid default gen_random_uuid() primary key,
+  date timestamp with time zone default timezone('utc'::text, now()) not null,
+  cluster text not null,
+  member_name text not null,
+  member_phone text,
+  support_type text not null,
+  description text,
+  status text default 'PENDING',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.solidarity_forms enable row level security;
+
+drop policy if exists "Solidarity forms viewable by everyone" on public.solidarity_forms;
+create policy "Solidarity forms viewable by everyone" on public.solidarity_forms for select using (true);
+
+drop policy if exists "Authenticated users can insert solidarity forms" on public.solidarity_forms;
+create policy "Authenticated users can insert solidarity forms" on public.solidarity_forms for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Users can update own solidarity forms" on public.solidarity_forms;
+create policy "Users can update own solidarity forms" on public.solidarity_forms for update using (auth.role() = 'authenticated');
+
