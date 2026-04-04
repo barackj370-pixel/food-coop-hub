@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN, TEN_PERCENT_COOPS } from '../constants';
 // Updated import path to types
 import { SystemRole, ProduceListing } from '../types';
-import { uploadProduceImage } from '../services/supabaseService';
 
 interface ProduceFormProps {
   userRole: SystemRole;
@@ -84,7 +83,48 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
   const marketPrice = isProfitPerItem ? formData.retailPrice : formData.sellingPrice * (1 + PROFIT_MARGIN);
   const totalValue = formData.unitsAvailable * marketPrice;
 
-  const [isUploading, setIsUploading] = useState(false);
+  // Helper: Compress and Convert Image to Base64
+  const processImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_WIDTH = 800; // Max width for storage efficiency
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7)); // 70% Quality JPEG
+          } else {
+            reject(new Error("Canvas context failed"));
+          }
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -95,22 +135,12 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
       }
       
       const files = Array.from(e.target.files).slice(0, remainingSlots);
-      setIsUploading(true);
-      try {
-        const uploadPromises = files.map(file => uploadProduceImage(file));
-        const uploadedUrls = await Promise.all(uploadPromises);
-        const validUrls = uploadedUrls.filter((url): url is string => url !== null);
-        
-        setFormData(prev => ({
-          ...prev,
-          images: [...prev.images, ...validUrls]
-        }));
-      } catch (error) {
-        console.error("Error uploading images:", error);
-        alert("Failed to upload images. Please try again.");
-      } finally {
-        setIsUploading(false);
-      }
+      const processedImages = await Promise.all(files.map(processImage));
+      
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...processedImages]
+      }));
     }
   };
 
@@ -349,16 +379,9 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
                       multiple 
                       className="hidden" 
                       onChange={handleImageUpload} 
-                      disabled={isUploading}
                    />
-                   {isUploading ? (
-                     <i className="fas fa-spinner fa-spin text-green-500 text-xl mb-1"></i>
-                   ) : (
-                     <>
-                       <i className="fas fa-camera text-slate-300 group-hover:text-green-500 text-xl mb-1 transition-colors"></i>
-                       <span className="text-[9px] font-bold text-slate-400 group-hover:text-green-600 uppercase">Add Photo</span>
-                     </>
-                   )}
+                   <i className="fas fa-camera text-slate-300 group-hover:text-green-500 text-xl mb-1 transition-colors"></i>
+                   <span className="text-[9px] font-bold text-slate-400 group-hover:text-green-600 uppercase">Add Photo</span>
                 </label>
               )}
            </div>
@@ -367,11 +390,10 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
         <div className="flex items-end col-span-1 md:col-span-2 lg:col-span-4 xl:col-span-5">
           <button 
             type="submit"
-            disabled={isUploading}
-            className={`w-full ${isUploading ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2`}
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
           >
-            {isUploading ? <i className="fas fa-spinner fa-spin"></i> : (initialData ? <i className="fas fa-save"></i> : <i className="fas fa-seedling"></i>)}
-            {isUploading ? 'Uploading...' : (initialData ? 'Update Listing' : 'Post Product')}
+            {initialData ? <i className="fas fa-save"></i> : <i className="fas fa-seedling"></i>}
+            {initialData ? 'Update Listing' : 'Post Product'}
           </button>
         </div>
       </form>
