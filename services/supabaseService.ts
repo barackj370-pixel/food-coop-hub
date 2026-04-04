@@ -450,32 +450,6 @@ const mapDbToProduce = (db: any): ProduceListing => ({
   synced: true
 });
 
-export const uploadProduceImage = async (file: File): Promise<string | null> => {
-  if (!isClientReady()) return null;
-  try {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('produce_images')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    const { data } = supabase.storage
-      .from('produce_images')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
-  } catch (err) {
-    console.error('Error uploading image:', err);
-    return null;
-  }
-};
-
 export const saveProduce = async (produce: ProduceListing): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
@@ -522,10 +496,10 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
   }
 };
 
-export const fetchProduce = async (limit: number = 50, offset: number = 0): Promise<ProduceListing[]> => {
+export const fetchProduce = async (): Promise<ProduceListing[]> => {
   if (!isClientReady()) return [];
   try {
-    const { data, error } = await supabase.from('produce').select('*').order('date', { ascending: false }).range(offset, offset + limit - 1);
+    const { data, error } = await supabase.from('produce').select('*').order('date', { ascending: false });
     if (error) throw error;
     return (data || []).map(mapDbToProduce);
   } catch (err: any) {
