@@ -14,7 +14,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["node", "react", "react-dom", "vite/client"],
+    "types": ["node", "react", "react-dom", "vite/client", "leaflet", "react-leaflet"],
 
     /* Linting */
     "strict": true,
