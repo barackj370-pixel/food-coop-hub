@@ -18,6 +18,7 @@ import AdminInvite from './page/AdminInvite';
 import PublicSupplierStats from './components/PublicSupplierStats';
 import Forum from './components/Forum';
 import FarmForms from './components/FarmForms';
+import FarmDataMap from './components/FarmDataMap';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -31,7 +32,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop'];
@@ -468,6 +469,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [customFoodCoops, setCustomFoodCoops] = useState<string[]>([]);
   const [customCoordinates, setCustomCoordinates] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [farmFormsData, setFarmFormsData] = useState<any[]>([]);
   const [addCoopStatus, setAddCoopStatus] = useState<{ status: 'idle' | 'loading' | 'success' | 'error' | 'warning', message?: string }>({ status: 'idle' });
   
   useEffect(() => {
@@ -484,6 +486,13 @@ const App: React.FC = () => {
           const parsed = JSON.parse(coordsData.content);
           setCustomCoordinates(parsed);
           updateClusterCoordinates(parsed);
+        } catch (e) {}
+      }
+      const { data: formsData } = await supabase.from('pages').select('content').like('id', 'farm_form_%');
+      if (formsData) {
+        try {
+          const parsedForms = formsData.map(d => JSON.parse(d.content)).sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+          setFarmFormsData(parsedForms);
         } catch (e) {}
       }
     };
@@ -538,7 +547,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -550,7 +559,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -986,7 +995,7 @@ const App: React.FC = () => {
     if (!agentIdentity) return guestPortals;
     
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'FORMS', 'CONTACT', 'FORUM', 'PRODUCTS'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'FORMS', 'FARM_DATA', 'CONTACT', 'FORUM', 'PRODUCTS'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
@@ -2050,7 +2059,7 @@ const App: React.FC = () => {
 
             return (
               <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
-                {p}
+                {p === 'FARM_DATA' ? 'FARM DATA' : p}
                 {hasUnreadForum && (
                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 )}
@@ -2625,6 +2634,12 @@ const App: React.FC = () => {
         {currentPortal === 'FORMS' && agentIdentity && (
           <div className="animate-in fade-in duration-300">
             <FarmForms agentCluster={agentIdentity.cluster} dynamicClusters={dynamicClusters} />
+          </div>
+        )}
+
+        {currentPortal === 'FARM_DATA' && agentIdentity && (
+          <div className="animate-in fade-in duration-300">
+            <FarmDataMap data={farmFormsData} />
           </div>
         )}
 
