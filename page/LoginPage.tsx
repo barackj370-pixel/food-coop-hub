@@ -44,7 +44,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
   }, []);
 
   /* ───────── SAFETY WATCHDOG ───────── */
-  // Forces loading to stop if it runs longer than 20 seconds
+  // Forces loading to stop if it runs longer than 30 seconds
   useEffect(() => {
     if (loading) {
       if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
@@ -53,7 +53,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
           setLoading(false);
           setError("Request timed out. Please check your connection and try again.");
         }
-      }, 20000); // 20 Seconds Hard Limit
+      }, 30000); // 30 Seconds Hard Limit
     } else {
       if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
     }
@@ -155,50 +155,27 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
   };
 
   /**
-   * DIRECT REST API PROFILE CREATION
+   * PROFILE CREATION
    */
   const createProfileViaRest = async (profileData: AgentIdentity, accessToken: string) => {
-     const supabaseUrl = getEnv('VITE_SUPABASE_URL') || FALLBACK_URL;
-     const supabaseKey = getEnv('VITE_SUPABASE_ANON_KEY') || FALLBACK_KEY;
-
-     const url = `${supabaseUrl}/rest/v1/profiles`;
-     
-     // MINIMAL PAYLOAD to prevent schema errors
-     const dbPayload = {
-        id: profileData.id,
-        name: profileData.name,
-        phone: profileData.phone,
-        role: profileData.role,
-        cluster: profileData.cluster,
-        passcode: profileData.passcode,
-        status: 'ACTIVE'
-     };
-
-     const controller = new AbortController();
-     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s Timeout specifically for this fetch
-
      try {
-       console.log("Attempting profile creation via REST...", dbPayload);
-       const response = await fetch(url, {
-         method: 'POST',
-         headers: {
-           'Content-Type': 'application/json',
-           'apikey': supabaseKey,
-           'Authorization': `Bearer ${accessToken}`,
-           'Prefer': 'resolution=merge-duplicates'
-         },
-         body: JSON.stringify(dbPayload),
-         signal: controller.signal
+       console.log("Attempting profile creation...", profileData);
+       
+       const { error } = await supabase.from('profiles').upsert({
+         id: profileData.id,
+         name: profileData.name,
+         phone: profileData.phone,
+         role: profileData.role,
+         cluster: profileData.cluster,
+         passcode: profileData.passcode,
+         status: 'ACTIVE'
        });
 
-       clearTimeout(timeoutId);
-
-       if (!response.ok) {
-         const errText = await response.text();
-         console.warn(`Profile creation warning (REST): ${errText}`);
-         // We don't throw here if it's a conflict or minor issue, we try to proceed
+       if (error) {
+         console.warn(`Profile creation warning: ${error.message}`);
+         throw error;
        } else {
-         console.log("Profile created successfully via REST");
+         console.log("Profile created successfully");
        }
 
        if (isMounted.current) {
@@ -206,7 +183,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
           onLoginSuccess(profileData);
        }
      } catch (err: any) {
-        clearTimeout(timeoutId);
         console.error("Critical Profile Creation Error:", err);
         throw err;
      }
