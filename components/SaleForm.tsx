@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES, TEN_PERCENT_COOPS } from '../constants';
 import { ProduceListing, SystemRole } from '../types';
@@ -298,9 +297,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
           <input 
             type="text" 
             placeholder="..."
-            readOnly
+            readOnly={isAutoFilled}
             value={formData.farmerName}
-            className="w-full bg-slate-100 border border-slate-200 rounded-2xl text-[13px] font-bold text-slate-500 p-4 outline-none transition-all cursor-not-allowed"
+            onChange={(e) => setFormData({...formData, farmerName: e.target.value})}
+            className={`w-full border rounded-2xl text-[13px] font-bold p-4 outline-none transition-all ${isAutoFilled ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-50 border-slate-100 text-black focus:bg-white focus:border-green-400'}`}
           />
         </div>
 
@@ -309,9 +309,10 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
           <input 
             type="tel" 
             placeholder="..."
-            readOnly
+            readOnly={isAutoFilled}
             value={formData.farmerPhone}
-            className="w-full bg-slate-100 border border-slate-200 rounded-2xl text-[13px] font-bold text-slate-500 p-4 outline-none transition-all cursor-not-allowed"
+            onChange={(e) => setFormData({...formData, farmerPhone: e.target.value})}
+            className={`w-full border rounded-2xl text-[13px] font-bold p-4 outline-none transition-all ${isAutoFilled ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-50 border-slate-100 text-black focus:bg-white focus:border-green-400'}`}
           />
         </div>
 
