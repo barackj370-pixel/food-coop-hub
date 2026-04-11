@@ -120,6 +120,7 @@ const AdminInvite: React.FC<AdminInviteProps> = ({ foodCoops }) => {
                   value={cluster}
                   onChange={e => setCluster(e.target.value)}
                   disabled={!CLUSTER_ROLES.includes(role)}
+                  required={CLUSTER_ROLES.includes(role)}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 font-bold text-black outline-none focus:bg-white focus:border-green-400 transition-all text-xs disabled:opacity-50 appearance-none"
                 >
                   <option value="" disabled>Select Food Coop</option>
