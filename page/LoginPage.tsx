@@ -173,7 +173,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
 
        if (error) {
          console.warn(`Profile creation warning: ${error.message}`);
-         throw error;
+         throw new Error(`Profile creation failed: ${error.message}`);
        } else {
          console.log("Profile created successfully");
        }
@@ -284,11 +284,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
             },
           });
 
-          if (signUpError && signUpError.message.toLowerCase().includes('already registered')) {
+          if (signUpError && (signUpError.message.toLowerCase().includes('already registered') || signUpError.message.toLowerCase().includes('already exists') || signUpError.message.toLowerCase().includes('duplicate'))) {
              console.log("User exists, attempting login...");
              // Fallthrough to login logic
           } else if (signUpError) {
-             throw signUpError;
+             throw new Error(`SignUp Error: ${signUpError.message}`);
           }
 
           // 2. Determine Session
@@ -303,7 +303,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
              
              if (loginError) {
                  if (isMounted.current) {
-                    setError("Registration successful. Please switch to 'Member Login' to continue.");
+                    setError(`Registration successful but login failed: ${loginError.message}. Please switch to 'Member Login' to continue.`);
                     setIsSignUp(false);
                  }
                  setLoading(false);
@@ -338,7 +338,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
             password: getAuthPassword(passcode),
           });
 
-          if (error) throw new Error("Invalid Credentials. If you are new, please use 'Create Account'.");
+          if (error) throw new Error(`Login Error: ${error.message}. If you are new, please use 'Create Account'.`);
           
           if (data.session) {
             const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', data.session.user.id).maybeSingle();
