@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES, TEN_PERCENT_COOPS } from '../constants';
 import { ProduceListing, SystemRole } from '../types';
@@ -77,8 +78,13 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
     );
 
     if (matches.length > 0) {
-      // Pick the best (lowest) price
-      const bestMatch = matches.sort((a, b) => a.sellingPrice - b.sellingPrice)[0];
+      // Pick the best (lowest) price, then highest quantity
+      const bestMatch = matches.sort((a, b) => {
+        if (a.sellingPrice !== b.sellingPrice) {
+          return a.sellingPrice - b.sellingPrice;
+        }
+        return b.unitsAvailable - a.unitsAvailable;
+      })[0];
       
       setFormData(prev => ({
         ...prev,
@@ -138,7 +144,12 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
   if (isProfitPerItem && formData.produceId) {
     const produce = produceListings.find(p => p.id === formData.produceId);
     if (produce && produce.wholesalePrice !== undefined) {
-      ourShare = (formData.unitPrice - produce.wholesalePrice) * formData.unitsSold;
+      const totalProfit = (formData.unitPrice - produce.wholesalePrice) * formData.unitsSold;
+      if ((formData.farmerName || '').toLowerCase() !== 'food coop') {
+        ourShare = totalProfit * 0.10 + 1;
+      } else {
+        ourShare = totalProfit;
+      }
     }
   }
 
