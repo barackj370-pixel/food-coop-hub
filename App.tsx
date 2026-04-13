@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
+import BanglaPesaPortal from './components/BanglaPesaPortal';
 import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
@@ -32,7 +33,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'BANGLA_PESA';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop', 'Hope', 'Wages', 'Red Hill', 'Ligega', 'Utoma Widows Food coop', 'New Grassroots Food Coop'];
@@ -547,7 +548,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'BANGLA_PESA'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -559,7 +560,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'BANGLA_PESA'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -998,7 +999,7 @@ const App: React.FC = () => {
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'FORMS', 'FARM_DATA', 'CONTACT', 'FORUM', 'PRODUCTS'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
-    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'BANGLA_PESA'];
     
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
@@ -2650,6 +2651,12 @@ const App: React.FC = () => {
         {currentPortal === 'FARM_DATA' && agentIdentity && (
           <div className="animate-in fade-in duration-300">
             <FarmDataMap data={farmFormsData} />
+          </div>
+        )}
+
+        {currentPortal === 'BANGLA_PESA' && isSystemDev && (
+          <div className="animate-in fade-in duration-300">
+            <BanglaPesaPortal agentIdentity={agentIdentity} users={users} clusters={dynamicClusters} />
           </div>
         )}
 
