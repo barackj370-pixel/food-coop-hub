@@ -2,18 +2,23 @@ import React, { useState } from 'react';
 import { NewsArticle } from '../types';
 
 interface CreateNewsFormProps {
+  initialData?: NewsArticle;
   onSubmit: (article: Omit<NewsArticle, 'id' | 'date'>) => void;
   onCancel: () => void;
 }
 
-const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ onSubmit, onCancel }) => {
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
-  const [content, setContent] = useState('');
-  const [category, setCategory] = useState('Cooperative Movement');
-  const [image, setImage] = useState('');
-  const [author, setAuthor] = useState('');
-  const [role, setRole] = useState('');
+const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ initialData, onSubmit, onCancel }) => {
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [summary, setSummary] = useState(initialData?.summary || '');
+  // Extract content out of <p> tags back to new lines if editing
+  const [content, setContent] = useState(() => {
+    if (!initialData?.content) return '';
+    return initialData.content.replace(/<p>/g, '').replace(/<\/p>/g, '\n\n').replace(/<br\/>/g, '\n');
+  });
+  const [category, setCategory] = useState(initialData?.category || 'Cooperative Movement');
+  const [image, setImage] = useState(initialData?.image || '');
+  const [author, setAuthor] = useState(initialData?.author || '');
+  const [role, setRole] = useState(initialData?.role || '');
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,7 +58,7 @@ const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ onSubmit, onCancel }) =
   return (
     <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 animate-in fade-in slide-in-from-bottom-4">
       <div className="flex justify-between items-center mb-8">
-        <h3 className="text-2xl font-black uppercase tracking-tight text-black">Create New Post</h3>
+        <h3 className="text-2xl font-black uppercase tracking-tight text-black">{initialData ? 'Edit Post' : 'Create New Post'}</h3>
         <button onClick={onCancel} className="text-slate-400 hover:text-black transition-colors">
           <i className="fas fa-times text-xl"></i>
         </button>
@@ -170,7 +175,7 @@ const CreateNewsForm: React.FC<CreateNewsFormProps> = ({ onSubmit, onCancel }) =
             type="submit"
             className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all"
           >
-            Publish Post
+            {initialData ? 'Update Post' : 'Publish Post'}
           </button>
         </div>
       </form>
