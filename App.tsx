@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
-import BanglaPesaPortal from './components/BanglaPesaPortal';
+import CoopPesaPortal from './components/CoopPesaPortal';
 import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
@@ -10,6 +10,7 @@ import AvailableProducts from './components/AvailableProducts';
 import ProductsPage from './components/ProductsPage';
 import OrderModal from './components/OrderModal';
 import HeroCarousel from './components/HeroCarousel';
+import { AuditLogTable } from './components/AuditLogTable';
 import CreateNewsForm from './components/CreateNewsForm';
 import AboutUsCarousel from './components/AboutUsCarousel';
 import AboutUsPage from './components/AboutUsPage';
@@ -33,7 +34,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'BANGLA_PESA';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'COOPPESA';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop', 'Hope', 'Wages', 'Red Hill', 'Ligega', 'Utoma Widows Food coop', 'New Grassroots Food Coop'];
@@ -548,7 +549,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'BANGLA_PESA'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'COOPPESA'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -560,7 +561,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'BANGLA_PESA'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'COOPPESA'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -621,6 +622,7 @@ const App: React.FC = () => {
   const [showPublicSupplierStats, setShowPublicSupplierStats] = useState(false);
   const [viewingNewsArticle, setViewingNewsArticle] = useState<NewsArticle | null>(null);
   const [isCreatingNews, setIsCreatingNews] = useState(false);
+  const [editingNewsArticle, setEditingNewsArticle] = useState<NewsArticle | null>(null);
 
   useEffect(() => {
     const checkArticleInUrl = () => {
@@ -981,6 +983,12 @@ const App: React.FC = () => {
 
   // CLEANUP: Access strictly based on role.
   const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
+  
+  const canManageNews = isSystemDev || 
+    agentIdentity?.role === SystemRole.MANAGER || 
+    agentIdentity?.role === SystemRole.SALES_MANAGER || 
+    agentIdentity?.phone === '0726838526' || 
+    agentIdentity?.phone === '+254726838526';
 
   const isPrivilegedRole = (agent: AgentIdentity | null) => {
     if (!agent) return false;
@@ -999,7 +1007,7 @@ const App: React.FC = () => {
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'MARKET', 'FORMS', 'FARM_DATA', 'CONTACT', 'FORUM', 'PRODUCTS'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
-    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'BANGLA_PESA'];
+    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'COOPPESA'];
     
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
@@ -1806,153 +1814,6 @@ const App: React.FC = () => {
     </div>
   );
 
-  const AuditLogTable = ({ data, title, onEdit, groupBy = 'cluster' }: { data: SaleRecord[], title: string, onEdit?: (r: SaleRecord) => void, groupBy?: 'cluster' | 'date' | 'cluster_and_date' }) => {
-    // Explicitly type groupedData with useMemo to fix "Property ... does not exist on type 'unknown'"
-    const groupedData = useMemo<Record<string, SaleRecord[]>>(() => data.reduce((acc: Record<string, SaleRecord[]>, r) => {
-        let key = r.cluster || 'Unassigned';
-        if (groupBy === 'date') {
-          key = r.date || 'Unknown Date';
-        } else if (groupBy === 'cluster_and_date') {
-          key = `${r.cluster || 'Unassigned'} | ${r.date || 'Unknown Date'}`;
-        }
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(r);
-        return acc;
-      }, {} as Record<string, SaleRecord[]>), [data, groupBy]);
-    
-    // Convert to keys array to ensure safe iteration, sort dates descending if grouped by date
-    const groups = Object.keys(groupedData).sort((a, b) => {
-      if (groupBy === 'date') {
-        return new Date(b).getTime() - new Date(a).getTime();
-      }
-      if (groupBy === 'cluster_and_date') {
-        const [clusterA, dateA] = a.split(' | ');
-        const [clusterB, dateB] = b.split(' | ');
-        if (clusterA !== clusterB) return clusterA.localeCompare(clusterB);
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
-      }
-      return a.localeCompare(b);
-    });
-
-    const grandTotalVolume = useMemo(() => data.reduce((sum, r) => sum + Number(r.totalSale), 0), [data]);
-    const grandTotalCommission = useMemo(() => data.reduce((sum, r) => sum + Number(r.coopProfit), 0), [data]);
-
-    const getStatusBadgeColor = (status: string) => {
-      if (status === RecordStatus.VERIFIED) return 'bg-green-100 text-green-700';
-      if (status === RecordStatus.COMPLETE || status === RecordStatus.PAID) return 'bg-blue-50 text-blue-700'; // Order Complete
-      return 'bg-red-50 text-red-600'; // Pending Order / Draft
-    };
-
-    // Helper to check if record is editable
-    const isEditable = (r: SaleRecord) => {
-      // Only pending orders can be edited
-      const isPending = r.status === RecordStatus.PENDING || r.status === RecordStatus.DRAFT;
-      
-      if (!isPending) return false;
-
-      // If pending, allow System Dev or the Original Agent (using normalized phone check)
-      return isSystemDev || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone));
-    };
-
-    return (
-      <div className="space-y-12">
-        <h3 className="text-sm font-black text-black uppercase tracking-tighter ml-2">{title} ({data.length})</h3>
-        {groups.map((groupKey) => {
-          const records = groupedData[groupKey];
-          const groupTotalGross = records.reduce((sum, r) => sum + Number(r.totalSale), 0);
-          const groupTotalComm = records.reduce((sum, r) => sum + Number(r.coopProfit), 0);
-
-          return (
-            <div key={groupKey} className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-lg overflow-x-auto">
-              <h4 className="text-[11px] font-black text-red-600 uppercase tracking-widest mb-6 border-b border-red-50 pb-3 flex items-center justify-between">
-                <span>
-                  {groupBy === 'date' ? <i className="fas fa-calendar-alt mr-2"></i> : <i className="fas fa-map-marker-alt mr-2"></i>}
-                  {groupBy === 'date' ? 'Date: ' : groupBy === 'cluster_and_date' ? 'Food Coop & Date: ' : 'Food Coop: '} {groupKey}
-                </span>
-                <span className="text-slate-400 font-bold">{records.length} Transactions</span>
-              </h4>
-              <table className="w-full text-left">
-                <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                  <tr><th className="pb-6">{groupBy === 'date' ? 'Food Coop' : groupBy === 'cluster_and_date' ? 'Date' : 'Date'}</th><th className="pb-6">Participants</th><th className="pb-6">Commodity</th><th className="pb-6">Qty Sold</th><th className="pb-6">Unit Price</th><th className="pb-6">Gross Sale</th><th className="pb-6">Coop Commission (10%)</th><th className="pb-6 text-right">Status</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {records.map(r => (
-                    <tr key={r.id} className="text-[11px] font-bold group hover:bg-slate-50/50">
-                      <td className="py-6 text-slate-400">
-                        {groupBy === 'date' ? (r.cluster || 'Unassigned') : r.date}
-                        {r.synced === false && (
-                          <span className="block text-[8px] text-red-500 font-black uppercase mt-1">Pending Sync</span>
-                        )}
-                      </td>
-                      <td className="py-6">
-                        <div className="space-y-1">
-                          <p className="text-black font-black uppercase text-[10px]">Agent: {r.agentName} ({r.agentPhone})</p>
-                          <p className="text-slate-500 font-bold text-[9px]">Supplier: {r.farmerName} ({r.farmerPhone})</p>
-                          <p className="text-slate-500 font-bold text-[9px]">Buyer: {r.customerName} ({r.customerPhone})</p>
-                        </div>
-                      </td>
-                      <td className="py-6 text-black uppercase">{r.cropType}</td>
-                      <td className="py-6 text-black font-medium">{r.unitsSold} {r.unitType}</td>
-                      <td className="py-6 text-black font-medium">KSh {Number(r.unitPrice).toLocaleString()}</td>
-                      <td className="py-6 font-black text-black">KSh {Number(r.totalSale).toLocaleString()}</td>
-                      <td className="py-6 font-black text-green-600">KSh {Number(r.coopProfit).toLocaleString()}</td>
-                      <td className="py-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${getStatusBadgeColor(r.status)}`}>{r.status}</span>
-                          
-                          {onEdit && currentPortal === 'MARKET' && marketView === 'SALES' && isEditable(r) && (
-                             <button onClick={(e) => { e.stopPropagation(); onEdit(r); }} className="text-slate-300 hover:text-blue-600 transition-colors p-1">
-                               <i className="fas fa-edit text-[10px]"></i>
-                             </button>
-                          )}
-                          {(agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.role === SystemRole.MANAGER) && (
-                             <button onClick={(e) => { e.stopPropagation(); handleDeleteRecord(r.id); }} className="text-slate-300 hover:text-red-600 transition-colors p-1 ml-2">
-                               <i className="fas fa-trash-can text-[10px]"></i>
-                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-8">
-                <div className="text-right">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{groupBy === 'date' ? 'Daily' : groupBy === 'cluster_and_date' ? 'Daily Food Coop' : 'Food Coop'} Sales Volume</p>
-                  <p className="text-sm font-black text-black">KSh {groupTotalGross.toLocaleString()}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Commission</p>
-                  <p className="text-sm font-black text-green-600">KSh {groupTotalComm.toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Ledger Grand Totals */}
-        {data.length > 0 && (
-            <div className="bg-slate-900 rounded-[2rem] p-8 border border-black shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
-                <div>
-                    <h4 className="text-white text-lg font-black uppercase tracking-tight">Ledger Grand Totals</h4>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Aggregate across all Food Coops</p>
-                </div>
-                <div className="flex gap-8">
-                    <div className="text-right">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Sales Volume</p>
-                        <p className="text-2xl font-black text-white">KSh {grandTotalVolume.toLocaleString()}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-[9px] font-black text-green-400 uppercase tracking-widest mb-1">Total Commission</p>
-                        <p className="text-2xl font-black text-green-500">KSh {grandTotalCommission.toLocaleString()}</p>
-                    </div>
-                </div>
-            </div>
-        )}
-      </div>
-    );
-  };
-
   const WelcomeCard = (
     <div className="bg-white p-12 rounded-[3rem] shadow-none border-none flex flex-col md:flex-row gap-12 items-center h-full min-h-[400px]">
       <div className="flex-1 space-y-6">
@@ -2116,7 +1977,7 @@ const App: React.FC = () => {
             {/* About Us Carousel - Only visible when NOT logged in */}
             {!agentIdentity && <AboutUsCarousel />}
 
-            {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" />}
+            {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />}
           </div>
         )}
 
@@ -2128,7 +1989,7 @@ const App: React.FC = () => {
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-center flex-col md:flex-row gap-4">
               <h2 className="text-3xl font-black uppercase tracking-tight text-black text-center md:text-left">Cooperative News & Updates</h2>
-              {(agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.role === SystemRole.MANAGER || agentIdentity?.role === SystemRole.SALES_MANAGER) && !isCreatingNews && (
+              {canManageNews && !isCreatingNews && !editingNewsArticle && (
                 <button 
                   onClick={() => setIsCreatingNews(true)}
                   className="bg-black text-white px-6 py-3 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all"
@@ -2138,25 +1999,37 @@ const App: React.FC = () => {
               )}
             </div>
             
-            {isCreatingNews ? (
+            {isCreatingNews || editingNewsArticle ? (
               <CreateNewsForm 
-                onCancel={() => setIsCreatingNews(false)}
+                onCancel={() => {
+                  setIsCreatingNews(false);
+                  setEditingNewsArticle(null);
+                }}
+                initialData={editingNewsArticle || undefined}
                 onSubmit={async (article) => {
-                  const newArticle: NewsArticle = {
+                  const submitArticle: NewsArticle = {
                     ...article,
-                    id: `news-${Date.now()}`,
-                    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    id: editingNewsArticle ? editingNewsArticle.id : `news-${Date.now()}`,
+                    date: editingNewsArticle ? editingNewsArticle.date : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   };
+                  
                   setNewsArticles(prev => {
-                    const updated = [newArticle, ...prev];
+                    let updated = [...prev];
+                    if (editingNewsArticle) {
+                      updated = updated.map(a => a.id === submitArticle.id ? submitArticle : a);
+                    } else {
+                      updated = [submitArticle, ...updated];
+                    }
                     persistence.set('food_coop_news', JSON.stringify(updated));
                     return updated;
                   });
+                  
                   setIsCreatingNews(false);
+                  setEditingNewsArticle(null);
                   
                   // Sync to cloud
                   try {
-                    await saveNewsArticle(newArticle);
+                    await saveNewsArticle(submitArticle);
                   } catch (e) {
                     console.error("Failed to sync news article", e);
                   }
@@ -2360,7 +2233,7 @@ const App: React.FC = () => {
                   </div>
                 )}
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
-                <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} />
+                <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
               </>
             )}
             {marketView === 'SUPPLIER' && (
@@ -2490,7 +2363,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" groupBy="cluster_and_date" />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2572,7 +2445,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Verified Orders Ledger" groupBy="cluster_and_date" />
+            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Verified Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2638,7 +2511,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={records} title="Universal Ledger" />
+            <AuditLogTable data={records} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2654,9 +2527,9 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {currentPortal === 'BANGLA_PESA' && isSystemDev && (
+        {currentPortal === 'COOPPESA' && isSystemDev && (
           <div className="animate-in fade-in duration-300">
-            <BanglaPesaPortal agentIdentity={agentIdentity} users={users} clusters={dynamicClusters} />
+            <CoopPesaPortal agentIdentity={agentIdentity} users={users} clusters={dynamicClusters} />
           </div>
         )}
 
@@ -2821,7 +2694,7 @@ const App: React.FC = () => {
                 <td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td>
               </tr>
             ))}
-          </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" /></div>
+          </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} /></div>
         )}
       </main>
 
@@ -2883,6 +2756,19 @@ const App: React.FC = () => {
                <img src={viewingNewsArticle.image} alt={viewingNewsArticle.title} className="w-full h-full object-cover" />
                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
                <div className="absolute top-4 right-4 flex gap-2">
+                 {canManageNews && (
+                   <button 
+                     onClick={() => {
+                       setEditingNewsArticle(viewingNewsArticle);
+                       setCurrentPortal('NEWS');
+                       setViewingNewsArticle(null);
+                     }} 
+                     title="Edit Post" 
+                     className="w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all"
+                   >
+                     <i className="fas fa-edit"></i>
+                   </button>
+                 )}
                  <button onClick={() => handleShareNews(viewingNewsArticle)} title="Copy Link" className="w-10 h-10 rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md flex items-center justify-center transition-all">
                     <i className="fas fa-link"></i>
                  </button>
