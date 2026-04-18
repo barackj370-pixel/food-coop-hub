@@ -10,7 +10,7 @@ import AvailableProducts from './components/AvailableProducts';
 import ProductsPage from './components/ProductsPage';
 import OrderModal from './components/OrderModal';
 import HeroCarousel from './components/HeroCarousel';
-import { AuditLogTable } from './components/AuditLogTable';
+import AuditLogTable from './components/AuditLogTable';
 import CreateNewsForm from './components/CreateNewsForm';
 import AboutUsCarousel from './components/AboutUsCarousel';
 import AboutUsPage from './components/AboutUsPage';
