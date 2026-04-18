@@ -987,8 +987,7 @@ const App: React.FC = () => {
   const canManageNews = isSystemDev || 
     agentIdentity?.role === SystemRole.MANAGER || 
     agentIdentity?.role === SystemRole.SALES_MANAGER || 
-    agentIdentity?.phone === '0726838526' || 
-    agentIdentity?.phone === '+254726838526';
+    (agentIdentity?.phone && agentIdentity.phone.includes('726838526'));
 
   const isPrivilegedRole = (agent: AgentIdentity | null) => {
     if (!agent) return false;
