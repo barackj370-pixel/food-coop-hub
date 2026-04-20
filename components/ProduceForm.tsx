@@ -1,0 +1,390 @@
+
+import React, { useState, useEffect, useRef } from 'react';
+import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN, TEN_PERCENT_COOPS } from '../constants';
+// Updated import path to types
+import { SystemRole, ProduceListing } from '../types';
+import { uploadProduceImage } from '../services/supabaseService';
+
+interface ProduceFormProps {
+  userRole: SystemRole;
+  agentCluster?: string;
+  clusters?: string[];
+  defaultSupplierName?: string;
+  defaultSupplierPhone?: string;
+  initialData?: ProduceListing;
+  onSubmit: (data: {
+    date: string;
+    cropType: string;
+    unitType: string;
+    unitsAvailable: number;
+    sellingPrice: number;
+    wholesalePrice?: number;
+    supplierName: string;
+    supplierPhone: string;
+    images: string[];
+    cluster: string;
+  }) => void;
+}
+
+const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentCluster, clusters = [], defaultSupplierName, defaultSupplierPhone, initialData }) => {
+  const isSupplier = userRole === SystemRole.SUPPLIER;
+  const isPrivileged = userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER;
+  
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    cropType: '',
+    otherCropType: '',
+    unitType: 'Bag',
+    unitsAvailable: 0,
+    sellingPrice: 0, // Treated as the "Base Price" or "Wholesale Price"
+    retailPrice: 0, // Used for Kangemi's explicit retail price
+    supplierName: defaultSupplierName || '',
+    supplierPhone: defaultSupplierPhone || '',
+    images: [] as string[],
+    cluster: isPrivileged ? '' : (agentCluster || '')
+  });
+
+  const isProfitPerItem = !TEN_PERCENT_COOPS.includes(formData.cluster);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Populate form when editing
+  useEffect(() => {
+    if (initialData) {
+      // Check if crop is standard or custom
+      const allStandardCrops = Object.values(COMMODITY_CATEGORIES).flat();
+      // Cast to string array to allow checking against generic string type from initialData
+      const isStandard = (allStandardCrops as readonly string[]).includes(initialData.cropType);
+
+      setFormData({
+        date: initialData.date,
+        cropType: isStandard ? initialData.cropType : 'Other',
+        otherCropType: isStandard ? '' : initialData.cropType,
+        unitType: initialData.unitType,
+        unitsAvailable: initialData.unitsAvailable,
+        // Reverse the margin calculation to show Base Price (Asking Price) if not profit per item
+        sellingPrice: isProfitPerItem ? (initialData.wholesalePrice || initialData.sellingPrice) : (initialData.sellingPrice / (1 + PROFIT_MARGIN)),
+        retailPrice: isProfitPerItem ? initialData.sellingPrice : 0,
+        supplierName: initialData.supplierName,
+        supplierPhone: initialData.supplierPhone,
+        images: initialData.images || [],
+        cluster: initialData.cluster || agentCluster || (clusters.length > 0 ? clusters[0] : 'Mariwa')
+      });
+    }
+  }, [initialData, isProfitPerItem]);
+
+  useEffect(() => {
+    // Only reset unit type if the current one isn't valid for the new crop type
+    // AND we are not in the middle of populating initial data (checked via simple logic)
+    const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] as readonly string[];
+    if (availableUnits && !availableUnits.includes(formData.unitType)) {
+      setFormData(prev => ({ ...prev, unitType: availableUnits[0] }));
+    }
+  }, [formData.cropType]);
+
+  // Calculate the final market price including the coop commission
+  const marketPrice = isProfitPerItem ? formData.retailPrice : formData.sellingPrice * (1 + PROFIT_MARGIN);
+  const totalValue = formData.unitsAvailable * marketPrice;
+
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const remainingSlots = 2 - formData.images.length;
+      if (remainingSlots <= 0) {
+        alert("Maximum 2 images allowed per listing.");
+        return;
+      }
+      
+      const files = Array.from(e.target.files).slice(0, remainingSlots);
+      setIsUploading(true);
+      try {
+        const uploadPromises = files.map(file => uploadProduceImage(file));
+        const uploadedUrls = await Promise.all(uploadPromises);
+        const validUrls = uploadedUrls.filter((url): url is string => url !== null);
+        
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, ...validUrls]
+        }));
+      } catch (error) {
+        console.error("Error uploading images:", error);
+        alert("Failed to upload images. Please try again.");
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
+
+    if (!formData.cluster) {
+      alert("Validation Error: Please select a Food Coop.");
+      return;
+    }
+
+    if (formData.unitsAvailable <= 0 || formData.sellingPrice <= 0 || !formData.supplierName || !formData.supplierPhone || (formData.cropType === 'Other' && !finalCropType) || (isProfitPerItem && formData.retailPrice <= 0)) {
+      alert("Validation Error: Please provide valid quantity, price, supplier details, and commodity information.");
+      return;
+    }
+    
+    const { otherCropType, sellingPrice, retailPrice, ...submissionData } = formData;
+    
+    // For profit per item, sellingPrice is the wholesale price, and retailPrice is the final selling price.
+    // Otherwise, calculate the 10% commission.
+    const finalSellingPrice = isProfitPerItem ? retailPrice : sellingPrice * (1 + PROFIT_MARGIN);
+    const finalWholesalePrice = isProfitPerItem ? sellingPrice : undefined;
+    
+    onSubmit({ 
+      ...submissionData, 
+      cropType: finalCropType, 
+      sellingPrice: finalSellingPrice,
+      wholesalePrice: finalWholesalePrice
+    });
+    
+    setFormData({
+      ...formData,
+      otherCropType: '',
+      unitsAvailable: 0,
+      sellingPrice: 0,
+      retailPrice: 0,
+      images: [],
+      supplierName: isSupplier ? (defaultSupplierName || '') : '',
+      supplierPhone: isSupplier ? (defaultSupplierPhone || '') : '07'
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] || ['Units'];
+
+  return (
+    <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden relative mb-12">
+      <div className="flex flex-col lg:flex-row justify-between items-center mb-10 gap-8">
+        <div className="text-center lg:text-left">
+          <h3 className="text-xl font-black text-black uppercase tracking-tighter">{initialData ? 'Edit Listing' : 'New Supplies Entry'}</h3>
+          <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.3em] mt-1">{initialData ? 'Update Details in Repository' : 'Listing Supplies for Market Hub'}</p>
+        </div>
+        <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Estimated Market Value (Incl. 10% Fee)</span>
+           <p className="text-[13px] font-black text-white uppercase tracking-tight">
+             Subtotal: <span className="text-green-400">KSh {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+           </p>
+        </div>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Entry Date</label>
+          <input 
+            type="date" 
+            value={formData.date}
+            onChange={(e) => setFormData({...formData, date: e.target.value})}
+            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+          />
+        </div>
+
+        {(userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) && clusters.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
+            <select 
+              value={formData.cluster}
+              onChange={(e) => setFormData({...formData, cluster: e.target.value})}
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
+            >
+              <option value="" disabled>Select Food Coop...</option>
+              {clusters.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        )}
+        
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity</label>
+          <select 
+            value={formData.cropType}
+            onChange={(e) => setFormData({...formData, cropType: e.target.value})}
+            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
+          >
+            <option value="" disabled>Select Commodity...</option>
+            {Object.entries(COMMODITY_CATEGORIES).map(([category, items]) => (
+              <optgroup key={category} label={category} className="font-bold text-black bg-slate-50">
+                {items.map(item => (
+                  <option key={item} value={item} className="text-black bg-white">{item}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
+        {formData.cropType === 'Other' && (
+          <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+            <label className="text-[10px] font-black text-red-600 uppercase ml-2 tracking-widest">Details</label>
+            <input 
+              type="text" 
+              placeholder="..."
+              value={formData.otherCropType}
+              onChange={(e) => setFormData({...formData, otherCropType: e.target.value})}
+              className="w-full bg-red-50/30 border border-red-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-red-400 outline-none transition-all shadow-sm"
+              required
+            />
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Unit Type</label>
+          <select 
+            value={formData.unitType}
+            onChange={(e) => setFormData({...formData, unitType: e.target.value})}
+            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
+          >
+            {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Name</label>
+          <input 
+            type="text" 
+            placeholder="Name..."
+            readOnly={isSupplier}
+            value={formData.supplierName}
+            onChange={(e) => setFormData({...formData, supplierName: e.target.value})}
+            className={`w-full border rounded-2xl text-[13px] font-bold text-black p-4 outline-none transition-all ${isSupplier ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Phone</label>
+          <input 
+            type="tel" 
+            placeholder="07..."
+            readOnly={isSupplier}
+            value={formData.supplierPhone}
+            onChange={(e) => setFormData({...formData, supplierPhone: e.target.value})}
+            className={`w-full border rounded-2xl text-[13px] font-bold text-black p-4 outline-none transition-all ${isSupplier ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Qty Available</label>
+          <input 
+            type="number" 
+            placeholder="0"
+            value={formData.unitsAvailable || ''}
+            onChange={(e) => setFormData({...formData, unitsAvailable: parseFloat(e.target.value) || 0})}
+            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+          />
+        </div>
+
+        {isProfitPerItem ? (
+          <>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Wholesale Price (KSh)</label>
+              <input 
+                type="number" 
+                step="0.01"
+                placeholder="0.00"
+                value={formData.sellingPrice || ''}
+                onChange={(e) => setFormData({...formData, sellingPrice: parseFloat(e.target.value) || 0})}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Retail Price (KSh)</label>
+              <input 
+                type="number" 
+                step="0.01"
+                placeholder="0.00"
+                value={formData.retailPrice || ''}
+                onChange={(e) => setFormData({...formData, retailPrice: parseFloat(e.target.value) || 0})}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+              />
+              {formData.retailPrice > 0 && formData.sellingPrice > 0 && (
+                <div className="px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 animate-in fade-in duration-300">
+                   <p className="text-[9px] font-black text-green-700 uppercase tracking-tight">Est. Profit: KSh {(formData.retailPrice - formData.sellingPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })} / {formData.unitType}</p>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mt-0.5">Item-based margin</p>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Asking Price (Base)</label>
+            <input 
+              type="number" 
+              step="0.01"
+              placeholder="0.00"
+              value={formData.sellingPrice || ''}
+              onChange={(e) => setFormData({...formData, sellingPrice: parseFloat(e.target.value) || 0})}
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+            />
+            {formData.sellingPrice > 0 && (
+              <div className="px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 animate-in fade-in duration-300">
+                 <p className="text-[9px] font-black text-green-700 uppercase tracking-tight">Market Price: KSh {marketPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                 <p className="text-[8px] font-bold text-slate-400 uppercase leading-none mt-0.5">Incl. 10% Coop Fee</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Image Upload Section */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-4 xl:col-span-5 border-t border-slate-100 pt-6">
+           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Product Images (Max 2)</label>
+           <div className="flex flex-wrap items-center gap-4">
+              {formData.images.map((img, idx) => (
+                <div key={idx} className="relative group w-24 h-24 rounded-2xl overflow-hidden shadow-md border border-slate-200">
+                  <img src={img} alt="Product" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px] shadow-sm hover:scale-110 transition-transform">
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              ))}
+              
+              {formData.images.length < 2 && (
+                <label className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 hover:border-green-400 hover:bg-green-50 flex flex-col items-center justify-center cursor-pointer transition-all group">
+                   <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      multiple 
+                      className="hidden" 
+                      onChange={handleImageUpload} 
+                      disabled={isUploading}
+                   />
+                   {isUploading ? (
+                     <i className="fas fa-spinner fa-spin text-green-500 text-xl mb-1"></i>
+                   ) : (
+                     <>
+                       <i className="fas fa-camera text-slate-300 group-hover:text-green-500 text-xl mb-1 transition-colors"></i>
+                       <span className="text-[9px] font-bold text-slate-400 group-hover:text-green-600 uppercase">Add Photo</span>
+                     </>
+                   )}
+                </label>
+              )}
+           </div>
+        </div>
+
+        <div className="flex items-end col-span-1 md:col-span-2 lg:col-span-4 xl:col-span-5">
+          <button 
+            type="submit"
+            disabled={isUploading}
+            className={`w-full ${isUploading ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2`}
+          >
+            {isUploading ? <i className="fas fa-spinner fa-spin"></i> : (initialData ? <i className="fas fa-save"></i> : <i className="fas fa-seedling"></i>)}
+            {isUploading ? 'Uploading...' : (initialData ? 'Update Listing' : 'Post Product')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default ProduceForm;
