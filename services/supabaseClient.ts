@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // Retrieve credentials primarily from environment variables
@@ -16,7 +15,10 @@ if (typeof window !== 'undefined') {
         // Handle overload: request(name, callback) vs request(name, options, callback)
         const callback = fn || optionsOrFn;
         // Execute immediately, bypassing the actual browser lock manager
-        return await callback({ name });
+        console.log(`Lock requested for name: ${name}`);
+        const result = await callback({ name });
+        console.log(`Lock released for name: ${name}`);
+        return result;
       },
       query: async () => ({ pending: [], held: [] })
     };
