@@ -2562,6 +2562,8 @@ const App: React.FC = () => {
                   onClick={async () => {
                     try {
                       setAddCoopStatus({ status: 'loading' });
+                      
+                      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 15000));
 
                       const input = document.getElementById('newFoodCoopInput') as HTMLInputElement;
                       const latInput = document.getElementById('newFoodCoopLat') as HTMLInputElement;
@@ -2590,7 +2592,9 @@ const App: React.FC = () => {
                         const newCoords = { ...customCoordinates, [newCoop]: { lat, lng } };
                         setCustomCoordinates(newCoords);
                         updateClusterCoordinates(newCoords);
-                        const { error: coordsError } = await supabase.from('pages').upsert({ id: 'system_food_coop_coords', title: 'Food Coop Coordinates', content: JSON.stringify(newCoords) });
+                        
+                        const coordsPromise = supabase.from('pages').upsert({ id: 'system_food_coop_coords', title: 'Food Coop Coordinates', content: JSON.stringify(newCoords) });
+                        const { error: coordsError } = await Promise.race([coordsPromise, timeoutPromise]) as any;
                         if (coordsError) throw coordsError;
                       } else {
                         coordsWarning = ' (No Coords)';
@@ -2598,7 +2602,9 @@ const App: React.FC = () => {
 
                       const newCoops = [...customFoodCoops, newCoop];
                       setCustomFoodCoops(newCoops);
-                      const { error: coopsError } = await supabase.from('pages').upsert({ id: 'system_food_coops', title: 'Food Coops', content: JSON.stringify(newCoops) });
+                      
+                      const coopsPromise = supabase.from('pages').upsert({ id: 'system_food_coops', title: 'Food Coops', content: JSON.stringify(newCoops) });
+                      const { error: coopsError } = await Promise.race([coopsPromise, timeoutPromise]) as any;
                       if (coopsError) throw coopsError;
                       
                       input.value = '';
@@ -2609,8 +2615,10 @@ const App: React.FC = () => {
                       setTimeout(() => setAddCoopStatus({ status: 'idle' }), 3000);
                     } catch (err: any) {
                       console.error('Error adding Food Coop:', err);
-                      setAddCoopStatus({ status: 'error', message: 'Error' });
-                      setTimeout(() => setAddCoopStatus({ status: 'idle' }), 3000);
+                      // Fallback to error status
+                      const errorMsg = err?.message || 'Error occurred';
+                      setAddCoopStatus({ status: 'error', message: errorMsg.slice(0, 30) });
+                      setTimeout(() => setAddCoopStatus({ status: 'idle' }), 5000);
                     }
                   }}
                   className={`text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl whitespace-nowrap transition-all ${
