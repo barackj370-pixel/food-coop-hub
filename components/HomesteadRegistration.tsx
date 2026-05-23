@@ -31,22 +31,42 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
     setIsRegistering(true);
     setMessage('');
     try {
+      setMessage('Acquiring GPS coordinates...');
+      const location = await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          (err) => reject(new Error(`GPS_FAILED: ${err.message}`)),
+          { timeout: 30000, enableHighAccuracy: true, maximumAge: 0 }
+        );
+      });
+
+      setMessage('Generating Agroecology Profile...');
+      const { generateAgroecologyProfile } = await import('../services/geminiService');
+      const aiProfile = await generateAgroecologyProfile(homesteadName, "Global Baseline", location.lat, location.lng);
+
+      const id = `homestead_${Date.now()}`;
       const payload = {
-        id: `homestead_${Date.now()}`,
+        id,
         farmer_phone: phoneOrEmail, 
         farmer_name: 'Open Source User',
         farm_name: homesteadName,
         cluster: 'General',
-        verified_at: new Date().toISOString()
+        verified_at: new Date().toISOString(),
+        latitude: location.lat,
+        longitude: location.lng,
+        ai_profile: aiProfile
       };
       
       const { error } = await supabase.from('farm_baselines').insert([payload]);
       
       if (error) throw error;
+      
+      // Attempt to save AI profile explicitly to pages for fallback too
+      await supabase.from('pages').upsert([{ id: `ai_profile_${id}`, content: aiProfile, updated_at: new Date().toISOString() }]);
 
       // Auto-Login
       const newIdentity: AgentIdentity = {
-        name: 'Farmer',
+        name: 'Open Source User',
         phone: phoneOrEmail,
         role: 'FARMER',
         cluster: 'General',
