@@ -31,19 +31,6 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
     setIsRegistering(true);
     setMessage('');
     try {
-      setMessage('Acquiring GPS coordinates...');
-      const location = await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          (err) => reject(new Error(`GPS_FAILED: ${err.message}`)),
-          { timeout: 30000, enableHighAccuracy: true, maximumAge: 0 }
-        );
-      });
-
-      setMessage('Generating Agroecology Profile...');
-      const { generateAgroecologyProfile } = await import('../services/geminiService');
-      const aiProfile = await generateAgroecologyProfile(homesteadName, "Global Baseline", location.lat, location.lng);
-
       const id = `homestead_${Date.now()}`;
       const payload = {
         id,
@@ -52,9 +39,8 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
         farm_name: homesteadName,
         cluster: 'General',
         verified_at: new Date().toISOString(),
-        latitude: location.lat,
-        longitude: location.lng,
-        ai_profile: aiProfile
+        latitude: 0, // Default to 0, actual coordinates picked during plot registration
+        longitude: 0 // Default to 0, actual coordinates picked during plot registration
       };
       
       const { error } = await supabase.from('farm_baselines').insert([payload]);
@@ -62,7 +48,7 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
       if (error) throw error;
       
       // Attempt to save AI profile explicitly to pages for fallback too
-      await supabase.from('pages').upsert([{ id: `ai_profile_${id}`, content: aiProfile, updated_at: new Date().toISOString() }]);
+      await supabase.from('pages').upsert([{ id: `ai_profile_${id}`, content: 'Pending Plot Registration', updated_at: new Date().toISOString() }]);
 
       // Auto-Login
       const newIdentity: AgentIdentity = {
@@ -79,7 +65,7 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
       setPhoneOrEmail('');
       setTimeout(() => {
         if (onSuccess) onSuccess();
-        // Force reload to pick up new identity if not using React context perfectly
+        // Force reload to pick up new identity and route to MY_FARM
         window.location.href = '/my_farm';
       }, 1500);
     } catch (err: any) {
