@@ -11,7 +11,6 @@ interface Props {
 const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
   const [phoneOrEmail, setPhoneOrEmail] = useState('');
   const [homesteadName, setHomesteadName] = useState('');
-  const [cluster, setCluster] = useState(FOOD_COOPS[0]);
   const [isRegistering, setIsRegistering] = useState(false);
   const [message, setMessage] = useState('');
   const [allBaselines, setAllBaselines] = useState<any[]>([]);
@@ -37,7 +36,7 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
         farmer_phone: phoneOrEmail, 
         farmer_name: 'Open Source User',
         farm_name: homesteadName,
-        cluster: cluster,
+        cluster: 'General',
         verified_at: new Date().toISOString()
       };
       
@@ -50,7 +49,7 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
         name: 'Farmer',
         phone: phoneOrEmail,
         role: 'FARMER',
-        cluster: cluster,
+        cluster: 'General',
         homesteadName: homesteadName
       };
       localStorage.setItem('agent_session', JSON.stringify(newIdentity));
@@ -99,18 +98,6 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
               onChange={e => setHomesteadName(e.target.value)}
               className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all"
             />
-          </div>
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 bg-white px-2">Food Coop</label>
-            <select
-              value={cluster}
-              onChange={e => setCluster(e.target.value)}
-              className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all appearance-none"
-            >
-              {FOOD_COOPS.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
           </div>
           <button 
             type="submit" 
