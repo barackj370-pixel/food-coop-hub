@@ -22,6 +22,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   const [localActivityLogs, setLocalActivityLogs] = useState<any[]>([]);
   const [newFarmName, setNewFarmName] = useState('');
   const [newFarmAcres, setNewFarmAcres] = useState('');
+  const [viewingHomestead, setViewingHomestead] = useState(false);
   const getLatestIdentity = () => {
     try {
       const saved = localStorage.getItem('agent_session');
@@ -264,19 +265,50 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
     );
   }
 
+  if (!viewingHomestead) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8 pb-20 mt-12 animate-in fade-in duration-300">
+        <h2 className="text-3xl font-black text-slate-900 mb-6">Farm Dashboard</h2>
+        <p className="text-slate-500 mb-6 font-bold">Select your homestead to manage farming lands and view data.</p>
+        <button 
+          onClick={() => setViewingHomestead(true)}
+          className="w-full bg-white border-2 border-emerald-500 rounded-[2rem] p-8 text-left hover:bg-emerald-50 transition-all flex items-start gap-4 shadow-sm hover:shadow-md"
+        >
+          <div className="bg-emerald-100 text-emerald-800 p-4 rounded-full mt-1">
+            <i className="fas fa-home text-3xl"></i>
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-emerald-900">{currentIdentity.homesteadName}</h3>
+            <p className="text-slate-500 font-bold text-sm mt-2">
+              Manage your farming lands, add plots, register GPS coordinates, and access your soil agroecology profile.
+            </p>
+            <div className="flex items-center gap-2 mt-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+              <i className="fas fa-arrow-right"></i> Open Homestead Dashboard
+            </div>
+          </div>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       {/* Header Profile */}
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div>
-            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-4 py-1.5 rounded-full mb-3 inline-block">
-              Welcome to {currentIdentity.homesteadName}
-            </span>
-            <h1 className="text-3xl font-black text-slate-900 leading-none mb-2">Homestead Dashboard</h1>
-            <p className="text-slate-500 font-bold flex items-center gap-2">
-              <i className="fas fa-store"></i> Food Coop: {currentIdentity.cluster}
-            </p>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setViewingHomestead(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
+              <i className="fas fa-arrow-left"></i>
+            </button>
+            <div>
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-4 py-1.5 rounded-full mb-2 inline-block">
+                Welcome to {currentIdentity.homesteadName}
+              </span>
+              <h1 className="text-3xl font-black text-slate-900 leading-none mb-2">Homestead Dashboard</h1>
+              <p className="text-slate-500 font-bold flex items-center gap-2">
+                <i className="fas fa-store"></i> Food Coop: {currentIdentity.cluster}
+              </p>
+            </div>
           </div>
           
           <div className="flex flex-col items-end gap-2 w-full md:auto">
