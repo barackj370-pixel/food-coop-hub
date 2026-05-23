@@ -1,7 +1,6 @@
--- Run this script in the Supabase SQL editor
-
--- 1. Add size_in_acres to farm_baselines
+-- 1. Add columns to farm_baselines
 ALTER TABLE farm_baselines ADD COLUMN IF NOT EXISTS size_in_acres NUMERIC;
+ALTER TABLE farm_baselines ADD COLUMN IF NOT EXISTS ai_profile TEXT;
 
 -- 2. Create Men/Women Articulations Tables (Table Banking)
 
@@ -46,6 +45,11 @@ ALTER TABLE table_banking_weekly_reports ENABLE ROW LEVEL SECURITY;
 -- Allow all for everyone globally (based on the app's open baseline style)
 -- For proper production, these should be restricted to specific roles.
 
+DROP POLICY IF EXISTS "Enable all for everyone on table_banking_members" ON table_banking_members;
 CREATE POLICY "Enable all for everyone on table_banking_members" ON table_banking_members FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Enable all for everyone on table_banking_contributions" ON table_banking_contributions;
 CREATE POLICY "Enable all for everyone on table_banking_contributions" ON table_banking_contributions FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Enable all for everyone on table_banking_weekly_reports" ON table_banking_weekly_reports;
 CREATE POLICY "Enable all for everyone on table_banking_weekly_reports" ON table_banking_weekly_reports FOR ALL USING (true) WITH CHECK (true);
