@@ -1,8 +1,23 @@
 -- Run this script in the Supabase SQL editor
 
--- 1. Add columns to farm_baselines
-ALTER TABLE farm_baselines ADD COLUMN IF NOT EXISTS size_in_acres NUMERIC;
-ALTER TABLE farm_baselines ADD COLUMN IF NOT EXISTS ai_profile TEXT;
+-- 1. Create farm_baselines table
+CREATE TABLE IF NOT EXISTS farm_baselines (
+    id TEXT PRIMARY KEY,
+    farmer_phone TEXT NOT NULL,
+    farmer_name TEXT NOT NULL,
+    farm_name TEXT NOT NULL,
+    cluster TEXT,
+    latitude NUMERIC,
+    longitude NUMERIC,
+    size_in_acres NUMERIC,
+    ai_profile TEXT,
+    verified_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE farm_baselines ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable all for everyone on farm_baselines" ON farm_baselines;
+CREATE POLICY "Enable all for everyone on farm_baselines" ON farm_baselines FOR ALL USING (true) WITH CHECK (true);
 
 -- 1.5 Add submission_type to table_banking_contributions
 ALTER TABLE table_banking_contributions ADD COLUMN IF NOT EXISTS submission_type TEXT CHECK (submission_type IN ('DAILY', 'WEEKLY', 'MONTHLY')) DEFAULT 'WEEKLY';
