@@ -1082,10 +1082,10 @@ const App: React.FC = () => {
     if (!agentIdentity) return guestPortals;
     
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'MY_FARM', 'FARM_DATA', 'TABLE_BANKING', 'FORUM'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FORUM'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
-    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+    if (isSystemDev) return [...loggedInBase, 'MY_FARM', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
     
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
@@ -1982,7 +1982,9 @@ const App: React.FC = () => {
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
               <button onClick={() => setCurrentPortal('PRODUCTS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'PRODUCTS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Marketplace</button>
-              <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Get Soil Data</button>
+              {isSystemDev && (
+                <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Get Soil Data</button>
+              )}
               <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
               <button onClick={() => setCurrentPortal('WEATHER')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'WEATHER' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Agro-Weather</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
