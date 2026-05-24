@@ -67,7 +67,7 @@ export const generateAgroecologyProfile = async (homesteadName: string, farmName
   try {
     const isKenya = lat >= -4.72 && lat <= 4.62 && lng >= 33.9 && lng <= 41.9;
 
-    let soilMoistureData = 'Retrieving from OpenEPI via Satellite... (simulated API delay check)';
+    let soilMoistureData = 'Retrieving via openEO from Copernicus Sentinel-1... (simulated API delay check)';
     let soilStaticData = '';
 
     if (isKenya) {
@@ -77,9 +77,9 @@ export const generateAgroecologyProfile = async (homesteadName: string, farmName
     }
 
     const dataStrategySource = isKenya 
-      ? `For Soil Moisture (Dynamic): Satellite Radar API (OpenEPI / Sentinel-1).
-For pH and Soil Type (Static): Local Providers (Cropnuts / RCMRD) for high-accuracy regional data.`
-      : `For Soil Moisture (Dynamic): Satellite Radar API (OpenEPI / Sentinel-1).
+      ? `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
+For pH and Soil Type (Static): Local Providers (RCMRD) for high-accuracy regional data.`
+      : `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
 For pH and Soil Type (Static): SoilGrids (Global Baseline). Note: Recommend the integration of local providers for more accurate data in this region.`;
 
     const prompt = `You are the Cooppesa Agroecology AI Engine.
