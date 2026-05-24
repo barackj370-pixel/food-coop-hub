@@ -23,6 +23,7 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters }) 
   // Contribution Form
   const [totalAmount, setTotalAmount] = useState('');
   const [contributionDate, setContributionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [submissionType, setSubmissionType] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('WEEKLY');
 
   useEffect(() => {
     fetchMembers();
@@ -69,7 +70,8 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters }) 
         cluster: memberCluster,
         group_type: groupType,
         amount_total: parseFloat(totalAmount),
-        submitted_by: agentIdentity.phone
+        submitted_by: agentIdentity.phone,
+        submission_type: submissionType
       }]);
       if (error) throw error;
       setMessage('Total contribution recorded successfully!');
@@ -139,6 +141,21 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters }) 
                   onChange={e => setContributionDate(e.target.value)}
                   className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all"
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 bg-white px-2">Submission Type</label>
+                <div className="flex gap-2 mt-2">
+                  {(['DAILY', 'WEEKLY', 'MONTHLY'] as const).map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setSubmissionType(type)}
+                      className={`flex-1 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${submissionType === type ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-500' : 'bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="md:col-span-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 bg-white px-2">Total Amount Collected (KSh)</label>
