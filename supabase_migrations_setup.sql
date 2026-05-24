@@ -1,6 +1,11 @@
+-- Run this script in the Supabase SQL editor
+
 -- 1. Add columns to farm_baselines
 ALTER TABLE farm_baselines ADD COLUMN IF NOT EXISTS size_in_acres NUMERIC;
 ALTER TABLE farm_baselines ADD COLUMN IF NOT EXISTS ai_profile TEXT;
+
+-- 1.5 Add submission_type to table_banking_contributions
+ALTER TABLE table_banking_contributions ADD COLUMN IF NOT EXISTS submission_type TEXT CHECK (submission_type IN ('DAILY', 'WEEKLY', 'MONTHLY')) DEFAULT 'WEEKLY';
 
 -- 2. Create Men/Women Articulations Tables (Table Banking)
 
@@ -22,6 +27,7 @@ CREATE TABLE IF NOT EXISTS table_banking_contributions (
     group_type TEXT CHECK (group_type IN ('MEN', 'WOMEN')) NOT NULL,
     amount_total NUMERIC NOT NULL,
     submitted_by TEXT NOT NULL, -- phone or name of agent
+    submission_type TEXT CHECK (submission_type IN ('DAILY', 'WEEKLY', 'MONTHLY')) DEFAULT 'WEEKLY',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
