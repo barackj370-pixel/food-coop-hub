@@ -65,11 +65,36 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
 
 export const generateAgroecologyProfile = async (homesteadName: string, farmName: string, lat: number, lng: number): Promise<string> => {
   try {
+    const isKenya = lat >= -4.72 && lat <= 4.62 && lng >= 33.9 && lng <= 41.9;
+
+    let soilMoistureData = 'Retrieving from OpenEPI via Satellite... (simulated API delay check)';
+    let soilStaticData = '';
+
+    if (isKenya) {
+      soilStaticData = 'Provider: RCMRD (Regional Data). Expected Type: Nitosols/Ferralsols. Expected pH: 5.5 - 6.5 (Simulated API Pull)';
+    } else {
+      soilStaticData = 'Provider: SoilGrids (Global Fallback). Evaluated general parameters. (Simulated API Pull)';
+    }
+
+    const dataStrategySource = isKenya 
+      ? `For Soil Moisture (Dynamic): Satellite Radar API (OpenEPI / Sentinel-1).
+For pH and Soil Type (Static): Local Providers (Cropnuts / RCMRD) for high-accuracy regional data.`
+      : `For Soil Moisture (Dynamic): Satellite Radar API (OpenEPI / Sentinel-1).
+For pH and Soil Type (Static): SoilGrids (Global Baseline). Note: Recommend the integration of local providers for more accurate data in this region.`;
+
     const prompt = `You are the Cooppesa Agroecology AI Engine.
 Generate a detailed Agroecology Profile for a farm plot located at coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}).
 The homestead is "${homesteadName}" and the plot is "${farmName}".
+
+Data Sourcing Strategy for this Request:
+${dataStrategySource}
+
+Current API Data Context:
+- Soil Moisture: ${soilMoistureData}
+- Soil Physical Static Data: ${soilStaticData}
+
 Provide:
-1. **Expected Soil Information** based on general geography or typical permaculture design.
+1. **Soil Information Strategy & Estimates**: Explicitly state the data sourcing strategy used. Provide the expected soil type, pH, and live moisture estimates based on the API Data Context provided above.
 2. **Detailed Agroecology Recommendations** (crops to plant, soil management, water harvesting). Recommend a wide window of food crops depending on the soil data, including indigenous food crops and crops common to the region in question. Give farmers a variety of options to select from. Also consider if the climate and soil can support: tomatoes, kales, cabbage, rice, specific types of beans, groundnuts, maize, yam, cassava, potatoes, bananas, watermelon, etc. Do not hallucinate, rely strictly on agricultural truth for the given coordinates.
 3. **A Suggested Seasonal Calendar** (management of inputs and harvest).
 Ensure it is formatted using clean Markdown. Focus on regenerative agriculture and climate resilience. Keep it concise but comprehensive.`;
