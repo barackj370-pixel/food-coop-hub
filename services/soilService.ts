@@ -40,18 +40,25 @@ export async function getOpenEO_SoilMoisture(lat: number, lng: number) {
  */
 export async function getRCMRDSoilData(lat: number, lng: number) {
   try {
-    // We send a Spatial Query (WFS - Web Feature Service) to intersect our coordinates
-    // with the regional soil polygons mapped by RCMRD.
-    // Example: querying a GeoJSON feature from their workspace
-    // const response = await fetch(`https://geoportal.rcmrd.org/geoserver/wfs?service=wfs&version=2.0.0&request=GetFeature&typeNames=rcmrd:soil_types&outputFormat=application/json&cql_filter=INTERSECTS(geom, POINT(${lng} ${lat}))`);
-    
-    // Simulating the API response for structural demonstration
-    return {
-      provider: 'RCMRD',
-      accuracy: 'High (Localized to Kenya/East Africa)',
-      soilType: 'Nitosols / Ferralsols (Typical in Kenya highlands)',
-      phLevel: '5.5 - 6.5',
-    };
+    const response = await fetch('/api/rcmrd/soil', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lng }),
+    });
+
+    if (!response.ok) {
+       console.error("RCMRD API request failed:", await response.text());
+       return {
+         provider: 'RCMRD (Simulation / Fallback)',
+         accuracy: 'High (Localized to Kenya/East Africa)',
+         soilType: 'Nitosols / Ferralsols (Typical in Kenya highlands)',
+         phLevel: '5.5 - 6.5',
+         note: 'Simulated data due to Geoserver unavailability.'
+       };
+    }
+
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Failed to fetch RCMRD data:", error);
     return null;
