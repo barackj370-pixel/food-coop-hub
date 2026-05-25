@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
-import CoopPesaPortal from './components/CoopPesaPortal';
 import StatCard from './components/StatCard';
 import WeatherWidget from './components/WeatherWidget';
 import WeatherCarousel from './components/WeatherCarousel';
@@ -37,7 +36,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'COOPPESA' | 'HOMESTEAD' | 'TABLE_BANKING';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop', 'Hope', 'Wages', 'Red Hill', 'Ligega', 'Utoma Widows Food coop', 'New Grassroots Food Coop', 'Angaza Food Coop', 'Kona Mbaaya', 'Njete', 'Anointed', 'Dero Kenya', 'Sisimkha', 'Kiabi Food Coop', 'Nalondo', 'Sibembe Elders', 'Hekima', 'Shalom Youth', 'Matisi B Block 5', 'Maeni Self Help', 'Kiboroa Amani', 'Mima Self Help', 'Macho self Help', 'Sibembe Widows', 'Trafah', 'Muchukwo/Kolbai', 'Bethel Parental', 'Ladies Star', 'Kithoni'];
@@ -607,7 +606,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'COOPPESA', 'HOMESTEAD', 'TABLE_BANKING'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -619,7 +618,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'COOPPESA', 'HOMESTEAD', 'TABLE_BANKING'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -2638,11 +2637,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {currentPortal === 'COOPPESA' && isSystemDev && (
-          <div className="animate-in fade-in duration-300">
-            <CoopPesaPortal agentIdentity={agentIdentity} users={users} clusters={dynamicClusters} />
-          </div>
-        )}
+
 
         {currentPortal === 'TABLE_BANKING' && agentIdentity && (
           <div className="animate-in fade-in duration-300">
