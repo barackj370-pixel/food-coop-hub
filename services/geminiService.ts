@@ -1,5 +1,7 @@
 import { SaleRecord } from "../types";
 
+import { getOpenEO_SoilMoisture, getRCMRDSoilData, getSoilGridsFallback } from './soilService';
+
 export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> => {
   if (!records || records.length === 0) {
     return "No sales records available for analysis.";
@@ -67,13 +69,26 @@ export const generateAgroecologyProfile = async (homesteadName: string, farmName
   try {
     const isKenya = lat >= -4.72 && lat <= 4.62 && lng >= 33.9 && lng <= 41.9;
 
-    let soilMoistureData = 'Retrieving via openEO from Copernicus Sentinel-1... (simulated API delay check)';
+    let soilMoistureData = 'Failed to retrieve openEO soil moisture.';
+    try {
+       const moistureRes = await getOpenEO_SoilMoisture(lat, lng);
+       if (moistureRes) {
+          soilMoistureData = JSON.stringify(moistureRes);
+       }
+    } catch(e) { console.error(e) }
+
     let soilStaticData = '';
 
     if (isKenya) {
-      soilStaticData = 'Provider: RCMRD (Regional Data - Pending Integration). MOCK DATA: Expected Type: Nitosols/Ferralsols. Expected pH: 5.5 - 6.5';
+      try {
+        const rcmrd = await getRCMRDSoilData(lat, lng);
+        soilStaticData = `Provider: RCMRD. Data: ${JSON.stringify(rcmrd)}`;
+      } catch(e){ console.error(e) }
     } else {
-      soilStaticData = 'Provider: SoilGrids (Global Fallback - Pending Integration). Evaluated general parameters.';
+      try {
+        const sg = await getSoilGridsFallback(lat, lng);
+        soilStaticData = `Provider: SoilGrids. Data: ${JSON.stringify(sg)}`;
+      } catch(e){ console.error(e) }
     }
 
     const dataStrategySource = isKenya 
