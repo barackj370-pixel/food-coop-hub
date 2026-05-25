@@ -71,9 +71,9 @@ export const generateAgroecologyProfile = async (homesteadName: string, farmName
     let soilStaticData = '';
 
     if (isKenya) {
-      soilStaticData = 'Provider: RCMRD (Regional Data). Expected Type: Nitosols/Ferralsols. Expected pH: 5.5 - 6.5 (Simulated API Pull)';
+      soilStaticData = 'Provider: RCMRD (Regional Data - Pending Integration). MOCK DATA: Expected Type: Nitosols/Ferralsols. Expected pH: 5.5 - 6.5';
     } else {
-      soilStaticData = 'Provider: SoilGrids (Global Fallback). Evaluated general parameters. (Simulated API Pull)';
+      soilStaticData = 'Provider: SoilGrids (Global Fallback - Pending Integration). Evaluated general parameters.';
     }
 
     const dataStrategySource = isKenya 
@@ -82,7 +82,7 @@ For pH and Soil Type (Static): Local Providers (RCMRD) for high-accuracy regiona
       : `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
 For pH and Soil Type (Static): SoilGrids (Global Baseline). Note: Recommend the integration of local providers for more accurate data in this region.`;
 
-    const prompt = `You are the Cooppesa Agroecology AI Engine.
+    const prompt = `You are the Agroecology AI Engine.
 Generate a detailed Agroecology Profile for a farm plot located at coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}).
 The homestead is "${homesteadName}" and the plot is "${farmName}".
 
