@@ -8,19 +8,26 @@
  */
 export async function getOpenEO_SoilMoisture(lat: number, lng: number) {
   try {
-    // 1. Authenticate with Copernicus Data Space Ecosystem (CDSE) / openEO via OAuth.
-    // 2. Define an openEO process graph to load Sentinel-1 GRD, filter by our bounding box,
-    //    apply radiometric terrain correction, and calculate the soil moisture index.
-    // Example Process Graph Endpoint:
-    // const response = await fetch(`https://openeo.dataspace.copernicus.eu/openeo/1.2/result`, { ... });
-    
-    // Simulating openEO processing result
-    return {
-      provider: 'openEO (Copernicus Sentinel-1)',
-      resolution: '10m - 30m Radar Derived',
-      updateFrequency: 'Every 2-5 days',
-      estimatedMoisture: 'Moderate (derived from recent backscatter coefficient)'
-    };
+    const response = await fetch('/api/openeo/soil-moisture', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lng }),
+    });
+
+    if (!response.ok) {
+       console.error("openEO API request failed:", await response.text());
+       
+       // Fallback for simulation if missing creds locally during demo
+       return {
+          provider: 'openEO (Copernicus Sentinel-1)',
+          resolution: '10m - 30m Radar Derived',
+          updateFrequency: 'Every 2-5 days',
+          estimatedMoisture: 'Moderate (derived from recent backscatter coefficient) [Simulation Mode]'
+       };
+    }
+
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Failed to process openEO task:", error);
     return null;
