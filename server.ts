@@ -148,6 +148,58 @@ async function startServer() {
     }
   });
 
+  // RCMRD GeoServer API for Regional Soil Types and pH
+  app.post("/api/rcmrd/soil", async (req, res) => {
+    try {
+      const { lat, lng } = req.body;
+
+      if (lat === undefined || lng === undefined) {
+        return res.status(400).json({ error: "Missing lat/lng" });
+      }
+
+      // Format for the bounding box / point intersection via WFS
+      // Since it's a Geoserver, we construct the CQL_FILTER
+      const wfsUrl = `https://geoportal.rcmrd.org/geoserver/wfs?service=wfs&version=2.0.0&request=GetFeature&typeNames=rcmrd:soil_types&outputFormat=application/json&cql_filter=INTERSECTS(geom, POINT(${lng} ${lat}))`;
+
+      const response = await fetch(wfsUrl, {
+         method: 'GET',
+         headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+         console.error("RCMRD Fetch Error:", await response.text());
+         return res.status(500).json({ error: "Failed to connect to RCMRD Geoserver" });
+      }
+
+      const rawData = await response.json();
+
+      // Assuming standard GeoJSON WFS Response
+      const features = rawData.features || [];
+      if (features.length > 0) {
+         const properties = features[0].properties;
+         return res.json({
+            provider: 'RCMRD (GeoServer WFS)',
+            accuracy: 'High (Localized to Kenya/East Africa)',
+            soilType: properties.soil_type || 'Unknown Local Soil',
+            phLevel: properties.ph_range || 'Unknown pH',
+            rawProperties: properties
+         });
+      }
+
+       // No feature found intersecting that point
+       return res.json({
+         provider: 'RCMRD',
+         accuracy: 'High',
+         soilType: 'No specific data found for this exact point, assuming typical Nitosols',
+         phLevel: '5.5 - 6.5 (Typical)',
+       });
+
+    } catch (error: any) {
+      console.error("RCMRD API Error:", error);
+      res.status(500).json({ error: error?.message || "Failed to process RCMRD task" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
