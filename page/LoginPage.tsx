@@ -35,6 +35,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isInviteFlow, setIsInviteFlow] = useState(false);
+  
+  const [isGuestLogin, setIsGuestLogin] = useState(false);
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestHomestead, setGuestHomestead] = useState('');
 
   const isMounted = useRef(true);
   const loadingWatchdog = useRef<any>(null);
@@ -264,6 +268,43 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
     }
   };
 
+  /* ───────── GUEST LOGIN ───────── */
+  const handleGuestLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      if (!guestEmail || !guestHomestead) throw new Error("Please provide both email and homestead name.");
+      
+      const { data, error: fetchErr } = await supabase.from('farm_baselines')
+         .select('*')
+         .eq('farmer_phone', guestEmail)
+         .eq('farm_name', guestHomestead)
+         .maybeSingle();
+         
+      if (fetchErr) throw fetchErr;
+      if (!data) throw new Error("No open source homestead found with this Email and Name.");
+      
+       const newIdentity: AgentIdentity = {
+         name: 'Guest Farmer',
+         phone: guestEmail,
+         role: SystemRole.FARMER,
+         cluster: 'Guest',
+         homesteadName: guestHomestead,
+         passcode: '0000',
+         email: guestEmail
+       };
+       localStorage.setItem('agent_session', JSON.stringify(newIdentity));
+       if (isMounted.current) {
+          onLoginSuccess(newIdentity);
+       }
+    } catch (err: any) {
+      if (isMounted.current) setError(err.message || 'Guest Login Failed');
+    } finally {
+      if (isMounted.current) setLoading(false);
+    }
+  };
+
   /* ───────── REGISTER / LOGIN ───────── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,36 +450,68 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
     }
   };
 
-  const renderTitle = () => isResetting ? 'Set New PIN' : (isCompletingProfile ? 'Complete Profile' : (isSignUp ? 'Create Account' : 'Member Login'));
+  const renderTitle = () => isGuestLogin ? 'Guest Login (Homestead)' : isResetting ? 'Set New PIN' : (isCompletingProfile ? 'Complete Profile' : (isSignUp ? 'Create Account' : 'Member Login'));
 
   return (
     <div className="flex flex-col items-center justify-center py-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex bg-slate-100 p-1 rounded-2xl mb-6 shadow-inner w-full max-w-[400px]">
+         <button onClick={() => setIsGuestLogin(false)} className={`flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${!isGuestLogin ? 'bg-white text-black shadow' : 'text-slate-400 hover:text-black'}`}>Member Login</button>
+         <button onClick={() => setIsGuestLogin(true)} className={`flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${isGuestLogin ? 'bg-white text-black shadow' : 'text-slate-400 hover:text-black'}`}>Guest Login</button>
+      </div>
+
       <div className="w-full max-w-[400px] bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl p-10 space-y-6 relative overflow-hidden">
         <div className="flex justify-between items-end mb-2 relative z-10">
           <h2 className="text-2xl font-black text-black uppercase tracking-tight">{renderTitle()}</h2>
-          {!isCompletingProfile && !isInviteFlow && (
+          {!isCompletingProfile && !isInviteFlow && !isGuestLogin && (
             <button type="button" onClick={handleToggleMode} className="text-[10px] font-black uppercase text-red-600 hover:text-red-700 transition-colors">
               {isResetting ? 'Back to Login' : (isSignUp ? 'Back to Login' : 'Create Account')}
             </button>
           )}
         </div>
 
-        <form onSubmit={isResetting ? handleReset : (isCompletingProfile ? handleCompleteProfile : handleSubmit)} className="space-y-4 relative z-10">
+        <form onSubmit={isGuestLogin ? handleGuestLogin : isResetting ? handleReset : (isCompletingProfile ? handleCompleteProfile : handleSubmit)} className="space-y-4 relative z-10">
           
-          {!isResetting && (isSignUp || isCompletingProfile) && (
-            <div className="space-y-1">
-                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name</label>
+          {isGuestLogin ? (
+            <>
+              <div className="space-y-1">
+                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Email Address</label>
+                 <input 
+                   required 
+                   type="email" 
+                   placeholder="Enter email address" 
+                   value={guestEmail} 
+                   onChange={(e) => setGuestEmail(e.target.value)} 
+                   className="w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400"
+                 />
+              </div>
+              <div className="space-y-1">
+                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Homestead Name</label>
                  <input 
                    required 
                    type="text" 
-                   placeholder="Enter full name" 
-                   value={fullName} 
-                   onChange={(e) => setFullName(e.target.value)} 
-                   className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isInviteFlow ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
-                   readOnly={isInviteFlow}
+                   placeholder="Enter homestead name" 
+                   value={guestHomestead} 
+                   onChange={(e) => setGuestHomestead(e.target.value)} 
+                   className="w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400"
                  />
-            </div>
-          )}
+              </div>
+            </>
+          ) : (
+             <>
+               {!isResetting && (isSignUp || isCompletingProfile) && (
+                 <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Full Name</label>
+                      <input 
+                        required 
+                        type="text" 
+                        placeholder="Enter full name" 
+                        value={fullName} 
+                        onChange={(e) => setFullName(e.target.value)} 
+                        className={`w-full border rounded-2xl px-6 py-4 font-bold text-black outline-none transition-all ${isInviteFlow ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-green-400'}`}
+                        readOnly={isInviteFlow}
+                      />
+                 </div>
+               )}
 
           <div className="space-y-1">
              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-3">Phone Number</label>
@@ -493,16 +566,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
               )}
             </>
           )}
+          </>
+         )}
 
           {error && <div className="p-4 bg-red-50 text-red-600 text-xs font-bold rounded-xl whitespace-pre-line">{error}</div>}
           {message && <div className="p-4 bg-green-50 text-green-600 text-xs font-bold rounded-xl">{message}</div>}
 
           <button disabled={loading} className="w-full bg-black hover:bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
             {loading && <i className="fas fa-spinner fa-spin"></i>}
-            {isResetting ? 'Reset & Login' : (isCompletingProfile ? 'Save & Activate' : (isSignUp ? 'Register Account' : 'Authenticate'))}
+            {isGuestLogin ? 'Access Dashboard' : isResetting ? 'Reset & Login' : (isCompletingProfile ? 'Save & Activate' : (isSignUp ? 'Register Account' : 'Authenticate'))}
           </button>
           
-          {!isResetting && !isSignUp && !isCompletingProfile && (
+          {!isResetting && !isSignUp && !isCompletingProfile && !isGuestLogin && (
             <button type="button" onClick={() => { setIsResetting(true); setError(null); setMessage(null); }} className="w-full text-center text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-black transition-colors">
               Forgot Pin?
             </button>
