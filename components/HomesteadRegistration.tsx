@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { AgentIdentity } from '../types';
-import { FOOD_COOPS } from '../App';
+import { AgentIdentity, SystemRole } from '../types';
+import { FOOD_COOPS } from '../constants';
 import Markdown from 'react-markdown';
 
 interface Props {
@@ -52,11 +52,13 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
 
       // Auto-Login
       const newIdentity: AgentIdentity = {
-        name: 'Open Source User',
+        name: 'Guest Farmer',
         phone: phoneOrEmail,
-        role: 'FARMER',
-        cluster: 'General',
-        homesteadName: homesteadName
+        role: SystemRole.FARMER,
+        cluster: 'Guest',
+        homesteadName: homesteadName,
+        passcode: '0000',
+        email: phoneOrEmail
       };
       localStorage.setItem('agent_session', JSON.stringify(newIdentity));
       
