@@ -23,7 +23,7 @@ import FarmDataMap from './components/FarmDataMap';
 import FarmerDashboard from './components/FarmerDashboard';
 import HomesteadRegistration from './components/HomesteadRegistration';
 import TableBanking from './components/TableBanking';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS } from './constants';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
 import { updateClusterCoordinates } from './services/weatherService';
@@ -39,7 +39,7 @@ import { getEnv } from './services/env';
 type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING';
 type MarketView = 'SALES' | 'SUPPLIER';
 
-export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop', 'Hope', 'Wages', 'Red Hill', 'Ligega', 'Utoma Widows Food coop', 'New Grassroots Food Coop', 'Angaza Food Coop', 'Kona Mbaaya', 'Njete', 'Anointed', 'Dero Kenya', 'Sisimkha', 'Kiabi Food Coop', 'Nalondo', 'Sibembe Elders', 'Hekima', 'Shalom Youth', 'Matisi B Block 5', 'Maeni Self Help', 'Kiboroa Amani', 'Mima Self Help', 'Macho self Help', 'Sibembe Widows', 'Trafah', 'Muchukwo/Kolbai', 'Bethel Parental', 'Ladies Star', 'Kithoni'];
+
 
 const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='none' stroke='%23000000' stroke-width='30' stroke-linecap='round' stroke-linejoin='round' d='M64 96h64l48 240h256l48-176H192'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='208' cy='432' r='16'/%3E%3Ccircle fill='%23dc2626' cx='384' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='384' cy='432' r='16'/%3E%3Cpath fill='%2316a34a' d='M256 128c0-50-40-90-90-90s-60 40-40 90c20 40 60 70 130 50z'/%3E%3Cpath fill='%2322c55e' d='M256 128c0-50 40-90 90-90s60 40 40 90c-20 40-60 70-130 50z'/%3E%3Ccircle fill='%23dc2626' cx='256' cy='224' r='48'/%3E%3Cpath fill='none' stroke='%23000000' stroke-width='8' stroke-linecap='round' d='M256 176v48'/%3E%3C/svg%3E";
 
@@ -1077,14 +1077,19 @@ const App: React.FC = () => {
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
-    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS'];
+    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM'];
     if (!agentIdentity) return guestPortals;
     
+    // GUEST FARMER (Not tied to any coop)
+    if (agentIdentity.role === SystemRole.FARMER && agentIdentity.cluster === 'Guest') {
+      return ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'FARM_DATA'];
+    }
+
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FORUM'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FORUM', 'HOMESTEAD', 'MY_FARM'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
-    if (isSystemDev) return [...loggedInBase, 'MY_FARM', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
     
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
@@ -1981,9 +1986,7 @@ const App: React.FC = () => {
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
               <button onClick={() => setCurrentPortal('PRODUCTS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'PRODUCTS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Marketplace</button>
-              {isSystemDev && (
-                <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Get Soil Data</button>
-              )}
+              <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Get Soil Data</button>
               <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
               <button onClick={() => setCurrentPortal('WEATHER')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'WEATHER' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Agro-Weather</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
@@ -2014,7 +2017,7 @@ const App: React.FC = () => {
 
             return (
               <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
-                {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'TABLE BANKING' : p}
+                {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p}
                 {hasUnreadForum && (
                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 )}
@@ -2062,6 +2065,31 @@ const App: React.FC = () => {
 
             {/* Leaderboard */}
             <Leaderboard clusterPerformance={homeMetrics.clusterPerformance} />
+
+            {/* Partners Section */}
+            <div className="bg-white rounded-[2.5rem] p-12 shadow-xl border border-slate-100 flex flex-col items-center">
+              <h3 className="text-xl font-black uppercase tracking-widest mb-12 text-slate-800 text-center">Our Partners in Agroecology Data</h3>
+              <div className="flex flex-wrap justify-center gap-16 items-center w-full max-w-4xl mx-auto">
+                <div className="text-center group flex-1 min-w-[200px]">
+                  <div className="w-40 h-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-slate-100 group-hover:border-blue-500 group-hover:shadow-lg group-hover:-translate-y-2 transition-all duration-300 px-4">
+                     <img src="https://dataspace.copernicus.eu/themes/custom/copernicus/logo.svg" alt="Copernicus Data Space Ecosystem" className="max-h-full max-w-full object-contain filter grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100 transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  </div>
+                  <h4 className="font-black text-sm text-slate-700 tracking-wide">Copernicus (CDSE) / openEO</h4>
+                </div>
+                <div className="text-center group flex-1 min-w-[200px]">
+                   <div className="w-40 h-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-slate-100 group-hover:border-emerald-500 group-hover:shadow-lg group-hover:-translate-y-2 transition-all duration-300 px-4">
+                     <img src="https://rcmrd.org/templates/rcmrd/images/logo.png" alt="RCMRD Logo" className="max-h-full max-w-full object-contain filter grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100 transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  </div>
+                  <h4 className="font-black text-sm text-slate-700 tracking-wide">RCMRD</h4>
+                </div>
+                <div className="text-center group flex-1 min-w-[200px]">
+                   <div className="w-40 h-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-slate-100 group-hover:border-amber-500 group-hover:shadow-lg group-hover:-translate-y-2 transition-all duration-300 px-4">
+                     <img src="https://www.isric.org/sites/default/files/ISRIC_logo_2016-1__0.png" alt="SoilGrids Logo" className="max-h-full max-w-full object-contain filter grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100 transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                  </div>
+                  <h4 className="font-black text-sm text-slate-700 tracking-wide">SoilGrids</h4>
+                </div>
+              </div>
+            </div>
 
             {/* About Us Carousel - Only visible when NOT logged in */}
             {!agentIdentity && <AboutUsCarousel />}
@@ -2261,6 +2289,19 @@ const App: React.FC = () => {
 
         {currentPortal === 'FORUM' && agentIdentity && (
            <Forum currentUser={agentIdentity} posts={forumPosts} onPostsUpdated={loadCloudData} />
+        )}
+
+        {currentPortal === 'MY_FARM' && !agentIdentity && (
+          <div className="flex h-[50vh] items-center justify-center animate-in fade-in duration-300 w-full">
+             <div className="text-center space-y-6">
+                <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
+                   <i className="fas fa-lock text-3xl text-slate-400"></i>
+                </div>
+                <h2 className="text-3xl font-black text-slate-800">Member Access Required</h2>
+                <p className="text-slate-500 max-w-md mx-auto">Please login to view and organize your Farm Dashboard.</p>
+                <button onClick={() => setCurrentPortal('LOGIN')} className="px-8 py-4 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-xl hover:bg-slate-800 transition-colors">Login Now</button>
+             </div>
+          </div>
         )}
 
         {currentPortal === 'MY_FARM' && agentIdentity && (
