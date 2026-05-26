@@ -22,7 +22,8 @@ export enum SystemRole {
   MANAGER = 'Director',
   SYSTEM_DEVELOPER = 'System Developer',
   SUPPLIER = 'Supplier',
-  CUSTOMER = 'Customer'
+  CUSTOMER = 'Customer',
+  FARMER = 'Farmer'
 }
 
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
