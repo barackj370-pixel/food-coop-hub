@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { CROP_CONFIG, PROFIT_MARGIN, COMMODITY_CATEGORIES, TEN_PERCENT_COOPS } from '../constants';
+import { TEN_PERCENT_COOPS } from '../constants';
 import { ProduceListing, SystemRole } from '../types';
 
 interface SaleFormProps {
@@ -42,259 +41,78 @@ interface SaleFormProps {
   }) => void;
 }
 
-const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, produceListings, agentCluster, userRole }: SaleFormProps) => {
-  const [formData, setFormData] = useState(() => {
-    const isPrivileged = userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER;
-    const defaultCluster = isPrivileged ? '' : (agentCluster || '');
-    const defaultCropType = '';
-    const matches = produceListings.filter(p => 
-      p.cluster === defaultCluster && 
-      p.cropType === defaultCropType &&
-      p.unitsAvailable > 0 && 
-      p.status === 'AVAILABLE'
-    );
-    
-    let defaultFarmer = 'Food Coop';
-    let defaultPhone = 'COOP-INTERNAL';
-    let defaultPrice = 0;
-    let defaultUnit = '2kg Tin';
-    let defaultProduceId = undefined;
-
-    if (matches.length > 0 && defaultCluster !== '' && defaultCropType !== '') {
-      const bestMatch = matches.sort((a, b) => {
-        if (a.sellingPrice !== b.sellingPrice) return a.sellingPrice - b.sellingPrice;
-        return b.unitsAvailable - a.unitsAvailable;
-      })[0];
-      defaultFarmer = bestMatch.supplierName;
-      defaultPhone = bestMatch.supplierPhone;
-      defaultPrice = bestMatch.sellingPrice;
-      defaultUnit = bestMatch.unitType;
-      defaultProduceId = bestMatch.id;
-    }
-
-    return {
-      date: new Date().toISOString().split('T')[0],
-      cropType: defaultCropType,
-      otherCropType: '',
-      unitType: defaultUnit,
-      farmerName: defaultCluster === '' || defaultCropType === '' ? '' : defaultFarmer,
-      farmerPhone: defaultCluster === '' || defaultCropType === '' ? '' : defaultPhone,
-      customerName: '',
-      customerPhone: '',
-      unitsSold: 0,
-      unitPrice: defaultPrice,
-      cluster: defaultCluster,
-      produceId: defaultProduceId
-    };
+const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, userRole }: SaleFormProps) => {
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    cluster: (userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) ? '' : (agentCluster || ''),
   });
 
-  const [isAutoFilled, setIsAutoFilled] = useState(() => {
-    const isPrivileged = userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER;
-    const defaultCluster = isPrivileged ? '' : (agentCluster || '');
-    if (defaultCluster === '') return false;
-    const matches = produceListings.filter(p => 
-      p.cluster === defaultCluster && 
-      p.cropType === '' &&
-      p.unitsAvailable > 0 && 
-      p.status === 'AVAILABLE'
-    );
-    return matches.length > 0;
-  });
-
-  const [entryMode, setEntryMode] = useState<'DETAILED' | 'AGGREGATE'>('DETAILED');
   const [aggregateBuyingPrice, setAggregateBuyingPrice] = useState<number>(0);
   const [aggregateSellingPrice, setAggregateSellingPrice] = useState<number>(0);
+  
+  const [commissionType, setCommissionType] = useState<'gross_sale_10' | 'gross_profit_10_plus_1' | 'profit_100'>('gross_profit_10_plus_1');
 
-  // Auto-fill logic based on Cluster and Commodity
+  // Automatically update the default commission type when the food coop is chosen
   useEffect(() => {
-    // Determine the current commodity type
-    const currentCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
-    
-    if (!currentCropType) {
-      setIsAutoFilled(false);
-      return;
-    }
-
-    // Search for matching suppliers in the SAME cluster
-    const matches = produceListings.filter(p => 
-      p.cluster === formData.cluster && 
-      p.cropType === currentCropType &&
-      p.unitsAvailable > 0 && 
-      p.status === 'AVAILABLE'
-    );
-
-    if (matches.length > 0) {
-      // Pick the best (lowest) price, then highest quantity
-      const bestMatch = matches.sort((a, b) => {
-        if (a.sellingPrice !== b.sellingPrice) {
-          return a.sellingPrice - b.sellingPrice;
-        }
-        return b.unitsAvailable - a.unitsAvailable;
-      })[0];
-      
-      // Check if we actually need to update the state to prevent infinite loops / unnecessary re-renders
-      if (
-        formData.farmerName !== bestMatch.supplierName ||
-        formData.unitPrice !== bestMatch.sellingPrice ||
-        formData.unitType !== bestMatch.unitType
-      ) {
-        setFormData(prev => ({
-          ...prev,
-          farmerName: bestMatch.supplierName,
-          farmerPhone: bestMatch.supplierPhone,
-          unitPrice: bestMatch.sellingPrice,
-          unitType: bestMatch.unitType,
-          produceId: bestMatch.id
-        }));
-        setIsAutoFilled(true);
-      }
-    } else {
-      if (formData.cluster === '') {
-         setFormData(prev => ({
-          ...prev,
-          farmerName: '',
-          farmerPhone: '',
-          unitPrice: 0,
-          produceId: undefined
-        }));
-        setIsAutoFilled(false);
-      } else if (formData.farmerName !== 'Food Coop' || isAutoFilled) {
-        // No supplier in cluster: Default to Food Coop
-        setFormData(prev => ({
-          ...prev,
-          farmerName: 'Food Coop',
-          farmerPhone: 'COOP-INTERNAL',
-          unitPrice: isAutoFilled ? 0 : prev.unitPrice,
-          produceId: undefined
-        }));
-        setIsAutoFilled(false);
+    if (formData.cluster) {
+      if (TEN_PERCENT_COOPS.includes(formData.cluster)) {
+        setCommissionType('gross_sale_10');
+      } else if (formData.cluster === 'New Kangemi Food Coop') {
+        setCommissionType('profit_100');
+      } else {
+        setCommissionType('gross_profit_10_plus_1');
       }
     }
-  }, [formData.cluster, formData.cropType, formData.otherCropType, produceListings, formData.farmerName, formData.unitPrice, formData.unitType, isAutoFilled]);
+  }, [formData.cluster]);
 
-  // Handle manual field synchronization from initialData (e.g. when fulfilling an order)
-  useEffect(() => {
-    if (initialData) {
-      setFormData(prev => ({
-        ...prev,
-        cropType: initialData.cropType !== undefined ? initialData.cropType : prev.cropType,
-        unitsSold: initialData.unitsSold !== undefined ? initialData.unitsSold : prev.unitsSold,
-        unitType: initialData.unitType !== undefined ? initialData.unitType : prev.unitType,
-        customerName: initialData.customerName !== undefined ? initialData.customerName : prev.customerName,
-        customerPhone: initialData.customerPhone !== undefined ? initialData.customerPhone : prev.customerPhone,
-        farmerName: initialData.farmerName !== undefined ? initialData.farmerName : prev.farmerName,
-        farmerPhone: initialData.farmerPhone !== undefined ? initialData.farmerPhone : prev.farmerPhone,
-        unitPrice: initialData.unitPrice !== undefined ? initialData.unitPrice : prev.unitPrice,
-        cluster: initialData.cluster !== undefined ? initialData.cluster : prev.cluster,
-        produceId: initialData.produceId !== undefined ? initialData.produceId : prev.produceId
-      }));
-    }
-  }, [initialData]);
-
-  useEffect(() => {
-    const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] as readonly string[];
-    if (availableUnits && !availableUnits.includes(formData.unitType)) {
-      setFormData(prev => ({ ...prev, unitType: availableUnits[0] }));
-    }
-  }, [formData.cropType]);
-
-  let totalSale = 0;
+  const aggTotalProfit = Math.max(0, aggregateSellingPrice - aggregateBuyingPrice);
+  
   let ourShare = 0;
-  let aggTotalProfit = 0;
-
-  if (entryMode === 'DETAILED') {
-    totalSale = formData.unitsSold * formData.unitPrice;
-    ourShare = totalSale * PROFIT_MARGIN;
-    const isProfitPerItem = !TEN_PERCENT_COOPS.includes(formData.cluster || agentCluster || '');
-    if (isProfitPerItem && formData.produceId) {
-      const produce = produceListings.find(p => p.id === formData.produceId);
-      if (produce && produce.wholesalePrice !== undefined) {
-        const totalProfit = (formData.unitPrice - produce.wholesalePrice) * formData.unitsSold;
-        if ((formData.farmerName || '').toLowerCase() !== 'food coop') {
-          ourShare = totalProfit * 0.10 + 1;
-        } else {
-          ourShare = totalProfit;
-        }
-      }
-    }
-  } else {
-    totalSale = aggregateSellingPrice;
-    aggTotalProfit = Math.max(0, aggregateSellingPrice - aggregateBuyingPrice);
-    const isProfitPerItem = !TEN_PERCENT_COOPS.includes(formData.cluster || agentCluster || '');
-    if (isProfitPerItem) {
-      ourShare = aggTotalProfit * 0.10 + 1;
-    } else {
-      ourShare = totalSale * PROFIT_MARGIN;
-    }
+  if (commissionType === 'gross_sale_10') {
+    ourShare = aggregateSellingPrice * 0.10;
+  } else if (commissionType === 'gross_profit_10_plus_1') {
+    ourShare = aggTotalProfit * 0.10 + 1;
+  } else if (commissionType === 'profit_100') {
+    ourShare = aggTotalProfit;
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.cluster) {
+    const finalCluster = formData.cluster || agentCluster;
+    if (!finalCluster) {
       alert("Validation Error: Please select a Food Coop.");
       return;
     }
 
-    if (entryMode === 'AGGREGATE') {
-      if (aggregateSellingPrice <= 0 || aggregateBuyingPrice <= 0) {
-        alert("Validation Error: Please enter valid aggregate prices.");
-        return;
-      }
-      if (aggregateSellingPrice < aggregateBuyingPrice) {
-        alert("Validation Error: Aggregate Selling Price cannot be less than Buying Price.");
-        return;
-      }
-      onSubmit({
-        date: formData.date,
-        cropType: 'AGGREGATE (Weekly)',
-        unitType: 'Total Volume',
-        farmerName: 'Multiple Farmers',
-        farmerPhone: 'N/A',
-        customerName: 'Multiple Customers',
-        customerPhone: 'N/A',
-        unitsSold: 1,
-        unitPrice: aggregateSellingPrice,
-        cluster: formData.cluster,
-        isAggregate: true,
-        coopProfit: ourShare,
-        buyingPrice: aggregateBuyingPrice
-      });
-      setAggregateBuyingPrice(0);
-      setAggregateSellingPrice(0);
+    if (aggregateSellingPrice <= 0 || aggregateBuyingPrice <= 0) {
+      alert("Validation Error: Please enter valid aggregate prices.");
+      return;
+    }
+    if (aggregateSellingPrice < aggregateBuyingPrice) {
+      alert("Validation Error: Aggregate Selling Price cannot be less than Buying Price.");
       return;
     }
 
-    const finalCropType = formData.cropType === 'Other' ? formData.otherCropType.trim() : formData.cropType;
+    onSubmit({
+      date: formData.date,
+      cropType: 'AGGREGATE (Weekly)',
+      unitType: 'Total Volume',
+      farmerName: 'Multiple Farmers',
+      farmerPhone: 'N/A',
+      customerName: 'Multiple Customers',
+      customerPhone: 'N/A',
+      unitsSold: 1,
+      unitPrice: aggregateSellingPrice,
+      cluster: finalCluster,
+      isAggregate: true,
+      coopProfit: ourShare,
+      buyingPrice: aggregateBuyingPrice
+    });
 
-    if (!formData.farmerName || !formData.customerName || formData.unitsSold <= 0 || formData.unitPrice <= 0 || (formData.cropType === 'Other' && !finalCropType)) {
-      alert("Validation Error: Please complete all required fields including a valid price.");
-      return;
-    }
-    
-    const { otherCropType, ...submissionData } = formData;
-    onSubmit({ 
-      ...submissionData, 
-      cropType: finalCropType, 
-      orderId: initialData?.orderId,
-      produceId: formData.produceId,
-      deliveryFee: initialData?.deliveryFee
-    });
-    
-    setFormData({
-      ...formData,
-      otherCropType: '',
-      farmerName: '',
-      farmerPhone: '',
-      customerName: '',
-      customerPhone: '',
-      unitsSold: 0,
-      unitPrice: 0
-    });
-    setIsAutoFilled(false);
+    setAggregateBuyingPrice(0);
+    setAggregateSellingPrice(0);
   };
-
-  const availableUnits = CROP_CONFIG[formData.cropType as keyof typeof CROP_CONFIG] || ['Units'];
 
   return (
     <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden relative">
@@ -302,40 +120,22 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
         <div className="text-center lg:text-left space-y-4">
           <div>
             <h3 className="text-xl font-black text-black uppercase tracking-tighter">New Sales Entry</h3>
-            <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-1">Audit Verification Required</p>
-          </div>
-          <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
-            <button 
-              type="button"
-              onClick={() => setEntryMode('DETAILED')}
-              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${entryMode === 'DETAILED' ? 'bg-white shadow-sm text-black' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              Detailed Entry
-            </button>
-            <button 
-              type="button"
-              onClick={() => setEntryMode('AGGREGATE')}
-              className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${entryMode === 'AGGREGATE' ? 'bg-white shadow-sm text-black' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              Quick Aggregate
-            </button>
+            <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-1">Quick Weekly Aggregate Only</p>
           </div>
         </div>
         <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation { (initialData?.orderId || initialData?.produceId || isAutoFilled) && "(System Match)"}</span>
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation</span>
            <p className="text-[13px] font-black text-white uppercase tracking-tight">
-             Total: KSh {totalSale.toLocaleString()} {initialData?.deliveryFee ? `(+ KSh ${initialData.deliveryFee} Delivery)` : ''} | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
+             Total Sales: <span className="text-white">KSh {aggregateSellingPrice.toLocaleString()}</span> | Buying: <span className="text-slate-300">KSh {aggregateBuyingPrice.toLocaleString()}</span> | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
            </p>
-           {entryMode === 'AGGREGATE' && (
-             <p className="text-[10px] font-bold text-slate-500 uppercase mt-2">
-               Profit logic: {!TEN_PERCENT_COOPS.includes(formData.cluster || agentCluster || '') ? '10% of total profit + KSh 1' : '10% of gross sales'}
-             </p>
-           )}
+           <p className="text-[9.5px] font-bold text-slate-400 uppercase mt-2">
+             Gross Profit: KSh {aggTotalProfit.toLocaleString()}
+           </p>
         </div>
       </div>
       
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-        {/* Sales Agent Inputs */}
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        {/* Trade Date */}
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Trade Date</label>
           <input 
@@ -346,7 +146,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
           />
         </div>
 
-        {(userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) && clusters.length > 0 && (
+        {/* Selected Food Coop */}
+        {((userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) && clusters.length > 0) ? (
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
             <select 
@@ -358,174 +159,69 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, initialData, clusters, pr
               {clusters.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-        )}
-
-        {entryMode === 'AGGREGATE' ? (
-          <>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Buying Price (KSh)</label>
-              <input 
-                type="number" 
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={aggregateBuyingPrice || ''}
-                onChange={(e) => setAggregateBuyingPrice(parseFloat(e.target.value) || 0)}
-                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Selling Price (KSh)</label>
-              <input 
-                type="number" 
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={aggregateSellingPrice || ''}
-                onChange={(e) => setAggregateSellingPrice(parseFloat(e.target.value) || 0)}
-                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
-              />
-            </div>
-          </>
         ) : (
-          <>
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commodity</label>
-          <select 
-            value={formData.cropType}
-            onChange={(e) => setFormData({...formData, cropType: e.target.value})}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
-          >
-            <option value="" disabled>Select Commodity...</option>
-            {Object.entries(COMMODITY_CATEGORIES).map(([category, items]) => (
-              <optgroup key={category} label={category}>
-                {items.map(item => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        {formData.cropType === 'Other' && (
-          <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
-            <label className="text-[10px] font-black text-red-600 uppercase ml-2 tracking-widest">Details</label>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
             <input 
               type="text" 
-              placeholder="..."
-              value={formData.otherCropType}
-              onChange={(e) => setFormData({...formData, otherCropType: e.target.value})}
-              className="w-full bg-red-50/30 border border-red-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-red-400 outline-none transition-all shadow-sm"
-              required
+              readOnly 
+              value={formData.cluster || agentCluster || 'Unassigned'} 
+              className="w-full bg-slate-100 border border-slate-200 rounded-2xl text-[13px] font-bold text-slate-500 p-4" 
             />
           </div>
         )}
 
+        {/* Aggregate Buying Price */}
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Quantity</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Buying Price (KSh)</label>
           <input 
             type="number" 
-            placeholder="0"
-            value={formData.unitsSold || ''}
-            onChange={(e) => setFormData({...formData, unitsSold: parseFloat(e.target.value) || 0})}
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={aggregateBuyingPrice || ''}
+            onChange={(e) => setAggregateBuyingPrice(parseFloat(e.target.value) || 0)}
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
           />
         </div>
 
+        {/* Aggregate Selling Price */}
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Unit Type</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Selling Price (KSh)</label>
+          <input 
+            type="number" 
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={aggregateSellingPrice || ''}
+            onChange={(e) => setAggregateSellingPrice(parseFloat(e.target.value) || 0)}
+            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+          />
+        </div>
+
+        {/* Commission Calculation Rule Selector */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commission Rule</label>
           <select 
-            value={formData.unitType}
-            onChange={(e) => setFormData(prev => ({...prev, unitType: e.target.value, unitPrice: 0}))}
+            value={commissionType}
+            onChange={(e) => setCommissionType(e.target.value as any)}
             className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
           >
-            {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
+            <option value="gross_sale_10">10% of Aggregate Gross Sale</option>
+            <option value="gross_profit_10_plus_1">10% + 1 of Aggregate Gross Profit</option>
+            <option value="profit_100">100% of Profit</option>
           </select>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Customer Name</label>
-          <input 
-            type="text" 
-            placeholder="..."
-            value={formData.customerName}
-            onChange={(e) => setFormData({...formData, customerName: e.target.value})}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Customer Contact</label>
-          <input 
-            type="tel" 
-            placeholder="07..."
-            value={formData.customerPhone}
-            onChange={(e) => setFormData({...formData, customerPhone: e.target.value})}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
-          />
-        </div>
-
-        {/* Auto-filled / Conditional Inputs */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Name</label>
-          <input 
-            type="text" 
-            placeholder="..."
-            readOnly={isAutoFilled}
-            value={formData.farmerName}
-            onChange={(e) => setFormData({...formData, farmerName: e.target.value})}
-            className={`w-full border rounded-2xl text-[13px] font-bold p-4 outline-none transition-all ${isAutoFilled ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-50 border-slate-100 text-black focus:bg-white focus:border-green-400'}`}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Supplier Contact</label>
-          <input 
-            type="tel" 
-            placeholder="..."
-            readOnly={isAutoFilled}
-            value={formData.farmerPhone}
-            onChange={(e) => setFormData({...formData, farmerPhone: e.target.value})}
-            className={`w-full border rounded-2xl text-[13px] font-bold p-4 outline-none transition-all ${isAutoFilled ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' : 'bg-slate-50 border-slate-100 text-black focus:bg-white focus:border-green-400'}`}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className={`text-[10px] font-black uppercase ml-2 tracking-widest ${isAutoFilled ? 'text-green-600' : 'text-red-600'}`}>
-            Unit Price (KSh) {isAutoFilled ? '- Auto Suggested' : '- Manual'}
-          </label>
-          <input 
-            type="number" 
-            step="0.01"
-            placeholder="0.00"
-            // ALWAYS EDITABLE to allow agent to override bulk pricing for retail sales
-            readOnly={false} 
-            value={formData.unitPrice || ''}
-            onChange={(e) => setFormData({...formData, unitPrice: parseFloat(e.target.value) || 0})}
-            className={`w-full border rounded-2xl text-[13px] font-bold p-4 outline-none transition-all ${isAutoFilled ? 'bg-green-50 border-green-200 text-black focus:bg-white focus:border-green-400' : 'bg-red-50 border-red-200 text-black focus:bg-white focus:border-red-400'}`}
-          />
-        </div>
-        </>
-        )}
-
-        <div className="flex items-end">
+        <div className="flex items-end col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-5 mt-4">
           <button 
             type="submit"
             className="w-full bg-black hover:bg-slate-900 text-white font-black uppercase text-[11px] tracking-[0.3em] py-5 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
           >
-            <i className="fas fa-file-contract"></i> Commit Entry
+            <i className="fas fa-file-contract"></i> Commit Aggregate Entry
           </button>
         </div>
       </form>
-      
-      {entryMode === 'DETAILED' && !isAutoFilled && formData.unitsSold > 0 && (
-        <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
-          <i className="fas fa-info-circle text-red-600"></i>
-          <p className="text-[10px] font-bold text-red-700 uppercase tracking-tight">
-            No supplier matches found in Food Coop <span className="underline">{formData.cluster}</span> for this quantity. Transaction defaulting to Food Coop internal pool. Please enter current market price.
-          </p>
-        </div>
-      )}
     </div>
   );
 };
