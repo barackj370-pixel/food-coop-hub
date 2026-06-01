@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { AgentIdentity } from '../types';
 import { motion } from 'motion/react';
@@ -6,7 +6,7 @@ import { database } from '../src/db';
 import { Q } from '@nozbe/watermelondb';
 import Markdown from 'react-markdown';
 
-import { generateAgroecologyProfile } from '../services/geminiService';
+import { generateAgroecologyProfile, calculateAreaFromCorners } from '../services/geminiService';
 
 interface FarmerDashboardProps {
   agentIdentity: AgentIdentity;
@@ -23,6 +23,68 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   const [newFarmName, setNewFarmName] = useState('');
   const [newFarmAcres, setNewFarmAcres] = useState('');
   const [viewingHomestead, setViewingHomestead] = useState(false);
+
+  // Precision 4-Corner Survey States
+  const [useCorners, setUseCorners] = useState(false);
+  const [cornerA, setCornerA] = useState({ lat: '', lng: '' });
+  const [cornerB, setCornerB] = useState({ lat: '', lng: '' });
+  const [cornerC, setCornerC] = useState({ lat: '', lng: '' });
+  const [cornerD, setCornerD] = useState({ lat: '', lng: '' });
+  const [isCapturingCorner, setIsCapturingCorner] = useState<string | null>(null);
+
+  const handleCaptureCorner = (cornerKey: 'A' | 'B' | 'C' | 'D') => {
+    setIsCapturingCorner(cornerKey);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const update = { lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) };
+        if (cornerKey === 'A') setCornerA(update);
+        else if (cornerKey === 'B') setCornerB(update);
+        else if (cornerKey === 'C') setCornerC(update);
+        else if (cornerKey === 'D') setCornerD(update);
+        setIsCapturingCorner(null);
+      },
+      (err) => {
+        alert(`Error capturing corner GPS: ${err.message}. Ensure location services are enabled.`);
+        setIsCapturingCorner(null);
+      },
+      { timeout: 15000, enableHighAccuracy: true }
+    );
+  };
+
+  const liveArea = useMemo(() => {
+    const latA = parseFloat(cornerA.lat);
+    const lngA = parseFloat(cornerA.lng);
+    const latB = parseFloat(cornerB.lat);
+    const lngB = parseFloat(cornerB.lng);
+    const latC = parseFloat(cornerC.lat);
+    const lngC = parseFloat(cornerC.lng);
+    const latD = parseFloat(cornerD.lat);
+    const lngD = parseFloat(cornerD.lng);
+    if (!isNaN(latA) && !isNaN(lngA) && !isNaN(latB) && !isNaN(lngB) && !isNaN(latC) && !isNaN(lngC) && !isNaN(latD) && !isNaN(lngD)) {
+      const arr = [
+        { lat: latA, lng: lngA },
+        { lat: latB, lng: lngB },
+        { lat: latC, lng: lngC },
+        { lat: latD, lng: lngD }
+      ];
+      return calculateAreaFromCorners(arr);
+    }
+    return null;
+  }, [cornerA, cornerB, cornerC, cornerD]);
+
+  const parsedViewingProfileText = useMemo(() => {
+    if (!viewingProfile) return "";
+    if (viewingProfile === 'loading') return 'loading';
+    try {
+      const parsed = JSON.parse(viewingProfile);
+      if (parsed && typeof parsed === 'object' && parsed.markdown) {
+        return parsed.markdown;
+      }
+    } catch {
+      // plain text Legacy
+    }
+    return viewingProfile;
+  }, [viewingProfile]);
   const getLatestIdentity = () => {
     try {
       const saved = localStorage.getItem('agent_session');
@@ -132,29 +194,73 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
     }
     setIsRegistering(true);
     try {
-      console.log("Attempting GPS capture...");
+      let cornersArray: { lat: number; lng: number }[] | undefined = undefined;
+      let acresFloat = parseFloat(newFarmAcres) || 0;
+
+      if (useCorners) {
+        const latA = parseFloat(cornerA.lat);
+        const lngA = parseFloat(cornerA.lng);
+        const latB = parseFloat(cornerB.lat);
+        const lngB = parseFloat(cornerB.lng);
+        const latC = parseFloat(cornerC.lat);
+        const lngC = parseFloat(cornerC.lng);
+        const latD = parseFloat(cornerD.lat);
+        const lngD = parseFloat(cornerD.lng);
+
+        if (isNaN(latA) || isNaN(lngA) || isNaN(latB) || isNaN(lngB) || isNaN(latC) || isNaN(lngC) || isNaN(latD) || isNaN(lngD)) {
+          alert("Please complete the information for all 4 corners or turn off '4-Corner Survey Layout'.");
+          setIsRegistering(false);
+          return;
+        }
+
+        cornersArray = [
+          { lat: latA, lng: lngA },
+          { lat: latB, lng: lngB },
+          { lat: latC, lng: lngC },
+          { lat: latD, lng: lngD }
+        ];
+
+        const calculated = calculateAreaFromCorners(cornersArray);
+        if (calculated) {
+          acresFloat = parseFloat(calculated.acres.toFixed(3));
+          setNewFarmAcres(acresFloat.toString());
+        }
+      }
+
+      console.log("Attempting Anchor GPS capture...");
       const location = await new Promise<{ lat: number; lng: number }>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            console.log("GPS Success:", pos.coords);
-            resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          },
-          (err) => {
-            console.error("GPS Failure:", err);
-            reject(new Error(`GPS_FAILED: ${err.message}`));
-          },
-          { timeout: 30000, enableHighAccuracy: true, maximumAge: 0 }
-        );
+        // If they provided corner coordinates, let's use Corner A as the primary anchor!
+        if (cornersArray && cornersArray.length > 0) {
+          resolve({ lat: cornersArray[0].lat, lng: cornersArray[0].lng });
+        } else {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              console.log("GPS Success:", pos.coords);
+              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            },
+            (err) => {
+              console.error("GPS Failure:", err);
+              reject(new Error(`GPS_FAILED: ${err.message}`));
+            },
+            { timeout: 30000, enableHighAccuracy: true, maximumAge: 0 }
+          );
+        }
       });
 
       const farmId = `farm_baseline_${currentIdentity.phone}_${newFarmName.replace(/\s+/g, '_').toLowerCase()}`;
       
       console.log("Generating Agroecology AI Profile...");
-      const aiProfile = await generateAgroecologyProfile(homesteadName, newFarmName, location.lat, location.lng);
+      const aiProfileContent = await generateAgroecologyProfile(homesteadName, newFarmName, location.lat, location.lng, cornersArray);
       
+      // We serialize both the survey corners and the markdown report into aiProfile
+      const aiProfileObj = {
+        corners: cornersArray || null,
+        markdown: aiProfileContent
+      };
+      const aiProfileString = JSON.stringify(aiProfileObj);
+
       // Save to WatermelonDB (Offline First)
       let localRecord: any;
-      const acresFloat = parseFloat(newFarmAcres) || 0;
       await database.write(async () => {
         localRecord = await database.get('farm_baselines').create((row: any) => {
           row.farmerPhone = currentIdentity.phone;
@@ -166,7 +272,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
           row.sizeInAcres = acresFloat;
           row.verifiedAt = new Date().toISOString();
           row.isSynced = false;
-          row.aiProfile = aiProfile;
+          row.aiProfile = aiProfileString;
         });
       });
 
@@ -186,17 +292,17 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
       try {
         const { error } = await supabase.from('farm_baselines').upsert(payload);
         if (!error) {
-          // Store aiProfile in pages table to avoid missing column in farm_baselines
+          // Store serialized aiProfile in pages table to avoid missing column in farm_baselines
           await supabase.from('pages').upsert({
              id: `ai_profile_${farmId}`,
              title: `AI Profile - ${homesteadName} - ${newFarmName}`,
-             content: aiProfile
+             content: aiProfileString
           });
           
           await database.write(async () => {
             await localRecord.update((row: any) => row.isSynced = true);
           });
-        }
+         }
       } catch (syncErr) {
         console.warn("Cloud sync failed, will retry later:", syncErr);
       }
@@ -207,10 +313,19 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
         location,
         verifiedAt: localRecord.verifiedAt,
         cluster: currentIdentity.cluster,
-        aiProfile
+        aiProfile: aiProfileString
       }]);
+      
+      // Clean states
       setNewFarmName('');
-      alert(`Homestead Registered!\n\nHomestead: ${homesteadName}\nPlot: ${newFarmName}\nOwner: ${currentIdentity?.name || 'Unknown'}\nCooperative: ${currentIdentity?.cluster || 'General'}\n\nVerified GPS captured successfully.`);
+      setNewFarmAcres('');
+      setUseCorners(false);
+      setCornerA({ lat: '', lng: '' });
+      setCornerB({ lat: '', lng: '' });
+      setCornerC({ lat: '', lng: '' });
+      setCornerD({ lat: '', lng: '' });
+
+      alert(`Homestead Register Complete!\n\nHomestead: ${homesteadName}\nPlot: ${newFarmName}\nOwner: ${currentIdentity?.name || 'Unknown'}\nCooperative: ${currentIdentity?.cluster || 'General'}\n\nBoundary & coordinates verified and captured.`);
     } catch (err: any) {
       console.error("Plot Registration Failed:", err);
       alert(`Registration failed: ${err.message}`);
@@ -311,7 +426,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
             </div>
           </div>
           
-          <div className="flex flex-col items-end gap-2 w-full md:auto">
+          <div className="flex flex-col items-end gap-2 w-full">
             <div className="w-full flex gap-2">
               <input 
                 type="text" 
@@ -326,6 +441,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                 onChange={(e) => setNewFarmAcres(e.target.value)}
                 placeholder="Size (Acres)"
                 className="w-28 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-emerald-400"
+                disabled={useCorners}
               />
               <button 
                 onClick={handleRegisterFarm}
@@ -336,7 +452,154 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                 <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Register Plot</span>
               </button>
             </div>
-            <p className="text-[10px] font-bold text-slate-400 italic mt-1">Stand on your plot to register accurate GPS. Acrage helps verify future submissions.</p>
+            <p className="text-[10px] font-bold text-slate-400 italic mt-1">Stand on your plot to register accurate GPS. Acreage helps verify future submissions.</p>
+
+            <div className="w-full mt-4 flex flex-col items-start border-t border-slate-100 pt-4">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input 
+                  type="checkbox" 
+                  checked={useCorners} 
+                  onChange={(e) => setUseCorners(e.target.checked)}
+                  className="w-4.5 h-4.5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-400"
+                />
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1">
+                  <i className="fas fa-drafting-compass text-emerald-500"></i> Define 4-Corner Boundary Survey Nodes (Optional)
+                </span>
+              </label>
+
+              {useCorners && (
+                <div className="w-full mt-4 bg-slate-50 border border-slate-200 rounded-[1.5rem] p-4 text-left space-y-4 animate-in fade-in duration-200">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white border border-slate-100 p-3 rounded-2xl">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      How it works: Stand at each corner of the plot and capture live coordinates, or enter them directly.
+                    </p>
+                    {liveArea && (
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-wider shrink-0">
+                        📐 Computed: {liveArea.hectares.toFixed(3)} Ha (~{liveArea.acres.toFixed(2)} Acres)
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 w-full">
+                    {/* Corner A */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col gap-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Corner A (North-West)</span>
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Latitude"
+                        value={cornerA.lat}
+                        onChange={(e) => setCornerA(prev => ({ ...prev, lat: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Longitude"
+                        value={cornerA.lng}
+                        onChange={(e) => setCornerA(prev => ({ ...prev, lng: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <button 
+                        onClick={() => handleCaptureCorner('A')}
+                        disabled={isCapturingCorner !== null}
+                        className="bg-emerald-50 text-emerald-750 hover:bg-emerald-100 px-3 py-2 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
+                      >
+                        {isCapturingCorner === 'A' ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-map-marker-alt"></i>}
+                        {isCapturingCorner === 'A' ? "Capturing..." : "📍 Get Live GPS"}
+                      </button>
+                    </div>
+
+                    {/* Corner B */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col gap-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Corner B (North-East)</span>
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Latitude"
+                        value={cornerB.lat}
+                        onChange={(e) => setCornerB(prev => ({ ...prev, lat: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Longitude"
+                        value={cornerB.lng}
+                        onChange={(e) => setCornerB(prev => ({ ...prev, lng: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <button 
+                        onClick={() => handleCaptureCorner('B')}
+                        disabled={isCapturingCorner !== null}
+                        className="bg-emerald-50 text-emerald-750 hover:bg-emerald-100 px-3 py-2 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
+                      >
+                        {isCapturingCorner === 'B' ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-map-marker-alt"></i>}
+                        {isCapturingCorner === 'B' ? "Capturing..." : "📍 Get Live GPS"}
+                      </button>
+                    </div>
+
+                    {/* Corner C */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col gap-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Corner C (South-East)</span>
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Latitude"
+                        value={cornerC.lat}
+                        onChange={(e) => setCornerC(prev => ({ ...prev, lat: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Longitude"
+                        value={cornerC.lng}
+                        onChange={(e) => setCornerC(prev => ({ ...prev, lng: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <button 
+                        onClick={() => handleCaptureCorner('C')}
+                        disabled={isCapturingCorner !== null}
+                        className="bg-emerald-50 text-emerald-750 hover:bg-emerald-100 px-3 py-2 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
+                      >
+                        {isCapturingCorner === 'C' ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-map-marker-alt"></i>}
+                        {isCapturingCorner === 'C' ? "Capturing..." : "📍 Get Live GPS"}
+                      </button>
+                    </div>
+
+                    {/* Corner D */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col gap-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Corner D (South-West)</span>
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Latitude"
+                        value={cornerD.lat}
+                        onChange={(e) => setCornerD(prev => ({ ...prev, lat: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <input 
+                        type="number" 
+                        step="any"
+                        placeholder="Longitude"
+                        value={cornerD.lng}
+                        onChange={(e) => setCornerD(prev => ({ ...prev, lng: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-emerald-400"
+                      />
+                      <button 
+                        onClick={() => handleCaptureCorner('D')}
+                        disabled={isCapturingCorner !== null}
+                        className="bg-emerald-50 text-emerald-750 hover:bg-emerald-100 px-3 py-2 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
+                      >
+                        {isCapturingCorner === 'D' ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-map-marker-alt"></i>}
+                        {isCapturingCorner === 'D' ? "Capturing..." : "📍 Get Live GPS"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -366,6 +629,30 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                   <p className="text-xs font-mono font-bold text-slate-700">{plot.location.lng.toFixed(5)}</p>
                 </div>
               </div>
+              {(() => {
+                if (!plot.aiProfile) return null;
+                try {
+                  const parsed = JSON.parse(plot.aiProfile);
+                  if (parsed && typeof parsed === 'object' && parsed.corners && parsed.corners.length === 4) {
+                    return (
+                      <div className="mt-1 mb-3 bg-emerald-50/40 border border-emerald-100 p-3 rounded-2xl">
+                        <p className="text-[9px] font-black text-emerald-800 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                          <i className="fas fa-satellite text-emerald-600"></i> Boundary Survey Verified (4 Corners)
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono font-bold text-slate-500">
+                          <div>A: Lat {parsed.corners[0].lat.toFixed(5)}, Lng {parsed.corners[0].lng.toFixed(5)}</div>
+                          <div>B: Lat {parsed.corners[1].lat.toFixed(5)}, Lng {parsed.corners[1].lng.toFixed(5)}</div>
+                          <div>C: Lat {parsed.corners[2].lat.toFixed(5)}, Lng {parsed.corners[2].lng.toFixed(5)}</div>
+                          <div>D: Lat {parsed.corners[3].lat.toFixed(5)}, Lng {parsed.corners[3].lng.toFixed(5)}</div>
+                        </div>
+                      </div>
+                    );
+                  }
+                } catch {
+                  // legacy
+                }
+                return null;
+              })()}
               <button 
                 onClick={async () => {
                   if (plot.aiProfile) {
@@ -506,7 +793,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                    <p className="font-bold text-slate-600 text-sm">Generating Profile with AI...</p>
                  </div>
                ) : (
-                 <Markdown>{viewingProfile}</Markdown>
+                 <Markdown>{parsedViewingProfileText}</Markdown>
                )}
             </div>
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-4 shrink-0">
