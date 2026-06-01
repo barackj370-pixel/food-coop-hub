@@ -427,7 +427,15 @@ const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
     const saved = persistence.get('food_coop_data');
     if (saved) {
-      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+        return [];
+      } catch (e) {
+        return [];
+      }
     }
     return [];
   });
@@ -658,7 +666,6 @@ const App: React.FC = () => {
     const hasSeededMissingOrders = persistence.get('seeded_missing_orders_v3');
     if (!hasSeededMissingOrders) {
       setRecords(prev => {
-        // Filter out any previous mock orders if they exist, or just append
         const newRecords = [...MOCK_MISSING_RECORDS, ...prev.filter(r => !r.id.startsWith('mock-missing-'))];
         persistence.set('food_coop_data', JSON.stringify(newRecords));
         return newRecords;
@@ -1595,7 +1602,9 @@ const App: React.FC = () => {
           const produce = produceListings.find(p => p.id === data.produceId);
           if (produce && produce.wholesalePrice !== undefined) {
             const totalProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
-            if ((data.farmerName || '').toLowerCase() !== 'food coop') {
+            if (cluster === 'New Kangemi Food Coop') {
+              coopProfit = totalProfit;
+            } else if ((data.farmerName || '').toLowerCase() !== 'food coop') {
               coopProfit = totalProfit * 0.10 + 1;
             } else {
               coopProfit = totalProfit;
@@ -1641,7 +1650,9 @@ const App: React.FC = () => {
         const produce = produceListings.find(p => p.id === data.produceId);
         if (produce && produce.wholesalePrice !== undefined) {
           const totalProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
-          if ((data.farmerName || '').toLowerCase() !== 'food coop') {
+          if (cluster === 'New Kangemi Food Coop') {
+            coopProfit = totalProfit;
+          } else if ((data.farmerName || '').toLowerCase() !== 'food coop') {
             coopProfit = totalProfit * 0.10 + 1;
           } else {
             coopProfit = totalProfit;
@@ -2094,7 +2105,7 @@ const App: React.FC = () => {
             {/* About Us Carousel - Only visible when NOT logged in */}
             {!agentIdentity && <AboutUsCarousel />}
 
-            {agentIdentity && <AuditLogTable data={records.slice(0, 10)} title="Latest Global Activity" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />}
+            {agentIdentity && <AuditLogTable data={records.filter(r => r.isAggregate === true).slice(0, 10)} title="Latest Global Activity" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />}
           </div>
         )}
 
@@ -2375,7 +2386,7 @@ const App: React.FC = () => {
                   </div>
                 )}
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
-                <AuditLogTable data={records} title="Universal Ledger" onEdit={handleEditRecord} isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+                <AuditLogTable data={records.filter(r => r.isAggregate === true)} title="Universal Ledger" onEdit={handleEditRecord} isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
               </>
             )}
             {marketView === 'SUPPLIER' && (
@@ -2437,7 +2448,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {(() => {
                    // Group Pending Records by Cluster AND Date
-                   const pending = records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING);
+                   const pending = records.filter(r => r.isAggregate === true && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING));
                    if (pending.length === 0) {
                      return (
                        <div className="col-span-full py-12 text-center text-slate-400">
@@ -2505,7 +2516,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING)} title="Pending Remittances Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable data={records.filter(r => r.isAggregate === true && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING))} title="Pending Remittances Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2519,7 +2530,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {(() => {
                    // Group Pending Records by Cluster AND Date
-                   const awaiting = records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE);
+                   const awaiting = records.filter(r => r.isAggregate === true && (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE));
                    if (awaiting.length === 0) {
                      return (
                        <div className="col-span-full py-12 text-center text-slate-400">
@@ -2587,7 +2598,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable data={records.filter(r => r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE)} title="Verified Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable data={records.filter(r => r.isAggregate === true && (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE))} title="Verified Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2653,7 +2664,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable data={records} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable data={records.filter(r => r.isAggregate === true)} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2818,7 +2829,7 @@ const App: React.FC = () => {
                 <td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td>
               </tr>
             ))}
-          </tbody></table></div></div><AuditLogTable data={records} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} /></div>
+          </tbody></table></div></div><AuditLogTable data={records.filter(r => r.isAggregate === true)} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} /></div>
         )}
       </main>
 
