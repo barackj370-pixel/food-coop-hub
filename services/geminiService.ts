@@ -45,20 +45,30 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
         },
         body: JSON.stringify({
            prompt,
-           model: 'gemini-3.5-flash',
+           model: 'gemini-2.5-flash',
            systemInstruction: "You are an expert agricultural economist and cooperative auditor. Provide data-driven insights with a professional tone.",
            temperature: 0.3
         })
     });
 
     if (!response.ok) {
-         const err = await response.json();
-         throw new Error(err.error || 'Failed to generate report');
+         try {
+           const errText = await response.text();
+           let errObj;
+           try { errObj = JSON.parse(errText); } catch { errObj = { error: errText } }
+           throw new Error(errObj.error || 'Failed to generate report');
+         } catch(e) {
+           throw new Error('Failed to generate report: Server responded with HTTP ' + response.status);
+         }
     }
 
-    const data = await response.json();
-
-    return data.text || "No analysis generated.";
+    try {
+        const text = await response.text();
+        const data = JSON.parse(text);
+        return data.text || "No analysis generated.";
+    } catch (e) {
+        throw new Error('Failed to parse AI response');
+    }
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     return `Error generating AI report: ${error instanceof Error ? error.message : "Unknown error"}`;
@@ -288,11 +298,29 @@ Ensure it is formatted using clean Markdown. Focus on regenerative agriculture a
     });
 
     if (!response.ok) {
-         const err = await response.json();
-         throw new Error(err.error || 'Failed to generate profile');
+         const errText = await response.text();
+         let errMsg = 'Failed to generate profile';
+         try {
+             const errObj = JSON.parse(errText);
+             errMsg = errObj.error || errObj.message || errText || errMsg;
+         } catch {
+             errMsg = errText || errMsg;
+         }
+         throw new Error(errMsg);
     }
 
-    const data = await response.json();
+    const resText = await response.text();
+    if (!resText) {
+        throw new Error("Empty response from AI server");
+    }
+    
+    let data;
+    try {
+        data = JSON.parse(resText);
+    } catch (e) {
+        throw new Error("Failed to parse response: " + resText);
+    }
+    
     return data.text || "No profile generated.";
   } catch (error) {
     console.error("Error generating agroecology profile, using custom realistic fallback generator:", error);
