@@ -82,7 +82,7 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-emerald-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-12 opacity-5"><i className="fas fa-home text-9xl text-emerald-600"></i></div>
         <h2 className="text-3xl font-black text-black mb-2">Open Source Homestead Baseline</h2>
-        <p className="text-slate-500 font-medium mb-8">Register your homestead/household to get access to soil baselines, crop calendars, and AI-driven recommendations. Open to everyone globally.</p>
+        <p className="text-slate-500 font-medium mb-8">Register your homestead/household to get access to soil baselines, crop calendars, and recommendations. Powered by Gemini AI, Copernicus (CDSE) / openEO, RCMRD, and SoilGrids.</p>
         
         <form onSubmit={handleRegister} className="space-y-6 relative z-10">
           <div>
@@ -135,15 +135,45 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
                   </div>
                   <button 
                     onClick={async () => {
-                      // Fetch AI profile if available
                       const { data } = await supabase.from('pages').select('content').eq('id', `ai_profile_${b.id}`).maybeSingle();
+                      let finalContent = "Agroecology Profile is currently unavailable for this plot.";
+                      let rawData = null;
+                      
                       if (data && data.content) {
-                        setViewingProfile(data.content);
+                        rawData = data.content;
                       } else if (b.ai_profile) {
-                        setViewingProfile(b.ai_profile);
-                      } else {
-                        setViewingProfile("Agroecology Profile is currently unavailable for this plot.");
+                        rawData = b.ai_profile;
                       }
+                      
+                      if (rawData) {
+                         if (typeof rawData === 'object') {
+                             if (rawData.markdown) {
+                                 finalContent = rawData.markdown;
+                             } else if (rawData.error) {
+                                 finalContent = "Agroecology analysis is currently unavailable. Please try again later.";
+                             }
+                         } else if (typeof rawData === 'string') {
+                             finalContent = rawData;
+                             try {
+                               const parsed = JSON.parse(rawData);
+                               if (parsed && typeof parsed === 'object') {
+                                  if (parsed.markdown) {
+                                     finalContent = parsed.markdown;
+                                  } else if (parsed.error) {
+                                     finalContent = "Agroecology analysis is currently unavailable. Please try again later.";
+                                  }
+                               }
+                             } catch (e) {
+                                // fallback
+                             }
+                             
+                             if (typeof finalContent === 'string' && (finalContent.includes('PERMISSION_DENIED') || finalContent.includes('API key was reported as leaked'))) {
+                                finalContent = "Agroecology analysis is currently unavailable. Please try again later.";
+                             }
+                         }
+                      }
+
+                      setViewingProfile(finalContent);
                     }} 
                     className="p-3 bg-white border border-slate-200 text-emerald-600 hover:text-white hover:bg-emerald-600 hover:border-emerald-600 rounded-xl transition-all shadow-sm flex items-center gap-2 text-xs font-bold uppercase tracking-widest" title="View & Download AI Profile"
                   >
