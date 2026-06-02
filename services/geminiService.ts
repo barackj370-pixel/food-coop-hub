@@ -291,7 +291,7 @@ Ensure it is formatted using clean Markdown. Focus on regenerative agriculture a
         },
         body: JSON.stringify({
            prompt,
-           model: 'gemini-3.5-flash',
+           model: 'gemini-2.5-flash',
            systemInstruction: "You are an expert Agroecology AI.",
            temperature: 0.7
         })
