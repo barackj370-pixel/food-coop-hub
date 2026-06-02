@@ -118,11 +118,12 @@ TONE: Encouraging, expert, practical. Speak like a helpful local agronomist.
       }
 
       let responseData;
+      let textData = '';
       try {
-        const textData = await response.text();
+        textData = await response.text();
         responseData = JSON.parse(textData);
       } catch (e) {
-        throw new Error("Failed to parse AI response");
+        throw new Error("Failed to parse AI response. Status: " + response.status + ". Raw text: " + textData.substring(0, 50));
       }
       
       setAiResponse(responseData.text || 'No insights retrieved.');
