@@ -22,7 +22,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   const [localActivityLogs, setLocalActivityLogs] = useState<any[]>([]);
   const [newFarmName, setNewFarmName] = useState('');
   const [newFarmAcres, setNewFarmAcres] = useState('');
-  const [viewingHomestead, setViewingHomestead] = useState(false);
+  const [viewingHomestead, setViewingHomestead] = useState<string | null>(null);
 
   // Precision 4-Corner Survey States
   const [useCorners, setUseCorners] = useState(false);
@@ -75,15 +75,40 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   const parsedViewingProfileText = useMemo(() => {
     if (!viewingProfile) return "";
     if (viewingProfile === 'loading') return 'loading';
-    try {
-      const parsed = JSON.parse(viewingProfile);
-      if (parsed && typeof parsed === 'object' && parsed.markdown) {
-        return parsed.markdown;
-      }
-    } catch {
-      // plain text Legacy
+    
+    let content = viewingProfile;
+    
+    // If it's already an object (e.g. from Supabase jsonb)
+    if (typeof content === 'object') {
+       if ((content as any).markdown) {
+           content = (content as any).markdown;
+       } else if ((content as any).error) {
+           content = "Agroecology analysis is currently unavailable. Please try again later.";
+       } else {
+           content = JSON.stringify(content);
+       }
     }
-    return viewingProfile;
+    
+    if (typeof content === 'string') {
+        try {
+          const parsed = JSON.parse(content);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.markdown) {
+              content = parsed.markdown;
+            } else if (parsed.error) {
+              content = "Agroecology analysis is currently unavailable. Please try again later.";
+            }
+          }
+        } catch {
+          // plain text Legacy
+        }
+    }
+    
+    if (typeof content === 'string' && (content.includes('PERMISSION_DENIED') || content.includes('API key was reported as leaked'))) {
+      content = "Agroecology analysis is currently unavailable. Please try again later.";
+    }
+    
+    return content;
   }, [viewingProfile]);
   const getLatestIdentity = () => {
     try {
@@ -99,6 +124,43 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   const [homesteadContact, setHomesteadContact] = useState('');
   const [selectedCoop, setSelectedCoop] = useState(currentIdentity?.cluster || '');
   const [loading, setLoading] = useState(true);
+
+  // Unique Homesteads
+  const uniqueHomesteads = useMemo(() => {
+    const list = new Set<string>();
+    
+    // Add current default homestead
+    if (currentIdentity.homesteadName) {
+      list.add(currentIdentity.homesteadName);
+    }
+    
+    // Add all implicit homesteads from plot names
+    farmProfiles.forEach(fp => {
+      // If it originated as a pure homestead registration (lat 0, lng 0)
+      if (fp.location.lat === 0 && fp.location.lng === 0) {
+        list.add(fp.farmName);
+      } else {
+        const parts = fp.farmName.split(' - ');
+        if (parts.length > 1) {
+          list.add(parts[0]); // Extrapolate Homestead from Homestead - Plot
+        } else {
+          list.add(fp.farmName);
+        }
+      }
+    });
+
+    return Array.from(list);
+  }, [currentIdentity.homesteadName, farmProfiles]);
+
+  // Ensure we filter plots by the currently viewed homestead context
+  const filteredFarmProfiles = useMemo(() => {
+    if (!viewingHomestead) return [];
+    return farmProfiles.filter(fp => {
+      // Exact match for the base registration
+      if (fp.farmName === viewingHomestead && fp.location.lat === 0 && fp.location.lng === 0) return false; // Hide the base homestead marker
+      return fp.farmName.startsWith(viewingHomestead + ' - ') || fp.farmName === viewingHomestead;
+    });
+  }, [farmProfiles, viewingHomestead]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -249,8 +311,9 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
 
       const farmId = `farm_baseline_${currentIdentity.phone}_${newFarmName.replace(/\s+/g, '_').toLowerCase()}`;
       
+      const resolvedHomesteadName = viewingHomestead || currentIdentity.homesteadName;
       console.log("Generating Agroecology AI Profile...");
-      const aiProfileContent = await generateAgroecologyProfile(homesteadName, newFarmName, location.lat, location.lng, cornersArray);
+      const aiProfileContent = await generateAgroecologyProfile(resolvedHomesteadName, newFarmName, location.lat, location.lng, cornersArray);
       
       // We serialize both the survey corners and the markdown report into aiProfile
       const aiProfileObj = {
@@ -265,7 +328,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
         localRecord = await database.get('farm_baselines').create((row: any) => {
           row.farmerPhone = currentIdentity.phone;
           row.farmerName = currentIdentity.name;
-          row.farmName = `${homesteadName} - ${newFarmName}`;
+          row.farmName = `${resolvedHomesteadName} - ${newFarmName}`;
           row.cluster = currentIdentity.cluster;
           row.latitude = location.lat;
           row.longitude = location.lng;
@@ -309,7 +372,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
 
       setFarmProfiles(prev => [...prev, {
         farmId: localRecord.id,
-        farmName: `${homesteadName} - ${newFarmName}`,
+        farmName: `${resolvedHomesteadName} - ${newFarmName}`,
         location,
         verifiedAt: localRecord.verifiedAt,
         cluster: currentIdentity.cluster,
@@ -325,7 +388,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
       setCornerC({ lat: '', lng: '' });
       setCornerD({ lat: '', lng: '' });
 
-      alert(`Homestead Register Complete!\n\nHomestead: ${homesteadName}\nPlot: ${newFarmName}\nOwner: ${currentIdentity?.name || 'Unknown'}\nCooperative: ${currentIdentity?.cluster || 'General'}\n\nBoundary & coordinates verified and captured.`);
+      alert(`Plot Registered!\n\nHomestead: ${resolvedHomesteadName}\nPlot: ${newFarmName}\nOwner: ${currentIdentity?.name || 'Unknown'}\nCooperative: ${currentIdentity?.cluster || 'General'}\n\nBoundary & coordinates verified and captured.`);
     } catch (err: any) {
       console.error("Plot Registration Failed:", err);
       alert(`Registration failed: ${err.message}`);
@@ -385,23 +448,27 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
       <div className="max-w-4xl mx-auto space-y-8 pb-20 mt-12 animate-in fade-in duration-300">
         <h2 className="text-3xl font-black text-slate-900 mb-6">Farm Dashboard</h2>
         <p className="text-slate-500 mb-6 font-bold">Select your homestead to manage farming lands and view data.</p>
-        <button 
-          onClick={() => setViewingHomestead(true)}
-          className="w-full bg-white border-2 border-emerald-500 rounded-[2rem] p-8 text-left hover:bg-emerald-50 transition-all flex items-start gap-4 shadow-sm hover:shadow-md"
-        >
-          <div className="bg-emerald-100 text-emerald-800 p-4 rounded-full mt-1">
-            <i className="fas fa-home text-3xl"></i>
-          </div>
-          <div>
-            <h3 className="text-2xl font-black text-emerald-900">{currentIdentity.homesteadName}</h3>
-            <p className="text-slate-500 font-bold text-sm mt-2">
-              Manage your farming lands, add plots, register GPS coordinates, and access your soil agroecology profile.
-            </p>
-            <div className="flex items-center gap-2 mt-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-              <i className="fas fa-arrow-right"></i> Open Homestead Dashboard
+        
+        {uniqueHomesteads.map(homesteadName => (
+          <button 
+            key={homesteadName}
+            onClick={() => setViewingHomestead(homesteadName)}
+            className="w-full bg-white border-2 border-emerald-500 rounded-[2rem] p-8 text-left hover:bg-emerald-50 transition-all flex items-start gap-4 shadow-sm hover:shadow-md mb-4"
+          >
+            <div className="bg-emerald-100 text-emerald-800 p-4 rounded-full mt-1 shrink-0">
+              <i className="fas fa-home text-3xl"></i>
             </div>
-          </div>
-        </button>
+            <div>
+              <h3 className="text-2xl font-black text-emerald-900">{homesteadName}</h3>
+              <p className="text-slate-500 font-bold text-sm mt-2">
+                Manage your farming lands, add plots, register GPS coordinates, and access your soil agroecology profile.
+              </p>
+              <div className="flex items-center gap-2 mt-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                <i className="fas fa-arrow-right"></i> Open Homestead Dashboard
+              </div>
+            </div>
+          </button>
+        ))}
       </div>
     );
   }
@@ -412,12 +479,12 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
-            <button onClick={() => setViewingHomestead(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
+            <button onClick={() => setViewingHomestead(null)} className="bg-slate-100 hover:bg-slate-200 text-slate-500 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
               <i className="fas fa-arrow-left"></i>
             </button>
             <div>
               <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 px-4 py-1.5 rounded-full mb-2 inline-block">
-                Welcome to {currentIdentity.homesteadName}
+                Welcome to {viewingHomestead}
               </span>
               <h1 className="text-3xl font-black text-slate-900 leading-none mb-2">Homestead Dashboard</h1>
               <p className="text-slate-500 font-bold flex items-center gap-2">
@@ -608,9 +675,9 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
         {/* Farm List */}
         <div className="space-y-4">
           <h2 className="text-xl font-black text-slate-800 flex items-center gap-3">
-            <i className="fas fa-map-marked-alt text-emerald-600"></i> My Registered Plots ({farmProfiles.length})
+            <i className="fas fa-map-marked-alt text-emerald-600"></i> My Registered Plots ({filteredFarmProfiles.length})
           </h2>
-          {farmProfiles.length > 0 ? farmProfiles.map((plot, idx) => (
+          {filteredFarmProfiles.length > 0 ? filteredFarmProfiles.map((plot, idx) => (
             <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all">
               <div className="flex justify-between items-start mb-4">
                 <div>
@@ -758,8 +825,8 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
       <div className="bg-emerald-50 p-8 rounded-[2.5rem] border border-emerald-100">
         <h3 className="text-xl font-black text-emerald-900 mb-4 uppercase tracking-tight">Your Agroecology Journey</h3>
         <p className="text-emerald-800 text-sm font-bold leading-relaxed mb-6">
-          By registering your baseline coordinates, you enable the Agroecology AI Engine to cross-reference satellite data with your on-ground soil reports. 
-          This ensures we provide the most accurate organic input advice specifically for your micro-climate.
+          By registering your baseline coordinates, you enable the Agroecology AI Engine to cross-reference satellite data via Copernicus (CDSE) / openEO and RCMRD layers (with SoilGrids as a fallback) alongside your on-ground soil reports. 
+          This ensures we provide the most accurate organic input advice specifically for your micro-climate, powered by Gemini AI.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-200/50">
