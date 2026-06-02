@@ -318,7 +318,7 @@ Ensure it is formatted using clean Markdown. Focus on regenerative agriculture a
     try {
         data = JSON.parse(resText);
     } catch (e) {
-        throw new Error("Failed to parse response: " + resText);
+        throw new Error("Failed to parse response: " + resText.substring(0, 50) + "...");
     }
     
     return data.text || "No profile generated.";
