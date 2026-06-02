@@ -102,11 +102,28 @@ TONE: Encouraging, expert, practical. Speak like a helpful local agronomist.
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to analyze farm data');
+        let errMsg = 'Failed to analyze farm data';
+        try {
+          const errText = await response.text();
+          try {
+            const errObj = JSON.parse(errText);
+            errMsg = errObj.error || errText;
+          } catch {
+            errMsg = errText;
+          }
+        } catch {
+           // ignore
+        }
+        throw new Error(errMsg);
       }
 
-      const responseData = await response.json();
+      let responseData;
+      try {
+        const textData = await response.text();
+        responseData = JSON.parse(textData);
+      } catch (e) {
+        throw new Error("Failed to parse AI response");
+      }
       
       setAiResponse(responseData.text || 'No insights retrieved.');
       setStatus('done');
@@ -129,7 +146,7 @@ TONE: Encouraging, expert, practical. Speak like a helpful local agronomist.
               <i className="fas fa-leaf text-green-300"></i>
               Agroecology Intelligence Engine
             </h2>
-            <p className="text-green-100 text-sm mt-1">powered by Google Gemini & SoilGrids</p>
+            <p className="text-green-100 text-sm mt-1">Powered by Gemini AI, Copernicus (CDSE) / openEO, RCMRD, and SoilGrids</p>
           </div>
           <button onClick={onClose} className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors">
             <i className="fas fa-times text-xl"></i>
@@ -177,6 +194,17 @@ TONE: Encouraging, expert, practical. Speak like a helpful local agronomist.
                   </div>
                 </div>
               ) : null}
+            </div>
+
+            <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl shadow-sm">
+              <h3 className="text-[10px] font-black text-emerald-800 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <i className="fas fa-microscope"></i> Methodology & Architecture
+              </h3>
+              <p className="text-xs text-emerald-900 leading-relaxed space-y-3">
+                <span className="block"><strong>Core Engine:</strong> The Agroecology AI interprets Earth observation telemetry into actionable farming wisdom.</span>
+                <span className="block"><strong>Data Sources:</strong> Environmental layers are processed via the <strong>Copernicus (CDSE) / openEO</strong> ecosystem. We are configuring high-res data structures dynamically to consume layers from <strong>RCMRD</strong> (Regional Centre for Mapping of Resources for Development). Unresolved queries fallback to <strong>SoilGrids</strong> as a robust global static baseline.</span>
+                <span className="block"><strong>AI Synthesis:</strong> Telemetry arrays (pH, texture, moisture) are piped to <strong>Gemini AI</strong>. The system acts as a localized agronomist, synthesizing scientific data with contextual variables (like indigenous companion cropping) to yield regenerative insights.</span>
+              </p>
             </div>
 
             <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl shadow-sm">
