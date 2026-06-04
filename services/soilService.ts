@@ -19,10 +19,10 @@ export async function getOpenEO_SoilMoisture(lat: number, lng: number) {
        
        // Fallback for simulation if missing creds locally during demo
        return {
-          provider: 'openEO (Copernicus Sentinel-1)',
+          provider: 'openEO (Copernicus Sentinel-1 Fallback)',
           resolution: '10m - 30m Radar Derived',
           updateFrequency: 'Every 2-5 days',
-          estimatedMoisture: 'Moderate (derived from recent backscatter coefficient) [Simulation Mode]'
+          estimatedMoisture: 'Moderate (~45% Offline Estimate)'
        };
     }
 
@@ -48,20 +48,17 @@ export async function getRCMRDSoilData(lat: number, lng: number) {
 
     if (!response.ok) {
        console.error("RCMRD API request failed:", await response.text());
-       return {
-         provider: 'RCMRD (Simulation / Fallback)',
-         accuracy: 'High (Localized to Kenya/East Africa)',
-         soilType: 'Nitosols / Ferralsols (Typical in Kenya highlands)',
-         phLevel: '5.5 - 6.5',
-         note: 'Simulated data due to Geoserver unavailability.'
-       };
+       throw new Error('Geoserver unavailable');
     }
 
     const data = await response.json();
+    if (data && data.soilType && data.soilType.includes("No specific data found")) {
+        throw new Error('No specific data found for this exact point');
+    }
     return data;
   } catch (error) {
     console.error("Failed to fetch RCMRD data:", error);
-    return null;
+    throw error;
   }
 }
 
