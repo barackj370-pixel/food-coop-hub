@@ -220,14 +220,19 @@ export const generateAgroecologyProfile = async (
   farmName: string,
   lat: number,
   lng: number,
-  corners?: Array<{ lat: number; lng: number }>
+  corners?: Array<{ lat: number; lng: number }>,
+  soilInfo?: any
 ): Promise<string> => {
   try {
     const isKenya = lat >= -4.72 && lat <= 4.62 && lng >= 33.9 && lng <= 41.9;
 
     let locationContext = "";
     try {
-      const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`);
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+        headers: {
+          'User-Agent': 'AgroecologyApp/1.0'
+        }
+      });
       if (geoRes.ok) {
         const geoData = await geoRes.json();
         if (geoData && geoData.address) {
@@ -293,9 +298,10 @@ ${dataStrategySource}
 Current API Data Context:
 - Soil Moisture: ${soilMoistureData}
 - Soil Physical Static Data: ${soilStaticData}
-
+${soilInfo ? `\nVERIFIED SOIL DATA (USE THIS AS ABSOLUTE TRUTH for your values):
+${JSON.stringify(soilInfo, null, 2)}\n` : ''}
 Provide:
-1. **Soil Information Strategy & Estimates**: Explicitly state the data sourcing strategy used. Provide the expected soil type (ensure you include the soil texture classification like [Clay/Loam/Sandy, etc.] in brackets next to the soil type description), pH, and live moisture estimates based on the API Data Context provided above. Ensure the detailed recommendations harmonize and synthesize the API data to provide a unified, highly detailed soil profile mapping comparable to standard rigorous agronomy reports.
+1. **Soil Information Strategy & Estimates**: Explicitly state the data sourcing strategy used. Provide the expected soil type (ensure you include the soil texture classification like [Clay/Loam/Sandy, etc.] in brackets next to the soil type description), pH, and live moisture estimates based on the Verified Soil Data if provided (or fallback to API Data Context). YOU MUST USE EXACT VALUES if provided in 'VERIFIED SOIL DATA' (e.g., if pH is 5.4, state 5.4. If Moisture is 45, state 45%). Do NOT state ranges if exact values are provided. For soil type, if it's 'Ferralsols (Leached red soils of East Africa)', explicitly output 'Ferralsols (Leached red soils of East Africa) [Clay]'. Ensure the detailed recommendations harmonize and synthesize the data to provide a unified, highly detailed soil profile mapping comparable to standard rigorous agronomy reports.
 2. **Detailed Agroecology Recommendations** (crops to plant, soil management, water harvesting). Recommend a wide window of food crops depending on the soil data, including indigenous food crops and crops common to the region in question. Give farmers a variety of options to select from. Also consider if the climate and soil can support: tomatoes, kales, cabbage, rice, specific types of beans, groundnuts, maize, yam, cassava, potatoes, bananas, watermelon, etc. Do not hallucinate, rely strictly on agricultural truth for the given coordinates.
 3. **A Suggested Seasonal Calendar** (management of inputs and harvest).
 Ensure it is formatted using clean Markdown. Focus on regenerative agriculture and climate resilience. Keep it concise but comprehensive.`;
