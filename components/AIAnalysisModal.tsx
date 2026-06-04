@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
+import { generateAgroecologyProfile } from '../services/geminiService';
 
 interface AIAnalysisModalProps {
   farm: any | null;
@@ -74,59 +75,14 @@ const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({ farm, onClose }) => {
       setSoilData(soilInfo);
       setStatus('fetching_ai');
       
-      const prompt = `
-ROLE: You are the "Agroecology Intelligence Engine" for a Kenyan farming cooperative. Your goal is to provide scientific, sustainability-focused land analysis and crop recommendations based on soil data, moisture levels, and location.
-
-GUIDING PRINCIPLES:
-- Prioritize organic inputs (compost, manure, bio-fertilizers).
-- Suggest "Companion Planting" (intercropping).
-- Focus on soil health, biodiversity, and water conservation (mulching, Zai pits).
-- Recommend indigenous or resilient crops for Kenya (e.g. Managu, Terere, Sorghum).
-
-INPUT DATA:
-${JSON.stringify(soilInfo, null, 2)}
-
-OUTPUT STRUCTURE:
-1. **Current Land Status**: Quick summary
-2. **Immediate Action**: One practical task TODAY
-3. **Crop Strategy**: 2-3 specific organic crops / companions
-4. **Agroecology Tip**: Brief tip on soil biology.
-
-TONE: Encouraging, expert, practical. Speak like a helpful local agronomist.
-      `;
+      const resProfile = await generateAgroecologyProfile(
+          farm.homesteadName || farm.homesteadVisitedName || farm.farmName || 'General Plot',
+          farm.farmName || 'General Plot',
+          lat,
+          lng
+      );
       
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, model: 'gemini-2.5-flash' })
-      });
-      
-      if (!response.ok) {
-        let errMsg = 'Failed to analyze farm data';
-        try {
-          const errText = await response.text();
-          try {
-            const errObj = JSON.parse(errText);
-            errMsg = errObj.error || errText;
-          } catch {
-            errMsg = errText;
-          }
-        } catch {
-           // ignore
-        }
-        throw new Error(errMsg);
-      }
-
-      let responseData;
-      let textData = '';
-      try {
-        textData = await response.text();
-        responseData = JSON.parse(textData);
-      } catch (e) {
-        throw new Error("Failed to parse AI response. Status: " + response.status + ". Raw text: " + textData.substring(0, 50));
-      }
-      
-      setAiResponse(responseData.text || 'No insights retrieved.');
+      setAiResponse(resProfile || 'No insights retrieved.');
       setStatus('done');
       
     } catch (e: any) {
