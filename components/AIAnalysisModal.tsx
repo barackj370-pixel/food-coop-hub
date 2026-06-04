@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import { generateAgroecologyProfile } from '../services/geminiService';
+import { getOpenEO_SoilMoisture } from '../services/soilService';
 
 interface AIAnalysisModalProps {
   farm: any | null;
@@ -52,22 +53,39 @@ const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({ farm, onClose }) => {
         else if (sand > 50) soilType = 'Sandy';
         else if (silt > 50) soilType = 'Silty';
 
+        let simulatedMoistureStr = "Moderate (~45%)";
+        try {
+           const openEoInfo = await getOpenEO_SoilMoisture(lat, lng);
+           if (openEoInfo && openEoInfo.estimatedMoisture) {
+              simulatedMoistureStr = openEoInfo.estimatedMoisture;
+           }
+        } catch(e) {}
+
         soilInfo = {
           latitude: lat,
           longitude: lng,
           ph_level: ph,
           soil_type: soilType,
-          moisture_percentage: 45, // Placeholder for Sentinel data simulation
+          moisture_level: simulatedMoistureStr,
           current_crop: farm.cropsGrown || farm.foodConsumed || 'Mixed homestead crops'
         };
       } catch (err) {
         console.warn('SoilGrids fetch failed, using fallback metrics', err);
+        
+        let simulatedMoistureStr = "Moderate (~45%)";
+        try {
+           const openEoInfo = await getOpenEO_SoilMoisture(lat, lng);
+           if (openEoInfo && openEoInfo.estimatedMoisture) {
+              simulatedMoistureStr = openEoInfo.estimatedMoisture;
+           }
+        } catch(e) {}
+
         soilInfo = {
           latitude: lat,
           longitude: lng,
           ph_level: 6.2,
-          soil_type: 'Sandy Loam',
-          moisture_percentage: 40,
+          soil_type: 'Ferralsols (Leached red soils of East Africa) [Clay Loam]',
+          moisture_level: simulatedMoistureStr,
           current_crop: farm.cropsGrown || 'Mixed crops'
         };
       }
@@ -79,7 +97,9 @@ const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({ farm, onClose }) => {
           farm.homesteadName || farm.homesteadVisitedName || farm.farmName || 'General Plot',
           farm.farmName || 'General Plot',
           lat,
-          lng
+          lng,
+          undefined,
+          soilInfo
       );
       
       setAiResponse(resProfile || 'No insights retrieved.');
@@ -132,7 +152,7 @@ const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({ farm, onClose }) => {
                   </div>
                   <div>
                     <span className="block text-xs text-slate-500 mb-1">Estimated Moisture</span>
-                    <strong className="text-lg text-blue-600">{soilData.moisture_percentage}%</strong>
+                    <strong className="text-lg text-blue-600">{soilData.moisture_level}</strong>
                   </div>
                   <div>
                     <span className="block text-xs text-slate-500 mb-1">GPS Location</span>
