@@ -269,6 +269,7 @@ ${areaData ? `- Calculated Area: ${areaData.areaSqm.toFixed(1)} m² (${areaData.
     const prompt = `You are the Agroecology AI Engine.
 Generate a detailed Agroecology Profile for a farm plot located at coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}).
 The homestead is "${homesteadName}" and the plot is "${farmName}".
+${isKenya ? "Deduce the Kenyan County based on these coordinates and explicitly mention it. Use this county context to provide more custom, localized, and relatable agricultural recommendations." : ""}
 ${boundaryContext}
 
 Data Sourcing Strategy for this Request:
