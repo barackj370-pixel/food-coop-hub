@@ -118,7 +118,7 @@ const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({ farm, onClose }) => {
               {status === 'fetching_soil' || status === 'idle' ? (
                 <div className="flex items-center gap-3 text-slate-500 font-medium">
                   <i className="fas fa-satellite-dish fa-spin text-blue-500"></i>
-                  Querying SoilGrids API...
+                  Establishing regional soil models...
                 </div>
               ) : soilData ? (
                 <div className="space-y-4">
