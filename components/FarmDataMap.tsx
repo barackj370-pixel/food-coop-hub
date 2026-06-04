@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import AIAnalysisModal from './AIAnalysisModal';
@@ -14,6 +14,18 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
+
+const MapResizer = () => {
+  const map = useMap();
+  useEffect(() => {
+    // Delay slightly to ensure container is fully rendered including any CSS transitions
+    const timeout = setTimeout(() => {
+      map.invalidateSize();
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [map]);
+  return null;
+};
 
 interface FarmFormsData {
   id: string;
@@ -174,6 +186,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
 
         <div className="h-[500px] rounded-2xl overflow-hidden border border-slate-200">
           <MapContainer center={mapCenter} zoom={6} style={{ height: '100%', width: '100%' }}>
+            <MapResizer />
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -184,7 +197,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
                 position={[d.location!.lat, d.location!.lng]}
                 icon={getMarkerIcon(d)}
               >
-                <Popup>
+                <Popup autoPan={false}>
                   <div className="p-2 min-w-[220px]">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-black text-xs uppercase tracking-widest text-emerald-700">
