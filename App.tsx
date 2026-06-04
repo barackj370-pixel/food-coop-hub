@@ -2083,19 +2083,19 @@ const App: React.FC = () => {
               <div className="flex flex-wrap justify-center gap-16 items-center w-full max-w-4xl mx-auto">
                 <div className="text-center group flex-1 min-w-[200px]">
                   <div className="w-40 h-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-slate-100 group-hover:border-blue-500 group-hover:shadow-lg group-hover:-translate-y-2 transition-all duration-300 px-4">
-                     <img src="https://dataspace.copernicus.eu/themes/custom/copernicus/logo.svg" alt="Copernicus Data Space Ecosystem" className="max-h-full max-w-full object-contain filter grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100 transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                     <img src="https://dataspace.copernicus.eu/themes/custom/copernicus/logonew.svg" alt="Copernicus Data Space Ecosystem" className="max-h-full max-w-full object-contain transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                   </div>
                   <h4 className="font-black text-sm text-slate-700 tracking-wide">Copernicus (CDSE) / openEO</h4>
                 </div>
                 <div className="text-center group flex-1 min-w-[200px]">
                    <div className="w-40 h-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-slate-100 group-hover:border-emerald-500 group-hover:shadow-lg group-hover:-translate-y-2 transition-all duration-300 px-4">
-                     <img src="https://rcmrd.org/templates/rcmrd/images/logo.png" alt="RCMRD Logo" className="max-h-full max-w-full object-contain filter grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100 transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                     <img src="https://www.rcmrd.org/images/rcmrd-logo.png" alt="RCMRD Logo" className="max-h-full max-w-full object-contain transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                   </div>
                   <h4 className="font-black text-sm text-slate-700 tracking-wide">RCMRD</h4>
                 </div>
                 <div className="text-center group flex-1 min-w-[200px]">
                    <div className="w-40 h-20 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-slate-100 group-hover:border-amber-500 group-hover:shadow-lg group-hover:-translate-y-2 transition-all duration-300 px-4">
-                     <img src="https://www.isric.org/sites/default/files/ISRIC_logo_2016-1__0.png" alt="SoilGrids Logo" className="max-h-full max-w-full object-contain filter grayscale group-hover:grayscale-0 opacity-70 group-hover:opacity-100 transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                     <img src="https://isric.euwest01.umbraco.io//media/sbeastdv/logo.svg" alt="SoilGrids Logo" className="max-h-full max-w-full object-contain transition-all duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                   </div>
                   <h4 className="font-black text-sm text-slate-700 tracking-wide">SoilGrids</h4>
                 </div>
