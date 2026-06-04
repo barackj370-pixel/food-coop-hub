@@ -254,23 +254,29 @@ export const generateAgroecologyProfile = async (
 
     let soilStaticData = '';
 
+    let dataStrategySource = '';
+
     if (isKenya) {
       try {
         const rcmrd = await getRCMRDSoilData(lat, lng);
         soilStaticData = `Provider: RCMRD. Data: ${JSON.stringify(rcmrd)}`;
-      } catch(e){ console.error(e) }
+        dataStrategySource = `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
+For pH and Soil Type (Static): Local Providers (RCMRD) for high-accuracy regional data.`;
+      } catch(e) { 
+        console.warn("RCMRD failed, falling back to SoilGrids", e);
+        const sg = await getSoilGridsFallback(lat, lng);
+        soilStaticData = `Provider: SoilGrids. Data: ${JSON.stringify(sg)}`;
+        dataStrategySource = `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
+For pH and Soil Type (Static): SoilGrids (Global Baseline). *DISCLAIMER: A local source like RCMRD for Kenyan farmers is highly recommended for better resolution and accurate baselines compared to global proxies like SoilGrids, but was unavailable at the time of this request.*`;
+      }
     } else {
       try {
         const sg = await getSoilGridsFallback(lat, lng);
         soilStaticData = `Provider: SoilGrids. Data: ${JSON.stringify(sg)}`;
       } catch(e){ console.error(e) }
-    }
-
-    const dataStrategySource = isKenya 
-      ? `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
-For pH and Soil Type (Static): Local Providers (RCMRD) for high-accuracy regional data.`
-      : `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
+      dataStrategySource = `For Soil Moisture (Dynamic): openEO ecosystem accessing Copernicus Sentinel-1 Satellite Data.
 For pH and Soil Type (Static): SoilGrids (Global Baseline). Note: Recommend the integration of local providers for more accurate data in this region.`;
+    }
 
     let boundaryContext = "";
     if (corners && corners.length >= 3) {
