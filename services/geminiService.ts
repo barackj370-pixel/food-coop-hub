@@ -280,7 +280,7 @@ Current API Data Context:
 - Soil Physical Static Data: ${soilStaticData}
 
 Provide:
-1. **Soil Information Strategy & Estimates**: Explicitly state the data sourcing strategy used. Provide the expected soil type, pH, and live moisture estimates based on the API Data Context provided above.
+1. **Soil Information Strategy & Estimates**: Explicitly state the data sourcing strategy used. Provide the expected soil type (ensure you include the soil texture classification like [Clay/Loam/Sandy, etc.] in brackets next to the soil type description), pH, and live moisture estimates based on the API Data Context provided above. Ensure the detailed recommendations harmonize and synthesize the API data to provide a unified, highly detailed soil profile mapping comparable to standard rigorous agronomy reports.
 2. **Detailed Agroecology Recommendations** (crops to plant, soil management, water harvesting). Recommend a wide window of food crops depending on the soil data, including indigenous food crops and crops common to the region in question. Give farmers a variety of options to select from. Also consider if the climate and soil can support: tomatoes, kales, cabbage, rice, specific types of beans, groundnuts, maize, yam, cassava, potatoes, bananas, watermelon, etc. Do not hallucinate, rely strictly on agricultural truth for the given coordinates.
 3. **A Suggested Seasonal Calendar** (management of inputs and harvest).
 Ensure it is formatted using clean Markdown. Focus on regenerative agriculture and climate resilience. Keep it concise but comprehensive.`;
