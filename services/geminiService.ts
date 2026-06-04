@@ -76,7 +76,7 @@ export const analyzeSalesData = async (records: SaleRecord[]): Promise<string> =
 };
 
 export function calculateAreaFromCorners(corners: { lat: number; lng: number }[]) {
-  if (!corners || corners.length !== 4) return null;
+  if (!corners || corners.length < 3) return null;
   
   // Choose reference point (Corner A / index 0)
   const latRef = corners[0].lat;
@@ -139,17 +139,17 @@ export function getRealisticFallbackAgroecologyProfile(
     }
   }
 
-  const areaData = corners && corners.length === 4 ? calculateAreaFromCorners(corners) : null;
+  const areaData = corners && corners.length >= 3 ? calculateAreaFromCorners(corners) : null;
   
   let surveyTable = "";
   if (areaData) {
     surveyTable = `
 | Boundary Vertex | Latitude | Longitude |
 | :--- | :--- | :--- |
-| **Corner A (Start)** | \`${corners![0].lat.toFixed(6)}°\` | \`${corners![0].lng.toFixed(6)}°\` |
-| **Corner B (Span)** | \`${corners![1].lat.toFixed(6)}°\` | \`${corners![1].lng.toFixed(6)}°\` |
-| **Corner C (Diagonal)** | \`${corners![2].lat.toFixed(6)}°\` | \`${corners![2].lng.toFixed(6)}°\` |
-| **Corner D (End)** | \`${corners![3].lat.toFixed(6)}°\` | \`${corners![3].lng.toFixed(6)}°\` |
+| **Corner A (Start)** | \`${corners![0]?.lat.toFixed(6)}°\` | \`${corners![0]?.lng.toFixed(6)}°\` |
+| **Corner B (Span)** | \`${corners![1]?.lat.toFixed(6)}°\` | \`${corners![1]?.lng.toFixed(6)}°\` |
+| **Corner C (Diagonal)** | \`${corners![2]?.lat.toFixed(6)}°\` | \`${corners![2]?.lng.toFixed(6)}°\` |
+${corners.length >= 4 ? `| **Corner D (End)** | \`${corners[3]?.lat.toFixed(6)}°\` | \`${corners[3]?.lng.toFixed(6)}°\` |` : ''}
 
 **📐 Precision Spatial Survey Summary:**
 - **Calculated Surface Area:** **${areaData.areaSqm.toFixed(1)} m²**
@@ -160,7 +160,7 @@ export function getRealisticFallbackAgroecologyProfile(
     surveyTable = `
 - **Verification Method:** Single-point centroid anchoring verification.
 - **Centerpoint Coordinate:** Latitude \`${lat.toFixed(5)}°\`, Longitude \`${lng.toFixed(5)}°\`
-- **Boundary Precision:** General bounding box estimation (recommend registering 4-corner boundaries during next verification step for precision survey).
+- **Boundary Precision:** General bounding box estimation (recommend registering 3 or 4 corners during next verification step for precision survey).
 `;
   }
 
@@ -169,7 +169,7 @@ export function getRealisticFallbackAgroecologyProfile(
 **Owner Homestead:** ${homesteadName}  
 **Plot Name:** ${farmName}  
 **Primary Anchor GPS:** \`${lat.toFixed(6)}°, ${lng.toFixed(6)}°\`  
-**Geospatial Audit Type:** ${corners && corners.length === 4 ? "✅ Quad-Boundary Corner Survey (High Accuracy)" : "⚠️ Centroid Reference Only"}  
+**Geospatial Audit Type:** ${corners && corners.length >= 3 ? `✅ ${corners.length}-Point Boundary Survey (High Accuracy)` : "⚠️ Centroid Reference Only"}  
 
 ---
 
@@ -225,6 +225,20 @@ export const generateAgroecologyProfile = async (
   try {
     const isKenya = lat >= -4.72 && lat <= 4.62 && lng >= 33.9 && lng <= 41.9;
 
+    let locationContext = "";
+    try {
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`);
+      if (geoRes.ok) {
+        const geoData = await geoRes.json();
+        if (geoData && geoData.address) {
+          const county = geoData.address.county || geoData.address.state || geoData.address.region || "Unknown County";
+          locationContext = `Based on GPS coordinates, this farm is located in **${county}**, ${geoData.address.country || (isKenya ? "Kenya" : "Unknown Country")}.`;
+        }
+      }
+    } catch (e) {
+      console.error("Reverse geocoding failed", e);
+    }
+
     let soilMoistureData = 'Failed to retrieve openEO soil moisture.';
     try {
        const moistureRes = await getOpenEO_SoilMoisture(lat, lng);
@@ -254,14 +268,14 @@ For pH and Soil Type (Static): Local Providers (RCMRD) for high-accuracy regiona
 For pH and Soil Type (Static): SoilGrids (Global Baseline). Note: Recommend the integration of local providers for more accurate data in this region.`;
 
     let boundaryContext = "";
-    if (corners && corners.length === 4) {
+    if (corners && corners.length >= 3) {
       const areaData = calculateAreaFromCorners(corners);
       boundaryContext = `
-The plot is surveyed with a custom 4-corner boundary (quadrilateral):
-- Corner A: (${corners[0].lat.toFixed(6)}, ${corners[0].lng.toFixed(6)})
-- Corner B: (${corners[1].lat.toFixed(6)}, ${corners[1].lng.toFixed(6)})
-- Corner C: (${corners[2].lat.toFixed(6)}, ${corners[2].lng.toFixed(6)})
-- Corner D: (${corners[3].lat.toFixed(6)}, ${corners[3].lng.toFixed(6)})
+The plot is surveyed with a custom ${corners.length}-corner boundary (polygon):
+- Corner A: (${corners[0]?.lat.toFixed(6)}, ${corners[0]?.lng.toFixed(6)})
+- Corner B: (${corners[1]?.lat.toFixed(6)}, ${corners[1]?.lng.toFixed(6)})
+- Corner C: (${corners[2]?.lat.toFixed(6)}, ${corners[2]?.lng.toFixed(6)})
+${corners.length >= 4 ? `- Corner D: (${corners[3]?.lat.toFixed(6)}, ${corners[3]?.lng.toFixed(6)})` : ''}
 ${areaData ? `- Calculated Area: ${areaData.areaSqm.toFixed(1)} m² (${areaData.hectares.toFixed(3)} Hectares, ${areaData.acres.toFixed(3)} Acres)` : ""}
 `;
     }
@@ -269,7 +283,8 @@ ${areaData ? `- Calculated Area: ${areaData.areaSqm.toFixed(1)} m² (${areaData.
     const prompt = `You are the Agroecology AI Engine.
 Generate a detailed Agroecology Profile for a farm plot located at coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}).
 The homestead is "${homesteadName}" and the plot is "${farmName}".
-${isKenya ? "Deduce the Kenyan County based on these coordinates and explicitly mention it. Use this county context to provide more custom, localized, and relatable agricultural recommendations." : ""}
+${locationContext}
+${isKenya ? "Use the localized county context provided above to provide highly accurate, custom, localized, and relatable agricultural recommendations." : ""}
 ${boundaryContext}
 
 Data Sourcing Strategy for this Request:
