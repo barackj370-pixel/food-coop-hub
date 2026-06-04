@@ -5,6 +5,9 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import cors from "cors";
 
+// Bypass self-signed certs for prototype GeoServers (RCMRD)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 // Only load dotenv explicitly in dev mode or if explicitly required
 if (process.env.NODE_ENV !== "production") {
     dotenv.config();
@@ -111,12 +114,11 @@ async function startServer() {
       const { access_token } = await tokenResponse.json();
 
       // Step 2: Define Sentinel-1 Process Graph for Soil Moisture index / backscatter retrieval
-      // Since it's a proof of concept, we query a recent Sentinel-1 GRD imagery point
-      // using standard openEO processes (load_collection, filter_spatial, filter_temporal, etc.)
       const processGraph = {
-        process_graph: {
-          load_collection_1: {
-            process_id: "load_collection",
+        process: {
+          process_graph: {
+            load_collection_1: {
+              process_id: "load_collection",
             arguments: {
               id: "SENTINEL1_GRD",
               spatial_extent: {
@@ -125,11 +127,19 @@ async function startServer() {
                 east: lng + 0.05,
                 north: lat + 0.05,
               },
-              temporal_extent: ["2023-01-01T00:00:00Z", "2023-01-31T23:59:59Z"], // Dummy dates for recent past, can be dynamic
+              temporal_extent: ["2023-01-01T00:00:00Z", "2023-01-31T23:59:59Z"],
               bands: ["VV", "VH"]
+            }
+          },
+          save_result_1: {
+            process_id: "save_result",
+            arguments: {
+              data: { from_node: "load_collection_1" },
+              format: "JSON"
             },
             result: true
           }
+        }
         }
       };
 
@@ -138,7 +148,7 @@ async function startServer() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${access_token}`
+          "Authorization": `Bearer oidc/CDSE/${access_token}`
         },
         body: JSON.stringify(processGraph)
       });
@@ -176,19 +186,28 @@ async function startServer() {
 
       // Format for the bounding box / point intersection via WFS
       // Since it's a Geoserver, we construct the CQL_FILTER
-      const wfsUrl = `https://geoportal.rcmrd.org/geoserver/wfs?service=wfs&version=2.0.0&request=GetFeature&typeNames=rcmrd:soil_types&outputFormat=application/json&cql_filter=INTERSECTS(geom, POINT(${lng} ${lat}))`;
+      const wfsUrl = `https://geoportal.rcmrd.org/geoserver/wfs?service=wfs&version=2.0.0&request=GetFeature&typeNames=rcmrd:soil_types&outputFormat=application/json&cql_filter=INTERSECTS(geom,%20POINT(${lng}%20${lat}))`;
 
-      const response = await fetch(wfsUrl, {
-         method: 'GET',
-         headers: { 'Accept': 'application/json' }
+      const responseData = await new Promise<any>((resolve, reject) => {
+        const https = require('https');
+        const req = https.get(wfsUrl, { rejectUnauthorized: false }, (res) => {
+          if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+             return reject(new Error(`Status Code: ${res.statusCode}`));
+          }
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+             try {
+                resolve(JSON.parse(data));
+             } catch (err) {
+                resolve({});
+             }
+          });
+        });
+        req.on('error', reject);
       });
 
-      if (!response.ok) {
-         console.error("RCMRD Fetch Error:", await response.text());
-         return res.status(500).json({ error: "Failed to connect to RCMRD Geoserver" });
-      }
-
-      const rawData = await response.json();
+      const rawData = responseData;
 
       // Assuming standard GeoJSON WFS Response
       const features = rawData.features || [];
