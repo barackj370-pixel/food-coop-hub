@@ -160,7 +160,7 @@ export function getRealisticFallbackAgroecologyProfile(
 | **Corner A (Start)** | \`${corners![0]?.lat.toFixed(6)}°\` | \`${corners![0]?.lng.toFixed(6)}°\` |
 | **Corner B (Span)** | \`${corners![1]?.lat.toFixed(6)}°\` | \`${corners![1]?.lng.toFixed(6)}°\` |
 | **Corner C (Diagonal)** | \`${corners![2]?.lat.toFixed(6)}°\` | \`${corners![2]?.lng.toFixed(6)}°\` |
-${corners.length >= 4 ? `| **Corner D (End)** | \`${corners[3]?.lat.toFixed(6)}°\` | \`${corners[3]?.lng.toFixed(6)}°\` |` : ''}
+${corners!.length >= 4 ? `| **Corner D (End)** | \`${corners![3]?.lat.toFixed(6)}°\` | \`${corners![3]?.lng.toFixed(6)}°\` |` : ''}
 
 **📐 Precision Spatial Survey Summary:**
 - **Calculated Surface Area:** **${areaData.areaSqm.toFixed(1)} m²**
