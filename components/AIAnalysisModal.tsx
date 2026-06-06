@@ -84,7 +84,7 @@ const AIAnalysisModal: React.FC<AIAnalysisModalProps> = ({ farm, onClose }) => {
           latitude: lat,
           longitude: lng,
           ph_level: 6.2,
-          soil_type: 'Ferralsols (Leached red soils of East Africa) [Clay/Loam/Sand]',
+          soil_type: 'Ferralsols (Leached red soils of East Africa) [Clay Loam]',
           moisture_level: simulatedMoistureStr,
           current_crop: farm.cropsGrown || 'Mixed crops'
         };
