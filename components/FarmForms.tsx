@@ -6,6 +6,7 @@ interface FarmFormsProps {
   agentIdentity: AgentIdentity;
   dynamicClusters: string[];
   users?: AgentIdentity[];
+  onFormSubmitted?: () => void;
 }
 
 function getDistanceFromLatLonInM(
@@ -31,6 +32,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   agentIdentity,
   dynamicClusters,
   users = [],
+  onFormSubmitted,
 }) => {
   const [activeForm, setActiveForm] = useState<
     "weekly" | "solidarity" | "homestead"
@@ -72,12 +74,20 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       let location: { lat: number; lng: number } | null = null;
       try {
         location = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) =>
-              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            (err) => reject(err),
-            { timeout: 10000, enableHighAccuracy: true },
-          );
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                clearTimeout(id);
+                resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              },
+              (err) => {
+                clearTimeout(id);
+                reject(err);
+              },
+              { timeout: 10000, enableHighAccuracy: true },
+            );
+            const id = setTimeout(() => {
+              reject(new Error("Geolocation request timed out manually."));
+            }, 10000);
         });
       } catch (geoErr) {
         console.warn("Could not get location:", geoErr);
@@ -129,6 +139,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           location,
           submittedAt: new Date().toISOString(),
           agentCluster: agentIdentity.cluster,
+          farmerPhone: agentIdentity.phone,
         }),
       };
 
@@ -140,6 +151,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         message: "Form submitted successfully! GPS location verified.",
       });
       form.reset();
+      if (onFormSubmitted) onFormSubmitted();
 
       // Auto-hide success message after 5 seconds
       setTimeout(() => setSubmitStatus(null), 5000);
