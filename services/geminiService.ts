@@ -118,14 +118,14 @@ export function getRealisticFallbackAgroecologyProfile(
   let microclimate = "Sub-humid tropical highlands";
   
   if (isKenya) {
-    if (Math.abs(lat - (-1.26)) < 0.25 && Math.abs(lng - 36.75) < 0.25) {
-      soilType = "Deep Red Nitosols (Volcanic origin)";
+    if (Math.abs(lat - (-1.26)) < 0.1 && Math.abs(lng - 36.75) < 0.1) {
+      soilType = "Deep Red Nitosols (Volcanic origin) [Clay Loam]";
       phRange = "5.5 - 6.5 (Highly fertile but acidic trend)";
       microclimate = "Central Highland Zone (Kangemi/Nairobi sub-humid)";
     } else {
-      soilType = "Ferralsols (Leached red soils of East Africa)";
+      soilType = "Ferralsols (Leached red soils of East Africa) [Clay/Loam/Sand]";
       phRange = "5.8 - 6.4";
-      microclimate = "Tropical Wet-Seasonal zone";
+      microclimate = "Lake Basin / Western Kenya (Sub-humid to Humid)";
     }
   } else {
     if (Math.abs(lat) < 10) {
