@@ -7,6 +7,7 @@ import { Q } from '@nozbe/watermelondb';
 import Markdown from 'react-markdown';
 
 import { generateAgroecologyProfile, calculateAreaFromCorners } from '../services/geminiService';
+import { AgroecologicalCropCalendar } from './AgroecologicalCropCalendar';
 
 interface FarmerDashboardProps {
   agentIdentity: AgentIdentity;
@@ -60,13 +61,18 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
     const lngC = parseFloat(cornerC.lng);
     const latD = parseFloat(cornerD.lat);
     const lngD = parseFloat(cornerD.lng);
-    if (!isNaN(latA) && !isNaN(lngA) && !isNaN(latB) && !isNaN(lngB) && !isNaN(latC) && !isNaN(lngC) && !isNaN(latD) && !isNaN(lngD)) {
+    
+    // Check if at least A, B, and C are valid for a triangle
+    if (!isNaN(latA) && !isNaN(lngA) && !isNaN(latB) && !isNaN(lngB) && !isNaN(latC) && !isNaN(lngC)) {
       const arr = [
         { lat: latA, lng: lngA },
         { lat: latB, lng: lngB },
-        { lat: latC, lng: lngC },
-        { lat: latD, lng: lngD }
+        { lat: latC, lng: lngC }
       ];
+      // If D is valid, add it
+      if (!isNaN(latD) && !isNaN(lngD)) {
+        arr.push({ lat: latD, lng: lngD });
+      }
       return calculateAreaFromCorners(arr);
     }
     return null;
@@ -269,8 +275,8 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
         const latD = parseFloat(cornerD.lat);
         const lngD = parseFloat(cornerD.lng);
 
-        if (isNaN(latA) || isNaN(lngA) || isNaN(latB) || isNaN(lngB) || isNaN(latC) || isNaN(lngC) || isNaN(latD) || isNaN(lngD)) {
-          alert("Please complete the information for all 4 corners or turn off '4-Corner Survey Layout'.");
+        if (isNaN(latA) || isNaN(lngA) || isNaN(latB) || isNaN(lngB) || isNaN(latC) || isNaN(lngC)) {
+          alert("Please complete the information for at least 3 corners (A, B, C) for a triangle, or turn off 'GPS Area Survey'.");
           setIsRegistering(false);
           return;
         }
@@ -278,9 +284,11 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
         cornersArray = [
           { lat: latA, lng: lngA },
           { lat: latB, lng: lngB },
-          { lat: latC, lng: lngC },
-          { lat: latD, lng: lngD }
+          { lat: latC, lng: lngC }
         ];
+        if (!isNaN(latD) && !isNaN(lngD)) {
+          cornersArray.push({ lat: latD, lng: lngD });
+        }
 
         const calculated = calculateAreaFromCorners(cornersArray);
         if (calculated) {
@@ -637,7 +645,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
 
                     {/* Corner D */}
                     <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-col gap-2">
-                      <span className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Corner D (South-West)</span>
+                      <span className="text-[9px] font-black uppercase text-emerald-700 tracking-wider">Corner D (South-West) [Optional for Triangle]</span>
                       <input 
                         type="number" 
                         step="any"
@@ -670,6 +678,12 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
           </div>
         </div>
       </div>
+
+      <AgroecologicalCropCalendar 
+        agentIdentity={agentIdentity} 
+        farmBaselines={filteredFarmProfiles} 
+        displayLogs={displayLogs} 
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Farm List */}
@@ -837,7 +851,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-200/50">
             <i className="fas fa-edit text-emerald-600 mb-4 text-xl"></i>
             <h4 className="font-black text-xs uppercase mb-2">Step 2</h4>
-            <p className="text-[11px] text-slate-600 font-bold">Submit Weekly logs even if you are at the coop.</p>
+            <p className="text-[11px] text-slate-600 font-bold">Get Weekly Activities Report Logs.</p>
           </div>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-200/50">
             <i className="fas fa-chart-line text-emerald-600 mb-4 text-xl"></i>
