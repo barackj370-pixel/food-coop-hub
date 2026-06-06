@@ -487,27 +487,10 @@ const App: React.FC = () => {
   const [farmFormsData, setFarmFormsData] = useState<any[]>([]);
   const [addCoopStatus, setAddCoopStatus] = useState<{ status: 'idle' | 'loading' | 'success' | 'error' | 'warning', message?: string }>({ status: 'idle' });
   
-  useEffect(() => {
-    const fetchCustomData = async () => {
-      const { data: coopsData } = await supabase.from('pages').select('content').eq('id', 'system_food_coops').single();
-      if (coopsData && coopsData.content) {
-        try {
-          setCustomFoodCoops(JSON.parse(coopsData.content));
-        } catch (e) {}
-      }
-      const { data: coordsData } = await supabase.from('pages').select('content').eq('id', 'system_food_coop_coords').single();
-      if (coordsData && coordsData.content) {
-        try {
-          const parsed = JSON.parse(coordsData.content);
-          setCustomCoordinates(parsed);
-          updateClusterCoordinates(parsed);
-        } catch (e) {}
-      }
-      // Fetch Farm Baselines
+  const loadFarmRecords = useCallback(async () => {
+    try {
       const { data: baselines } = await supabase.from('farm_baselines').select('*');
-      // Fetch Activity Logs
       const { data: logs } = await supabase.from('farm_activity_logs').select('*');
-
       const { data: pageForms } = await supabase.from('pages').select('*').like('title', 'FarmForm_%');
 
       const allFarmRecords: any[] = [];
@@ -521,7 +504,7 @@ const App: React.FC = () => {
               id: p.id,
               dbRowId: p.id,
               formType: parsedContent.formType,
-              farmerPhone: parsedContent.homesteadContact || parsedContent.productionOfficerContact || '',
+              farmerPhone: parsedContent.farmerPhone || parsedContent.homesteadContact || parsedContent.productionOfficerContact || '',
               farmId: p.id,
               submittedAt: parsedContent.submittedAt || p.created_at,
               fromPages: true
@@ -562,9 +545,32 @@ const App: React.FC = () => {
       }
 
       setFarmFormsData(allFarmRecords.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
+    } catch (e) {
+      console.error("Failed to fetch farm forms manually:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchCustomData = async () => {
+      const { data: coopsData } = await supabase.from('pages').select('content').eq('id', 'system_food_coops').single();
+      if (coopsData && coopsData.content) {
+        try {
+          setCustomFoodCoops(JSON.parse(coopsData.content));
+        } catch (e) {}
+      }
+      const { data: coordsData } = await supabase.from('pages').select('content').eq('id', 'system_food_coop_coords').single();
+      if (coordsData && coordsData.content) {
+        try {
+          const parsed = JSON.parse(coordsData.content);
+          setCustomCoordinates(parsed);
+          updateClusterCoordinates(parsed);
+        } catch (e) {}
+      }
+      
+      await loadFarmRecords();
     };
     fetchCustomData();
-  }, []);
+  }, [loadFarmRecords]);
 
   const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
     const saved = persistence.get('agent_session');
@@ -2670,7 +2676,7 @@ const App: React.FC = () => {
 
         {currentPortal === 'FORMS' && agentIdentity && (
           <div className="animate-in fade-in duration-300">
-            <FarmForms agentIdentity={agentIdentity} dynamicClusters={dynamicClusters} users={combinedUsers} />
+            <FarmForms agentIdentity={agentIdentity} dynamicClusters={dynamicClusters} users={combinedUsers} onFormSubmitted={loadFarmRecords} />
           </div>
         )}
 
