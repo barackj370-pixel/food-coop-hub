@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CROP_CONFIG, COMMODITY_CATEGORIES, PROFIT_MARGIN, TEN_PERCENT_COOPS } from '../constants';
 // Updated import path to types
-import { SystemRole, ProduceListing } from '../types';
+import { SystemRole, ProduceListing, isSuperAgent } from '../types';
 import { uploadProduceImage } from '../services/supabaseService';
 
 interface ProduceFormProps {
@@ -12,6 +12,7 @@ interface ProduceFormProps {
   defaultSupplierName?: string;
   defaultSupplierPhone?: string;
   initialData?: ProduceListing;
+  agentPhone?: string;
   onSubmit: (data: {
     date: string;
     cropType: string;
@@ -26,9 +27,9 @@ interface ProduceFormProps {
   }) => void;
 }
 
-const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentCluster, clusters = [], defaultSupplierName, defaultSupplierPhone, initialData }) => {
+const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentCluster, clusters = [], defaultSupplierName, defaultSupplierPhone, initialData, agentPhone }) => {
   const isSupplier = userRole === SystemRole.SUPPLIER;
-  const isPrivileged = userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER;
+  const isPrivileged = userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER || isSuperAgent(agentPhone);
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -192,7 +193,7 @@ const ProduceForm: React.FC<ProduceFormProps> = ({ onSubmit, userRole, agentClus
           />
         </div>
 
-        {(userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) && clusters.length > 0 && (
+        {isPrivileged && clusters.length > 0 && (
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
             <select 
