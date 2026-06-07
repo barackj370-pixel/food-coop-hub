@@ -29,18 +29,73 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsRegistering(true);
-    setMessage('');
+    setMessage('Acquiring live GPS location...');
+
+    let lat = 0;
+    let lon = 0;
+    let locationName = '';
+
+    try {
+      const pos: GeolocationPosition = await new Promise((resolve, reject) => {
+         let timeoutId: any;
+         if (!navigator.geolocation) {
+            return reject(new Error("Geolocation not supported by this browser."));
+         }
+         timeoutId = setTimeout(() => {
+            reject(new Error("Geolocation request timed out manually."));
+         }, 10000);
+         navigator.geolocation.getCurrentPosition(
+            (position) => {
+               clearTimeout(timeoutId);
+               resolve(position);
+            },
+            (err) => {
+               clearTimeout(timeoutId);
+               reject(err);
+            },
+            { timeout: 10000, enableHighAccuracy: true }
+         );
+      });
+      lat = pos.coords.latitude;
+      lon = pos.coords.longitude;
+
+      setMessage('Identifying nearest location...');
+      // Reverse Geocoding
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+        const geocode = await res.json();
+        if (geocode && geocode.address) {
+          const addr = geocode.address;
+          locationName = addr.suburb || addr.village || addr.town || addr.city || addr.county || addr.state || geocode.display_name || '';
+        }
+      } catch (geocodeErr) {
+        console.warn("Reverse geocoding failed", geocodeErr);
+      }
+
+    } catch (geoErr: any) {
+       // if geolocation fails, we'll continue but with 0 values
+       console.warn("Location error:", geoErr);
+    }
+
     try {
       const id = `homestead_${Date.now()}`;
+      
+      const aiProfileContent = {
+         markdown: locationName 
+             ? `Agroecology Profile pending for plot located at **${locationName}** (GPS: ${lat.toFixed(5)}, ${lon.toFixed(5)}).` 
+             : `Agroecology Profile pending for plot (GPS: ${lat.toFixed(5)}, ${lon.toFixed(5)}).`
+      };
+
       const payload = {
         id,
         farmer_phone: phoneOrEmail, 
         farmer_name: 'Open Source User',
         farm_name: homesteadName,
-        cluster: 'General',
+        cluster: locationName ? locationName : 'General',
         verified_at: new Date().toISOString(),
-        latitude: 0, // Default to 0, actual coordinates picked during plot registration
-        longitude: 0 // Default to 0, actual coordinates picked during plot registration
+        latitude: lat,
+        longitude: lon,
+        ai_profile: JSON.stringify(aiProfileContent)
       };
       
       const { error } = await supabase.from('farm_baselines').insert([payload]);
@@ -48,7 +103,7 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
       if (error) throw error;
       
       // Attempt to save AI profile explicitly to pages for fallback too
-      await supabase.from('pages').upsert([{ id: `ai_profile_${id}`, content: 'Pending Plot Registration', updated_at: new Date().toISOString() }]);
+      await supabase.from('pages').upsert([{ id: `ai_profile_${id}`, content: JSON.stringify(aiProfileContent), updated_at: new Date().toISOString() }]);
 
       // Auto-Login
       const newIdentity: AgentIdentity = {
@@ -82,7 +137,11 @@ const HomesteadRegistration: React.FC<Props> = ({ onSuccess }) => {
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-emerald-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-12 opacity-5"><i className="fas fa-home text-9xl text-emerald-600"></i></div>
         <h2 className="text-3xl font-black text-black mb-2">Open Source Homestead Baseline</h2>
-        <p className="text-slate-500 font-medium mb-8">Register your homestead/household to get access to soil baselines, crop calendars, and recommendations. Powered by Gemini AI, Copernicus (CDSE) / openEO, RCMRD, and SoilGrids.</p>
+        <p className="text-slate-500 font-medium mb-6">Register your homestead/household to get access to soil baselines, crop calendars, and recommendations. Powered by Gemini AI, Copernicus (CDSE) / openEO, RCMRD, and SoilGrids.</p>
+        
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-6 py-4 rounded-xl mb-8 font-medium text-sm">
+          <i className="fas fa-info-circle mr-2"></i><strong>Already a member or a Sales Agent?</strong> This open-source portal is strictly for non-members evaluating soil data. If you are an existing food coop member or a sales agent registering on behalf of a member, please <a href="/login" onClick={(e) => { e.preventDefault(); window.location.href = '#'; /* let App router handle or just use window.location */ }} className="underline font-bold">login</a> and use the Farm Dashboard to add homesteads.
+        </div>
         
         <form onSubmit={handleRegister} className="space-y-6 relative z-10">
           <div>
