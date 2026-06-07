@@ -258,8 +258,10 @@ export const generateAgroecologyProfile = async (
       if (geoRes.ok) {
         const geoData = await geoRes.json();
         if (geoData && geoData.address) {
-          const county = geoData.address.county || geoData.address.state || geoData.address.region || "Unknown County";
-          locationContext = `Based on GPS coordinates, this farm is located in **${county}**, ${geoData.address.country || (isKenya ? "Kenya" : "Unknown Country")}.`;
+          const addr = geoData.address;
+          const localArea = addr.suburb || addr.village || addr.town || addr.city || addr.neighbourhood || addr.road || "Unknown Sublocation";
+          const county = addr.county || addr.state || addr.region || "Unknown County";
+          locationContext = `Based on GPS coordinates (**${finalLat.toFixed(5)}, ${finalLng.toFixed(5)}**), this farm is identified at sublocation/location: **${localArea}** in **${county}**, ${addr.country || (isKenya ? "Kenya" : "Unknown Country")}.`;
         }
       }
     } catch (e) {
