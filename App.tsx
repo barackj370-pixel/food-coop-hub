@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost } from './types';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost, isSuperAgent } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
@@ -44,7 +44,7 @@ type MarketView = 'SALES' | 'SUPPLIER';
 const APP_LOGO = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='none' stroke='%23000000' stroke-width='30' stroke-linecap='round' stroke-linejoin='round' d='M64 96h64l48 240h256l48-176H192'/%3E%3Ccircle fill='%23dc2626' cx='208' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='208' cy='432' r='16'/%3E%3Ccircle fill='%23dc2626' cx='384' cy='432' r='40'/%3E%3Ccircle fill='%23000000' cx='384' cy='432' r='16'/%3E%3Cpath fill='%2316a34a' d='M256 128c0-50-40-90-90-90s-60 40-40 90c20 40 60 70 130 50z'/%3E%3Cpath fill='%2322c55e' d='M256 128c0-50 40-90 90-90s60 40 40 90c-20 40-60 70-130 50z'/%3E%3Ccircle fill='%23dc2626' cx='256' cy='224' r='48'/%3E%3Cpath fill='none' stroke='%23000000' stroke-width='8' stroke-linecap='round' d='M256 176v48'/%3E%3C/svg%3E";
 
 // Bumped version to trigger safe migration logic
-const APP_VERSION = '1.2.4';
+const APP_VERSION = '1.2.5';
 
 const persistence = {
   get: (key: string): string | null => {
@@ -2004,7 +2004,7 @@ const App: React.FC = () => {
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
               <button onClick={() => setCurrentPortal('PRODUCTS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'PRODUCTS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Marketplace</button>
-              <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Get Soil Data</button>
+              {!agentIdentity && <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Get Soil Data</button>}
               <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
               <button onClick={() => setCurrentPortal('WEATHER')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'WEATHER' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Agro-Weather</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
@@ -2062,7 +2062,16 @@ const App: React.FC = () => {
 
         {currentPortal === 'HOMESTEAD' && (
           <div className="space-y-12 animate-in fade-in duration-300">
-             <HomesteadRegistration onSuccess={() => setCurrentPortal('HOME')} />
+             {agentIdentity ? (
+                <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center">
+                  <i className="fas fa-exclamation-triangle text-amber-500 text-6xl mb-6"></i>
+                  <h2 className="text-2xl font-black text-black mb-4">Access Restricted</h2>
+                  <p className="text-slate-500 mb-6 font-medium">As a registered member, you cannot use this open-source portal. Please go to your Farm Dashboard to add a homestead or register farming lands.</p>
+                  <button onClick={() => setCurrentPortal('MY_FARM')} className="bg-black text-white px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-xs">Go to Farm Dashboard</button>
+                </div>
+             ) : (
+                <HomesteadRegistration onSuccess={() => setCurrentPortal('HOME')} />
+             )}
           </div>
         )}
 
