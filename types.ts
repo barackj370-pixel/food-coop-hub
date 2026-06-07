@@ -26,6 +26,17 @@ export enum SystemRole {
   FARMER = 'Farmer'
 }
 
+export const SUPER_AGENT_PHONES = ['+254726838526', '0726838526', '254726838526', '+254768750668', '0768750668', '254768750668', '+254726051308', '0726051308', '254726051308'];
+
+export const isSuperAgent = (phone?: string) => {
+  if (!phone) return false;
+  const normalized = phone.startsWith('+') ? phone : (phone.startsWith('254') ? '+' + phone : (phone.startsWith('0') ? '+254' + phone.substring(1) : phone));
+  return SUPER_AGENT_PHONES.some(p => {
+    const normalizedSuper = p.startsWith('+') ? p : (p.startsWith('254') ? '+' + p : (p.startsWith('0') ? '+254' + p.substring(1) : p));
+    return normalized === normalizedSuper;
+  });
+};
+
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'AWAITING_ACTIVATION';
 
 export interface AgentIdentity {
