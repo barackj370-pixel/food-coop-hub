@@ -1078,7 +1078,7 @@ const App: React.FC = () => {
   const canManageNews = isSystemDev || 
     agentIdentity?.role === SystemRole.MANAGER || 
     agentIdentity?.role === SystemRole.SALES_MANAGER || 
-    (agentIdentity?.phone && agentIdentity.phone.includes('726838526'));
+    isSuperAgent(agentIdentity?.phone);
 
   const isPrivilegedRole = (agent: AgentIdentity | null) => {
     if (!agent) return false;
@@ -1086,7 +1086,8 @@ const App: React.FC = () => {
            agent.role === SystemRole.MANAGER || 
            agent.role === SystemRole.FINANCE_OFFICER || 
            agent.role === SystemRole.AUDITOR ||
-           agent.role === SystemRole.SALES_MANAGER;
+           agent.role === SystemRole.SALES_MANAGER ||
+           isSuperAgent(agent.phone);
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
@@ -2391,7 +2392,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 )}
-                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
+                {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} agentPhone={agentIdentity.phone} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 <AuditLogTable data={records.filter(r => r.isAggregate === true)} title="Universal Ledger" onEdit={handleEditRecord} isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
               </>
             )}
@@ -2402,6 +2403,7 @@ const App: React.FC = () => {
                     userRole={agentIdentity.role} 
                     agentCluster={agentIdentity.cluster}
                     clusters={dynamicClusters}
+                    agentPhone={agentIdentity.phone}
                     defaultSupplierName={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.name : undefined} 
                     defaultSupplierPhone={agentIdentity.role === SystemRole.SUPPLIER ? agentIdentity.phone : undefined} 
                     onSubmit={handleAddProduce} 
