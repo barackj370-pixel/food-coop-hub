@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { TEN_PERCENT_COOPS } from '../constants';
-import { ProduceListing, SystemRole } from '../types';
+import { ProduceListing, SystemRole, isSuperAgent } from '../types';
 
 interface SaleFormProps {
   clusters: string[];
   produceListings: ProduceListing[];
   agentCluster?: string;
   userRole?: SystemRole;
+  agentPhone?: string;
   initialData?: {
     cropType?: string;
     unitsSold?: number;
@@ -41,10 +42,12 @@ interface SaleFormProps {
   }) => void;
 }
 
-const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, userRole }: SaleFormProps) => {
+const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, userRole, agentPhone }: SaleFormProps) => {
+  const isSuper = userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER || isSuperAgent(agentPhone);
+  
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
-    cluster: (userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) ? '' : (agentCluster || ''),
+    cluster: isSuper ? '' : (agentCluster || ''),
   });
 
   const [aggregateBuyingPrice, setAggregateBuyingPrice] = useState<number>(0);
@@ -147,7 +150,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
         </div>
 
         {/* Selected Food Coop */}
-        {((userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER) && clusters.length > 0) ? (
+        {(isSuper && clusters.length > 0) ? (
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
             <select 
