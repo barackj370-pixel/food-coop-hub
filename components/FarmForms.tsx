@@ -74,20 +74,27 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       let location: { lat: number; lng: number } | null = null;
       try {
         location = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                clearTimeout(id);
-                resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-              },
-              (err) => {
-                clearTimeout(id);
-                reject(err);
-              },
-              { timeout: 10000, enableHighAccuracy: true },
-            );
-            const id = setTimeout(() => {
-              reject(new Error("Geolocation request timed out manually."));
-            }, 10000);
+          let timeoutId: any;
+          
+          if (!navigator.geolocation) {
+            return reject(new Error("Geolocation not supported by this browser."));
+          }
+          
+          timeoutId = setTimeout(() => {
+            reject(new Error("Geolocation request timed out manually."));
+          }, 10000);
+
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              clearTimeout(timeoutId);
+              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            },
+            (err) => {
+              clearTimeout(timeoutId);
+              reject(err);
+            },
+            { timeout: 10000, enableHighAccuracy: true }
+          );
         });
       } catch (geoErr) {
         console.warn("Could not get location:", geoErr);
@@ -139,7 +146,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           location,
           submittedAt: new Date().toISOString(),
           agentCluster: agentIdentity.cluster,
-          farmerPhone: agentIdentity.phone,
+          farmerPhone: data.homesteadContact || data.productionOfficerContact || data.convenerContact || agentIdentity.phone,
+          submittedByPhone: agentIdentity.phone, // Track who actually submitted it
         }),
       };
 
