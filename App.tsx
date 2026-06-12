@@ -23,6 +23,7 @@ import FarmDataMap from './components/FarmDataMap';
 import FarmerDashboard from './components/FarmerDashboard';
 import HomesteadRegistration from './components/HomesteadRegistration';
 import TableBanking from './components/TableBanking';
+import PhysicalVoucherGenerator from './components/PhysicalVoucherGenerator';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -36,7 +37,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING' | 'VOUCHERS';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 
@@ -620,7 +621,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -632,7 +633,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -1103,7 +1104,7 @@ const App: React.FC = () => {
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FORUM', 'HOMESTEAD', 'MY_FARM'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
-    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'VOUCHERS'];
     
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
@@ -1117,11 +1118,11 @@ const App: React.FC = () => {
     else if (agentIdentity.role === SystemRole.MANAGER) {
       // Director/Manager Access: Finance, Audit, Board, Invite.
       // EXPLICITLY NO SYSTEM PORTAL.
-      base.push('FINANCE', 'AUDIT', 'BOARD', 'INVITE');
+      base.push('FINANCE', 'AUDIT', 'BOARD', 'INVITE', 'VOUCHERS');
     }
     else if (agentIdentity.role === SystemRole.SALES_MANAGER) {
       // General Sales Manager Access: Invite
-      base.push('INVITE');
+      base.push('INVITE', 'VOUCHERS');
     }
     
     return base;
@@ -2711,6 +2712,12 @@ const App: React.FC = () => {
         {currentPortal === 'TABLE_BANKING' && agentIdentity && (
           <div className="animate-in fade-in duration-300">
             <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} />
+          </div>
+        )}
+
+        {currentPortal === 'VOUCHERS' && agentIdentity && (
+          <div className="animate-in fade-in duration-300">
+            <PhysicalVoucherGenerator />
           </div>
         )}
 
