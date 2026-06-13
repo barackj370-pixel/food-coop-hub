@@ -10,17 +10,17 @@ interface VoucherData {
 
 const VoucherCard: React.FC<VoucherData> = ({ serialNumber, customerName, foodCoop }) => {
   return (
-    <div className="w-full max-w-[8.5in] h-[4.25in] border-t-2 border-b-2 border-r-2 border-l-[6px] border-l-green-600 border-dashed border-slate-300 p-6 flex flex-row bg-white relative mb-8 page-break-inside-avoid shadow-sm print:shadow-none">
+    <div className="w-full max-w-[8.5in] h-[6.5in] border-t-2 border-b-2 border-r-2 border-l-[6px] border-l-green-600 border-dashed border-slate-300 p-6 flex flex-row bg-white relative mb-8 page-break-inside-avoid shadow-sm print:shadow-none">
        {/* Stub portion (stays in booklet) */}
        <div className="w-[30%] border-r-2 border-dashed border-slate-300 pr-6 flex flex-col justify-between">
           <div>
             <h3 className="font-bold flex items-center gap-2 text-xs uppercase tracking-widest text-slate-500">
               <i className="fas fa-ticket-alt"></i> KPL Stub
             </h3>
-            <p className="font-black text-lg mt-2">{serialNumber}</p>
+            <p className="font-black text-xl mt-2">{serialNumber}</p>
             <p className="text-xs text-slate-400 mt-1 truncate">{foodCoop}</p>
           </div>
-          <div className="text-sm space-y-2">
+          <div className="text-sm space-y-4 mt-2">
             <div>
               <p className="text-[9px] text-slate-400 uppercase tracking-wider mb-1">Issued To</p>
               <p className="font-bold border-b border-slate-200 pb-1 text-xs">{customerName || '_________________________'}</p>
@@ -51,9 +51,13 @@ const VoucherCard: React.FC<VoucherData> = ({ serialNumber, customerName, foodCo
               <p className="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Due Date <span className="lowercase normal-case tracking-normal">(DD/MM/YYYY)</span></p>
               <div className="border-b-2 border-slate-300 w-full h-4 mt-1 flex items-end"></div>
             </div>
+            <div className="col-span-2 pt-1">
+              <p className="text-[8px] text-slate-400 uppercase tracking-widest mb-1">Customer Sign</p>
+              <div className="border-b-2 border-slate-300 border-dashed w-full h-4 mt-1 flex items-end"></div>
+            </div>
           </div>
           
-          <div className="mt-4 border-2 border-slate-200 rounded-lg p-2 bg-slate-50 relative z-10 print:bg-white print:border-slate-300">
+          <div className="mt-4 border-2 border-slate-200 rounded-lg p-3 bg-slate-50 relative z-10 print:bg-white print:border-slate-300">
             <p className="text-[8px] text-slate-500 uppercase tracking-widest font-black text-center mb-1 border-b border-slate-200 pb-1">Repayment Clearance</p>
             <div className="flex items-center gap-2 mt-1.5">
                <div className="w-3.5 h-3.5 border-2 border-slate-400 bg-white"></div>
@@ -64,13 +68,18 @@ const VoucherCard: React.FC<VoucherData> = ({ serialNumber, customerName, foodCo
                <div className="w-full border-b border-slate-400 border-dashed h-2"></div>
             </div>
           </div>
+          
+          <div className="mt-3 w-full">
+             <p className="text-[8px] text-slate-400 font-bold tracking-widest text-left mb-1 uppercase">ChaPesa Agent Stamp</p>
+             <div className="border-2 border-dashed border-slate-300 rounded-lg h-20 bg-slate-50/50 print:bg-white w-full"></div>
+          </div>
        </div>
 
        {/* Main voucher portion (tears off to customer) */}
        <div className="w-[70%] pl-8 flex flex-col justify-between relative overflow-hidden">
           <div className="flex justify-between items-start relative z-10">
              <div>
-               <h2 className="font-black text-2xl uppercase tracking-widest text-green-700">Food Cooperative Voucher</h2>
+               <h2 className="font-black text-2xl tracking-widest text-green-700">ChaPesa Voucher</h2>
                <p className="text-sm font-bold text-slate-500 mt-1">{foodCoop}</p>
              </div>
              <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100">
@@ -89,73 +98,102 @@ const VoucherCard: React.FC<VoucherData> = ({ serialNumber, customerName, foodCo
              </div>
           </div>
 
-          <div className="flex justify-between items-start relative z-10 mt-1">
-             <div className="flex gap-1.5 flex-wrap">
+          <div className="flex justify-between items-start relative z-10 mt-3">
+             <div className="flex gap-3 flex-wrap">
                <div>
-                  <p className="text-[7.5px] text-slate-400 uppercase tracking-widest font-bold mb-1">Total Value</p>
-                  <div className="border-b-2 border-slate-300 w-[55px] h-5 mt-1 flex items-end font-bold text-sm"><span className="text-[7.5px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest font-bold mb-1">Total Value</p>
+                  <div className="border-b-2 border-slate-300 w-[60px] h-6 mt-1 flex items-end font-bold text-sm"><span className="text-[8px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
                </div>
                <div>
-                  <p className="text-[7.5px] text-slate-400 uppercase tracking-widest font-bold mb-1">Amount Used</p>
-                  <div className="border-b-2 border-slate-300 w-[55px] h-5 mt-1 flex items-end font-bold text-sm"><span className="text-[7.5px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest font-bold mb-1">Amount Used</p>
+                  <div className="border-b-2 border-slate-300 w-[60px] h-6 mt-1 flex items-end font-bold text-sm"><span className="text-[8px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
                </div>
                <div>
-                  <p className="text-[7.5px] text-slate-400 uppercase tracking-widest font-bold mb-1">Balance</p>
-                  <div className="border-b-2 border-slate-300 w-[55px] h-5 mt-1 flex items-end font-bold text-sm"><span className="text-[7.5px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest font-bold mb-1">Balance</p>
+                  <div className="border-b-2 border-slate-300 w-[60px] h-6 mt-1 flex items-end font-bold text-sm"><span className="text-[8px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
                </div>
                <div>
-                  <p className="text-[7.5px] text-slate-400 uppercase tracking-widest font-bold mb-1">Repay (+10%)</p>
-                  <div className="border-b-2 border-slate-300 w-[55px] h-5 mt-1 flex items-end font-bold text-sm"><span className="text-[7.5px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest font-bold mb-1">Repay (+10%)</p>
+                  <div className="border-b-2 border-slate-300 w-[60px] h-6 mt-1 flex items-end font-bold text-sm"><span className="text-[8px] text-slate-400 mr-0.5 pb-0.5">KES</span></div>
                </div>
                <div>
-                  <p className="text-[7.5px] text-slate-400 uppercase tracking-widest font-bold mb-1">Due Date <span className="lowercase normal-case tracking-normal">(DD/MM/YY)</span></p>
-                  <div className="border-b-2 border-slate-300 w-[70px] h-5 mt-1 flex items-end"></div>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest font-bold mb-1">Due Date <span className="lowercase normal-case tracking-normal">(DD/MM/YY)</span></p>
+                  <div className="border-b-2 border-slate-300 w-[80px] h-6 mt-1 flex items-end"></div>
                </div>
              </div>
-             <div className="text-right text-[7px] text-slate-400 font-bold uppercase tracking-wider space-y-1 flex-shrink-0 w-28 pl-2 leading-tight">
+             <div className="text-right text-[7.5px] text-slate-400 font-bold uppercase tracking-wider space-y-1 flex-shrink-0 w-32 pl-2 leading-tight">
                <p><i className="fas fa-check-circle mr-1 text-green-500"></i> Valid at authorized agents only.</p>
                <p><i className="fas fa-ban mr-1 text-red-500"></i> Not exchangeable for cash.</p>
              </div>
           </div>
 
+          <div className="mt-4 relative z-10">
+             <div className="flex gap-4 items-end mb-3">
+               <div className="flex-1">
+                 <p className="text-[8px] text-slate-400 uppercase tracking-widest font-bold mb-1">Items Purchased & Comments</p>
+                 <div className="border-b border-slate-300 border-dashed w-full h-4"></div>
+                 <div className="border-b border-slate-300 border-dashed w-full h-5 mt-1"></div>
+               </div>
+             </div>
+             <div className="flex justify-between items-end gap-6 mb-2">
+               <div className="flex-1">
+                 <div className="flex items-end gap-2">
+                   <span className="text-[8px] text-slate-500 font-bold uppercase tracking-widest flex-shrink-0">Customer Sign:</span>
+                   <div className="flex-1 border-b border-slate-400 border-dashed h-4"></div>
+                 </div>
+               </div>
+               <div className="w-1/3">
+                 <div className="flex items-end gap-2">
+                   <span className="text-[8px] text-slate-500 font-bold uppercase tracking-widest flex-shrink-0">Sign Date:</span>
+                   <div className="flex-1 border-b border-slate-400 border-dashed h-4"></div>
+                 </div>
+               </div>
+             </div>
+             
+             <div className="mt-3 w-full">
+                <p className="text-[9px] text-slate-400 font-bold tracking-widest text-left mb-1 uppercase">ChaPesa Agent Stamp</p>
+                <div className="border-2 border-dashed border-slate-300 rounded-lg h-24 bg-slate-50/50 print:bg-white w-full"></div>
+             </div>
+          </div>
+
           {/* Usage Log for partial redemptions */}
-          <div className="mt-2 pt-2 border-t-2 border-slate-100 flex justify-between items-end relative z-10 gap-4">
+          <div className="mt-4 pt-4 border-t-2 border-slate-100 flex justify-between items-end relative z-10 gap-4">
              <div className="flex-1">
                <p className="text-[8px] text-slate-400 uppercase tracking-widest font-bold mb-0.5">Usage Log (For Agent Use)</p>
                <table className="w-full text-left text-[9px] font-bold text-slate-800 border border-slate-200">
                  <thead>
                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="p-0.5 px-1 border-r border-slate-200 w-1/4 uppercase text-[7px] text-slate-400">Date</th>
-                      <th className="p-0.5 px-1 border-r border-slate-200 w-1/4 uppercase text-[7px] text-slate-400">Agent</th>
-                      <th className="p-0.5 px-1 border-r border-slate-200 w-1/4 uppercase text-[7px] text-slate-400">Value Used</th>
-                      <th className="p-0.5 px-1 uppercase text-[7px] text-slate-400">Balance</th>
+                      <th className="p-1 px-2 border-r border-slate-200 w-1/4 uppercase text-[8px] text-slate-400">Date</th>
+                      <th className="p-1 px-2 border-r border-slate-200 w-1/4 uppercase text-[8px] text-slate-400">Agent</th>
+                      <th className="p-1 px-2 border-r border-slate-200 w-1/4 uppercase text-[8px] text-slate-400">Value Used</th>
+                      <th className="p-1 px-2 uppercase text-[8px] text-slate-400">Balance</th>
                    </tr>
                  </thead>
                  <tbody>
-                   <tr className="border-b border-slate-200 h-4">
+                   <tr className="border-b border-slate-200 h-6">
                       <td className="border-r border-slate-200"></td><td className="border-r border-slate-200"></td><td className="border-r border-slate-200"></td><td></td>
                    </tr>
-                   <tr className="h-4">
+                   <tr className="h-6">
                       <td className="border-r border-slate-200"></td><td className="border-r border-slate-200"></td><td className="border-r border-slate-200"></td><td></td>
                    </tr>
                  </tbody>
                </table>
              </div>
              
-             <div className="w-40 border-2 border-slate-200 bg-slate-50 rounded-lg p-1.5 flex flex-col justify-between print:bg-white print:border-slate-300 mb-0.5">
-               <p className="text-[7.5px] text-slate-500 uppercase tracking-widest font-black text-center border-b border-slate-200 pb-0.5 mb-1">Official Clearance</p>
-               <div className="flex items-center gap-1.5 justify-center my-1">
-                 <div className="w-3 h-3 border-2 border-slate-400 bg-white shadow-inner"></div>
-                 <span className="text-[8.5px] font-black uppercase text-slate-700">LOAN REPAID</span>
+             <div className="w-48 border-2 border-slate-200 bg-slate-50 rounded-lg p-3 flex flex-col justify-between print:bg-white print:border-slate-300">
+               <p className="text-[8.5px] text-slate-500 uppercase tracking-widest font-black text-center border-b border-slate-200 pb-1 mb-2">Official Clearance</p>
+               <div className="flex items-center gap-2 justify-center my-2">
+                 <div className="w-4 h-4 border-2 border-slate-400 bg-white shadow-inner"></div>
+                 <span className="text-[10px] font-black uppercase text-slate-700">LOAN REPAID</span>
                </div>
-               <div className="mt-0.5 space-y-1">
-                 <div className="flex items-end gap-1">
-                   <span className="text-[6.5px] text-slate-400 uppercase font-bold">Agent</span>
-                   <div className="flex-1 border-b border-slate-400 border-dashed h-2"></div>
+               <div className="mt-2 space-y-2.5">
+                 <div className="flex items-end gap-1.5">
+                   <span className="text-[7.5px] text-slate-400 uppercase font-bold">Agent</span>
+                   <div className="flex-1 border-b border-slate-400 border-dashed h-3"></div>
                  </div>
-                 <div className="flex items-end gap-1">
-                   <span className="text-[6.5px] text-slate-400 uppercase font-bold">Date</span>
-                   <div className="flex-1 border-b border-slate-400 border-dashed h-2"></div>
+                 <div className="flex items-end gap-1.5">
+                   <span className="text-[7.5px] text-slate-400 uppercase font-bold">Date</span>
+                   <div className="flex-1 border-b border-slate-400 border-dashed h-3"></div>
                  </div>
                </div>
              </div>
@@ -288,7 +326,7 @@ const PhysicalVoucherGenerator: React.FC = () => {
         <div className="printable-vouchers w-full flex flex-col items-center">
           {vouchers.map((v, idx) => (
              <React.Fragment key={idx}>
-                {(idx > 0 && idx % 3 === 0) && <div style={{ pageBreakBefore: 'always', clear: 'both' }}></div>}
+                {(idx > 0 && idx % 2 === 0) && <div style={{ pageBreakBefore: 'always', clear: 'both' }}></div>}
                 <VoucherCard {...v} />
              </React.Fragment>
           ))}
