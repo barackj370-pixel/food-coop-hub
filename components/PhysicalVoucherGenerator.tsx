@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import html2pdf from 'html2pdf.js';
 import { FOOD_COOPS } from '../constants';
 
 interface VoucherData {
@@ -243,6 +244,24 @@ const PhysicalVoucherGenerator: React.FC = () => {
     window.print();
   };
 
+  const handleDownloadPdf = () => {
+    const element = document.getElementById('printable-vouchers-container');
+    if (!element) return;
+    
+    // Temporarily clone the element to preserve print styles directly for html2pdf
+    // But html2pdf handles standard rendered HTML. Since we're using tailwind and react,
+    // the easiest is to just print the exact visible node.
+    const opt = {
+      margin:       10,
+      filename:     `ChaPesa-Vouchers-${foodCoop || 'Batch'}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    
+    html2pdf().set(opt).from(element).save();
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 py-12">
       <div className="container mx-auto px-6 max-w-6xl print:hidden">
@@ -294,6 +313,9 @@ const PhysicalVoucherGenerator: React.FC = () => {
              <button onClick={handlePrint} disabled={vouchers.length === 0} className="bg-green-600 disabled:opacity-50 text-white px-8 py-3.5 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-green-700 transition-colors">
                <i className="fas fa-print mr-2"></i> Print Booklet
              </button>
+             <button onClick={handleDownloadPdf} disabled={vouchers.length === 0} className="bg-blue-600 disabled:opacity-50 text-white px-8 py-3.5 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-blue-700 transition-colors">
+               <i className="fas fa-download mr-2"></i> Download PDF
+             </button>
            </div>
         </div>
       </div>
@@ -323,7 +345,7 @@ const PhysicalVoucherGenerator: React.FC = () => {
           }
         `}} />
         
-        <div className="printable-vouchers w-full flex flex-col items-center">
+        <div id="printable-vouchers-container" className="printable-vouchers w-full flex flex-col items-center">
           {vouchers.map((v, idx) => (
              <React.Fragment key={idx}>
                 {(idx > 0 && idx % 2 === 0) && <div style={{ pageBreakBefore: 'always', clear: 'both' }}></div>}
