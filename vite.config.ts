@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      chunkSizeWarningLimit: 1600,
+      chunkSizeWarningLimit: 4000,
     },
     server: {
       host: '0.0.0.0',
