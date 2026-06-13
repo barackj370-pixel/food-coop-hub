@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import html2pdf from 'html2pdf.js';
 import { FOOD_COOPS } from '../constants';
 
 interface VoucherData {
@@ -240,30 +239,45 @@ const PhysicalVoucherGenerator: React.FC = () => {
     setVouchers(newVouchers);
   };
 
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
   const handlePrint = () => {
-    window.print();
+    setShowPrintModal(true);
+    setTimeout(() => {
+      window.print();
+      setShowPrintModal(false);
+    }, 3000);
   };
 
   const handleDownloadPdf = () => {
-    const element = document.getElementById('printable-vouchers-container');
-    if (!element) return;
-    
-    // Temporarily clone the element to preserve print styles directly for html2pdf
-    // But html2pdf handles standard rendered HTML. Since we're using tailwind and react,
-    // the easiest is to just print the exact visible node.
-    const opt = {
-      margin:       10,
-      filename:     `ChaPesa-Vouchers-${foodCoop || 'Batch'}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-    
-    html2pdf().set(opt).from(element).save();
+    setShowPrintModal(true);
+    setTimeout(() => {
+      window.print();
+      setShowPrintModal(false);
+    }, 3000);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 py-12">
+      {showPrintModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm print:hidden">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full border border-slate-100">
+            <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+              <i className="fas fa-info-circle text-blue-500"></i> Print & PDF Guide
+            </h3>
+            <p className="text-sm font-medium text-slate-600 mb-4">
+              To download as a PDF or print securely, please ensure you use the system Print dialog.
+            </p>
+            <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm mb-6 border border-blue-100">
+              <strong>Tip:</strong> If nothing happens, you might be in a restricted preview environment. Try <strong>opening the app in a New Tab</strong> first.
+            </div>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest text-center mb-2">Opening print dialog momentarily...</p>
+            <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-500 animate-pulse w-full"></div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="container mx-auto px-6 max-w-6xl print:hidden">
         <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 mb-12">
            <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
