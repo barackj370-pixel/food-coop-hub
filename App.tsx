@@ -98,7 +98,7 @@ const computeHash = async (record: HashableRecord): Promise<string> => {
 };
 
 // Helper: Merge cloud data with local data, preserving local-only and unsynced records
-const mergeData = <T extends { id: string, date?: string, createdAt?: string, synced?: boolean }>(cloudItems: T[], localItems: T[]): T[] => {
+const mergeData = (cloudItems: any[], localItems: any[]): any[] => {
   const cloudMap = new Map(cloudItems.map(i => [i.id, i]));
   const merged = [...cloudItems];
   
@@ -110,6 +110,17 @@ const mergeData = <T extends { id: string, date?: string, createdAt?: string, sy
       const index = merged.findIndex(i => i.id === localItem.id);
       if (index !== -1) {
         merged[index] = localItem;
+      }
+    } else {
+      // Even if synced, preserve critical local fields if cloud dropped them due to missing schema!
+      const index = merged.findIndex(i => i.id === localItem.id);
+      if (index !== -1) {
+        if (localItem.buyingPrice !== undefined && (!merged[index].buyingPrice || merged[index].buyingPrice === 0)) {
+           merged[index].buyingPrice = localItem.buyingPrice;
+        }
+        if (localItem.isAggregate === true && !merged[index].isAggregate) {
+           merged[index].isAggregate = localItem.isAggregate;
+        }
       }
     }
   });
@@ -2710,8 +2721,12 @@ const App: React.FC = () => {
 
 
         {currentPortal === 'TABLE_BANKING' && agentIdentity && (
-          <div className="animate-in fade-in duration-300">
-            <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} />
+          <div className="animate-in fade-in duration-300 space-y-12">
+            <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} onAddLedgerRecord={handleAddRecord} />
+            <div className="mt-12 bg-white/50 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200">
+               <h3 className="text-xl font-black mb-6 text-slate-800">Finance & Banking Ledger</h3>
+               <AuditLogTable data={records.filter(r => r.isAggregate === true)} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            </div>
           </div>
         )}
 
