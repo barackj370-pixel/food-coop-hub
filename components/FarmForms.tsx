@@ -39,7 +39,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   >("weekly");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{
-    type: "success" | "error";
+    type: "success" | "error" | "loading";
     message: string;
   } | null>(null);
   const [farmBaselines, setFarmBaselines] = useState<any[]>([]);
@@ -57,7 +57,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setSubmitStatus(null);
+    setSubmitStatus({ type: "loading", message: "Verifying GPS location..." });
 
     try {
       const form = e.currentTarget;
@@ -77,12 +77,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           let timeoutId: any;
           
           if (!navigator.geolocation) {
-            return reject(new Error("Geolocation not supported by this browser."));
+            return reject(new Error("Geolocation not supported."));
           }
           
           timeoutId = setTimeout(() => {
-            reject(new Error("Geolocation request timed out manually."));
-          }, 10000);
+            reject(new Error("Geolocation request timed out. Please check browser permissions."));
+          }, 8000);
 
           navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -93,13 +93,13 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               clearTimeout(timeoutId);
               reject(err);
             },
-            { timeout: 10000, enableHighAccuracy: true }
+            { timeout: 8000, enableHighAccuracy: true }
           );
         });
       } catch (geoErr) {
         console.warn("Could not get location:", geoErr);
         throw new Error(
-          "Unable to capture GPS. Please ensure location services are enabled.",
+          "Unable to capture GPS. Please ensure location services are enabled and allowed in your browser.",
         );
       }
 
@@ -227,11 +227,13 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                 className={`col-span-1 md:col-span-2 p-4 rounded-xl text-sm font-bold flex items-center gap-3 ${
                   submitStatus.type === "success"
                     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : submitStatus.type === "loading"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 animate-pulse"
                     : "bg-red-50 text-red-700 border border-red-200"
                 }`}
               >
                 <i
-                  className={`fas ${submitStatus.type === "success" ? "fa-check-circle" : "fa-exclamation-triangle"}`}
+                  className={`fas ${submitStatus.type === "success" ? "fa-check-circle" : submitStatus.type === "loading" ? "fa-circle-notch fa-spin" : "fa-exclamation-triangle"}`}
                 ></i>
                 {submitStatus.message}
               </div>
