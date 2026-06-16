@@ -102,10 +102,26 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         // We will log it as unverified
       }
 
+      let confirmationMessage = "Form submitted successfully.";
+      data.gpsVerificationStatus = "Not Verified";
+
       // Verify location against farm baselines
-      if (farmBaselines.length > 0 && location) {
+      // Fetch baselines for THIS specific farmer if they are not the agent so we don't accidentally fail
+      const targetPhone = data.homesteadContact || data.productionOfficerContact || data.convenerContact || data.mobileNumber || agentIdentity.phone;
+      let targetBaselines = farmBaselines;
+      if (targetPhone && targetPhone !== agentIdentity.phone) {
+        try {
+          const { data: remoteBaselines } = await supabase
+             .from("farm_baselines")
+             .select("*")
+             .eq("farmer_phone", targetPhone);
+          if (remoteBaselines) targetBaselines = remoteBaselines;
+        } catch(e) {}
+      }
+
+      if (targetBaselines.length > 0 && location) {
         let isVerified = false;
-        for (const farm of farmBaselines) {
+        for (const farm of targetBaselines) {
           if (farm.latitude && farm.longitude) {
             const distance = getDistanceFromLatLonInM(
               location.lat,
@@ -126,14 +142,23 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           }
         }
         if (!isVerified) {
-          throw new Error(
-            "GPS mismatch: You do not appear to be standing on any of your registered farms.",
-          );
+          data.verifiedFarmId = "unverified (distance mismatch)";
+          data.gpsVerificationStatus = "GPS Not Verified";
+          confirmationMessage = "Form submitted successfully! (GPS Not Verified - Away from location)";
+        } else {
+          data.gpsVerificationStatus = "GPS Verified";
+          confirmationMessage = "Form submitted successfully! (GPS Verified)";
         }
-      } else if (farmBaselines.length === 0) {
+      } else if (targetBaselines.length === 0) {
         // No farms registered, skip verification but allow submission? Or block?
         // We will allow but flag unverified.
-        data.verifiedFarmId = "unverified";
+        data.verifiedFarmId = "unverified (no baseline)";
+        data.gpsVerificationStatus = "GPS Not Verified";
+        confirmationMessage = "Form submitted successfully! (GPS Not Verified - No registered location)";
+      } else if (!location) {
+        data.verifiedFarmId = "unverified (no gps)";
+        data.gpsVerificationStatus = "GPS Not Verified";
+        confirmationMessage = "Form submitted successfully! (GPS Not Verified - Unable to capture GPS)";
       }
 
       const payload = {
@@ -155,7 +180,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
 
       setSubmitStatus({
         type: "success",
-        message: "Form submitted successfully! GPS location verified.",
+        message: confirmationMessage,
       });
       form.reset();
       if (onFormSubmitted) onFormSubmitted();
