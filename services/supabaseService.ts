@@ -162,7 +162,7 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
     // Auto-fix for schema mismatch (missing columns like order_id, produce_id, agent_id)
     if (error && error.code === '42703') {
       console.warn("Schema mismatch in records. Retrying with safe payload.");
-      const { order_id, produce_id, agent_id, synced, cluster, agent_phone, agent_name, ...safePayload } = payload as any;
+      const { order_id, produce_id, agent_id, synced, cluster, agent_phone, agent_name, buying_price, is_aggregate, ...safePayload } = payload as any;
       const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
     }
