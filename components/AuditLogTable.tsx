@@ -19,6 +19,11 @@ interface WeeklyCoopSummary {
   sellingTotal: number;
   commissionTotal: number;
   entryCount: number;
+  lastDate: string;
+  lastRuleLabel: string;
+  hasPendingSync: boolean;
+  status: string;
+  rawRecord: SaleRecord;
 }
 
 interface WeeklyGroup {
@@ -74,6 +79,24 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({
   const totalSelling = useMemo(() => data.reduce((sum, r) => sum + Number(r.totalSale || 0), 0), [data]);
   const totalCommission = useMemo(() => data.reduce((sum, r) => sum + Number(r.coopProfit || 0), 0), [data]);
 
+  const getCommissionRuleLabel = (r: SaleRecord) => {
+    const buying = r.buyingPrice || 0;
+    const selling = r.totalSale || 0;
+    const profit = Math.max(0, selling - buying);
+    const comm = r.coopProfit;
+
+    if (Math.abs(comm - (selling * 0.10)) < 0.5) {
+      return '10% of Gross Sale';
+    }
+    if (Math.abs(comm - (profit * 0.10 + 1)) < 0.5) {
+      return '10% + 1 of Profit';
+    }
+    if (Math.abs(comm - profit) < 0.5) {
+      return '100% of Profit';
+    }
+    return 'Manual Custom Rate';
+  };
+
   // Group aggregate data weekly with grand totals and coop level summaries
   const weeklyGroups = useMemo<WeeklyGroup[]>(() => {
     const groups: { [weekLabel: string]: { [cluster: string]: WeeklyCoopSummary } } = {};
@@ -92,8 +115,23 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({
           buyingTotal: 0,
           sellingTotal: 0,
           commissionTotal: 0,
-          entryCount: 0
+          entryCount: 0,
+          lastDate: r.date || '',
+          lastRuleLabel: getCommissionRuleLabel(r),
+          hasPendingSync: r.synced === false,
+          status: r.status,
+          rawRecord: r
         };
+      } else {
+        if (new Date(r.date) > new Date(groups[weekLabel][cluster].lastDate)) {
+           groups[weekLabel][cluster].lastDate = r.date || '';
+           groups[weekLabel][cluster].lastRuleLabel = getCommissionRuleLabel(r);
+           groups[weekLabel][cluster].status = r.status;
+           groups[weekLabel][cluster].rawRecord = r;
+        }
+        if (r.synced === false) {
+           groups[weekLabel][cluster].hasPendingSync = true;
+        }
       }
       
       groups[weekLabel][cluster].buyingTotal += Number(r.buyingPrice || 0);
@@ -133,24 +171,6 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({
     if (!isPending) return false;
     const normalizePhone = (phone?: string | null) => phone ? phone.replace(/\D/g, '') : '';
     return isSystemDev || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone));
-  };
-
-  const getCommissionRuleLabel = (r: SaleRecord) => {
-    const buying = r.buyingPrice || 0;
-    const selling = r.totalSale || 0;
-    const profit = Math.max(0, selling - buying);
-    const comm = r.coopProfit;
-
-    if (Math.abs(comm - (selling * 0.10)) < 0.5) {
-      return '10% of Gross Sale';
-    }
-    if (Math.abs(comm - (profit * 0.10 + 1)) < 0.5) {
-      return '10% + 1 of Profit';
-    }
-    if (Math.abs(comm - profit) < 0.5) {
-      return '100% of Profit';
-    }
-    return 'Manual Custom Rate';
   };
 
   return (
@@ -195,7 +215,7 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({
                         <th className="py-2.5 text-right">Aggregate Buying</th>
                         <th className="py-2.5 text-right">Aggregate Selling</th>
                         <th className="py-2.5 text-right">Coop Commission</th>
-                        <th className="py-2.5 text-center">Entries</th>
+                        <th className="py-2.5 text-center">Status & Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -204,8 +224,45 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({
                           <td className="py-3 text-slate-900 uppercase">{coop.cluster}</td>
                           <td className="py-3 text-right text-slate-600">KSh {coop.buyingTotal.toLocaleString()}</td>
                           <td className="py-3 text-right text-black font-extrabold">KSh {coop.sellingTotal.toLocaleString()}</td>
-                          <td className="py-3 text-right text-green-600">KSh {coop.commissionTotal.toLocaleString()}</td>
-                          <td className="py-3 text-center text-slate-400 font-mono">{coop.entryCount}</td>
+                          <td className="py-3 text-right">
+                            <div className="font-black text-green-600">
+                              KSh {coop.commissionTotal.toLocaleString()}
+                            </div>
+                            <div className="text-[8.5px] font-black text-slate-400 uppercase tracking-tighter mt-0.5">
+                              {coop.lastRuleLabel}
+                            </div>
+                            <div className="text-[8.5px] font-black text-slate-400 font-mono mt-0.5">
+                              {coop.lastDate}
+                            </div>
+                          </td>
+                          <td className="py-3 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusBadgeColor(coop.status)}`}>
+                                {coop.status}
+                              </span>
+                              {coop.hasPendingSync && (
+                                <span className="inline-block text-[8px] text-red-500 font-extrabold uppercase mt-0.5">Pending</span>
+                              )}
+                              {onEdit && currentPortal === 'MARKET' && marketView === 'SALES' && isEditable(coop.rawRecord) && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); onEdit(coop.rawRecord); }} 
+                                  className="text-slate-300 hover:text-blue-600 transition-all p-2 hover:bg-blue-50 rounded-xl"
+                                  title="Edit Entry"
+                                >
+                                  <i className="fas fa-edit text-[10px]"></i>
+                                </button>
+                              )}
+                              {(agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.role === SystemRole.MANAGER) && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteRecord(coop.rawRecord.id); }} 
+                                  className="text-slate-300 hover:text-red-600 transition-all p-2 hover:bg-red-50 rounded-xl"
+                                  title="Delete Record"
+                                >
+                                  <i className="fas fa-trash-can text-[10px]"></i>
+                                </button>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                       
@@ -226,112 +283,6 @@ export const AuditLogTable: React.FC<AuditLogTableProps> = ({
         </div>
       )}
 
-      <div className="bg-white rounded-[2rem] border border-slate-200 shadow-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                <th className="py-5 px-8">Date</th>
-                <th className="py-5 px-6">Food Coop</th>
-                <th className="py-5 px-6 text-right">Aggregate Buying Price</th>
-                <th className="py-5 px-6 text-right">Aggregate Selling Price</th>
-                <th className="py-5 px-6 text-right">Coop Commission</th>
-                <th className="py-5 px-8 text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-[11.5px] font-bold">
-              {sortedRecords.length > 0 && (
-                sortedRecords.map((r) => {
-                  const buyingVal = r.buyingPrice || 0;
-                  const ruleLabel = getCommissionRuleLabel(r);
-                  return (
-                    <tr key={r.id} className="group hover:bg-slate-50/40 transition-colors">
-                      {/* Date */}
-                      <td className="py-5 px-8 text-black">
-                        <div className="font-mono">{r.date}</div>
-                        {r.synced === false && (
-                          <span className="inline-block text-[8px] text-red-500 font-extrabold uppercase mt-0.5">Pending Sync</span>
-                        )}
-                      </td>
-                      {/* Food Coop */}
-                      <td className="py-5 px-6 text-slate-900 uppercase">
-                        {r.cluster || 'Unassigned'}
-                      </td>
-                      {/* Aggregate Buying Price */}
-                      <td className="py-5 px-6 text-right text-slate-600 font-black">
-                        KSh {buyingVal.toLocaleString()}
-                      </td>
-                      {/* Aggregate Selling Price */}
-                      <td className="py-5 px-6 text-right text-black font-black">
-                        KSh {Number(r.totalSale).toLocaleString()}
-                      </td>
-                      {/* Calculated Coop Commission */}
-                      <td className="py-5 px-6 text-right">
-                        <div className="font-black text-green-600">
-                          KSh {Number(r.coopProfit).toLocaleString()}
-                        </div>
-                        <div className="text-[8.5px] font-black text-slate-400 uppercase tracking-tighter mt-0.5">
-                          {ruleLabel}
-                        </div>
-                      </td>
-                      {/* Status + Actions */}
-                      <td className="py-5 px-8">
-                        <div className="flex items-center justify-center gap-3">
-                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusBadgeColor(r.status)}`}>
-                            {r.status}
-                          </span>
-                          
-                          {/* Inline Edit Buttons */}
-                          {onEdit && currentPortal === 'MARKET' && marketView === 'SALES' && isEditable(r) && (
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); onEdit(r); }} 
-                              className="text-slate-300 hover:text-blue-600 transition-all p-2 hover:bg-blue-50 rounded-xl"
-                              title="Edit Entry"
-                            >
-                              <i className="fas fa-edit text-[10px]"></i>
-                            </button>
-                          )}
-                          {(agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity?.role === SystemRole.MANAGER) && (
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleDeleteRecord(r.id); }} 
-                              className="text-slate-300 hover:text-red-600 transition-all p-2 hover:bg-red-50 rounded-xl"
-                              title="Delete Record"
-                            >
-                              <i className="fas fa-trash-can text-[10px]"></i>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-            {/* Weekly Aggregated Totals at the bottom */}
-            {data.length > 0 && (
-              <tfoot>
-                <tr className="bg-slate-900 text-white font-black text-[12px] uppercase border-t border-black">
-                  <td colSpan={2} className="py-7 px-8 tracking-wider text-slate-300">
-                    Weekly Aggregated Totals
-                  </td>
-                  <td className="py-7 px-6 text-right font-mono text-slate-200 font-extrabold">
-                    KSh {totalBuying.toLocaleString()}
-                  </td>
-                  <td className="py-7 px-6 text-right font-mono text-white font-black">
-                    KSh {totalSelling.toLocaleString()}
-                  </td>
-                  <td className="py-7 px-6 text-right font-mono text-green-400 font-black">
-                    KSh {totalCommission.toLocaleString()}
-                  </td>
-                  <td colSpan={1} className="py-7 px-8 text-center text-slate-500 text-[10px] tracking-widest font-bold">
-                    VERIFIED LEDGER
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </div>
     </div>
   );
 };
