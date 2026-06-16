@@ -98,9 +98,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         });
       } catch (geoErr) {
         console.warn("Could not get location:", geoErr);
-        throw new Error(
-          "Unable to capture GPS. Please ensure location services are enabled and allowed in your browser.",
-        );
+        // Do not throw, just allow submission without verified GPS
+        // We will log it as unverified
       }
 
       // Verify location against farm baselines
