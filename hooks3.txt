@@ -1,0 +1,13 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+  const combinedUsers = useMemo(() => {
+  const directOrders = useMemo(() => {
+  const availablePortals = useMemo<PortalType[]>(() => {
+  const filteredRecords = useMemo(() => {
+  const stats = useMemo(() => {
+  const dynamicClusters = useMemo(() => {
+  const homeMetrics = useMemo<{ clusterPerformance: [string, FoodCoopMetric][] }>(() => {
+  // Explicit typing for useMemo to avoid inference errors
+  const boardMetrics = useMemo<{ clusterPerformance: [string, FoodCoopMetric][] }>(() => {
+  const grandTotalVolume = useMemo(() => homeMetrics.clusterPerformance.reduce((a, b) => a + b[1].volume, 0), [homeMetrics]);
+  const grandTotalCommission = useMemo(() => homeMetrics.clusterPerformance.reduce((a, b) => a + b[1].profit, 0), [homeMetrics]);
+  const pendingSyncCount = useMemo(() => {
