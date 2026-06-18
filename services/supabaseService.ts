@@ -14,8 +14,10 @@ const getCurrentUserId = async (): Promise<string | undefined> => {
   let { data: { session }, error: sessionError } = await supabase.auth.getSession();
   
   if (sessionError) {
-    console.warn("Session error:", sessionError.message);
-    await supabase.auth.signOut().catch(() => {});
+    if (!sessionError.message.toLowerCase().includes('refresh token')) {
+       console.warn("Session error:", sessionError.message);
+       await supabase.auth.signOut().catch(() => {});
+    }
   }
   
   if (!session) {
@@ -52,7 +54,8 @@ const handleSupabaseError = (context: string, err: any) => {
     msg.includes('connection error') ||
     msg.includes('load failed') || 
     msg.includes('abort') || // Ignore AbortError
-    msg.includes('signal is aborted')
+    msg.includes('signal is aborted') ||
+    msg.includes('refresh token') // Ignore refresh token errors
   ) {
     return;
   }
