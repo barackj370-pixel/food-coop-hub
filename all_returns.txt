@@ -1,0 +1,119 @@
+52:    try { return localStorage.getItem(key); } catch (e) { return null; }
+69:  return clean.length >= 9 ? clean.slice(-9) : clean;
+97:  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+128:  return merged.sort((a, b) => {
+131:    return dateB.localeCompare(dateA);
+445:          return parsed;
+447:        return [];
+449:        return [];
+452:    return [];
+458:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+460:    return [];
+466:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+468:    return [];
+474:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+476:    return [];
+480:    return persistence.get('last_read_forum_post') || '';
+485:    return saved ? JSON.parse(saved) : [];
+491:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : INITIAL_NEWS_ARTICLES; } catch (e) { return INITIAL_NEWS_ARTICLES; }
+493:    return INITIAL_NEWS_ARTICLES;
+589:    return saved ? JSON.parse(saved) : null;
+628:    return allUsers;
+633:    if (!path) return 'HOME';
+636:    return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
+644:        return;
+655:    return () => window.removeEventListener('popstate', handlePopState);
+689:        return newRecords;
+699:      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'SALES';
+701:    return 'SALES';
+728:    return () => window.removeEventListener('popstate', checkArticleInUrl);
+763:      return;
+770:      return;
+810:    if (!agentIdentity) return [];
+811:    return marketOrders.filter(o => 
+871:    return () => {
+879:    if (syncLock.current || !navigator.onLine) return;
+894:               return updated;
+909:               return updated;
+924:               return updated;
+1075:    return () => {
+1096:    if (!agent) return false;
+1097:    return isSystemDev || 
+1107:    if (!agentIdentity) return guestPortals;
+1111:      return ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'FARM_DATA'];
+1118:    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'VOUCHERS'];
+1120:    if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
+1139:    return base;
+1143:    if (!navigator.onLine) return; 
+1159:          return merged;
+1168:          return merged;
+1177:          return merged;
+1186:          return merged;
+1195:          return merged;
+1229:    return () => {
+1246:    return base;
+1256:    return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
+1264:    return Array.from(new Set([...FOOD_COOPS, ...customFoodCoops, ...fromUsers, ...fromRecords, ...fromProduce, ...fromOrders])).filter((c): c is string => c !== '-');
+1271:        return acc;
+1289:    return { clusterPerformance };
+1296:      if (boardTimeFilter === 'all') return true;
+1300:      return diffDays <= parseInt(boardTimeFilter);
+1306:        return acc;
+1326:    return { clusterPerformance };
+1337:    return pRecords + pProduce + pOrders;
+1372:              return updatedList;
+1384:          return;
+1409:        return updated;
+1418:          return updated;
+1428:    if (!listing) return;
+1439:      return updatedList;
+1503:      return;
+1515:          if (!cName) return; // Cancelled
+1518:          if (!cPhone) return; // Cancelled
+1526:    if (qty === null) return;
+1530:      return;
+1550:      return updated;
+1567:    if (!window.confirm("Action required: Permanent deletion of harvest listing ID: " + id + ". Continue?")) return;
+1574:        return updated;
+1580:    if (!window.confirm("CRITICAL ALERT: You are about to purge ALL produce listings from the entire system. This action is irreversible. Proceed?")) return;
+1591:    if (!window.confirm("CRITICAL SECURITY ALERT: Purge ALL registered users? This cannot be undone. Proceed?")) return;
+1598:    if (!window.confirm("CRITICAL AUDIT ALERT: You are about to wipe ALL transaction history records from the system. This action is permanent. Proceed?")) return;
+1605:    if (!window.confirm("CRITICAL MARKET ALERT: You are about to purge ALL market demand orders (unfulfilled). This action is permanent. Proceed?")) return;
+1648:            return updated;
+1696:          return updated;
+1733:            return newList;
+1735:          return prev;
+1751:    if (!record) return;
+1756:        return updatedList;
+1772:    if (pendingClusterRecords.length === 0) return;
+1777:      return;
+1783:        return { ...r, status: RecordStatus.COMPLETE, synced: false };
+1785:      return r;
+1800:             return updatedList;
+1816:    if (awaitingClusterRecords.length === 0) return;
+1821:      return;
+1827:        return { ...r, status: RecordStatus.VERIFIED, synced: false };
+1829:      return r;
+1844:             return updatedList;
+1853:    if (!window.confirm("Action required: Permanent deletion of record ID: " + id + ". Continue?")) return;
+1857:        return updated;
+1864:    if (!user) return;
+1870:      return updated;
+1876:    if (!window.confirm(`Action required: Permanent deletion of user with phone: ${phone}. Continue?`)) return;
+1880:        return updated;
+1971:  return (
+2030:              return (
+2044:            if (p === 'SYSTEM' && !isSystemDev) return null;
+2048:            return (
+2180:                    return updated;
+2482:                     return (
+2494:                     return acc;
+2497:                   return Object.entries(groups).map(([key, clusterRecs]) => {
+2503:                      return (
+2564:                     return (
+2576:                     return acc;
+2579:                   return Object.entries(groups).map(([key, clusterRecs]) => {
+2585:                      return (
+2763:                        return;
+2770:                        return;
+2894:                  return updated;
