@@ -952,19 +952,28 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       // If there's an error (like Invalid Refresh Token), clear the session and force signout
       if (error || !session) {
-        setAgentIdentity(null);
-        persistence.remove('agent_session');
         if (error) {
-          console.warn("Session error detected, cleaning up:", error.message);
-          supabase.auth.signOut().catch(() => {});
+          const msg = error.message.toLowerCase();
+          if (!msg.includes('refresh token')) {
+            console.warn("Session error detected, cleaning up:", error.message);
+            supabase.auth.signOut().catch(() => {});
+          }
         }
       }
+    }).catch(e => {
+        const msg = (e.message || e.toString() || '').toLowerCase();
+        if (!msg.includes('refresh token')) {
+           console.warn("Exception during getSession:", e);
+           supabase.auth.signOut().catch(() => {});
+        }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'INITIAL_SESSION' && !session) {
-        setAgentIdentity(null);
-        persistence.remove('agent_session');
+        const saved = persistence.get('agent_session');
+        if (!saved) {
+           setAgentIdentity(null);
+        }
       } else if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user) {
         const meta = session.user.user_metadata || {};
         
