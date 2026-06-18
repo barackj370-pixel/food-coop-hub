@@ -1,0 +1,128 @@
+48:    try { return localStorage.getItem(key); } catch (e) { return null; }
+65:  return clean.length >= 9 ? clean.slice(-9) : clean;
+93:  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+113:  return merged.sort((a, b) => {
+116:    return dateB.localeCompare(dateA);
+424:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+426:    return [];
+432:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+434:    return [];
+440:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+442:    return [];
+448:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+450:    return [];
+454:    return persistence.get('last_read_forum_post') || '';
+459:    return saved ? JSON.parse(saved) : [];
+465:      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : INITIAL_NEWS_ARTICLES; } catch (e) { return INITIAL_NEWS_ARTICLES; }
+467:    return INITIAL_NEWS_ARTICLES;
+505:    return saved ? JSON.parse(saved) : null;
+544:    return allUsers;
+549:    if (!path) return 'HOME';
+552:    return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
+560:        return;
+571:    return () => window.removeEventListener('popstate', handlePopState);
+606:        return newRecords;
+616:      return agent.role === SystemRole.SUPPLIER ? 'SUPPLIER' : 'SALES';
+618:    return 'SALES';
+644:    return () => window.removeEventListener('popstate', checkArticleInUrl);
+679:      return;
+686:      return;
+726:    if (!agentIdentity) return [];
+727:    return marketOrders.filter(o => 
+787:    return () => {
+795:    if (syncLock.current || !navigator.onLine) return;
+810:               return updated;
+825:               return updated;
+840:               return updated;
+970:    return () => {
+986:    if (!agent) return false;
+987:    return isSystemDev || 
+996:    if (!agentIdentity) return guestPortals;
+1002:    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'BANGLA_PESA'];
+1004:    if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
+1023:    return base;
+1027:    if (!navigator.onLine) return; 
+1043:          return merged;
+1052:          return merged;
+1061:          return merged;
+1070:          return merged;
+1079:          return merged;
+1113:    return () => {
+1130:    return base;
+1140:    return { awaitingAuditComm, awaitingFinanceComm, approvedComm: verifiedComm, dueComm };
+1148:    return Array.from(new Set([...FOOD_COOPS, ...customFoodCoops, ...fromUsers, ...fromRecords, ...fromProduce, ...fromOrders])).filter((c): c is string => c !== '-');
+1155:        return acc;
+1173:    return { clusterPerformance };
+1180:      if (boardTimeFilter === 'all') return true;
+1184:      return diffDays <= parseInt(boardTimeFilter);
+1190:        return acc;
+1210:    return { clusterPerformance };
+1221:    return pRecords + pProduce + pOrders;
+1256:              return updatedList;
+1268:          return;
+1293:        return updated;
+1302:          return updated;
+1312:    if (!listing) return;
+1323:      return updatedList;
+1387:      return;
+1399:          if (!cName) return; // Cancelled
+1402:          if (!cPhone) return; // Cancelled
+1410:    if (qty === null) return;
+1414:      return;
+1434:      return updated;
+1451:    if (!window.confirm("Action required: Permanent deletion of harvest listing ID: " + id + ". Continue?")) return;
+1458:        return updated;
+1464:    if (!window.confirm("CRITICAL ALERT: You are about to purge ALL produce listings from the entire system. This action is irreversible. Proceed?")) return;
+1475:    if (!window.confirm("CRITICAL SECURITY ALERT: Purge ALL registered users? This cannot be undone. Proceed?")) return;
+1482:    if (!window.confirm("CRITICAL AUDIT ALERT: You are about to wipe ALL transaction history records from the system. This action is permanent. Proceed?")) return;
+1489:    if (!window.confirm("CRITICAL MARKET ALERT: You are about to purge ALL market demand orders (unfulfilled). This action is permanent. Proceed?")) return;
+1530:            return updated;
+1573:          return updated;
+1610:            return newList;
+1612:          return prev;
+1628:    if (!record) return;
+1633:        return updatedList;
+1649:    if (pendingClusterRecords.length === 0) return;
+1654:      return;
+1660:        return { ...r, status: RecordStatus.COMPLETE, synced: false };
+1662:      return r;
+1677:             return updatedList;
+1693:    if (awaitingClusterRecords.length === 0) return;
+1698:      return;
+1704:        return { ...r, status: RecordStatus.VERIFIED, synced: false };
+1706:      return r;
+1721:             return updatedList;
+1730:    if (!window.confirm("Action required: Permanent deletion of record ID: " + id + ". Continue?")) return;
+1734:        return updated;
+1741:    if (!user) return;
+1747:      return updated;
+1753:    if (!window.confirm(`Action required: Permanent deletion of user with phone: ${phone}. Continue?`)) return;
+1757:        return updated;
+1820:        return acc;
+1826:        return new Date(b).getTime() - new Date(a).getTime();
+1831:        if (clusterA !== clusterB) return clusterA.localeCompare(clusterB);
+1832:        return new Date(dateB).getTime() - new Date(dateA).getTime();
+1834:      return a.localeCompare(b);
+1841:      if (status === RecordStatus.VERIFIED) return 'bg-green-100 text-green-700';
+1842:      if (status === RecordStatus.COMPLETE || status === RecordStatus.PAID) return 'bg-blue-50 text-blue-700'; // Order Complete
+1843:      return 'bg-red-50 text-red-600'; // Pending Order / Draft
+1851:      if (!isPending) return false;
+1854:      return isSystemDev || (normalizePhone(agentIdentity?.phone) === normalizePhone(r.agentPhone));
+1857:    return (
+1865:          return (
+1995:  return (
+2053:              return (
+2067:            if (p === 'SYSTEM' && !isSystemDev) return null;
+2071:            return (
+2153:                    return updated;
+2427:                     return (
+2439:                     return acc;
+2442:                   return Object.entries(groups).map(([key, clusterRecs]) => {
+2448:                      return (
+2509:                     return (
+2521:                     return acc;
+2524:                   return Object.entries(groups).map(([key, clusterRecs]) => {
+2530:                      return (
+2701:                        return;
+2708:                        return;
+2847:                  return updated;
