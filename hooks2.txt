@@ -1,0 +1,15 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => { syncPendingDataRef.current = syncPendingData; }, [syncPendingData]);
+  useEffect(() => { currentPortalRef.current = currentPortal; }, [currentPortal]);
+  useEffect(() => {
+  useEffect(() => {
+  useEffect(() => {
