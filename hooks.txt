@@ -1,0 +1,33 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+  const [records, setRecords] = useState<SaleRecord[]>(() => {
+  const [marketOrders, setMarketOrders] = useState<MarketOrder[]>(() => {
+  const [produceListings, setProduceListings] = useState<ProduceListing[]>(() => {
+  const [forumPosts, setForumPosts] = useState<ForumPost[]>(() => {
+  const [lastReadForumPost, setLastReadForumPost] = useState<string>(() => {
+  const [deletedProduceIds, setDeletedProduceIds] = useState<string[]>(() => {
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>(() => {
+  const [users, setUsers] = useState<AgentIdentity[]>([]);
+  const [customFoodCoops, setCustomFoodCoops] = useState<string[]>([]);
+  const [customCoordinates, setCustomCoordinates] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [farmFormsData, setFarmFormsData] = useState<any[]>([]);
+  const [addCoopStatus, setAddCoopStatus] = useState<{ status: 'idle' | 'loading' | 'success' | 'error' | 'warning', message?: string }>({ status: 'idle' });
+  const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(() => {
+  const [currentPortal, setCurrentPortal] = useState<PortalType>(() => {
+  const [marketView, setMarketView] = useState<MarketView>(() => {
+  const [showPublicSupplierStats, setShowPublicSupplierStats] = useState(false);
+  const [viewingNewsArticle, setViewingNewsArticle] = useState<NewsArticle | null>(null);
+  const [isCreatingNews, setIsCreatingNews] = useState(false);
+  const [editingNewsArticle, setEditingNewsArticle] = useState<NewsArticle | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [fulfillmentData, setFulfillmentData] = useState<Partial<SaleFormSubmission> | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
+  const [orderingProduct, setOrderingProduct] = useState<ProduceListing | null>(null);
+  const [editingProduceId, setEditingProduceId] = useState<string | null>(null);
+  const [produceInitialData, setProduceInitialData] = useState<ProduceListing | undefined>(undefined);
+  const [reportData, setReportData] = useState<string | null>(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [boardTimeFilter, setBoardTimeFilter] = useState<'7' | '14' | '28' | 'all'>('all');
