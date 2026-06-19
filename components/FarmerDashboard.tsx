@@ -25,6 +25,32 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   const [newFarmAcres, setNewFarmAcres] = useState('');
   const [viewingHomestead, setViewingHomestead] = useState<string | null>(null);
 
+  // Group all homesteads from all users
+  const groupedGlobalHomesteads = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    farmFormsData
+      .filter((f: any) => f.formType === 'homestead')
+      .forEach((f: any) => {
+        const coop = f.foodCoop || f.agentCluster || 'Unassigned Cooperative';
+        if (!groups[coop]) groups[coop] = [];
+        
+        // Use homesteadName or farmName as key
+        const nameKey = f.homesteadName || f.farmName || 'Unknown Homestead';
+        
+        // Prevent duplicates (prefer baselines over pages if both exist)
+        const existingIdx = groups[coop].findIndex(e => 
+           (e.homesteadName || e.farmName || 'Unknown') === nameKey
+        );
+        
+        if (existingIdx === -1) {
+          groups[coop].push(f);
+        } else if (!f.fromPages && groups[coop][existingIdx].fromPages) {
+           groups[coop][existingIdx] = f;
+        }
+      });
+    return groups;
+  }, [farmFormsData]);
+
   // Precision 4-Corner Survey States
   const [useCorners, setUseCorners] = useState(false);
   const [cornerA, setCornerA] = useState({ lat: '', lng: '' });
@@ -860,6 +886,64 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
           </div>
         </div>
       </div>
+
+      {/* Global Registered Homesteads Section */}
+      <div className="bg-slate-900 p-8 rounded-[2.5rem] mt-12 shadow-2xl">
+        <div className="flex items-center gap-4 mb-8 border-b border-slate-700 pb-6">
+          <div className="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
+             <i className="fas fa-globe-africa text-2xl"></i>
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white">Registered Homesteads Directory</h2>
+            <p className="text-slate-400 font-bold text-xs mt-1 uppercase tracking-widest">Classified by Food Cooperative</p>
+          </div>
+        </div>
+
+        {Object.keys(groupedGlobalHomesteads).length > 0 ? (
+          <div className="space-y-8">
+            {Object.entries(groupedGlobalHomesteads).map(([coop, homesteads]) => (
+              <div key={coop} className="bg-slate-800/50 rounded-3xl p-6 border border-slate-700/50">
+                <h3 className="text-lg font-black text-emerald-400 uppercase tracking-widest flex items-center gap-3 mb-6">
+                  <i className="fas fa-store"></i> {coop}
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[10px] px-3 py-1 rounded-full">{homesteads.length} Homesteads</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {homesteads.map((h: any, idx: number) => (
+                    <div key={idx} className="bg-slate-800 p-5 rounded-2xl border border-slate-700 hover:border-emerald-500/50 transition-colors group">
+                      <div className="flex justify-between items-start mb-3">
+                        <h4 className="font-black text-white text-sm group-hover:text-emerald-400 transition-colors">
+                          {h.homesteadName || h.farmName || 'Unknown Homestead'}
+                        </h4>
+                        {h.gpsVerified && <i className="fas fa-satellite text-emerald-500 text-[10px]" title="GPS Verified"></i>}
+                      </div>
+                      <div className="space-y-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                         <p className="flex items-center gap-2 block truncate">
+                           <i className="fas fa-user text-slate-500 w-3"></i> 
+                           {h.farmerName || h.farmer_name || h.homesteadContact || 'Unknown Owner'}
+                         </p>
+                         <p className="flex items-center gap-2 block truncate">
+                           <i className="fas fa-calendar-alt text-slate-500 w-3"></i> 
+                           {new Date(h.submittedAt).toLocaleDateString()}
+                         </p>
+                         <div className="pt-3 flex gap-2 flex-wrap">
+                            {!h.fromPages && <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded uppercase text-[8px] tracking-wider">Base Plot</span>}
+                            {h.fromPages && <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded uppercase text-[8px] tracking-wider">Form Profile</span>}
+                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <i className="fas fa-home text-4xl text-slate-700 mb-4"></i>
+            <p className="font-black text-slate-500 uppercase tracking-widest text-xs">No Homesteads Registered Yet</p>
+          </div>
+        )}
+      </div>
+
       {viewingProfile && (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white max-w-2xl w-full rounded-[2.5rem] shadow-2xl my-8 overflow-hidden flex flex-col">
