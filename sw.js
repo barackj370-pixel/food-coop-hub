@@ -1,6 +1,6 @@
 
-const CACHE_NAME = 'kpl-offline-v5';
-const DYNAMIC_CACHE = 'kpl-dynamic-v5';
+const CACHE_NAME = 'kpl-offline-v6';
+const DYNAMIC_CACHE = 'kpl-dynamic-v6';
 
 // Install Event: Skip waiting to activate immediately
 self.addEventListener('install', (event) => {
@@ -32,6 +32,11 @@ self.addEventListener('fetch', (event) => {
   // 1. API Requests - Network Only (Fail fast if offline)
   if (url.hostname.includes('supabase') || url.hostname.includes('googleapis') || url.hostname.includes('google')) {
     return;
+  }
+
+  // Bypassing caching entirely for Vite development files
+  if (url.pathname.includes('/@vite') || url.pathname.includes('/node_modules/') || url.pathname.includes('/src/') || url.pathname.endsWith('.tsx') || url.pathname.endsWith('.ts')) {
+    return; // Let the browser handle these normally (network only)
   }
 
   // 2. Navigation Requests (HTML) - Network First, Fallback to Cache
