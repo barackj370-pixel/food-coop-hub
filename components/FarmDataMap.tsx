@@ -184,12 +184,12 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
           </div>
         </div>
 
-        <div className="h-[500px] rounded-2xl overflow-hidden border border-slate-200">
+        <div className="h-[500px] rounded-[2rem] overflow-hidden border border-slate-200 relative group">
           <MapContainer center={mapCenter} zoom={6} style={{ height: '100%', width: '100%' }}>
             <MapResizer />
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
             {data.filter(d => d.location).map((d) => (
               <Marker 
@@ -200,13 +200,13 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
                 <Popup autoPan={false}>
                   <div className="p-2 min-w-[220px]">
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-black text-xs uppercase tracking-widest text-emerald-700">
-                        {d.formType === 'weekly' ? 'Weekly Activity' : d.formType.toUpperCase()}
+                       <h3 className="font-black text-xs uppercase tracking-widest text-emerald-700">
+                        {d.formType === 'weekly' ? 'Weekly Activity' : d.formType === 'homestead' && !d.fromPages ? 'Plot Base' : d.formType === 'homestead' ? 'Owner Details' : d.formType.toUpperCase()}
                       </h3>
                       {d.gpsVerified ? (
-                        <span className="text-[8px] font-black bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase">Verified GPS</span>
+                        <span className="text-[8px] font-black bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase shrink-0 ml-2">Verified GPS</span>
                       ) : (
-                        <span className="text-[8px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase">Manual Location</span>
+                        <span className="text-[8px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase shrink-0 ml-2">Manual</span>
                       )}
                     </div>
                     
@@ -219,7 +219,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
                       <div className="flex justify-between gap-4 mt-2">
                         <div>
                           <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Owner/Farmer</p>
-                          <p className="text-[10px] font-bold text-slate-700">{d.farmerName || 'Registered Member'}</p>
+                          <p className="text-[10px] font-bold text-slate-700">{d.farmerName || d.farmer_name || 'Member'}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Cooperative</p>
@@ -257,53 +257,128 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
               </Marker>
             ))}
           </MapContainer>
+          {/* Overlay to inform users they are looking at 3D satellite imagery */}
+          <div className="pointer-events-none absolute bottom-4 left-4 z-[400] bg-black/50 backdrop-blur border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 text-white shadow-xl">
+             <i className="fas fa-satellite text-emerald-400"></i>
+             <span className="text-[10px] font-black uppercase tracking-widest">Hi-Res Satellite Layer</span>
+          </div>
         </div>
       </div>
 
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-200">
         <h2 className="text-2xl font-black text-slate-900 mb-6">Submitted Forms Registry</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-8 border-b border-slate-100 pb-4">
+          Categorized Reports
+        </p>
+        
+        {/* HOMES / PLOT BASELINES */}
+        <div className="mb-12">
+          <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+             <i className="fas fa-home"></i> Homes (Registered Farm Baselines)
+          </h3>
+          <RegistryTable 
+             items={data.filter(d => d.formType === 'homestead' && !d.fromPages)}
+             isSystemDev={isSystemDev}
+             handleDeleteRecord={handleDeleteRecord}
+             typeLabel="Plot Base"
+          />
+        </div>
+
+        {/* FARM ACTIVITIES */}
+        <div className="mb-12">
+          <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+             <i className="fas fa-leaf"></i> Farm Activities (Weekly Reports)
+          </h3>
+          <RegistryTable 
+             items={data.filter(d => d.formType === 'weekly')}
+             isSystemDev={isSystemDev}
+             handleDeleteRecord={handleDeleteRecord}
+             typeLabel="Daily Update"
+          />
+        </div>
+
+        {/* LABOR SOLIDARITY */}
+        <div className="mb-12">
+          <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+             <i className="fas fa-users"></i> Labor Solidarity
+          </h3>
+          <RegistryTable 
+             items={data.filter(d => d.formType === 'solidarity')}
+             isSystemDev={isSystemDev}
+             handleDeleteRecord={handleDeleteRecord}
+             typeLabel="Solidarity"
+          />
+        </div>
+
+        {/* HOMESTEAD OWNER */}
+        <div className="mb-4">
+          <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+             <i className="fas fa-user-circle"></i> Homestead Owner Data
+          </h3>
+          <RegistryTable 
+             items={data.filter(d => d.formType === 'homestead' && d.fromPages)}
+             isSystemDev={isSystemDev}
+             handleDeleteRecord={handleDeleteRecord}
+             typeLabel="Owner Details"
+          />
+        </div>
+      </div>
+
+      {selectedFarmForAI && (
+        <AIAnalysisModal 
+          farm={selectedFarmForAI} 
+          onClose={() => setSelectedFarmForAI(null)} 
+        />
+      )}
+    </div>
+  );
+};
+
+// Helper component to keep the file cleaner
+const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel }: any) => {
+  return (
+        <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+          <table className="w-full text-left border-collapse bg-white">
             <thead>
-              <tr className="border-b border-slate-200">
+              <tr className="border-b border-slate-100 bg-slate-50/50">
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Homestead & Owner</th>
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cooperative</th>
-                <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Soil/Activities Log</th>
+                <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Details</th>
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">GPS Status</th>
                 {isSystemDev && <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>}
               </tr>
             </thead>
             <tbody>
-              {data.map((d) => (
+              {items.map((d: any) => (
                 <tr key={d.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                  <td className="py-4 px-4 text-sm font-bold text-slate-700">{new Date(d.submittedAt).toLocaleDateString()}</td>
-                  <td className="py-4 px-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                  <td className="py-4 px-4 whitespace-nowrap">
+                    <span className="text-sm font-bold text-slate-700">{new Date(d.submittedAt).toLocaleDateString()}</span>
+                    <span className={`block mt-1 px-2 py-0.5 w-fit rounded-full text-[8px] font-black uppercase tracking-widest ${
                       d.formType === 'weekly' ? 'bg-emerald-100 text-emerald-700' :
                       d.formType === 'solidarity' ? 'bg-purple-100 text-purple-700' :
-                      d.formType === 'homestead' ? 'bg-blue-100 text-blue-700' :
+                      typeLabel === 'Plot Base' ? 'bg-blue-100 text-blue-700' :
                       'bg-orange-100 text-orange-700'
                     }`}>
-                      {d.formType === 'weekly' ? 'Daily Update' : d.formType === 'homestead' ? 'Plot Base' : d.formType}
+                      {typeLabel}
                     </span>
                   </td>
-                  <td className="py-4 px-4">
+                  <td className="py-4 px-4 min-w-[200px]">
                     <div className="flex flex-col">
                       <span className="text-sm font-black text-slate-900">{d.homesteadName || d.homesteadVisitedName || d.farmName || 'General Plot'}</span>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Owner: {d.farmerName || d.farmer_name || 'Member'}</span>
                     </div>
                   </td>
                   <td className="py-4 px-4 text-sm font-bold text-slate-700">{d.foodCoop || d.agentCluster}</td>
-                  <td className="py-4 px-4 max-w-xs transition-all cursor-default group relative">
+                  <td className="py-4 px-4 min-w-[250px]">
                     <div className="text-[10px] text-slate-600 line-clamp-2 leading-relaxed">
                       {d.soilTypes && <span className="font-black text-emerald-600 block">Soil: {d.soilTypes}</span>}
-                      {d.weeklyActivities && <span>Activities: {d.weeklyActivities}</span>}
-                      {d.workDone && <span>Work: {d.workDone?.join(', ')}</span>}
+                      {d.weeklyActivities && <span className="block mt-0.5">Activities: {d.weeklyActivities}</span>}
+                      {d.workDone && <span className="block mt-0.5">Work: {d.workDone?.join(', ')}</span>}
+                      {d.productionOfficerName && <span className="block mt-0.5 text-slate-500 italic">Officer: {d.productionOfficerName}</span>}
                     </div>
                   </td>
-                  <td className="py-4 px-4">
+                  <td className="py-4 px-4 whitespace-nowrap">
                     {d.location ? (
                       <div className="flex flex-col">
                         <span className={d.gpsVerified ? "text-emerald-600 font-bold text-[10px]" : "text-amber-500 font-bold text-[10px]"}>
@@ -328,23 +403,14 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
                   )}
                 </tr>
               ))}
-              {data.length === 0 && (
+              {items.length === 0 && (
                 <tr key="empty-row">
-                  <td colSpan={isSystemDev ? 7 : 6} className="py-8 text-center text-slate-500 font-bold">No forms submitted yet.</td>
+                  <td colSpan={isSystemDev ? 6 : 5} className="py-8 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">No forms submitted in this category yet.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
-
-      {selectedFarmForAI && (
-        <AIAnalysisModal 
-          farm={selectedFarmForAI} 
-          onClose={() => setSelectedFarmForAI(null)} 
-        />
-      )}
-    </div>
   );
 };
 
