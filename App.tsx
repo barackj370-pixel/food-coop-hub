@@ -1124,7 +1124,14 @@ const App: React.FC = () => {
     const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FORUM', 'HOMESTEAD', 'MY_FARM'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
-    if (isSystemDev) return [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'VOUCHERS'];
+    if (isSystemDev) {
+      const devBase = [...loggedInBase, 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM'];
+      // Only true system developers (not just super agents) can see VOUCHERS
+      if (agentIdentity.role === SystemRole.SYSTEM_DEVELOPER) {
+        devBase.push('VOUCHERS');
+      }
+      return devBase as PortalType[];
+    }
     
     if (agentIdentity.role === SystemRole.SUPPLIER) return loggedInBase;
     
@@ -1138,11 +1145,11 @@ const App: React.FC = () => {
     else if (agentIdentity.role === SystemRole.MANAGER) {
       // Director/Manager Access: Finance, Audit, Board, Invite.
       // EXPLICITLY NO SYSTEM PORTAL.
-      base.push('FINANCE', 'AUDIT', 'BOARD', 'INVITE', 'VOUCHERS');
+      base.push('FINANCE', 'AUDIT', 'BOARD', 'INVITE');
     }
     else if (agentIdentity.role === SystemRole.SALES_MANAGER) {
       // General Sales Manager Access: Invite
-      base.push('INVITE', 'VOUCHERS');
+      base.push('INVITE');
     }
     
     return base;
