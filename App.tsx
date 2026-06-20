@@ -1094,7 +1094,7 @@ const App: React.FC = () => {
   };
 
   // CLEANUP: Access strictly based on role.
-  const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER;
+  const isSystemDev = agentIdentity?.role === SystemRole.SYSTEM_DEVELOPER || isSuperAgent(agentIdentity?.phone);
   
   const canManageNews = isSystemDev || 
     agentIdentity?.role === SystemRole.MANAGER || 
@@ -1138,11 +1138,11 @@ const App: React.FC = () => {
     else if (agentIdentity.role === SystemRole.MANAGER) {
       // Director/Manager Access: Finance, Audit, Board, Invite.
       // EXPLICITLY NO SYSTEM PORTAL.
-      base.push('FINANCE', 'AUDIT', 'BOARD', 'INVITE');
+      base.push('FINANCE', 'AUDIT', 'BOARD', 'INVITE', 'VOUCHERS');
     }
     else if (agentIdentity.role === SystemRole.SALES_MANAGER) {
       // General Sales Manager Access: Invite
-      base.push('INVITE');
+      base.push('INVITE', 'VOUCHERS');
     }
     
     return base;
