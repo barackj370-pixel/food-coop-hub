@@ -174,14 +174,6 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
             <div className="w-3 h-3 rounded-full bg-red-500"></div>
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Convention/Attention Needed</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Solidarity Mission</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Verified Homestead Base</span>
-          </div>
         </div>
 
         <div className="h-[500px] rounded-[2rem] overflow-hidden border border-slate-200 relative group">
@@ -191,7 +183,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
               attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
-            {data.filter(d => d.location).map((d) => (
+            {data.filter(d => d.location && d.formType === 'homestead').map((d) => (
               <Marker 
                 key={d.id} 
                 position={[d.location!.lat, d.location!.lng]}
