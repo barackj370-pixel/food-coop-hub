@@ -57,6 +57,20 @@ if (typeof window !== 'undefined') {
 }
 */
 
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  const msg = args.map(a => typeof a === 'string' ? a : (a?.message || '')).join(' ').toLowerCase();
+  if (msg.includes('refresh token')) return;
+  originalConsoleError(...args);
+};
+
+const originalConsoleWarn = console.warn;
+console.warn = (...args) => {
+  const msg = args.map(a => typeof a === 'string' ? a : (a?.message || '')).join(' ').toLowerCase();
+  if (msg.includes('refresh token')) return;
+  originalConsoleWarn(...args);
+};
+
 const AppWrapper: React.FC = () => {
     return <App />;
 };
