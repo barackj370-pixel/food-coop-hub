@@ -116,7 +116,7 @@ const mapDbToRecord = (db: any): SaleRecord => ({
   totalSale: Number(db.total_sale || db.totalSale || 0),
   coopProfit: Number(db.coop_profit || db.coopProfit || 0),
   buyingPrice: Number(db.buying_price || db.buyingPrice || 0),
-  isAggregate: db.is_aggregate !== undefined ? db.is_aggregate : db.isAggregate,
+  isAggregate: db.is_aggregate !== undefined ? db.is_aggregate : (db.isAggregate || (db.crop_type || db.cropType) === 'AGGREGATE (Weekly)'),
   status: normalizeStatus(db.status),
   signature: db.signature,
   createdAt: db.created_at || db.createdAt || new Date().toISOString(),
