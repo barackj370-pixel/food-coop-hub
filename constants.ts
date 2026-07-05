@@ -39,7 +39,7 @@ export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'A
 export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
 export const PROFIT_MARGIN = 0.10; // 10% coop margin
-export const TEN_PERCENT_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
+export const TEN_PERCENT_COOPS = ['Mariwa', 'Mulo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana'];
 
 // Background Sync Polling Interval (30 Seconds)
 export const SYNC_POLLING_INTERVAL = 30000;
