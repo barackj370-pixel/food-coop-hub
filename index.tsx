@@ -59,17 +59,30 @@ if (typeof window !== 'undefined') {
 
 const originalConsoleError = console.error;
 console.error = (...args) => {
-  const msg = args.map(a => typeof a === 'string' ? a : (a?.message || '')).join(' ').toLowerCase();
-  if (msg.includes('refresh token')) return;
+  try {
+    const msg = args.map(a => typeof a === 'string' ? a : (a && typeof a === 'object' && a.message ? String(a.message) : '')).join(' ').toLowerCase();
+    if (msg.includes('refresh token') || msg.includes('script error.')) return;
+  } catch (e) {}
   originalConsoleError(...args);
 };
 
 const originalConsoleWarn = console.warn;
 console.warn = (...args) => {
-  const msg = args.map(a => typeof a === 'string' ? a : (a?.message || '')).join(' ').toLowerCase();
-  if (msg.includes('refresh token')) return;
+  try {
+    const msg = args.map(a => typeof a === 'string' ? a : (a && typeof a === 'object' && a.message ? String(a.message) : '')).join(' ').toLowerCase();
+    if (msg.includes('refresh token') || msg.includes('script error.')) return;
+  } catch (e) {}
   originalConsoleWarn(...args);
 };
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    if (event.message && event.message.toLowerCase().includes('script error')) {
+      event.preventDefault();
+      console.log('Suppressed cross-origin script error');
+    }
+  });
+}
 
 const AppWrapper: React.FC = () => {
     return <App />;
