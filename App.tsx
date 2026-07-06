@@ -1634,7 +1634,7 @@ const App: React.FC = () => {
         const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
         let coopProfit = data.coopProfit !== undefined ? data.coopProfit : (totalSale * PROFIT_MARGIN) + 1;
         
-        if (!data.isAggregate && data.produceId) {
+        if (data.produceId) {
           const produce = produceListings.find(p => p.id === data.produceId);
           if (produce && produce.wholesalePrice !== undefined) {
             const totalProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
@@ -1676,7 +1676,7 @@ const App: React.FC = () => {
       const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
       let coopProfit = data.coopProfit !== undefined ? data.coopProfit : (totalSale * PROFIT_MARGIN) + 1;
       
-      if (!data.isAggregate && data.produceId) {
+      if (data.produceId) {
         const produce = produceListings.find(p => p.id === data.produceId);
         if (produce && produce.wholesalePrice !== undefined) {
           const totalProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
