@@ -31,7 +31,7 @@ interface FarmFormsData {
   id: string;
   fromPages?: boolean;
   dbRowId?: string;
-  formType: 'weekly' | 'solidarity' | 'homestead';
+  formType: 'weekly' | 'solidarity' | 'homestead' | 'youth_assessment';
   location: { lat: number; lng: number } | null;
   gpsVerified?: boolean;
   submittedAt: string;
@@ -78,6 +78,7 @@ interface FarmFormsData {
 interface FarmDataMapProps {
   data: FarmFormsData[];
   isSystemDev?: boolean;
+  users?: any[];
   onRefresh?: () => void;
 }
 
@@ -97,11 +98,13 @@ const getMarkerIcon = (farm: FarmFormsData) => {
     }
   } else if (farm.formType === 'solidarity') {
     color = '#8b5cf6'; // Purple
+  } else if (farm.formType === 'youth_assessment') {
+    color = '#f97316'; // Orange
   } else if (farm.formType === 'homestead') {
     color = '#2563eb'; // Blue (Verified Base)
   }
 
-  const icon = farm.formType === 'homestead' ? 'home' : 'leaf';
+  const icon = farm.formType === 'homestead' ? 'home' : farm.formType === 'youth_assessment' ? 'child' : 'leaf';
 
   return L.divIcon({
     className: 'custom-marker',
@@ -111,7 +114,7 @@ const getMarkerIcon = (farm: FarmFormsData) => {
   });
 };
 
-const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh }) => {
+const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = [], onRefresh }) => {
   const mapCenter = { lat: -1.2921, lng: 36.8219 }; // Default to Nairobi
   const [selectedFarmForAI, setSelectedFarmForAI] = useState<FarmFormsData | null>(null);
 
@@ -183,7 +186,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
               attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
-            {data.filter(d => d.location && d.formType === 'homestead').map((d) => (
+            {data.filter(d => d.location).map((d) => (
               <Marker 
                 key={d.id} 
                 position={[d.location!.lat, d.location!.lng]}
@@ -193,7 +196,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
                   <div className="p-2 min-w-[220px]">
                     <div className="flex justify-between items-start mb-2">
                        <h3 className="font-black text-xs uppercase tracking-widest text-emerald-700">
-                        {d.formType === 'weekly' ? 'Weekly Activity' : d.formType === 'homestead' && !d.fromPages ? 'Plot Base' : d.formType === 'homestead' ? 'Owner Details' : d.formType.toUpperCase()}
+                        {d.formType === 'weekly' ? 'Weekly Activity' : d.formType === 'homestead' && !d.fromPages ? 'Plot Base' : d.formType === 'homestead' ? 'Owner Details' : d.formType === 'youth_assessment' ? 'Youth Assessment' : d.formType.toUpperCase()}
                       </h3>
                       {d.gpsVerified ? (
                         <span className="text-[8px] font-black bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase shrink-0 ml-2">Verified GPS</span>
@@ -205,17 +208,24 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
                     <div className="space-y-1.5 mt-3">
                       <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                         <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Homestead Name</p>
-                        <p className="text-[11px] font-black text-slate-800">{d.homesteadName || d.homesteadVisitedName || d.farmName || 'General Plot'}</p>
+                        <p className="text-[11px] font-black text-slate-800">{(d as any).householdName || d.homesteadName || d.homesteadVisitedName || d.farmName || 'General Plot'}</p>
                       </div>
 
                       <div className="flex justify-between gap-4 mt-2">
                         <div>
                           <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Owner/Farmer</p>
-                          <p className="text-[10px] font-bold text-slate-700">{d.farmerName || d.farmer_name || 'Member'}</p>
+                          <p className="text-[10px] font-bold text-slate-700">
+                             {(() => {
+                               const phone = d.farmerPhone || d.homesteadContact || (d as any).parentPhone || d.farmer_phone;
+                               const user = users.find(u => u.phone === phone);
+                               if (user && user.name) return user.name;
+                               return (d as any).parentName || (d as any).parentNameField || d.farmerName || d.farmer_name || d.homesteadVisitedContact || 'Member';
+                             })()}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Cooperative</p>
-                          <p className="text-[10px] font-bold text-slate-700">{d.foodCoop || d.agentCluster}</p>
+                          <p className="text-[10px] font-bold text-slate-700">{(d as any).foodCoopName || d.foodCoop || d.agentCluster}</p>
                         </div>
                       </div>
                       
@@ -302,6 +312,19 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, onRefresh 
           />
         </div>
 
+        {/* YOUTH ASSESSMENT (FORM C) */}
+        <div className="mb-12">
+          <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+             <i className="fas fa-child"></i> National Youth Assessment (Form C)
+          </h3>
+          <RegistryTable 
+             items={data.filter(d => d.formType === 'youth_assessment')}
+             isSystemDev={isSystemDev}
+             handleDeleteRecord={handleDeleteRecord}
+             typeLabel="Youth Assessment"
+          />
+        </div>
+
         {/* HOMESTEAD OWNER */}
         <div className="mb-4">
           <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
@@ -349,25 +372,57 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel }: an
                     <span className={`block mt-1 px-2 py-0.5 w-fit rounded-full text-[8px] font-black uppercase tracking-widest ${
                       d.formType === 'weekly' ? 'bg-emerald-100 text-emerald-700' :
                       d.formType === 'solidarity' ? 'bg-purple-100 text-purple-700' :
+                      d.formType === 'youth_assessment' ? 'bg-orange-100 text-orange-700' :
                       typeLabel === 'Plot Base' ? 'bg-blue-100 text-blue-700' :
-                      'bg-orange-100 text-orange-700'
+                      'bg-amber-100 text-amber-700'
                     }`}>
                       {typeLabel}
                     </span>
                   </td>
                   <td className="py-4 px-4 min-w-[200px]">
                     <div className="flex flex-col">
-                      <span className="text-sm font-black text-slate-900">{d.homesteadName || d.homesteadVisitedName || d.farmName || 'General Plot'}</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Owner: {d.farmerName || d.farmer_name || 'Member'}</span>
+                      <span className="text-sm font-black text-slate-900">{d.householdName || d.homesteadName || d.homesteadVisitedName || d.farmName || 'General Plot'}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                        Owner: {(() => {
+                          const phone = d.farmerPhone || d.homesteadContact || d.parentPhone || d.farmer_phone;
+                          const user = users.find(u => u.phone === phone);
+                          if (user && user.name) return user.name;
+                          return d.parentName || d.parentNameField || d.farmerName || d.farmer_name || d.homesteadVisitedContact || 'Member';
+                        })()}
+                      </span>
                     </div>
                   </td>
-                  <td className="py-4 px-4 text-sm font-bold text-slate-700">{d.foodCoop || d.agentCluster}</td>
+                  <td className="py-4 px-4 text-sm font-bold text-slate-700">{d.foodCoopName || d.foodCoop || d.agentCluster}</td>
                   <td className="py-4 px-4 min-w-[250px]">
-                    <div className="text-[10px] text-slate-600 line-clamp-2 leading-relaxed">
-                      {d.soilTypes && <span className="font-black text-emerald-600 block">Soil: {d.soilTypes}</span>}
-                      {d.weeklyActivities && <span className="block mt-0.5">Activities: {d.weeklyActivities}</span>}
-                      {d.workDone && <span className="block mt-0.5">Work: {d.workDone?.join(', ')}</span>}
-                      {d.productionOfficerName && <span className="block mt-0.5 text-slate-500 italic">Officer: {d.productionOfficerName}</span>}
+                    <div className="text-[10px] text-slate-600 line-clamp-3 leading-relaxed">
+                      {d.formType === 'youth_assessment' ? (
+                        <>
+                          <span className="font-black text-emerald-600 block">Assessment: {d.householdName || 'Household'} ({d.foodCoopName || d.foodCoop || 'No Coop'})</span>
+                          <span className="block mt-0.5"><b>Parent:</b> {d.parentNameField || d.parentName || 'N/A'} | <b>Phone:</b> {d.parentPhone || 'N/A'}</span>
+                          {d.youthList && d.youthList.length > 0 && (
+                            <span className="block mt-0.5 text-slate-500">
+                              <b>Youth ({d.youthList.length}):</b> {d.youthList.map((y: any) => `${y.name} (${y.grade})`).join(', ')}
+                            </span>
+                          )}
+                          {d.seedsList && d.seedsList.length > 0 && (
+                            <span className="block mt-0.5 text-emerald-500">
+                              <b>Seeds:</b> {d.seedsList.map((s: any) => s.cropSeed).filter(Boolean).join(', ')}
+                            </span>
+                          )}
+                          {(d.parentName || d.parentNameField) && (
+                            <span className="block mt-1 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                              <i className="fas fa-signature text-blue-500"></i> Digitally Signed by {d.parentName || d.parentNameField}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {d.soilTypes && <span className="font-black text-emerald-600 block">Soil: {d.soilTypes}</span>}
+                          {d.weeklyActivities && <span className="block mt-0.5">Activities: {d.weeklyActivities}</span>}
+                          {d.workDone && <span className="block mt-0.5">Work: {d.workDone?.join(', ')}</span>}
+                          {d.productionOfficerName && <span className="block mt-0.5 text-slate-500 italic">Officer: {d.productionOfficerName}</span>}
+                        </>
+                      )}
                     </div>
                   </td>
                   <td className="py-4 px-4 whitespace-nowrap">
