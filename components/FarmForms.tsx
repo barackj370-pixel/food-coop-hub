@@ -252,8 +252,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         if (!parentAttested || !parentName.trim()) {
           throw new Error("Please type your name and check the box to sign the Parent/Guardian Electronic Attestation.");
         }
-        if (!salesAgentAttested || !salesAgentName.trim()) {
-          throw new Error("Please type your name and check the box to sign the Sales Agent Confirmation Electronic Attestation.");
+        if (!salesAgentName.trim()) {
+          throw new Error("Please type the Sales Agent name.");
         }
         if (!youthAgentAttested || !youthAgentName.trim()) {
           throw new Error("Please type your name and check the box to sign the Youth Agent Confirmation Electronic Attestation.");
@@ -407,23 +407,25 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
-                Food Coop
-              </label>
-              <select
-                name="foodCoop"
-                required
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all appearance-none"
-                defaultValue={agentIdentity.cluster}
-              >
-                {dynamicClusters.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {activeForm !== "youth_assessment" && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                  Food Coop
+                </label>
+                <select
+                  name="foodCoop"
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all appearance-none"
+                  defaultValue={agentIdentity.cluster}
+                >
+                  {dynamicClusters.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {activeForm === "solidarity" ? (
@@ -698,13 +700,19 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
                       1.2 Food Coop Name
                     </label>
-                    <input
-                      type="text"
+                    <select
                       name="foodCoopName"
                       required
-                      placeholder="Enter Food Coop Name"
                       className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:border-emerald-400 transition-all text-xs"
-                    />
+                      defaultValue={agentIdentity.cluster}
+                    >
+                      <option value="">Select Food Coop</option>
+                      {dynamicClusters.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -1332,7 +1340,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                   {/* Sales Agent Confirmation (6.0) */}
                   <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4 shadow-sm">
                     <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest block">6.0 Food Coop Sales Agent Confirmation</span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-2">
                         <label className="text-[9px] font-black text-slate-400 uppercase">Type Sales Agent Full Name</label>
                         <input
@@ -1343,33 +1351,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                           className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-400 text-xs transition-all"
                         />
                       </div>
-                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[100px]">
-                        {salesAgentName ? (
-                          <>
-                            <span 
-                              className="text-4xl text-purple-900 tracking-wide select-none"
-                              style={{ fontFamily: "'Great Vibes', cursive" }}
-                            >
-                              {salesAgentName}
-                            </span>
-                            <span className="text-[8px] font-mono text-slate-400 absolute bottom-2 right-3">{salesAgentSignedAt}</span>
-                          </>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Electronic Signature Preview</span>
-                        )}
-                      </div>
                     </div>
-                    <label className="flex items-start space-x-3 cursor-pointer pt-2">
-                      <input
-                        type="checkbox"
-                        checked={salesAgentAttested}
-                        onChange={(e) => setSalesAgentAttested(e.target.checked)}
-                        className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 text-xs"
-                      />
-                      <span className="text-[11px] font-bold text-slate-500 leading-tight">
-                        I, {salesAgentName || "Sales Agent"}, on behalf of the Food Coop, confirm and attest that we verified the correctness of the information given by this Household.
-                      </span>
-                    </label>
                   </div>
 
                   {/* Youth Agent Confirmation (6.0) */}
