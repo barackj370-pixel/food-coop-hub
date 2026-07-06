@@ -35,7 +35,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   onFormSubmitted,
 }) => {
   const [activeForm, setActiveForm] = useState<
-    "weekly" | "solidarity" | "homestead"
+    "weekly" | "solidarity" | "homestead" | "youth_assessment"
   >("weekly");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{
@@ -43,6 +43,92 @@ const FarmForms: React.FC<FarmFormsProps> = ({
     message: string;
   } | null>(null);
   const [farmBaselines, setFarmBaselines] = useState<any[]>([]);
+
+  // Youth Assessment Form Custom States
+  const [youthList, setYouthList] = useState<{ name: string; sex: string; mobile: string; grade: string }[]>([
+    { name: '', sex: 'M', mobile: '', grade: '' }
+  ]);
+  const [otherMemberList, setOtherMemberList] = useState<{ name: string; sex: string; mobile: string; relation: string }[]>([
+    { name: '', sex: 'M', mobile: '', relation: '' }
+  ]);
+  const [seedsList, setSeedsList] = useState<{ cropSeed: string; livestockSeed: string }[]>([
+    { cropSeed: '', livestockSeed: '' }
+  ]);
+  const [foodsList, setFoodsList] = useState<{ cropFood: string; livestockFood: string }[]>([
+    { cropFood: '', livestockFood: '' }
+  ]);
+  const [organicInputsList, setOrganicInputsList] = useState<{ type: string; quantity: string }[]>([
+    { type: '', quantity: '' }
+  ]);
+  const [implementsList, setImplementsList] = useState<{ type: string; quantity: string }[]>([
+    { type: '', quantity: '' }
+  ]);
+  const [consumptionList, setConsumptionList] = useState<{ type: string; source: string }[]>([
+    { type: '', source: '' }
+  ]);
+
+  // Signatures
+  const [parentName, setParentName] = useState('');
+  const [parentAttested, setParentAttested] = useState(false);
+  const [parentSignedAt, setParentSignedAt] = useState('');
+
+  const [salesAgentName, setSalesAgentName] = useState('');
+  const [salesAgentAttested, setSalesAgentAttested] = useState(false);
+  const [salesAgentSignedAt, setSalesAgentSignedAt] = useState('');
+
+  const [youthAgentName, setYouthAgentName] = useState('');
+  const [youthAgentAttested, setYouthAgentAttested] = useState(false);
+  const [youthAgentSignedAt, setYouthAgentSignedAt] = useState('');
+
+  // Auto-timestamp signatures when name is typed
+  useEffect(() => {
+    if (parentName) {
+      if (!parentSignedAt) {
+        setParentSignedAt(new Date().toLocaleString());
+      }
+    } else {
+      setParentSignedAt('');
+    }
+  }, [parentName]);
+
+  useEffect(() => {
+    if (salesAgentName) {
+      if (!salesAgentSignedAt) {
+        setSalesAgentSignedAt(new Date().toLocaleString());
+      }
+    } else {
+      setSalesAgentSignedAt('');
+    }
+  }, [salesAgentName]);
+
+  useEffect(() => {
+    if (youthAgentName) {
+      if (!youthAgentSignedAt) {
+        setYouthAgentSignedAt(new Date().toLocaleString());
+      }
+    } else {
+      setYouthAgentSignedAt('');
+    }
+  }, [youthAgentName]);
+
+  const resetCustomForm = () => {
+    setYouthList([{ name: '', sex: 'M', mobile: '', grade: '' }]);
+    setOtherMemberList([{ name: '', sex: 'M', mobile: '', relation: '' }]);
+    setSeedsList([{ cropSeed: '', livestockSeed: '' }]);
+    setFoodsList([{ cropFood: '', livestockFood: '' }]);
+    setOrganicInputsList([{ type: '', quantity: '' }]);
+    setImplementsList([{ type: '', quantity: '' }]);
+    setConsumptionList([{ type: '', source: '' }]);
+    setParentName('');
+    setParentAttested(false);
+    setParentSignedAt('');
+    setSalesAgentName('');
+    setSalesAgentAttested(false);
+    setSalesAgentSignedAt('');
+    setYouthAgentName('');
+    setYouthAgentAttested(false);
+    setYouthAgentSignedAt('');
+  };
 
   useEffect(() => {
     supabase
@@ -161,6 +247,19 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         confirmationMessage = "Form submitted successfully! (GPS Not Verified - Unable to capture GPS)";
       }
 
+      // Signature and Attestation Validation for Youth Assessment
+      if (activeForm === "youth_assessment") {
+        if (!parentAttested || !parentName.trim()) {
+          throw new Error("Please type your name and check the box to sign the Parent/Guardian Electronic Attestation.");
+        }
+        if (!salesAgentAttested || !salesAgentName.trim()) {
+          throw new Error("Please type your name and check the box to sign the Sales Agent Confirmation Electronic Attestation.");
+        }
+        if (!youthAgentAttested || !youthAgentName.trim()) {
+          throw new Error("Please type your name and check the box to sign the Youth Agent Confirmation Electronic Attestation.");
+        }
+      }
+
       const payload = {
         id: `farm_form_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         title: `FarmForm_${activeForm}`,
@@ -170,8 +269,28 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           location,
           submittedAt: new Date().toISOString(),
           agentCluster: agentIdentity.cluster,
-          farmerPhone: data.homesteadContact || data.productionOfficerContact || data.convenerContact || agentIdentity.phone,
+          farmerPhone: activeForm === "youth_assessment" 
+            ? (data.parentPhone || agentIdentity.phone) 
+            : (data.homesteadContact || data.productionOfficerContact || data.convenerContact || agentIdentity.phone),
           submittedByPhone: agentIdentity.phone, // Track who actually submitted it
+          ...(activeForm === "youth_assessment" ? {
+            youthList,
+            otherMemberList,
+            seedsList,
+            foodsList,
+            organicInputsList,
+            implementsList,
+            consumptionList,
+            parentName,
+            parentSignedAt,
+            salesAgentName,
+            salesAgentSignedAt,
+            youthAgentName,
+            youthAgentSignedAt,
+            parentAttested,
+            salesAgentAttested,
+            youthAgentAttested
+          } : {})
         }),
       };
 
@@ -183,6 +302,9 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         message: confirmationMessage,
       });
       form.reset();
+      if (activeForm === "youth_assessment") {
+        resetCustomForm();
+      }
       if (onFormSubmitted) onFormSubmitted();
 
       // Auto-hide success message after 5 seconds
@@ -230,6 +352,15 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             className={`px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${activeForm === "homestead" ? "bg-emerald-600 text-white shadow-lg" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
           >
             Homestead Owner (Form B)
+          </button>
+          <button
+            onClick={() => {
+              setActiveForm("youth_assessment");
+              resetCustomForm();
+            }}
+            className={`px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${activeForm === "youth_assessment" ? "bg-emerald-600 text-white shadow-lg" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            Youth Assessment (Form C)
           </button>
         </div>
 
@@ -541,6 +672,749 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                   placeholder="e.g. 5"
                   className="w-full md:w-1/3 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all"
                 />
+              </div>
+            </div>
+          ) : activeForm === "youth_assessment" ? (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              {/* Section 1.0 Household Details */}
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 pb-2 flex items-center gap-2">
+                  <i className="fas fa-home text-emerald-600"></i> 1.0 Household Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                      1.1 Household Name
+                    </label>
+                    <input
+                      type="text"
+                      name="householdName"
+                      required
+                      placeholder="Enter Household Name"
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:border-emerald-400 transition-all text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                      1.2 Food Coop Name
+                    </label>
+                    <input
+                      type="text"
+                      name="foodCoopName"
+                      required
+                      placeholder="Enter Food Coop Name"
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:border-emerald-400 transition-all text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* 1.3 Parents/Guardians Details */}
+                <div className="space-y-4 pt-4 border-t border-slate-200">
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-user-shield text-emerald-600"></i> 1.3 Parents/Guardians Details
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                        Name of Parent/Guardian
+                      </label>
+                      <input
+                        type="text"
+                        name="parentNameField"
+                        required
+                        placeholder="Full Name"
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:border-emerald-400 transition-all text-xs"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                        Sex
+                      </label>
+                      <select
+                        name="parentSex"
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:border-emerald-400 transition-all text-xs"
+                      >
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                        Phone Number
+                      </label>
+                      <input
+                        type="text"
+                        name="parentPhone"
+                        required
+                        placeholder="e.g. +254..."
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:border-emerald-400 transition-all text-xs"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
+                        National / Student ID
+                      </label>
+                      <input
+                        type="text"
+                        name="parentId"
+                        required
+                        placeholder="ID Number"
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:border-emerald-400 transition-all text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 1.4 Household Youth Details Table */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4 shadow-sm">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-child text-emerald-600"></i> 1.4 Household Youth Details
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setYouthList([...youthList, { name: '', sex: 'M', mobile: '', grade: '' }])}
+                    className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                  >
+                    <i className="fas fa-plus"></i> Add Youth
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {youthList.map((row, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 relative group">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Youth Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={row.name}
+                          onChange={(e) => {
+                            const updated = [...youthList];
+                            updated[index].name = e.target.value;
+                            setYouthList(updated);
+                          }}
+                          placeholder="Name"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Sex</label>
+                        <select
+                          value={row.sex}
+                          onChange={(e) => {
+                            const updated = [...youthList];
+                            updated[index].sex = e.target.value;
+                            setYouthList(updated);
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        >
+                          <option value="M">Male (M)</option>
+                          <option value="F">Female (F)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Mobile Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={row.mobile}
+                          onChange={(e) => {
+                            const updated = [...youthList];
+                            updated[index].mobile = e.target.value;
+                            setYouthList(updated);
+                          }}
+                          placeholder="Mobile"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-1 flex gap-2 items-end">
+                        <div className="flex-1 space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Grade / Level</label>
+                          <input
+                            type="text"
+                            required
+                            value={row.grade}
+                            onChange={(e) => {
+                              const updated = [...youthList];
+                              updated[index].grade = e.target.value;
+                              setYouthList(updated);
+                            }}
+                            placeholder="e.g. Grade 10"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                          />
+                        </div>
+                        {youthList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setYouthList(youthList.filter((_, i) => i !== index))}
+                            className="bg-red-50 text-red-500 hover:bg-red-100 p-2.5 rounded-xl transition-all mb-0.5"
+                          >
+                            <i className="fas fa-trash-alt text-xs"></i>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 1.5 Other Household Members Details */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4 shadow-sm">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-users-rectangle text-emerald-600"></i> 1.5 Other Household Members Details
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setOtherMemberList([...otherMemberList, { name: '', sex: 'M', mobile: '', relation: '' }])}
+                    className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                  >
+                    <i className="fas fa-plus"></i> Add Member
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {otherMemberList.map((row, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 relative group">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Member Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={row.name}
+                          onChange={(e) => {
+                            const updated = [...otherMemberList];
+                            updated[index].name = e.target.value;
+                            setOtherMemberList(updated);
+                          }}
+                          placeholder="Name"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Sex</label>
+                        <select
+                          value={row.sex}
+                          onChange={(e) => {
+                            const updated = [...otherMemberList];
+                            updated[index].sex = e.target.value;
+                            setOtherMemberList(updated);
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        >
+                          <option value="M">Male (M)</option>
+                          <option value="F">Female (F)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Mobile Number</label>
+                        <input
+                          type="text"
+                          required
+                          value={row.mobile}
+                          onChange={(e) => {
+                            const updated = [...otherMemberList];
+                            updated[index].mobile = e.target.value;
+                            setOtherMemberList(updated);
+                          }}
+                          placeholder="Mobile"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-1 flex gap-2 items-end">
+                        <div className="flex-1 space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Relation</label>
+                          <input
+                            type="text"
+                            required
+                            value={row.relation}
+                            onChange={(e) => {
+                              const updated = [...otherMemberList];
+                              updated[index].relation = e.target.value;
+                              setOtherMemberList(updated);
+                            }}
+                            placeholder="e.g. Uncle / Aunt / Cousin / Worker"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                          />
+                        </div>
+                        {otherMemberList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setOtherMemberList(otherMemberList.filter((_, i) => i !== index))}
+                            className="bg-red-50 text-red-500 hover:bg-red-100 p-2.5 rounded-xl transition-all mb-0.5"
+                          >
+                            <i className="fas fa-trash-alt text-xs"></i>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 2.0 Crops & Animals Details */}
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 pb-2 flex items-center gap-2">
+                  <i className="fas fa-paw text-emerald-600"></i> 2.0 Crops & Animals Details
+                </h3>
+
+                {/* 2.2 Indigenous Seeds */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <i className="fas fa-seedling text-emerald-600"></i> 2.2 Indigenous Crop & Livestock Seeds Available
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setSeedsList([...seedsList, { cropSeed: '', livestockSeed: '' }])}
+                      className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                    >
+                      <i className="fas fa-plus"></i> Add Seed Row
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {seedsList.map((row, index) => (
+                      <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-2xl border border-slate-100 relative">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Crop Seed Type/Variety</label>
+                          <input
+                            type="text"
+                            required
+                            value={row.cropSeed}
+                            onChange={(e) => {
+                              const updated = [...seedsList];
+                              updated[index].cropSeed = e.target.value;
+                              setSeedsList(updated);
+                            }}
+                            placeholder="e.g. Indigenous Maize variety"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                          />
+                        </div>
+                        <div className="space-y-1 flex gap-2 items-end">
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase">Livestock Seed Type/Breed</label>
+                            <input
+                              type="text"
+                              required
+                              value={row.livestockSeed}
+                              onChange={(e) => {
+                                const updated = [...seedsList];
+                                updated[index].livestockSeed = e.target.value;
+                                setSeedsList(updated);
+                              }}
+                              placeholder="e.g. Indigenous chicken breed"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                            />
+                          </div>
+                          {seedsList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setSeedsList(seedsList.filter((_, i) => i !== index))}
+                              className="bg-red-50 text-red-500 hover:bg-red-100 p-2 rounded-xl transition-all mb-0.5"
+                            >
+                              <i className="fas fa-trash-alt text-xs"></i>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2.3 Indigenous Food */}
+                <div className="space-y-4 pt-4 border-t border-slate-200">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <i className="fas fa-bowl-food text-emerald-600"></i> 2.3 Indigenous Crops & Livestock Food Available
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setFoodsList([...foodsList, { cropFood: '', livestockFood: '' }])}
+                      className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                    >
+                      <i className="fas fa-plus"></i> Add Food Row
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {foodsList.map((row, index) => (
+                      <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-2xl border border-slate-100 relative">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Crop Food Type/Variety</label>
+                          <input
+                            type="text"
+                            required
+                            value={row.cropFood}
+                            onChange={(e) => {
+                              const updated = [...foodsList];
+                              updated[index].cropFood = e.target.value;
+                              setFoodsList(updated);
+                            }}
+                            placeholder="e.g. Cassava, Sweet potatoes"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                          />
+                        </div>
+                        <div className="space-y-1 flex gap-2 items-end">
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase">Livestock Food Type/Breed</label>
+                            <input
+                              type="text"
+                              required
+                              value={row.livestockFood}
+                              onChange={(e) => {
+                                const updated = [...foodsList];
+                                updated[index].livestockFood = e.target.value;
+                                setFoodsList(updated);
+                              }}
+                              placeholder="e.g. Free-range eggs, Goat milk"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                            />
+                          </div>
+                          {foodsList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setFoodsList(foodsList.filter((_, i) => i !== index))}
+                              className="bg-red-50 text-red-500 hover:bg-red-100 p-2 rounded-xl transition-all mb-0.5"
+                            >
+                              <i className="fas fa-trash-alt text-xs"></i>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2.4 Organic Farm Inputs */}
+                <div className="space-y-4 pt-4 border-t border-slate-200">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <i className="fas fa-flask text-emerald-600"></i> 2.4 Organic Farm Inputs Available
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setOrganicInputsList([...organicInputsList, { type: '', quantity: '' }])}
+                      className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                    >
+                      <i className="fas fa-plus"></i> Add Input Row
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {organicInputsList.map((row, index) => (
+                      <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-2xl border border-slate-100 relative">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Farm Inputs Type/Variety</label>
+                          <input
+                            type="text"
+                            required
+                            value={row.type}
+                            onChange={(e) => {
+                              const updated = [...organicInputsList];
+                              updated[index].type = e.target.value;
+                              setOrganicInputsList(updated);
+                            }}
+                            placeholder="e.g. Compost manure, Liquid fertilizer"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                          />
+                        </div>
+                        <div className="space-y-1 flex gap-2 items-end">
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase">Quantity Available</label>
+                            <input
+                              type="text"
+                              required
+                              value={row.quantity}
+                              onChange={(e) => {
+                                const updated = [...organicInputsList];
+                                updated[index].quantity = e.target.value;
+                                setOrganicInputsList(updated);
+                              }}
+                              placeholder="e.g. 50 kg, 10 Liters"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                            />
+                          </div>
+                          {organicInputsList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setOrganicInputsList(organicInputsList.filter((_, i) => i !== index))}
+                              className="bg-red-50 text-red-500 hover:bg-red-100 p-2 rounded-xl transition-all mb-0.5"
+                            >
+                              <i className="fas fa-trash-alt text-xs"></i>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3.0 Farm Implements */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4 shadow-sm">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-screwdriver-wrench text-emerald-600"></i> 3.0 Farm Implements Available
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setImplementsList([...implementsList, { type: '', quantity: '' }])}
+                    className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                  >
+                    <i className="fas fa-plus"></i> Add Implement Row
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {implementsList.map((row, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 relative">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Implement Type</label>
+                        <input
+                          type="text"
+                          required
+                          value={row.type}
+                          onChange={(e) => {
+                            const updated = [...implementsList];
+                            updated[index].type = e.target.value;
+                            setImplementsList(updated);
+                          }}
+                          placeholder="e.g. Hand Hoe, Watering Can, Wheelbarrow"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-1 flex gap-2 items-end">
+                        <div className="flex-1 space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Quantity Available</label>
+                          <input
+                            type="text"
+                            required
+                            value={row.quantity}
+                            onChange={(e) => {
+                              const updated = [...implementsList];
+                              updated[index].quantity = e.target.value;
+                              setImplementsList(updated);
+                            }}
+                            placeholder="e.g. 2 pieces"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                          />
+                        </div>
+                        {implementsList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setImplementsList(implementsList.filter((_, i) => i !== index))}
+                            className="bg-red-50 text-red-500 hover:bg-red-100 p-2 rounded-xl transition-all mb-0.5"
+                          >
+                            <i className="fas fa-trash-alt text-xs"></i>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 4.0 Food Consumption */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4 shadow-sm">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <i className="fas fa-utensils text-emerald-600"></i> 4.0 Food Consumption (Most Consumed & Source)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setConsumptionList([...consumptionList, { type: '', source: '' }])}
+                    className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                  >
+                    <i className="fas fa-plus"></i> Add Consumption Row
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {consumptionList.map((row, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 relative">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Type of Food Consumed Most</label>
+                        <input
+                          type="text"
+                          required
+                          value={row.type}
+                          onChange={(e) => {
+                            const updated = [...consumptionList];
+                            updated[index].type = e.target.value;
+                            setConsumptionList(updated);
+                          }}
+                          placeholder="e.g. Ugali, Sukuma Wiki, Beans"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                        />
+                      </div>
+                      <div className="space-y-1 flex gap-2 items-end">
+                        <div className="flex-1 space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Source of Food</label>
+                          <input
+                            type="text"
+                            required
+                            value={row.source}
+                            onChange={(e) => {
+                              const updated = [...consumptionList];
+                              updated[index].source = e.target.value;
+                              setConsumptionList(updated);
+                            }}
+                            placeholder="e.g. Own Farm / Food Coop / Local Market"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700"
+                          />
+                        </div>
+                        {consumptionList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setConsumptionList(consumptionList.filter((_, i) => i !== index))}
+                            className="bg-red-50 text-red-500 hover:bg-red-100 p-2.5 rounded-xl transition-all mb-0.5"
+                          >
+                            <i className="fas fa-trash-alt text-xs"></i>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 5.0 Declaration & Attestations */}
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 pb-2 flex items-center gap-2">
+                  <i className="fas fa-file-contract text-emerald-600"></i> 5.0 Declaration & Attestations
+                </h3>
+                <p className="text-[11px] font-bold text-slate-500 leading-relaxed italic bg-white p-4 rounded-2xl border border-slate-100">
+                  "We declare that the responses given in the above sections are true and complete and that we have not withheld any material information. We also agree that the responses shall be used for purposes of Food Coop planning and engagement."
+                </p>
+
+                {/* Signature Pads */}
+                <div className="space-y-6">
+                  {/* Parent Pad */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4 shadow-sm">
+                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block">Household Parent/Guardian Signature</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Type Parent/Guardian Full Name</label>
+                        <input
+                          type="text"
+                          value={parentName}
+                          onChange={(e) => setParentName(e.target.value)}
+                          placeholder="Type name here..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-400 text-xs transition-all"
+                        />
+                      </div>
+                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[100px]">
+                        {parentName ? (
+                          <>
+                            <span 
+                              className="text-4xl text-blue-900 tracking-wide select-none"
+                              style={{ fontFamily: "'Great Vibes', cursive" }}
+                            >
+                              {parentName}
+                            </span>
+                            <span className="text-[8px] font-mono text-slate-400 absolute bottom-2 right-3">{parentSignedAt}</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Electronic Signature Preview</span>
+                        )}
+                      </div>
+                    </div>
+                    <label className="flex items-start space-x-3 cursor-pointer pt-2">
+                      <input
+                        type="checkbox"
+                        checked={parentAttested}
+                        onChange={(e) => setParentAttested(e.target.checked)}
+                        className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 text-xs"
+                      />
+                      <span className="text-[11px] font-bold text-slate-500 leading-tight">
+                        I, {parentName || "Parent/Guardian"}, confirm and attest that this typed electronic signature represents my official consent and validation of the household assessment data.
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Sales Agent Confirmation (6.0) */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4 shadow-sm">
+                    <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest block">6.0 Food Coop Sales Agent Confirmation</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Type Sales Agent Full Name</label>
+                        <input
+                          type="text"
+                          value={salesAgentName}
+                          onChange={(e) => setSalesAgentName(e.target.value)}
+                          placeholder="Type name here..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-400 text-xs transition-all"
+                        />
+                      </div>
+                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[100px]">
+                        {salesAgentName ? (
+                          <>
+                            <span 
+                              className="text-4xl text-purple-900 tracking-wide select-none"
+                              style={{ fontFamily: "'Great Vibes', cursive" }}
+                            >
+                              {salesAgentName}
+                            </span>
+                            <span className="text-[8px] font-mono text-slate-400 absolute bottom-2 right-3">{salesAgentSignedAt}</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Electronic Signature Preview</span>
+                        )}
+                      </div>
+                    </div>
+                    <label className="flex items-start space-x-3 cursor-pointer pt-2">
+                      <input
+                        type="checkbox"
+                        checked={salesAgentAttested}
+                        onChange={(e) => setSalesAgentAttested(e.target.checked)}
+                        className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 text-xs"
+                      />
+                      <span className="text-[11px] font-bold text-slate-500 leading-tight">
+                        I, {salesAgentName || "Sales Agent"}, on behalf of the Food Coop, confirm and attest that we verified the correctness of the information given by this Household.
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Youth Agent Confirmation (6.0) */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4 shadow-sm">
+                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block">6.0 Food Coop Youth Agent Confirmation</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Type Youth Agent Full Name</label>
+                        <input
+                          type="text"
+                          value={youthAgentName}
+                          onChange={(e) => setYouthAgentName(e.target.value)}
+                          placeholder="Type name here..."
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-400 text-xs transition-all"
+                        />
+                      </div>
+                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[100px]">
+                        {youthAgentName ? (
+                          <>
+                            <span 
+                              className="text-4xl text-amber-900 tracking-wide select-none"
+                              style={{ fontFamily: "'Great Vibes', cursive" }}
+                            >
+                              {youthAgentName}
+                            </span>
+                            <span className="text-[8px] font-mono text-slate-400 absolute bottom-2 right-3">{youthAgentSignedAt}</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Electronic Signature Preview</span>
+                        )}
+                      </div>
+                    </div>
+                    <label className="flex items-start space-x-3 cursor-pointer pt-2">
+                      <input
+                        type="checkbox"
+                        checked={youthAgentAttested}
+                        onChange={(e) => setYouthAgentAttested(e.target.checked)}
+                        className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 text-xs"
+                      />
+                      <span className="text-[11px] font-bold text-slate-500 leading-tight">
+                        I, {youthAgentName || "Youth Agent"}, on behalf of the Food Coop, confirm and attest that we verified the correctness of the information given by this Household.
+                      </span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
