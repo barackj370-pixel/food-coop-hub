@@ -1414,17 +1414,11 @@ Cancel = No, for a Customer`);
         const cluster = data.cluster || agentIdentity?.cluster || "Unassigned";
         const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
         let coopProfit = data.coopProfit !== void 0 ? data.coopProfit : totalSale * PROFIT_MARGIN;
-        if (!data.isAggregate && !TEN_PERCENT_COOPS.includes(cluster) && data.produceId) {
+        if (data.produceId) {
           const produce = produceListings.find((p) => p.id === data.produceId);
           if (produce && produce.wholesalePrice !== void 0) {
             const totalProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
-            if (cluster === "New Kangemi Food Coop") {
-              coopProfit = totalProfit;
-            } else if ((data.farmerName || "").toLowerCase() !== "food coop") {
-              coopProfit = totalProfit * 0.1 + 1;
-            } else {
-              coopProfit = totalProfit;
-            }
+            coopProfit = totalProfit * 0.1 + 1;
           }
         }
         const signature = await computeHash({ ...data, id: editingId });
@@ -1457,17 +1451,11 @@ Cancel = No, for a Customer`);
       const cluster = data.cluster || agentIdentity?.cluster || "Unassigned";
       const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
       let coopProfit = data.coopProfit !== void 0 ? data.coopProfit : totalSale * PROFIT_MARGIN;
-      if (!data.isAggregate && !TEN_PERCENT_COOPS.includes(cluster) && data.produceId) {
+      if (data.produceId) {
         const produce = produceListings.find((p) => p.id === data.produceId);
         if (produce && produce.wholesalePrice !== void 0) {
           const totalProfit = (Number(data.unitPrice) - produce.wholesalePrice) * Number(data.unitsSold);
-          if (cluster === "New Kangemi Food Coop") {
-            coopProfit = totalProfit;
-          } else if ((data.farmerName || "").toLowerCase() !== "food coop") {
-            coopProfit = totalProfit * 0.1 + 1;
-          } else {
-            coopProfit = totalProfit;
-          }
+          coopProfit = totalProfit * 0.1 + 1;
         }
       }
       const signature = await computeHash({ ...data, id });
