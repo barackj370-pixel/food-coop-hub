@@ -253,7 +253,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           throw new Error("Please type your name and check the box to sign the Parent/Guardian Electronic Attestation.");
         }
         if (!salesAgentName.trim()) {
-          throw new Error("Please type the Sales Agent name.");
+          throw new Error("Please select the Sales Agent.");
         }
         if (!youthAgentAttested || !youthAgentName.trim()) {
           throw new Error("Please type your name and check the box to sign the Youth Agent Confirmation Electronic Attestation.");
@@ -1342,14 +1342,19 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                     <span className="text-[10px] font-black text-purple-600 uppercase tracking-widest block">6.0 Food Coop Sales Agent Confirmation</span>
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-2">
-                        <label className="text-[9px] font-black text-slate-400 uppercase">Type Sales Agent Full Name</label>
-                        <input
-                          type="text"
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Select Sales Agent</label>
+                        <select
                           value={salesAgentName}
                           onChange={(e) => setSalesAgentName(e.target.value)}
-                          placeholder="Type name here..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-400 text-xs transition-all"
-                        />
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-400 text-xs transition-all appearance-none"
+                        >
+                          <option value="">Select Sales Agent</option>
+                          {users.map((u: any) => (
+                            <option key={u.phone} value={u.name || u.phone}>
+                              {u.name || u.phone}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -1541,6 +1546,29 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {submitStatus && (
+            <div
+              className={`mt-4 p-4 rounded-xl text-sm font-bold flex items-center justify-center gap-3 ${
+                submitStatus.type === "success"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : submitStatus.type === "loading"
+                  ? "bg-blue-50 text-blue-700 border border-blue-200 animate-pulse"
+                  : "bg-red-50 text-red-700 border border-red-200"
+              }`}
+            >
+              <i
+                className={`fas ${
+                  submitStatus.type === "success"
+                    ? "fa-check-circle"
+                    : submitStatus.type === "loading"
+                    ? "fa-circle-notch fa-spin"
+                    : "fa-exclamation-triangle"
+                }`}
+              ></i>
+              {submitStatus.message}
             </div>
           )}
 
