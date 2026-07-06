@@ -283,6 +283,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
              isSystemDev={isSystemDev}
              handleDeleteRecord={handleDeleteRecord}
              typeLabel="Plot Base"
+             users={users}
           />
         </div>
 
@@ -296,6 +297,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
              isSystemDev={isSystemDev}
              handleDeleteRecord={handleDeleteRecord}
              typeLabel="Daily Update"
+             users={users}
           />
         </div>
 
@@ -309,6 +311,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
              isSystemDev={isSystemDev}
              handleDeleteRecord={handleDeleteRecord}
              typeLabel="Solidarity"
+             users={users}
           />
         </div>
 
@@ -322,6 +325,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
              isSystemDev={isSystemDev}
              handleDeleteRecord={handleDeleteRecord}
              typeLabel="Youth Assessment"
+             users={users}
           />
         </div>
 
@@ -335,6 +339,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
              isSystemDev={isSystemDev}
              handleDeleteRecord={handleDeleteRecord}
              typeLabel="Owner Details"
+             users={users}
           />
         </div>
       </div>
@@ -350,7 +355,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
 };
 
 // Helper component to keep the file cleaner
-const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel }: any) => {
+const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, users = [] }: any) => {
   return (
         <div className="overflow-x-auto border border-slate-100 rounded-2xl">
           <table className="w-full text-left border-collapse bg-white">
