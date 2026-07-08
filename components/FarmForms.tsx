@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../services/supabaseClient";
 import { AgentIdentity } from "../types";
+import YouthAssessmentLog from "./YouthAssessmentLog";
 
 interface FarmFormsProps {
   agentIdentity: AgentIdentity;
   dynamicClusters: string[];
   users?: AgentIdentity[];
   onFormSubmitted?: () => void;
+  farmFormsData?: any[];
+  isSystemDev?: boolean;
 }
 
 function getDistanceFromLatLonInM(
@@ -33,6 +36,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   dynamicClusters,
   users = [],
   onFormSubmitted,
+  farmFormsData = [],
+  isSystemDev = false,
 }) => {
   const [activeForm, setActiveForm] = useState<
     "weekly" | "solidarity" | "homestead" | "youth_assessment"
@@ -1675,6 +1680,11 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             {isSubmitting ? "Submitting..." : "Submit Form"}
           </button>
         </form>
+        {activeForm === "youth_assessment" && (
+          <div className="mt-12 border-t border-slate-200 pt-12">
+            <YouthAssessmentLog data={farmFormsData} isSystemDev={isSystemDev} agentIdentity={agentIdentity} />
+          </div>
+        )}
       </div>
     </div>
   );
