@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { TEN_PERCENT_COOPS } from '../constants';
 import { ProduceListing, SystemRole, isSuperAgent } from '../types';
 
 interface SaleFormProps {
@@ -58,13 +57,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
   // Automatically update the default commission type when the food coop is chosen
   useEffect(() => {
     if (formData.cluster) {
-      if (TEN_PERCENT_COOPS.includes(formData.cluster)) {
-        setCommissionType('gross_sale_10');
-      } else if (formData.cluster === 'New Kangemi Food Coop') {
-        setCommissionType('profit_100');
-      } else {
-        setCommissionType('gross_profit_10_plus_1');
-      }
+      setCommissionType('gross_profit_10_plus_1');
     }
   }, [formData.cluster]);
 
