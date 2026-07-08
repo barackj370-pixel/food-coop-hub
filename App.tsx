@@ -436,6 +436,13 @@ const MOCK_MISSING_RECORDS: SaleRecord[] = [
   }
 ];
 
+const isJulyWeek1 = (dateStr: string) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  return d.getMonth() === 6 && d.getDate() <= 7;
+};
+
 const App: React.FC = () => {
   const [records, setRecords] = useState<SaleRecord[]>(() => {
     const saved = persistence.get('food_coop_data');
@@ -2469,7 +2476,7 @@ const App: React.FC = () => {
                   </div>
                 )}
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} agentPhone={agentIdentity.phone} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
-                <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)'))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+                <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyWeek1(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
               </>
             )}
             {marketView === 'SUPPLIER' && (
@@ -2748,7 +2755,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)'))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyWeek1(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2785,7 +2792,7 @@ const App: React.FC = () => {
             <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} onAddLedgerRecord={handleAddRecord} />
             <div className="mt-12 bg-white/50 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200">
                <h3 className="text-xl font-black mb-6 text-slate-800">Finance & Banking Ledger</h3>
-               <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)'))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+               <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyWeek1(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
             </div>
           </div>
         )}
@@ -2928,7 +2935,7 @@ const App: React.FC = () => {
                 <td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td>
               </tr>
             ))}
-          </tbody></table></div></div><AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)'))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} /></div>
+          </tbody></table></div></div><AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyWeek1(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} /></div>
         )}
       </main>
 
