@@ -1,11 +1,80 @@
 import React, { useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface CoopRankingProps {
   records: any[]; // The universal ledger records
 }
 
 const HISTORICAL_SALES_VOLUME: Record<string, number> = {
-  // To be filled later when KPL provides the historical data
+  'New Kangemi Food Coop': 7442,
+  'Kangemi': 3099,
+  'Red Hill': 807,
+  'New Grassroots Food Coop': 465,
+  'Wages': 454,
+  'Kithoni': 396,
+  'Hope': 247,
+  'Bethel Parental': 219,
+  'Uwezo': 104,
+  'Bottomline LEF': 78,
+  'Smart Ladies': 51,
+  'Ladies Star': 51,
+  'Nyeri Sisters': 50,
+  'Upendo Women': 27,
+  'Litaala Pap': 25,
+  'Kina Mama': 18,
+  'Maya': 15,
+  'Rabolo': 4333,
+  'Mariwa': 1980,
+  'Utoma Widows Food coop': 1798,
+  'Mulo': 1672,
+  'Nyamagagana': 1537,
+  'Komasincha': 598,
+  'Angaza Youth': 447,
+  'Angaza Food Coop': 447,
+  'Kabarnet': 2643,
+  'Apuoyo': 2225,
+  'Ligega': 1452,
+  'Muchukwo/Kolbai': 305,
+  'Muchukwo': 305,
+  'Ndere Women': 171,
+  'Sibembe Muoyomulayi': 1684,
+  'Sibembe': 1684,
+  'Anointed': 535,
+  'Nalondo': 415,
+  'Dero Kenya': 280,
+  'Dero': 280,
+  'Njete': 280,
+  'Sisimkha': 280,
+  'Maeni Self Help': 245,
+  'Maeni': 245,
+  'Webtan': 194,
+  'Kona Mbaaya': 171,
+  'Kona Mbaya': 171,
+  'Matisi B Block 5': 160,
+  'Matisi B': 160,
+  'Mima Self Help': 160,
+  'Mima': 160,
+  'Shalom Youth': 160,
+  'Sibembe Elders': 140,
+  'Trafah': 135,
+  'Trafar': 135,
+  'Kiabi Food Coop': 115,
+  'Kiabi': 115,
+  'Macho self Help': 110,
+  'Macho': 110,
+  'Kiboroa Amani': 100,
+  'Eninga': 80,
+  'Faith Worship': 60,
+  'Boresha': 15,
+  'Hekima': 10,
+  'Sibembe Widows': 5,
+};
+
+const isJulyWeek1 = (dateStr: string) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  return d.getMonth() === 6 && d.getDate() <= 7;
 };
 
 const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
@@ -14,8 +83,8 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
 
     // Calculate current platform totals
     records.forEach(r => {
-      // Only include valid sales records (completed or paid aggregates)
-      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === 'PAID' || r.status === 'COMPLETE')) {
+      // Only include valid sales records (completed or paid aggregates) from Week 1 of July
+      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === 'PAID' || r.status === 'COMPLETE') && isJulyWeek1(r.date)) {
         const cluster = r.cluster || 'Unknown';
         const saleAmount = Number(r.totalSale) || 0;
         if (!coopTotals[cluster]) {
@@ -64,6 +133,50 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
             <i className="fas fa-trophy text-2xl"></i>
           </div>
         </div>
+
+        {ranking.length > 0 && (
+          <div className="mb-12 h-96 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={ranking.slice(0, 15)}
+                margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
+                <XAxis 
+                  dataKey="cluster" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  height={80} 
+                  interval={0}
+                  tick={{ fontSize: 9, fontWeight: 'bold' }} 
+                />
+                <YAxis 
+                  tickFormatter={(value) => `KSh ${value.toLocaleString()}`} 
+                  tick={{ fontSize: 10, fontWeight: 'bold' }} 
+                  width={100}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [`KSh ${value.toLocaleString()}`, 'Volume']}
+                  cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                />
+                <Legend verticalAlign="top" height={36} />
+                <Bar 
+                  dataKey="historicalVolume" 
+                  name="Historical Volume" 
+                  stackId="a" 
+                  fill="#94a3b8" 
+                />
+                <Bar 
+                  dataKey="platformVolume" 
+                  name="Platform Volume" 
+                  stackId="a" 
+                  fill="#10b981" 
+                  radius={[4, 4, 0, 0]} 
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         <div className="space-y-4">
           {ranking.map((coop, index) => (
