@@ -10,7 +10,6 @@ interface TableBankingProps {
 
 const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, onAddLedgerRecord }) => {
   const [activeTab, setActiveTab] = useState<'RECORD' | 'MEMBERS' | 'REPORTS'>('RECORD');
-  const [groupType, setGroupType] = useState<'MEN' | 'WOMEN'>('MEN');
   
   // Member Form
   const [memberName, setMemberName] = useState('');
@@ -28,13 +27,12 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
 
   useEffect(() => {
     fetchMembers();
-  }, [groupType, memberCluster]);
+  }, [memberCluster]);
 
   const fetchMembers = async () => {
     const { data } = await supabase
       .from('table_banking_members')
       .select('*')
-      .eq('group_type', groupType)
       .eq('cluster', memberCluster);
     setMembers(data || []);
   };
@@ -47,8 +45,7 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
         const { error } = await supabase.from('table_banking_members').insert([{
           name: memberName,
           phone: memberPhone,
-          cluster: memberCluster,
-          group_type: groupType
+          cluster: memberCluster
         }]);
         if (error) console.warn("Supabase member insert error:", error);
       } catch (e) {
@@ -62,7 +59,6 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
         name: memberName,
         phone: memberPhone,
         cluster: memberCluster,
-        group_type: groupType,
         created_at: new Date().toISOString()
       }]);
 
@@ -86,7 +82,6 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
         const { error } = await supabase.from('table_banking_contributions').insert([{
           collection_date: contributionDate,
           cluster: memberCluster,
-          group_type: groupType,
           amount_total: parseFloat(totalAmount),
           submitted_by: agentIdentity.phone,
           submission_type: submissionType
@@ -100,7 +95,7 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
       if (onAddLedgerRecord) {
         await onAddLedgerRecord({
           date: contributionDate,
-          cropType: `Table Banking (${groupType}) - ${submissionType}`,
+          cropType: `Table Banking - ${submissionType}`,
           unitType: 'KSH',
           farmerName: 'Table Banking Contribution',
           farmerPhone: agentIdentity.phone,
@@ -132,20 +127,6 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
       <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-200">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-black text-slate-900">Food Banking <span className="text-emerald-600 block text-sm tracking-widest">(Articulations)</span></h2>
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button 
-              onClick={() => setGroupType('MEN')}
-              className={`px-6 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${groupType === 'MEN' ? 'bg-white shadow text-black' : 'text-slate-500'}`}
-            >
-              Men
-            </button>
-            <button 
-              onClick={() => setGroupType('WOMEN')}
-              className={`px-6 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${groupType === 'WOMEN' ? 'bg-white shadow text-black' : 'text-slate-500'}`}
-            >
-              Women
-            </button>
-          </div>
         </div>
 
         <div className="flex gap-4 mb-8">
