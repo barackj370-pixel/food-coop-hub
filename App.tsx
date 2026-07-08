@@ -1974,9 +1974,56 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20">
-      <header className="bg-white text-black pt-10 pb-12 shadow-sm border-b border-slate-100 relative overflow-hidden">
-        <div className="container mx-auto px-6 relative z-10 flex flex-col lg:flex-row justify-between items-start mb-4 gap-6">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col lg:flex-row">
+      {agentIdentity && (
+        <aside className="w-full lg:w-72 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-40 relative lg:min-h-screen">
+          <div className="p-8 border-b border-slate-100 hidden lg:flex items-center gap-4">
+            <div className="bg-black w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"><img src={APP_LOGO} alt="KPL Logo" className="w-7 h-7 object-contain" /></div>
+            <div>
+              <h1 className="text-xl font-black uppercase tracking-tighter leading-none text-black">KPL<br/><span className="text-green-600 text-[10px] tracking-[0.2em]">Market</span></h1>
+            </div>
+          </div>
+          <div className="p-4 lg:p-6 lg:flex-1 lg:overflow-y-auto">
+             <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 pl-4 hidden lg:block">Agent Menus</div>
+             <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide">
+               {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS', 'HOMESTEAD'].includes(p)).map(p => {
+                  if (p === 'MARKET') {
+                    return (
+                      <div key={p} className="relative">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setCurrentPortal('MARKET'); setIsMarketMenuOpen(!isMarketMenuOpen); }} className={`w-full text-left px-5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-between ${currentPortal === 'MARKET' ? 'bg-black text-white shadow-xl shadow-black/10' : 'text-slate-500 hover:bg-slate-50 hover:text-black border border-transparent hover:border-slate-100'}`}>
+                          <span className="flex items-center gap-3"><i className="fas fa-store w-4 text-center opacity-80"></i> Market</span>
+                          <i className={`fas fa-chevron-down opacity-50 transition-transform ${isMarketMenuOpen ? 'rotate-180' : ''}`}></i>
+                        </button>
+                        {isMarketMenuOpen && (
+                          <div className="mt-2 ml-4 border-l-2 border-slate-100 pl-3 space-y-2 animate-in fade-in duration-200">
+                            <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'bg-green-50 text-green-700' : 'text-slate-400 hover:bg-slate-50 hover:text-black'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
+                            <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'bg-green-50 text-green-700' : 'text-slate-400 hover:bg-slate-50 hover:text-black'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  if (p === 'SYSTEM' && !isSystemDev) return null;
+                  const hasUnreadForum = p === 'FORUM' && forumPosts.length > 0 && forumPosts[0].id !== lastReadForumPost;
+                  const label = p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'COOP_RANKING' ? 'COOPS RANKING' : p;
+                  const icon = p === 'FORMS' ? 'fa-clipboard-list' : p === 'FARM_DATA' ? 'fa-map' : p === 'TABLE_BANKING' ? 'fa-piggy-bank' : p === 'FORUM' ? 'fa-comments' : p === 'MY_FARM' ? 'fa-tractor' : p === 'COOP_RANKING' ? 'fa-trophy' : p === 'FINANCE' ? 'fa-file-invoice-dollar' : p === 'AUDIT' ? 'fa-history' : p === 'BOARD' ? 'fa-users' : p === 'SYSTEM' ? 'fa-cogs' : p === 'VOUCHERS' ? 'fa-ticket-alt' : 'fa-circle';
+
+                  return (
+                    <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`w-full text-left px-5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-between ${currentPortal === p ? 'bg-black text-white shadow-xl shadow-black/10' : 'text-slate-500 hover:bg-slate-50 hover:text-black border border-transparent hover:border-slate-100'}`}>
+                      <span className="flex items-center gap-3"><i className={`fas ${icon} w-4 text-center opacity-80`}></i> {label}</span>
+                      {hasUnreadForum && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                    </button>
+                  );
+               })}
+             </nav>
+          </div>
+        </aside>
+      )}
+
+      <div className="flex-1 flex flex-col min-w-0" onClick={() => setIsMarketMenuOpen(false)}>
+      <header className="bg-white text-black pt-8 pb-8 shadow-sm border-b border-slate-200 relative overflow-hidden z-20">
+        <div className="container mx-auto px-6 lg:px-12 relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div className="flex items-center space-x-5">
             <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden"><img src={APP_LOGO} alt="KPL Logo" className="w-10 h-10 object-contain" /></div>
             <div>
@@ -2029,40 +2076,42 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
-        <nav className="container mx-auto px-6 flex flex-wrap gap-3 mt-4 relative z-10">
-          {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS', 'HOMESTEAD'].includes(p)).map(p => {
-            if (p === 'MARKET') {
+        {!agentIdentity && (
+          <nav className="container mx-auto px-6 lg:px-12 flex flex-wrap gap-3 mt-6 relative z-10">
+            {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS', 'HOMESTEAD'].includes(p)).map(p => {
+              if (p === 'MARKET') {
+                return (
+                  <div key={p} className="relative">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setCurrentPortal('MARKET'); setIsMarketMenuOpen(!isMarketMenuOpen); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>Market <i className={`fas fa-chevron-down opacity-50 transition-transform ${isMarketMenuOpen ? 'rotate-180' : ''}`}></i></button>
+                    {isMarketMenuOpen && (
+                      <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
+                        <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              
+              // Double check: If 'SYSTEM' somehow got into the list for a non-dev, don't render the button.
+              if (p === 'SYSTEM' && !isSystemDev) return null;
+
+              const hasUnreadForum = p === 'FORUM' && forumPosts.length > 0 && forumPosts[0].id !== lastReadForumPost;
+
               return (
-                <div key={p} className="relative">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setCurrentPortal('MARKET'); setIsMarketMenuOpen(!isMarketMenuOpen); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>Market <i className={`fas fa-chevron-down opacity-50 transition-transform ${isMarketMenuOpen ? 'rotate-180' : ''}`}></i></button>
-                  {isMarketMenuOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
-                      <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
-                    </div>
+                <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
+                  {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'COOP_RANKING' ? 'COOPERATIVES RANKING' : p}
+                  {hasUnreadForum && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                   )}
-                </div>
+                </button>
               );
-            }
-            
-            // Double check: If 'SYSTEM' somehow got into the list for a non-dev, don't render the button.
-            if (p === 'SYSTEM' && !isSystemDev) return null;
-
-            const hasUnreadForum = p === 'FORUM' && forumPosts.length > 0 && forumPosts[0].id !== lastReadForumPost;
-
-            return (
-              <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
-                {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'COOP_RANKING' ? 'COOPERATIVES RANKING' : p}
-                {hasUnreadForum && (
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+            })}
+          </nav>
+        )}
       </header>
 
-      <main className="container mx-auto px-6 -mt-8 relative z-20 space-y-12" onClick={() => setIsMarketMenuOpen(false)}>
+      <main className="container mx-auto px-6 lg:px-12 -mt-8 relative z-20 space-y-12 pb-20" onClick={() => setIsMarketMenuOpen(false)}>
         {showPublicSupplierStats && (
            <PublicSupplierStats onBack={() => setShowPublicSupplierStats(false)} />
         )}
@@ -2997,6 +3046,7 @@ const App: React.FC = () => {
           &copy; {new Date().getFullYear()} Kenyan Peasants League (KPL) Food Coop Market. All rights reserved.
         </p>
       </footer>
+      </div>
     </div>
   );
 };
