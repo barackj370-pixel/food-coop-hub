@@ -34,7 +34,7 @@ export const CROP_CONFIG = {
   'Other': ['Units', 'Kg', 'Bag', 'Litre', 'Piece', 'Packet', 'Bundle', 'Box', 'Crate', 'Sack']
 } as const;
 
-export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop', 'Hope', 'Wages', 'Red Hill', 'Ligega', 'Utoma Widows Food coop', 'New Grassroots Food Coop', 'Angaza Food Coop', 'Kona Mbaaya', 'Njete', 'Anointed', 'Dero Kenya', 'Sisimkha', 'Kiabi Food Coop', 'Nalondo', 'Sibembe Elders', 'Hekima', 'Shalom Youth', 'Matisi B Block 5', 'Maeni Self Help', 'Kiboroa Amani', 'Mima Self Help', 'Macho self Help', 'Sibembe Widows', 'Trafah', 'Muchukwo/Kolbai', 'Bethel Parental', 'Ladies Star', 'Kithoni'];
+export const FOOD_COOPS = ['Mariwa', 'Mulo', 'Rabolo', 'Kangemi', 'Kabarnet', 'Apuoyo', 'Nyamagagana', 'Sibembe', 'New Kangemi Food Coop', 'Hope', 'Wages', 'Red Hill', 'Ligega', 'Utoma Widows Food coop', 'New Grassroots Food Coop', 'Angaza Food Coop', 'Kona Mbaaya', 'Njete', 'Anointed', 'Dero Kenya', 'Sisimkha', 'Kiabi Food Coop', 'Nalondo', 'Sibembe Elders', 'Hekima', 'Shalom Youth', 'Matisi B Block 5', 'Maeni Self Help', 'Kiboroa Amani', 'Mima Self Help', 'Macho self Help', 'Sibembe Widows', 'Trafah', 'Muchukwo/Kolbai', 'Bethel Parental', 'Ladies Star', 'Kithoni', 'Uwezo', 'Bottomline LEF', 'Smart Ladies', 'Nyeri Sisters', 'Upendo Women', 'Litaala Pap', 'Kina Mama', 'Maya', 'Komasincha', 'Angaza Youth', 'Ndere Women', 'Webtan', 'Eninga', 'Faith Worship', 'Boresha', 'Sibembe Muoyomulayi'];
 
 export const CROP_TYPES = Object.keys(CROP_CONFIG);
 
