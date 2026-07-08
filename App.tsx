@@ -23,6 +23,8 @@ import FarmDataMap from './components/FarmDataMap';
 import FarmerDashboard from './components/FarmerDashboard';
 import HomesteadRegistration from './components/HomesteadRegistration';
 import TableBanking from './components/TableBanking';
+import YouthAssessmentLog from './components/YouthAssessmentLog';
+import CoopRanking from './components/CoopRanking';
 import PhysicalVoucherGenerator from './components/PhysicalVoucherGenerator';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS } from './constants';
 import { supabase } from './services/supabaseClient';
@@ -37,7 +39,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING' | 'VOUCHERS';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING' | 'VOUCHERS' | 'YOUTH_ASSESSMENT_LOG' | 'COOP_RANKING';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 
@@ -633,7 +635,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -645,7 +647,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -1122,7 +1124,7 @@ const App: React.FC = () => {
     }
 
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FORUM', 'HOMESTEAD', 'MY_FARM'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'YOUTH_ASSESSMENT_LOG', 'FARM_DATA', 'TABLE_BANKING', 'FORUM', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) {
@@ -2051,7 +2053,7 @@ const App: React.FC = () => {
 
             return (
               <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
-                {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p}
+                {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'YOUTH_ASSESSMENT_LOG' ? 'YOUTH LOG' : p === 'COOP_RANKING' ? 'COOPERATIVES RANKING' : p}
                 {hasUnreadForum && (
                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                 )}
@@ -2725,6 +2727,18 @@ const App: React.FC = () => {
         )}
 
 
+
+        {currentPortal === 'YOUTH_ASSESSMENT_LOG' && agentIdentity && (
+          <YouthAssessmentLog 
+            data={farmFormsData} 
+            isSystemDev={isSystemDev} 
+            agentIdentity={agentIdentity} 
+          />
+        )}
+
+        {currentPortal === 'COOP_RANKING' && agentIdentity && (
+          <CoopRanking records={records} />
+        )}
 
         {currentPortal === 'TABLE_BANKING' && agentIdentity && (
           <div className="animate-in fade-in duration-300 space-y-12">
