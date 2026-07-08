@@ -24,7 +24,7 @@ async function startServer() {
   // Set up the API route for Gemini
   app.post("/api/gemini", async (req, res) => {
     try {
-      const { prompt, model, systemInstruction, temperature, data } = req.body;
+      const { prompt, model, systemInstruction, temperature, data, contents: providedContents } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
@@ -40,10 +40,10 @@ async function startServer() {
         }
       });
 
-      let contents: any = prompt;
+      let contents: any = providedContents || prompt;
       
       // For general analysis
-      if (data && prompt) {
+      if (data && prompt && !providedContents) {
         contents = [
           { text: prompt },
           { text: `Data Payload for Analysis: ${JSON.stringify(data)}` }
