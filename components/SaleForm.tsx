@@ -174,6 +174,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
             type="number" 
             min="0"
             step="0.01"
+            required
             placeholder="0.00"
             value={aggregateBuyingPrice || ''}
             onChange={(e) => setAggregateBuyingPrice(parseFloat(e.target.value) || 0)}
@@ -188,6 +189,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
             type="number" 
             min="0"
             step="0.01"
+            required
             placeholder="0.00"
             value={aggregateSellingPrice || ''}
             onChange={(e) => setAggregateSellingPrice(parseFloat(e.target.value) || 0)}
