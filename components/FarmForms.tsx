@@ -38,6 +38,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
     "weekly" | "solidarity" | "homestead" | "youth_assessment"
   >("weekly");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isParsingForm, setIsParsingForm] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{
     type: "success" | "error" | "loading";
     message: string;
@@ -139,6 +140,88 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         if (data) setFarmBaselines(data);
       });
   }, [agentIdentity.phone]);
+
+  const handleUploadScannedForm = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsingForm(true);
+    setSubmitStatus({ type: 'loading', message: 'Analyzing scanned form via AI...' });
+    
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              inlineData: {
+                data: base64,
+                mimeType: file.type
+              }
+            },
+            {
+              text: "Extract data from this youth assessment form image. Return JSON ONLY, no markdown, matching this exact structure: {\"householdName\": \"string\", \"foodCoopName\": \"string\", \"parentName\": \"string\", \"parentPhone\": \"string\", \"parentSex\": \"M\"|\"F\", \"youthList\": [{\"name\": \"string\", \"sex\": \"M\"|\"F\", \"mobile\": \"string\", \"grade\": \"string\"}], \"otherMemberList\": [{\"name\": \"string\", \"sex\": \"M\"|\"F\", \"mobile\": \"string\", \"relation\": \"string\"}], \"seedsList\": [{\"cropSeed\": \"string\", \"livestockSeed\": \"string\"}], \"foodsList\": [{\"cropFood\": \"string\", \"livestockFood\": \"string\"}], \"organicInputsList\": [{\"type\": \"string\", \"quantity\": \"string\"}], \"implementsList\": [{\"type\": \"string\", \"quantity\": \"string\"}], \"consumptionList\": [{\"type\": \"string\", \"source\": \"string\"}]}"
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to parse form');
+      const data = await response.json();
+      const parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
+      const parsedJson = JSON.parse(parsedText);
+
+      const form = document.querySelector('form') as HTMLFormElement;
+      if (form) {
+        if (parsedJson.householdName) {
+           const el = form.elements.namedItem('householdName') as HTMLInputElement;
+           if (el) el.value = parsedJson.householdName;
+        }
+        if (parsedJson.foodCoopName) {
+           const el = form.elements.namedItem('foodCoopName') as HTMLSelectElement;
+           if (el) el.value = parsedJson.foodCoopName;
+        }
+        if (parsedJson.parentName) {
+           const el = form.elements.namedItem('parentName') as HTMLInputElement;
+           if (el) { el.value = parsedJson.parentName; setParentName(parsedJson.parentName); }
+        }
+        if (parsedJson.parentPhone) {
+           const el = form.elements.namedItem('parentPhone') as HTMLInputElement;
+           if (el) el.value = parsedJson.parentPhone;
+        }
+        if (parsedJson.parentSex) {
+           const el = form.elements.namedItem('parentSex') as HTMLSelectElement;
+           if (el) el.value = parsedJson.parentSex;
+        }
+      }
+
+      if (parsedJson.youthList?.length) setYouthList(parsedJson.youthList);
+      if (parsedJson.otherMemberList?.length) setOtherMemberList(parsedJson.otherMemberList);
+      if (parsedJson.seedsList?.length) setSeedsList(parsedJson.seedsList);
+      if (parsedJson.foodsList?.length) setFoodsList(parsedJson.foodsList);
+      if (parsedJson.organicInputsList?.length) setOrganicInputsList(parsedJson.organicInputsList);
+      if (parsedJson.implementsList?.length) setImplementsList(parsedJson.implementsList);
+      if (parsedJson.consumptionList?.length) setConsumptionList(parsedJson.consumptionList);
+
+      setSubmitStatus({ type: 'success', message: 'Form parsed successfully!' });
+      setTimeout(() => setSubmitStatus(null), 3000);
+    } catch (err: any) {
+      setSubmitStatus({ type: 'error', message: 'Failed to parse form: ' + err.message });
+    } finally {
+      setIsParsingForm(false);
+      e.target.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -678,6 +761,18 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             </div>
           ) : activeForm === "youth_assessment" ? (
             <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                 <div>
+                    <h3 className="text-sm font-black text-emerald-800 uppercase tracking-widest">Smart Scan (Optional)</h3>
+                    <p className="text-xs text-emerald-600 mt-1 font-medium">Upload a scanned paper form to automatically extract and fill data.</p>
+                 </div>
+                 <label className={`cursor-pointer px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 flex items-center gap-2 ${isParsingForm ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <i className={`fas ${isParsingForm ? 'fa-spinner fa-spin' : 'fa-camera'}`}></i>
+                    {isParsingForm ? 'Scanning...' : 'Upload Form'}
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleUploadScannedForm} />
+                 </label>
+              </div>
+
               {/* Section 1.0 Household Details */}
               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-6">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 pb-2 flex items-center gap-2">
