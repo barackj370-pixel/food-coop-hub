@@ -167,6 +167,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          responseMimeType: "application/json",
           contents: [
             {
               inlineData: {
@@ -175,7 +176,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               }
             },
             {
-              text: "Extract data from this youth assessment form image. Return JSON ONLY, no markdown, matching this exact structure: {\"householdName\": \"string\", \"foodCoopName\": \"string\", \"parentName\": \"string\", \"parentPhone\": \"string\", \"parentSex\": \"M\"|\"F\", \"youthList\": [{\"name\": \"string\", \"sex\": \"M\"|\"F\", \"mobile\": \"string\", \"grade\": \"string\"}], \"otherMemberList\": [{\"name\": \"string\", \"sex\": \"M\"|\"F\", \"mobile\": \"string\", \"relation\": \"string\"}], \"seedsList\": [{\"cropSeed\": \"string\", \"livestockSeed\": \"string\"}], \"foodsList\": [{\"cropFood\": \"string\", \"livestockFood\": \"string\"}], \"organicInputsList\": [{\"type\": \"string\", \"quantity\": \"string\"}], \"implementsList\": [{\"type\": \"string\", \"quantity\": \"string\"}], \"consumptionList\": [{\"type\": \"string\", \"source\": \"string\"}]}"
+              text: "Extract data from this youth assessment form image. Return ONLY a valid JSON object matching this exact structure: {\"householdName\": \"string\", \"foodCoopName\": \"string\", \"parentName\": \"string\", \"parentPhone\": \"string\", \"parentSex\": \"M\"|\"F\", \"youthList\": [{\"name\": \"string\", \"sex\": \"M\"|\"F\", \"mobile\": \"string\", \"grade\": \"string\"}], \"otherMemberList\": [{\"name\": \"string\", \"sex\": \"M\"|\"F\", \"mobile\": \"string\", \"relation\": \"string\"}], \"seedsList\": [{\"cropSeed\": \"string\", \"livestockSeed\": \"string\"}], \"foodsList\": [{\"cropFood\": \"string\", \"livestockFood\": \"string\"}], \"organicInputsList\": [{\"type\": \"string\", \"quantity\": \"string\"}], \"implementsList\": [{\"type\": \"string\", \"quantity\": \"string\"}], \"consumptionList\": [{\"type\": \"string\", \"source\": \"string\"}]}"
             }
           ]
         })
@@ -183,8 +184,15 @@ const FarmForms: React.FC<FarmFormsProps> = ({
 
       if (!response.ok) throw new Error('Failed to parse form');
       const data = await response.json();
-      const parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
-      const parsedJson = JSON.parse(parsedText);
+      let parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
+      
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(parsedText);
+      } catch (e) {
+         console.error("Failed to parse JSON:", parsedText);
+         throw new Error("AI returned invalid JSON: " + (e as Error).message);
+      }
 
       const form = document.querySelector('form') as HTMLFormElement;
       if (form) {
