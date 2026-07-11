@@ -58,7 +58,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, foodCoops }) => {
           setLoading(false);
           setError("Request timed out. Please check your connection and try again.");
         }
-      }, 30000); // 30 Seconds Hard Limit
+      }, 60000); // 60 Seconds Hard Limit
     } else {
       if (loadingWatchdog.current) clearTimeout(loadingWatchdog.current);
     }
