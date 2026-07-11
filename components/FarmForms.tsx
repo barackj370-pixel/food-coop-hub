@@ -365,6 +365,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           location,
           submittedAt: new Date().toISOString(),
           agentCluster: agentIdentity.cluster,
+          agentRole: agentIdentity.role,
+          agentName: agentIdentity.name,
           farmerPhone: activeForm === "youth_assessment" 
             ? (data.parentPhone || agentIdentity.phone) 
             : (data.homesteadContact || data.productionOfficerContact || data.convenerContact || agentIdentity.phone),
