@@ -78,11 +78,11 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   const [parentAttested, setParentAttested] = useState(false);
   const [parentSignedAt, setParentSignedAt] = useState('');
 
-  const [salesAgentName, setSalesAgentName] = useState('');
+  const [salesAgentName, setSalesAgentName] = useState(agentIdentity?.role === 'Sales Agent' ? agentIdentity.name : '');
   const [salesAgentAttested, setSalesAgentAttested] = useState(false);
   const [salesAgentSignedAt, setSalesAgentSignedAt] = useState('');
 
-  const [youthAgentName, setYouthAgentName] = useState('');
+  const [youthAgentName, setYouthAgentName] = useState(agentIdentity?.role === 'Youth Agent' ? agentIdentity.name : '');
   const [youthAgentAttested, setYouthAgentAttested] = useState(false);
   const [youthAgentSignedAt, setYouthAgentSignedAt] = useState('');
 
@@ -128,10 +128,10 @@ const FarmForms: React.FC<FarmFormsProps> = ({
     setParentName('');
     setParentAttested(false);
     setParentSignedAt('');
-    setSalesAgentName('');
+    setSalesAgentName(agentIdentity?.role === 'Sales Agent' ? agentIdentity.name : '');
     setSalesAgentAttested(false);
     setSalesAgentSignedAt('');
-    setYouthAgentName('');
+    setYouthAgentName(agentIdentity?.role === 'Youth Agent' ? agentIdentity.name : '');
     setYouthAgentAttested(false);
     setYouthAgentSignedAt('');
   };
