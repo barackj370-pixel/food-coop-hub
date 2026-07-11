@@ -136,7 +136,7 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                     width={80}
                   />
                   <Tooltip 
-                    formatter={(value: number) => [`KSh ${value.toLocaleString()}`, 'Volume']}
+                    formatter={(value: any) => [`KSh ${Number(value).toLocaleString()}`, 'Volume']}
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                   />
                   <Legend verticalAlign="top" height={36} />
@@ -175,7 +175,7 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                   width={80}
                 />
                 <Tooltip 
-                  formatter={(value: number) => [`KSh ${value.toLocaleString()}`, 'Volume']}
+                  formatter={(value: any) => [`KSh ${Number(value).toLocaleString()}`, 'Volume']}
                   cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                 />
                 <Legend verticalAlign="top" height={36} />
