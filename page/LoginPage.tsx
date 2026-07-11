@@ -8,6 +8,7 @@ const CLUSTER_ROLES: SystemRole[] = [
   SystemRole.SALES_AGENT,
   SystemRole.SUPPLIER,
   SystemRole.CUSTOMER,
+  SystemRole.YOUTH_AGENT,
 ];
 
 // Use environment variables primarily, but keep fallback just in case
