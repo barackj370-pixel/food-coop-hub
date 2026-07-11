@@ -23,7 +23,8 @@ export enum SystemRole {
   SYSTEM_DEVELOPER = 'System Developer',
   SUPPLIER = 'Supplier',
   CUSTOMER = 'Customer',
-  FARMER = 'Farmer'
+  FARMER = 'Farmer',
+  YOUTH_AGENT = 'Youth Agent'
 }
 
 export const SUPER_AGENT_PHONES = ['+254726838526', '0726838526', '254726838526', '+254768750668', '0768750668', '254768750668', '+254726051308', '0726051308', '254726051308'];
