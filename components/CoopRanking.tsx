@@ -1,151 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { HISTORICAL_SALES_VOLUME, COOP_REGIONS } from '../constants';
 
 interface CoopRankingProps {
   records: any[]; // The universal ledger records
 }
 
-const HISTORICAL_SALES_VOLUME: Record<string, number> = {
-  'New Kangemi Food Coop': 7442,
-  'New Kangemi': 7442,
-  'Kangemi': 3099,
-  'Red Hill': 807,
-  'New Grassroots Food Coop': 465,
-  'New Grassroots': 465,
-  'Wages': 454,
-  'Kithoni': 396,
-  'Hope': 247,
-  'Bethel Parental': 219,
-  'Uwezo': 104,
-  'Bottomline LEF': 78,
-  'Smart Ladies': 51,
-  'Ladies Star': 51,
-  'Nyeri Sisters': 50,
-  'Upendo Women': 27,
-  'Litaala Pap': 25,
-  'Kina Mama': 18,
-  'Maya': 15,
-  'Rabolo': 4333,
-  'Mariwa': 1980,
-  'Utoma Widows Food coop': 1798,
-  'Utoma Widows': 1798,
-  'Mulo': 1672,
-  'Nyamagagana': 1537,
-  'Komasincha': 598,
-  'Angaza Youth': 447,
-  'Angaza Food Coop': 447,
-  'Kabarnet': 2643,
-  'Apuoyo': 2225,
-  'Ligega': 1452,
-  'Muchukwo/Kolbai': 305,
-  'Muchukwo': 305,
-  'Ndere Women': 171,
-  'Sibembe Muoyomulayi': 1684,
-  'Sibembe': 1684,
-  'Anointed': 535,
-  'Nalondo': 415,
-  'Dero Kenya': 280,
-  'Dero': 280,
-  'Njete': 280,
-  'Sisimkha': 280,
-  'Maeni Self Help': 245,
-  'Maeni': 245,
-  'Webtan': 194,
-  'Kona Mbaaya': 171,
-  'Kona Mbaya': 171,
-  'Matisi B Block 5': 160,
-  'Matisi B': 160,
-  'Mima Self Help': 160,
-  'Mima': 160,
-  'Shalom Youth': 160,
-  'Sibembe Elders': 140,
-  'Trafah': 135,
-  'Trafar': 135,
-  'Kiabi Food Coop': 115,
-  'Kiabi': 115,
-  'Macho self Help': 110,
-  'Macho': 110,
-  'Kiboroa Amani': 100,
-  'Eninga': 80,
-  'Faith Worship': 60,
-  'Boresha': 15,
-  'Hekima': 10,
-  'Sibembe Widows': 5,
-};
-
-const COOP_REGIONS: Record<string, string> = {
-  'New Kangemi Food Coop': 'Central',
-  'New Kangemi': 'Central',
-  'Kangemi': 'Central',
-  'Red Hill': 'Central',
-  'New Grassroots Food Coop': 'Central',
-  'New Grassroots': 'Central',
-  'Wages': 'Central',
-  'Kithoni': 'Central',
-  'Hope': 'Central',
-  'Bethel Parental': 'Central',
-  'Uwezo': 'Central',
-  'Bottomline LEF': 'Central',
-  'Smart Ladies': 'Central',
-  'Ladies Star': 'Central',
-  'Nyeri Sisters': 'Central',
-  'Upendo Women': 'Central',
-  'Litaala Pap': 'Central',
-  'Kina Mama': 'Central',
-  'Maya': 'Central',
-  'Rabolo': 'South Western',
-  'Mariwa': 'South Western',
-  'Utoma Widows Food coop': 'South Western',
-  'Utoma Widows': 'South Western',
-  'Mulo': 'South Western',
-  'Nyamagagana': 'South Western',
-  'Komasincha': 'South Western',
-  'Angaza Youth': 'South Western',
-  'Angaza Food Coop': 'South Western',
-  'Kabarnet': 'North Western',
-  'Apuoyo': 'North Western',
-  'Ligega': 'North Western',
-  'Muchukwo/Kolbai': 'North Western',
-  'Muchukwo': 'North Western',
-  'Ndere Women': 'North Western',
-  'Sibembe Muoyomulayi': 'Western Region',
-  'Sibembe': 'Western Region',
-  'Anointed': 'Western Region',
-  'Nalondo': 'Western Region',
-  'Dero Kenya': 'Western Region',
-  'Dero': 'Western Region',
-  'Njete': 'Western Region',
-  'Sisimkha': 'Western Region',
-  'Maeni Self Help': 'Western Region',
-  'Maeni': 'Western Region',
-  'Webtan': 'Western Region',
-  'Kona Mbaaya': 'Western Region',
-  'Kona Mbaya': 'Western Region',
-  'Matisi B Block 5': 'Western Region',
-  'Matisi B': 'Western Region',
-  'Mima Self Help': 'Western Region',
-  'Mima': 'Western Region',
-  'Shalom Youth': 'Western Region',
-  'Sibembe Elders': 'Western Region',
-  'Trafah': 'Western Region',
-  'Trafar': 'Western Region',
-  'Kiabi Food Coop': 'Western Region',
-  'Kiabi': 'Western Region',
-  'Macho self Help': 'Western Region',
-  'Macho': 'Western Region',
-  'Kiboroa Amani': 'Western Region',
-  'Eninga': 'Western Region',
-  'Faith Worship': 'Western Region',
-  'Boresha': 'Western Region',
-  'Hekima': 'Western Region',
-  'Sibembe Widows': 'Western Region',
-};
-
-const isJulyWeek1 = (dateStr: string) => {
+const isJulyOnwards = (dateStr: string) => {
   if (!dateStr) return false;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return false;
-  return d.getMonth() === 6 && d.getDate() <= 7;
+  return d >= new Date('2026-07-01T00:00:00Z');
 };
 
 const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
@@ -158,7 +23,7 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
     // Calculate current platform totals
     records.forEach(r => {
       // Only include valid sales records (completed or paid aggregates) from Week 1 of July
-      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === 'PAID' || r.status === 'COMPLETE') && isJulyWeek1(r.date)) {
+      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === 'PAID' || r.status === 'COMPLETE') && isJulyOnwards(r.date)) {
         const cluster = r.cluster || 'Unknown';
         const saleAmount = Number(r.totalSale) || 0;
         if (!coopTotals[cluster]) {
@@ -276,15 +141,8 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                   />
                   <Legend verticalAlign="top" height={36} />
                   <Bar 
-                    dataKey="historicalVolume" 
-                    name="Historical Volume" 
-                    stackId="a" 
-                    fill="#3b82f6" 
-                  />
-                  <Bar 
-                    dataKey="platformVolume" 
-                    name="Platform Volume" 
-                    stackId="a" 
+                    dataKey="totalVolume" 
+                    name="Total Sales Volume" 
                     fill="#10b981" 
                     radius={[4, 4, 0, 0]} 
                   />
@@ -322,15 +180,8 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                 />
                 <Legend verticalAlign="top" height={36} />
                 <Bar 
-                  dataKey="historicalVolume" 
-                  name="Historical Volume" 
-                  stackId="a" 
-                  fill="#94a3b8" 
-                />
-                <Bar 
-                  dataKey="platformVolume" 
-                  name="Platform Volume" 
-                  stackId="a" 
+                  dataKey="totalVolume" 
+                  name="Total Sales Volume" 
                   fill="#10b981" 
                   radius={[4, 4, 0, 0]} 
                 />
@@ -354,11 +205,6 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
               <div className="flex-1 hidden md:block">
                 <h3 className="font-black text-slate-800 text-lg">{coop.cluster}</h3>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{coop.region}</p>
-                {coop.historicalVolume > 0 && (
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Platform: KSh {coop.platformVolume.toLocaleString()} | Historical: KSh {coop.historicalVolume.toLocaleString()}
-                  </p>
-                )}
               </div>
               <div className="text-left md:text-right">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Sales Volume</p>
