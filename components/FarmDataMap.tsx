@@ -216,7 +216,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
                           <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Owner/Farmer</p>
                           <p className="text-[10px] font-bold text-slate-700">
                              {(() => {
-                               const phone = d.farmerPhone || d.homesteadContact || (d as any).parentPhone || d.farmer_phone;
+                              const phone = d.farmerPhone || d.homesteadContact || (d as any).parentPhone || (d as any).farmer_phone;
                                const user = users.find(u => u.phone === phone);
                                if (user && user.name) return user.name;
                                return (d as any).parentName || (d as any).parentNameField || d.farmerName || d.farmer_name || d.homesteadVisitedContact || 'Member';
@@ -389,10 +389,10 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                       <span className="text-sm font-black text-slate-900">{d.householdName || d.homesteadName || d.homesteadVisitedName || d.farmName || 'General Plot'}</span>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                         Owner: {(() => {
-                          const phone = d.farmerPhone || d.homesteadContact || d.parentPhone || d.farmer_phone;
-                          const user = users.find(u => u.phone === phone);
+                          const phone = d.farmerPhone || d.homesteadContact || (d as any).parentPhone || (d as any).farmer_phone;
+                          const user = users.find((u: any) => u.phone === phone);
                           if (user && user.name) return user.name;
-                          return d.parentName || d.parentNameField || d.farmerName || d.farmer_name || d.homesteadVisitedContact || 'Member';
+                          return (d as any).parentName || (d as any).parentNameField || d.farmerName || (d as any).farmer_name || d.homesteadVisitedContact || 'Member';
                         })()}
                       </span>
                     </div>
