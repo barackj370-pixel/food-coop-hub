@@ -15,6 +15,7 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
   const [memberName, setMemberName] = useState('');
   const [memberPhone, setMemberPhone] = useState('');
   const [memberCluster, setMemberCluster] = useState(agentIdentity.cluster || clusters[0]);
+  const [memberGroupType, setMemberGroupType] = useState<'MEN' | 'WOMEN'>('WOMEN');
   
   const [members, setMembers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +25,7 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
   const [totalAmount, setTotalAmount] = useState('');
   const [contributionDate, setContributionDate] = useState(new Date().toISOString().split('T')[0]);
   const [submissionType, setSubmissionType] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('WEEKLY');
+  const [contributionGroupType, setContributionGroupType] = useState<'MEN' | 'WOMEN'>('WOMEN');
 
   useEffect(() => {
     fetchMembers();
@@ -45,7 +47,8 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
         const { error } = await supabase.from('table_banking_members').insert([{
           name: memberName,
           phone: memberPhone,
-          cluster: memberCluster
+          cluster: memberCluster,
+          group_type: memberGroupType
         }]);
         if (error) console.warn("Supabase member insert error:", error);
       } catch (e) {
@@ -84,7 +87,8 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
           cluster: memberCluster,
           amount_total: parseFloat(totalAmount),
           submitted_by: agentIdentity.phone,
-          submission_type: submissionType
+          submission_type: submissionType,
+          group_type: contributionGroupType
         }]);
         if (error) console.warn("Supabase insert error (table might not exist):", error);
       } catch (e) {
@@ -154,6 +158,17 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
                   className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all appearance-none"
                 >
                   {clusters.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 bg-white px-2">Group Type</label>
+                <select 
+                  value={contributionGroupType}
+                  onChange={e => setContributionGroupType(e.target.value as 'MEN' | 'WOMEN')}
+                  className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all appearance-none"
+                >
+                  <option value="WOMEN">Women</option>
+                  <option value="MEN">Men</option>
                 </select>
               </div>
               <div>
@@ -227,6 +242,17 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
                   placeholder="Phone Number"
                   className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all"
                 />
+              </div>
+              <div className="flex-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 bg-white px-2">Group Type</label>
+                <select 
+                  value={memberGroupType}
+                  onChange={e => setMemberGroupType(e.target.value as 'MEN' | 'WOMEN')}
+                  className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all"
+                >
+                  <option value="WOMEN">Women</option>
+                  <option value="MEN">Men</option>
+                </select>
               </div>
               <button 
                 type="submit" 
