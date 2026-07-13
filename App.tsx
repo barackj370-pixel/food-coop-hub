@@ -1318,7 +1318,7 @@ const App: React.FC = () => {
         r.status === RecordStatus.VERIFIED || 
         r.status === RecordStatus.VALIDATED
       ) {
-        if (!isJulyOnwards(r.date)) return;
+        if (!isJulyOnwards(r.date) || r.cropType?.startsWith('Table Banking')) return;
         const cluster = r.cluster || 'Unknown';
         if (!clusterMap[cluster]) clusterMap[cluster] = { volume: 0, profit: 0 };
         clusterMap[cluster].volume += Number(r.totalSale);
@@ -1334,7 +1334,7 @@ const App: React.FC = () => {
   const boardMetrics = useMemo<{ clusterPerformance: [string, FoodCoopMetric][] }>(() => {
     const now = new Date();
     const rLog = records.filter(r => {
-      if (!isJulyOnwards(r.date)) return false;
+      if (!isJulyOnwards(r.date) || r.cropType?.startsWith('Table Banking')) return false;
       if (boardTimeFilter === 'all') return true;
       const recordDate = new Date(r.createdAt || r.date);
       const diffTime = Math.abs(now.getTime() - recordDate.getTime());
@@ -2240,7 +2240,7 @@ const App: React.FC = () => {
             {/* About Us Carousel - Only visible when NOT logged in */}
             {!agentIdentity && <AboutUsCarousel />}
 
-            {agentIdentity && <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)')).slice(0, 10)} title="Latest Global Activity" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />}
+            {agentIdentity && <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && isJulyOnwards(r.date)).slice(0, 10)} title="Latest Global Activity" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />}
           </div>
         )}
 
@@ -2522,7 +2522,7 @@ const App: React.FC = () => {
                   </div>
                 )}
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} agentPhone={agentIdentity.phone} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
-                <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+                <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
               </>
             )}
             {marketView === 'SUPPLIER' && (
@@ -2585,7 +2585,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {(() => {
                    // Group Pending Records by Cluster AND Date
-                   const pending = records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && isJulyOnwards(r.date));
+                   const pending = records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && isJulyOnwards(r.date));
                    if (pending.length === 0) {
                      return (
                        <div className="col-span-full py-12 text-center text-slate-400">
@@ -2653,7 +2653,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && isJulyOnwards(r.date))} title="Fulfilled Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && isJulyOnwards(r.date))} title="Fulfilled Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2667,7 +2667,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {(() => {
                    // Group Pending Records by Cluster AND Date
-                   const awaiting = records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && isJulyOnwards(r.date));
+                   const awaiting = records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && isJulyOnwards(r.date));
                    if (awaiting.length === 0) {
                      return (
                        <div className="col-span-full py-12 text-center text-slate-400">
@@ -2735,7 +2735,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.VERIFIED) && isJulyOnwards(r.date))} title="Verified Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && (r.status === RecordStatus.VERIFIED) && isJulyOnwards(r.date))} title="Verified Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2801,7 +2801,7 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
-            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
@@ -2838,7 +2838,7 @@ const App: React.FC = () => {
             <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} onAddLedgerRecord={handleAddRecord} />
             <div className="mt-12 bg-white/50 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200">
                <h3 className="text-xl font-black mb-6 text-slate-800">Finance & Banking Ledger</h3>
-               <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+               <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => r.cropType?.startsWith('Table Banking') && isJulyOnwards(r.date))} title="Table Banking Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
             </div>
           </div>
         )}
@@ -2981,7 +2981,7 @@ const App: React.FC = () => {
                 <td className="py-6 text-right"><div className="flex items-center justify-end gap-3">{u.status === 'ACTIVE' ? (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone, 'ACTIVE'); }} className="bg-white border border-red-200 text-red-600 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-sm">Deactivate</button>) : (<button type="button" onClick={(e) => { e.stopPropagation(); handleToggleUserStatus(u.phone); }} className="bg-green-500 text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase shadow-md">Reactivate</button>)}<button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.phone); }} className="text-slate-300 hover:text-red-600 p-2"><i className="fas fa-trash-alt text-[12px]"></i></button></div></td>
               </tr>
             ))}
-          </tbody></table></div></div><AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} /></div>
+          </tbody></table></div></div><AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} /></div>
         )}
       </main>
 
