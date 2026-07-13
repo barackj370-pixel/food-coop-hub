@@ -97,7 +97,7 @@ const mapRecordToDb = (r: SaleRecord) => ({
 
 const normalizeStatus = (status: string) => {
   if (status === 'Pending Order') return RecordStatus.PENDING;
-  if (status === 'Order Complete') return RecordStatus.COMPLETE;
+  if (status === 'Receipt Confirmed') return RecordStatus.COMPLETE;
   if (status === 'VERIFIED') return RecordStatus.VERIFIED;
   return status as RecordStatus;
 };
