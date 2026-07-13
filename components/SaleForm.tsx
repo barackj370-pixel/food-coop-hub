@@ -44,6 +44,13 @@ interface SaleFormProps {
 const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, userRole, agentPhone }: SaleFormProps) => {
   const isSuper = userRole === SystemRole.SYSTEM_DEVELOPER || userRole === SystemRole.SALES_MANAGER || userRole === SystemRole.MANAGER || isSuperAgent(agentPhone);
   
+  const isPrivilegedDirectEntry = userRole === SystemRole.SYSTEM_DEVELOPER || 
+                                  userRole === SystemRole.MANAGER ||
+                                  (agentPhone && (agentPhone.includes('742773244') || agentPhone.includes('768750668')));
+
+  const [entryMode, setEntryMode] = useState<'CALCULATED' | 'DIRECT'>('CALCULATED');
+  const [directCommission, setDirectCommission] = useState<number>(0);
+
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     cluster: isSuper ? '' : (agentCluster || ''),
@@ -81,13 +88,30 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
       return;
     }
 
-    if (aggregateSellingPrice <= 0 || aggregateBuyingPrice <= 0) {
-      alert("Validation Error: Please enter valid aggregate prices.");
-      return;
-    }
-    if (aggregateSellingPrice < aggregateBuyingPrice) {
-      alert("Validation Error: Aggregate Selling Price cannot be less than Buying Price.");
-      return;
+    let finalSellingPrice = 0;
+    let finalBuyingPrice = 0;
+    let finalCoopProfit = 0;
+
+    if (entryMode === 'DIRECT') {
+      if (directCommission <= 0) {
+        alert("Validation Error: Please enter a valid direct commission.");
+        return;
+      }
+      finalSellingPrice = aggregateSellingPrice; // Might be 0, which is fine
+      finalBuyingPrice = 0;
+      finalCoopProfit = directCommission;
+    } else {
+      if (aggregateSellingPrice <= 0 || aggregateBuyingPrice <= 0) {
+        alert("Validation Error: Please enter valid aggregate prices.");
+        return;
+      }
+      if (aggregateSellingPrice < aggregateBuyingPrice) {
+        alert("Validation Error: Aggregate Selling Price cannot be less than Buying Price.");
+        return;
+      }
+      finalSellingPrice = aggregateSellingPrice;
+      finalBuyingPrice = aggregateBuyingPrice;
+      finalCoopProfit = ourShare;
     }
 
     onSubmit({
@@ -99,15 +123,16 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
       customerName: 'Multiple Customers',
       customerPhone: 'N/A',
       unitsSold: 1,
-      unitPrice: aggregateSellingPrice,
+      unitPrice: finalSellingPrice,
       cluster: finalCluster,
       isAggregate: true,
-      coopProfit: ourShare,
-      buyingPrice: aggregateBuyingPrice
+      coopProfit: finalCoopProfit,
+      buyingPrice: finalBuyingPrice
     });
 
     setAggregateBuyingPrice(0);
     setAggregateSellingPrice(0);
+    setDirectCommission(0);
   };
 
   return (
@@ -119,18 +144,41 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
             <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mt-1">Quick Weekly Aggregate Only</p>
           </div>
         </div>
-        <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation</span>
-           <p className="text-[13px] font-black text-white uppercase tracking-tight">
-             Total Sales: <span className="text-white">KSh {aggregateSellingPrice.toLocaleString()}</span> | Buying: <span className="text-slate-300">KSh {aggregateBuyingPrice.toLocaleString()}</span> | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
-           </p>
-           <p className="text-[9.5px] font-bold text-slate-400 uppercase mt-2">
-             Gross Profit: KSh {aggTotalProfit.toLocaleString()}
-           </p>
-        </div>
+        
+        {entryMode === 'CALCULATED' && (
+          <div className="bg-slate-900 px-10 py-6 rounded-3xl border border-black text-center lg:text-right shadow-xl">
+             <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] block mb-2">Real-time Calculation</span>
+             <p className="text-[13px] font-black text-white uppercase tracking-tight">
+               Total Sales: <span className="text-white">KSh {aggregateSellingPrice.toLocaleString()}</span> | Buying: <span className="text-slate-300">KSh {aggregateBuyingPrice.toLocaleString()}</span> | Commission: <span className="text-green-400">KSh {ourShare.toLocaleString()}</span>
+             </p>
+             <p className="text-[9.5px] font-bold text-slate-400 uppercase mt-2">
+               Gross Profit: KSh {aggTotalProfit.toLocaleString()}
+             </p>
+          </div>
+        )}
       </div>
       
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        
+        {isPrivilegedDirectEntry && (
+          <div className="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-5 flex gap-4 bg-slate-100 p-2 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setEntryMode('CALCULATED')}
+              className={`flex-1 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${entryMode === 'CALCULATED' ? 'bg-white shadow-md text-black' : 'text-slate-500 hover:text-black'}`}
+            >
+              Calculated Mode
+            </button>
+            <button
+              type="button"
+              onClick={() => setEntryMode('DIRECT')}
+              className={`flex-1 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${entryMode === 'DIRECT' ? 'bg-white shadow-md text-emerald-600' : 'text-slate-500 hover:text-black'}`}
+            >
+              Direct Entry Mode
+            </button>
+          </div>
+        )}
+
         {/* Trade Date */}
         <div className="space-y-1.5">
           <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Trade Date</label>
@@ -167,49 +215,70 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
           </div>
         )}
 
-        {/* Aggregate Buying Price */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Buying Price (KSh)</label>
-          <input 
-            type="number" 
-            min="0"
-            step="0.01"
-            required
-            placeholder="0.00"
-            value={aggregateBuyingPrice || ''}
-            onChange={(e) => setAggregateBuyingPrice(parseFloat(e.target.value) || 0)}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
-          />
-        </div>
+        {entryMode === 'CALCULATED' ? (
+          <>
+            {/* Aggregate Buying Price */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Buying Price (KSh)</label>
+              <input 
+                type="number" 
+                min="0"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={aggregateBuyingPrice || ''}
+                onChange={(e) => setAggregateBuyingPrice(parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+              />
+            </div>
 
-        {/* Aggregate Selling Price */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Selling Price (KSh)</label>
-          <input 
-            type="number" 
-            min="0"
-            step="0.01"
-            required
-            placeholder="0.00"
-            value={aggregateSellingPrice || ''}
-            onChange={(e) => setAggregateSellingPrice(parseFloat(e.target.value) || 0)}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
-          />
-        </div>
+            {/* Aggregate Selling Price */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Aggregate Selling Price (KSh)</label>
+              <input 
+                type="number" 
+                min="0"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={aggregateSellingPrice || ''}
+                onChange={(e) => setAggregateSellingPrice(parseFloat(e.target.value) || 0)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all"
+              />
+            </div>
 
-        {/* Commission Calculation Rule Selector */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commission Rule</label>
-          <select 
-            value={commissionType}
-            onChange={(e) => setCommissionType(e.target.value as any)}
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
-          >
-            <option value="gross_sale_10">10% of Aggregate Gross Sale</option>
-            <option value="gross_profit_10_plus_1">10% + 1 of Aggregate Gross Profit</option>
-            <option value="profit_100">100% of Profit</option>
-          </select>
-        </div>
+            {/* Commission Calculation Rule Selector */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Commission Rule</label>
+              <select 
+                value={commissionType}
+                onChange={(e) => setCommissionType(e.target.value as any)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
+              >
+                <option value="gross_sale_10">10% of Aggregate Gross Sale</option>
+                <option value="gross_profit_10_plus_1">10% + 1 of Aggregate Gross Profit</option>
+                <option value="profit_100">100% of Profit</option>
+              </select>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+              <label className="text-[10px] font-black text-emerald-600 uppercase ml-2 tracking-widest">Direct Commission Contribution (KSh)</label>
+              <input 
+                type="number" 
+                min="0"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={directCommission || ''}
+                onChange={(e) => setDirectCommission(parseFloat(e.target.value) || 0)}
+                className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl text-2xl font-black text-emerald-900 p-4 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+              />
+              <p className="text-[10px] text-slate-400 ml-2 mt-1">This amount will be directly submitted as the commission for the selected Food Coop.</p>
+            </div>
+          </>
+        )}
 
         <div className="flex items-end col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-5 mt-4">
           <button 
