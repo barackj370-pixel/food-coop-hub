@@ -1179,7 +1179,13 @@ const App: React.FC = () => {
       const sbRecords = await fetchRecords();
       if (sbRecords && sbRecords.length > 0) {
         setRecords(prev => {
-          const merged = mergeData(sbRecords, prev);
+          const merged = mergeData(sbRecords, prev).filter(r => 
+             r.cluster && 
+             r.cluster !== 'Unassigned' && 
+             !r.cluster.toLowerCase().includes('test') &&
+             r.id !== 'test_123' &&
+             r.id !== 'TEST_999'
+          );
           persistence.set('food_coop_data', JSON.stringify(merged));
           return merged;
         });
@@ -1656,11 +1662,18 @@ const App: React.FC = () => {
   };
 
   const handleAddRecord = async (data: SaleFormSubmission) => {
+    const finalCluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
+    
+    if (finalCluster === 'Unassigned' || finalCluster.toLowerCase().includes('test')) {
+      alert("Invalid or missing Food Coop. Please ensure a valid Food Coop is selected before submitting.");
+      return;
+    }
+
     if (editingId) {
       // UPDATE EXISTING RECORD
       const existing = records.find(r => r.id === editingId);
       if (existing) {
-        const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
+        const cluster = finalCluster;
         const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
         let coopProfit = data.coopProfit !== undefined ? data.coopProfit : (totalSale * PROFIT_MARGIN) + 1;
         
@@ -1677,6 +1690,7 @@ const App: React.FC = () => {
         const updatedRecord: SaleRecord = {
           ...existing,
           ...data,
+          cluster,
           totalSale,
           coopProfit,
           signature,
@@ -1702,7 +1716,7 @@ const App: React.FC = () => {
     } else {
       // CREATE NEW RECORD
       const id = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const cluster = data.cluster || agentIdentity?.cluster || 'Unassigned';
+      const cluster = finalCluster;
       const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
       let coopProfit = data.coopProfit !== undefined ? data.coopProfit : (totalSale * PROFIT_MARGIN) + 1;
       
@@ -2721,7 +2735,7 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
-            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE) && isJulyOnwards(r.date))} title="Verified Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
+            <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.VERIFIED) && isJulyOnwards(r.date))} title="Verified Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
 
