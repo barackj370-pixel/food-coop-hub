@@ -1,17 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { HISTORICAL_SALES_VOLUME, COOP_REGIONS } from '../constants';
+import { RecordStatus } from '../types';
 
 interface CoopRankingProps {
   records: any[]; // The universal ledger records
 }
 
-const isJulyOnwards = (dateStr: string) => {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return false;
-  return d >= new Date('2026-07-01T00:00:00Z');
-};
 
 const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
   const [viewMode, setViewMode] = useState<'NATIONAL' | 'REGIONAL'>('NATIONAL');
@@ -23,7 +18,7 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
     // Calculate current platform totals
     records.forEach(r => {
       // Only include valid sales records (completed or paid aggregates) from Week 1 of July
-      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === 'PAID' || r.status === 'COMPLETE') && isJulyOnwards(r.date)) {
+      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE || r.status === RecordStatus.VERIFIED || r.status === RecordStatus.VALIDATED)) {
         const cluster = r.cluster || 'Unknown';
         const saleAmount = Number(r.totalSale) || 0;
         if (!coopTotals[cluster]) {
