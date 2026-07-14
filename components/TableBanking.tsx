@@ -137,7 +137,7 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
               onClick={() => setActiveTab(tab as any)}
               className={`px-4 py-2 font-black text-[10px] uppercase tracking-widest border-b-2 transition-all ${activeTab === tab ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
             >
-              {tab === 'RECORD' ? 'Record Collection' : tab === 'MEMBERS' ? 'Members List' : 'Weekly Report'}
+              {tab === 'RECORD' ? 'Record Collection' : tab === 'MEMBERS' ? 'Members List' : 'Monthly Report'}
             </button>
           ))}
         </div>
@@ -231,6 +231,17 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
                 />
               </div>
               
+              <div className="flex-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 bg-white px-2">Food Coop</label>
+                <select 
+                  value={memberCluster}
+                  onChange={e => setMemberCluster(e.target.value)}
+                  className="w-full mt-2 bg-slate-50/50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all appearance-none"
+                >
+                  {clusters.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
               <button 
                 type="submit" 
                 disabled={isLoading}
@@ -270,7 +281,7 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, on
         {activeTab === 'REPORTS' && (
           <div className="text-center py-12">
             <i className="fas fa-file-invoice-dollar text-6xl text-slate-200 mb-4"></i>
-            <h3 className="text-xl font-black text-slate-700">Individual Weekly Breakdown</h3>
+            <h3 className="text-xl font-black text-slate-700">Individual Monthly Breakdown</h3>
             <p className="text-slate-500 text-sm font-bold mt-2 max-w-md mx-auto">This feature is pending backend aggregation to match Supabase tables. Agents will be able to distribute the total collection to individual members here.</p>
           </div>
         )}
