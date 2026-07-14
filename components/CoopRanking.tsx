@@ -166,7 +166,6 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                   angle={-45} 
                   textAnchor="end" 
                   height={80} 
-                  interval={0}
                   tick={{ fontSize: 9, fontWeight: 'bold' }} 
                 />
                 <YAxis 
