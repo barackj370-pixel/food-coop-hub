@@ -120,7 +120,7 @@ export const ABOUT_US_DATA = [
     content: 'Many people in the Kenya think it’s a derogatory term referring to people ruled by feudal lords in the middle ages. But it really means a “person of the land or of the country” and in much of the world, family farmers and rural workers continue to embrace the term (“campesino“ in Spanish, “paysan“ in French) to describe themselves and their communities with pride. It’s a term that denotes communities and people who produce food, who have important knowledge and skills, and who prefer autonomy in making decisions in their livelihoods and work. Peasants produce food for the market, not just for themselves. It is estimated that peasants produce well over half of the world’s food.'
   }
 ];
-export const HISTORICAL_SALES_VOLUME: Record<string, number> = {
+export const HISTORICAL_COMMISSIONS: Record<string, number> = {
   'New Kangemi Food Coop': 7442,
   'Kangemi': 3099,
   'Red Hill': 807,
