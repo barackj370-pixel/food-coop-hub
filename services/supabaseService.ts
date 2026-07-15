@@ -39,6 +39,7 @@ const getCurrentUserId = async (): Promise<string | undefined> => {
     }
   }
   
+  if (!session) { window.dispatchEvent(new CustomEvent("force_logout")); }
   return session?.user?.id;
 };
 
@@ -167,14 +168,16 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
       (payload as any).agent_id = userId;
     }
     
-    let { error } = await supabase.from('records').upsert(payload, { onConflict: 'id' });
+    let { error, data } = await supabase.from('records').upsert(payload, { onConflict: 'id' }).select();
+    if (!error && (!data || data.length === 0)) throw new Error('RLS blocked update');
     
     // Auto-fix for schema mismatch (missing columns like order_id, produce_id, agent_id)
     if (error && (error.code === '42703' || error.code === 'PGRST204')) {
       console.warn("Schema mismatch in records. Retrying with safe payload.");
       const { order_id, produce_id, agent_id, synced, agent_phone, agent_name, buying_price, is_aggregate, ...safePayload } = payload as any;
-      const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
+      const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' }).select();
       error = retry.error;
+      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
@@ -192,8 +195,9 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
        
        // Always retry without agent_id to ensure the record is saved
        const { agent_id, ...safePayload } = payload as any;
-       const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
+       const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' }).select();
        error = retry.error;
+      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     if (error) throw error;
@@ -373,6 +377,7 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
       const { agent_id, agent_phone, delivery_address, delivery_fee, supplier_name, supplier_phone, produce_id, is_direct_order, customer_food_coop, ...safePayload } = payload as any;
       const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
+      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
@@ -392,6 +397,7 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
        const { agent_id, ...safePayload } = payload as any;
        const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
        error = retry.error;
+      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     if (error) throw error;
@@ -512,6 +518,7 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
       const { images, agent_id, ...safePayload } = payload as any;
       const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
+      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
@@ -531,6 +538,7 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
        const { agent_id, ...safePayload } = payload as any;
        const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
        error = retry.error;
+      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     if (error) throw error;
@@ -753,6 +761,7 @@ export const saveForumPost = async (post: Omit<ForumPost, 'id' | 'createdAt'>): 
        // ATTEMPT 2: Retry Insert after healing
        const retry = await supabase.from('forum_posts').insert(payload);
        error = retry.error;
+      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     if (error) {
