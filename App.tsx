@@ -25,7 +25,7 @@ import HomesteadRegistration from './components/HomesteadRegistration';
 import TableBanking from './components/TableBanking';
 import CoopRanking from './components/CoopRanking';
 import PhysicalVoucherGenerator from './components/PhysicalVoucherGenerator';
-import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS, HISTORICAL_SALES_VOLUME } from './constants';
+import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS, HISTORICAL_COMMISSIONS } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
 import { updateClusterCoordinates } from './services/weatherService';
@@ -1304,12 +1304,12 @@ const App: React.FC = () => {
     }, {} as Record<string, FoodCoopMetric>);
 
     // Add historical offset first
-    Object.keys(HISTORICAL_SALES_VOLUME).forEach(cluster => {
+    Object.keys(HISTORICAL_COMMISSIONS).forEach(cluster => {
       if (!clusterMap[cluster]) {
          clusterMap[cluster] = { volume: 0, profit: 0 };
       }
-      clusterMap[cluster].volume += HISTORICAL_SALES_VOLUME[cluster];
-      clusterMap[cluster].profit += HISTORICAL_SALES_VOLUME[cluster] * 0.1; // 10% commission on historical
+      clusterMap[cluster].volume += HISTORICAL_COMMISSIONS[cluster] * 10;
+      clusterMap[cluster].profit += HISTORICAL_COMMISSIONS[cluster];
     });
 
     rLog.forEach(r => {
@@ -1351,12 +1351,12 @@ const App: React.FC = () => {
 
     // Add historical offset if we are viewing 'all' time
     if (boardTimeFilter === 'all') {
-      Object.keys(HISTORICAL_SALES_VOLUME).forEach(cluster => {
+      Object.keys(HISTORICAL_COMMISSIONS).forEach(cluster => {
         if (!clusterMap[cluster]) {
            clusterMap[cluster] = { volume: 0, profit: 0 };
         }
-        clusterMap[cluster].volume += HISTORICAL_SALES_VOLUME[cluster];
-        clusterMap[cluster].profit += HISTORICAL_SALES_VOLUME[cluster] * 0.1;
+        clusterMap[cluster].volume += HISTORICAL_COMMISSIONS[cluster] * 10;
+        clusterMap[cluster].profit += HISTORICAL_COMMISSIONS[cluster];
       });
     }
 
