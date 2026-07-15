@@ -1,12 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { HISTORICAL_SALES_VOLUME, COOP_REGIONS } from '../constants';
-import { RecordStatus } from '../types';
+import { HISTORICAL_COMMISSIONS, COOP_REGIONS } from '../constants';
 
 interface CoopRankingProps {
   records: any[]; // The universal ledger records
 }
 
+const isJulyOnwards = (dateStr: string) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  return d >= new Date('2026-07-01T00:00:00Z');
+};
 
 const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
   const [viewMode, setViewMode] = useState<'NATIONAL' | 'REGIONAL'>('NATIONAL');
@@ -18,13 +23,13 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
     // Calculate current platform totals
     records.forEach(r => {
       // Only include valid sales records (completed or paid aggregates) from Week 1 of July
-      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === RecordStatus.PAID || r.status === RecordStatus.COMPLETE || r.status === RecordStatus.VERIFIED || r.status === RecordStatus.VALIDATED)) {
+      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === 'PAID' || r.status === 'COMPLETE') && isJulyOnwards(r.date)) {
         const cluster = r.cluster || 'Unknown';
-        const saleAmount = Number(r.totalSale) || 0;
+        const commissionAmount = Number(r.coopProfit) || 0;
         if (!coopTotals[cluster]) {
           coopTotals[cluster] = 0;
         }
-        coopTotals[cluster] += saleAmount;
+        coopTotals[cluster] += commissionAmount;
       }
     });
 
@@ -32,11 +37,11 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
     const combinedTotals: { cluster: string; region: string; totalVolume: number; platformVolume: number; historicalVolume: number }[] = [];
     
     // Merge both to get all clusters
-    const allClusters = new Set([...Object.keys(coopTotals), ...Object.keys(HISTORICAL_SALES_VOLUME)]);
+    const allClusters = new Set([...Object.keys(coopTotals), ...Object.keys(HISTORICAL_COMMISSIONS)]);
 
     allClusters.forEach(cluster => {
       const pVol = coopTotals[cluster] || 0;
-      const hVol = HISTORICAL_SALES_VOLUME[cluster] || 0;
+      const hVol = HISTORICAL_COMMISSIONS[cluster] || 0;
       const region = COOP_REGIONS[cluster] || 'Unknown';
       
       combinedTotals.push({
@@ -131,13 +136,13 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                     width={80}
                   />
                   <Tooltip 
-                    formatter={(value: any) => [`KSh ${Number(value).toLocaleString()}`, 'Volume']}
+                    formatter={(value: any) => [`KSh ${Number(value).toLocaleString()}`, 'Commission']}
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                   />
                   <Legend verticalAlign="top" height={36} />
                   <Bar 
                     dataKey="totalVolume" 
-                    name="Total Sales Volume" 
+                    name="Total Commission" 
                     fill="#10b981" 
                     radius={[4, 4, 0, 0]} 
                   />
@@ -169,13 +174,13 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                   width={80}
                 />
                 <Tooltip 
-                  formatter={(value: any) => [`KSh ${Number(value).toLocaleString()}`, 'Volume']}
+                  formatter={(value: any) => [`KSh ${Number(value).toLocaleString()}`, 'Commission']}
                   cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                 />
                 <Legend verticalAlign="top" height={36} />
                 <Bar 
                   dataKey="totalVolume" 
-                  name="Total Sales Volume" 
+                  name="Total Commission" 
                   fill="#10b981" 
                   radius={[4, 4, 0, 0]} 
                 />
@@ -201,7 +206,7 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{coop.region}</p>
               </div>
               <div className="text-left md:text-right">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Sales Volume</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Commission</p>
                 <p className={`text-2xl font-black ${index === 0 ? 'text-amber-600' : 'text-slate-700'}`}>KSh {coop.totalVolume.toLocaleString()}</p>
               </div>
             </div>
