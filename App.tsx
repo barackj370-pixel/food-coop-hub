@@ -957,6 +957,7 @@ const App: React.FC = () => {
 
   // Listen for Supabase Auth Changes
   useEffect(() => {
+    const handleForceLogout = () => { console.log("Force logout triggered"); setAgentIdentity(null); persistence.remove("agent_session"); supabase.auth.signOut().catch(() => {}); setCurrentPortal("LOGIN"); }; window.addEventListener("force_logout", handleForceLogout);
     // Check initial session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       // If there's an error (like Invalid Refresh Token), clear the session and force signout
