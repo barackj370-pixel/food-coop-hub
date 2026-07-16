@@ -23,7 +23,7 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
     // Calculate current platform totals
     records.forEach(r => {
       // Only include valid sales records (completed or paid aggregates) from Week 1 of July
-      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && (r.status === 'PAID' || r.status === 'COMPLETE') && isJulyOnwards(r.date)) {
+      if ((r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && ['PAID', 'COMPLETE', 'Receipt Confirmed', 'VERIFIED', 'Order Complete', 'VALIDATED'].includes(r.status) && isJulyOnwards(r.date)) {
         const cluster = r.cluster || 'Unknown';
         const commissionAmount = Number(r.coopProfit) || 0;
         if (!coopTotals[cluster]) {
@@ -76,6 +76,7 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
     : ranking.filter(c => c.region === selectedRegion);
 
   const availableRegions = useMemo(() => Array.from(new Set(ranking.map(r => r.region).filter(r => r !== 'Unknown'))).sort(), [ranking]);
+  const grandTotal = useMemo(() => displayedRanking.reduce((sum, coop) => sum + coop.totalVolume, 0), [displayedRanking]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -215,6 +216,20 @@ const CoopRanking: React.FC<CoopRankingProps> = ({ records }) => {
           {displayedRanking.length === 0 && (
             <div className="py-12 text-center text-slate-400 font-medium text-sm">
               No sales records available yet.
+            </div>
+          )}
+
+          {displayedRanking.length > 0 && (
+            <div className="p-6 mt-8 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-black text-emerald-800 text-lg uppercase tracking-wider">Grand Total</h3>
+                <p className="text-xs font-bold text-emerald-600/80 uppercase tracking-widest">
+                  {viewMode === 'NATIONAL' ? 'Global Commissions' : `${selectedRegion} Regional Commissions`}
+                </p>
+              </div>
+              <div className="text-left md:text-right">
+                <p className="text-3xl font-black text-emerald-700">KSh {grandTotal.toLocaleString()}</p>
+              </div>
             </div>
           )}
         </div>
