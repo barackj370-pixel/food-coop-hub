@@ -186,7 +186,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
               attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
-            {data.filter(d => d.location).map((d) => (
+            {data.filter(d => d.location && d.formType !== 'solidarity').map((d) => (
               <Marker 
                 key={d.id} 
                 position={[d.location!.lat, d.location!.lng]}
@@ -426,6 +426,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                           {d.weeklyActivities && <span className="block mt-0.5">Activities: {d.weeklyActivities}</span>}
                           {d.workDone && <span className="block mt-0.5">Work: {d.workDone?.join(', ')}</span>}
                           {d.productionOfficerName && <span className="block mt-0.5 text-slate-500 italic">Officer: {d.productionOfficerName}</span>}
+                          {d.participants && <span className="block mt-1 text-xs text-blue-600 italic font-bold">Attendees: {d.participants}</span>}
                         </>
                       )}
                     </div>
