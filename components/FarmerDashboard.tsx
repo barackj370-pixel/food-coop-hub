@@ -13,10 +13,11 @@ interface FarmerDashboardProps {
   agentIdentity: AgentIdentity;
   farmFormsData: any[];
   dynamicClusters: string[];
+  users?: AgentIdentity[];
   onIdentityUpdate?: (identity: AgentIdentity) => void;
 }
 
-const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFormsData, dynamicClusters, onIdentityUpdate }) => {
+const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFormsData, dynamicClusters, users = [], onIdentityUpdate }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [farmProfiles, setFarmProfiles] = useState<any[]>([]);
@@ -31,21 +32,29 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
     farmFormsData
       .filter((f: any) => f.formType === 'homestead')
       .forEach((f: any) => {
-        const coop = f.foodCoop || f.agentCluster || 'Unassigned Cooperative';
+        const coop = f.foodCoop || f.cluster || f.agentCluster || f.assigned_coop || 'Unassigned Cooperative';
         if (!groups[coop]) groups[coop] = [];
         
-        // Use homesteadName or farmName as key
-        const nameKey = f.homesteadName || f.farmName || 'Unknown Homestead';
+        // Use homesteadName or farmName as key, extract base name if it has a plot suffix
+        let nameKey = f.homesteadName || f.farmName || 'Unknown Homestead';
+        if (nameKey.includes(' - ')) {
+          nameKey = nameKey.split(' - ')[0];
+        }
         
         // Prevent duplicates (prefer baselines over pages if both exist)
-        const existingIdx = groups[coop].findIndex(e => 
-           (e.homesteadName || e.farmName || 'Unknown') === nameKey
-        );
+        const existingIdx = groups[coop].findIndex(e => {
+           let eNameKey = e.homesteadName || e.farmName || 'Unknown';
+           if (eNameKey.includes(' - ')) eNameKey = eNameKey.split(' - ')[0];
+           return eNameKey === nameKey;
+        });
+        
+        // Save the cleaned name to the object for UI rendering
+        const cleanedF = { ...f, displayHomesteadName: nameKey };
         
         if (existingIdx === -1) {
-          groups[coop].push(f);
+          groups[coop].push(cleanedF);
         } else if (!f.fromPages && groups[coop][existingIdx].fromPages) {
-           groups[coop][existingIdx] = f;
+           groups[coop][existingIdx] = cleanedF;
         }
       });
     return groups;
@@ -336,7 +345,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
             },
             (err) => {
               console.error("GPS Failure:", err);
-              reject(new Error(`GPS_FAILED: ${err.message}`));
+              resolve({ lat: 0, lng: 0 }); // Fallback instead of reject
             },
             { timeout: 30000, enableHighAccuracy: true, maximumAge: 0 }
           );
@@ -909,17 +918,22 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {homesteads.map((h: any, idx: number) => (
-                    <div key={idx} className="bg-slate-800 p-5 rounded-2xl border border-slate-700 hover:border-emerald-500/50 transition-colors group">
+                    <div key={idx} onClick={() => setViewingHomestead(h.displayHomesteadName || h.homesteadName || h.farmName || 'Unknown Homestead')} className="bg-slate-800 p-5 rounded-2xl border border-slate-700 hover:border-emerald-500/50 transition-colors group cursor-pointer">
                       <div className="flex justify-between items-start mb-3">
                         <h4 className="font-black text-white text-sm group-hover:text-emerald-400 transition-colors">
-                          {h.homesteadName || h.farmName || 'Unknown Homestead'}
+                          {h.displayHomesteadName || h.homesteadName || h.farmName || 'Unknown Homestead'}
                         </h4>
                         {h.gpsVerified && <i className="fas fa-satellite text-emerald-500 text-[10px]" title="GPS Verified"></i>}
                       </div>
                       <div className="space-y-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                          <p className="flex items-center gap-2 block truncate">
                            <i className="fas fa-user text-slate-500 w-3"></i> 
-                           {h.farmerName || h.farmer_name || h.homesteadContact || 'Unknown Owner'}
+                           {(() => {
+                             const phone = h.farmerPhone || h.homesteadContact || h.farmer_phone;
+                             const user = users.find(u => u.phone === phone);
+                             if (user && user.name) return user.name;
+                             return h.farmerName || h.farmer_name || phone || 'Unknown Owner';
+                           })()}
                          </p>
                          <p className="flex items-center gap-2 block truncate">
                            <i className="fas fa-calendar-alt text-slate-500 w-3"></i> 
