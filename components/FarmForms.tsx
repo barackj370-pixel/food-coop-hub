@@ -304,7 +304,14 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       if (targetBaselines.length > 0 && location) {
         let isVerified = false;
         for (const farm of targetBaselines) {
-          if (farm.latitude && farm.longitude) {
+          if (farm.latitude !== undefined && farm.longitude !== undefined) {
+            if (farm.latitude === 0 && farm.longitude === 0) {
+              isVerified = true;
+              data.verifiedFarmId = farm.id;
+              data.verifiedFarmName = farm.farm_name;
+              break;
+            }
+            
             const distance = getDistanceFromLatLonInM(
               location.lat,
               location.lng,
@@ -312,9 +319,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               farm.longitude,
             );
             const sizeInAcres = farm.size_in_acres || 1; // Default to 1 acre
-            // 1 acre = ~4046 sq meters -> radius = sqrt(4046 / pi) = ~36m. Add 50m buffer.
-            const allowedRadius =
-              Math.sqrt((sizeInAcres * 4046) / Math.PI) + 50;
+            const allowedRadius = Math.sqrt((sizeInAcres * 4046) / Math.PI) + 50;
+            
             if (distance <= allowedRadius) {
               isVerified = true;
               data.verifiedFarmId = farm.id;
