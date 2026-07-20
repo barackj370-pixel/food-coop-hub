@@ -590,18 +590,10 @@ const FarmForms: React.FC<FarmFormsProps> = ({
 
               <div className="space-y-6 pt-6 border-t border-slate-100">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Media Evidence</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Picture 1</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Picture</label>
                     <input type="file" accept="image/*" name="solidarityPic1" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Picture 2</label>
-                    <input type="file" accept="image/*" name="solidarityPic2" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Short Video</label>
-                    <input type="file" accept="video/*" name="solidarityVideo" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
                   </div>
                 </div>
               </div>
