@@ -246,6 +246,32 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
 
+      // Handle file uploads
+      if (data.solidarityPic1 && data.solidarityPic1.size > 0) {
+        setSubmitStatus({ type: "loading", message: "Uploading media..." });
+        const file = data.solidarityPic1;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `solidarity/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(filePath, file);
+          
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          // throw uploadError; // depending on whether it's fatal
+        } else {
+          const { data: { publicUrl } } = supabase.storage
+            .from('media')
+            .getPublicUrl(filePath);
+          data.solidarityPic1Url = publicUrl;
+        }
+      }
+      
+      // Remove File object from data to avoid serialization issues
+      delete data.solidarityPic1;
+
       // Handle checkboxes
       const workDone = formData.getAll("workDone");
       if (workDone.length > 0) {
