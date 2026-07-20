@@ -455,7 +455,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             onClick={() => setActiveForm("homestead")}
             className={`px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${activeForm === "homestead" ? "bg-emerald-600 text-white shadow-lg" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
           >
-            Homestead Owner (Form B)
+            Homestead Farmer (Form B)
           </button>
           <button
             onClick={() => {
@@ -589,8 +589,26 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               </div>
 
               <div className="space-y-6 pt-6 border-t border-slate-100">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Media Evidence</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Picture 1</label>
+                    <input type="file" accept="image/*" name="solidarityPic1" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Picture 2</label>
+                    <input type="file" accept="image/*" name="solidarityPic2" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Short Video</label>
+                    <input type="file" accept="video/*" name="solidarityVideo" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-slate-100">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">
-                  Homestead Owner
+                  Homestead Farmer
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
