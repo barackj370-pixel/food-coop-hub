@@ -177,7 +177,7 @@ ${corners!.length >= 4 ? `| **Corner D (End)** | \`${corners![3]?.lat.toFixed(6)
 
   return `# 🌿 CUSTOM AGROECOLOGICAL LAND PROFILE
 
-**Owner Homestead:** ${homesteadName}  
+**Farmer Homestead:** ${homesteadName}  
 **Plot Name:** ${farmName}  
 **Primary Anchor GPS:** \`${lat.toFixed(6)}°, ${lng.toFixed(6)}°\`  
 **Geospatial Audit Type:** ${corners && corners.length >= 3 ? `✅ ${corners.length}-Point Boundary Survey (High Accuracy)` : "⚠️ Centroid Reference Only"}  
