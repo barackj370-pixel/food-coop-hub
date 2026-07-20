@@ -186,7 +186,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
               attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
-            {data.filter(d => d.location && d.formType !== 'solidarity').map((d) => (
+            {data.filter(d => d.location && d.formType === 'homestead').map((d) => (
               <Marker 
                 key={d.id} 
                 position={[d.location!.lat, d.location!.lng]}
@@ -196,7 +196,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
                   <div className="p-2 min-w-[220px]">
                     <div className="flex justify-between items-start mb-2">
                        <h3 className="font-black text-xs uppercase tracking-widest text-emerald-700">
-                        {d.formType === 'weekly' ? 'Weekly Activity' : d.formType === 'homestead' && !d.fromPages ? 'Plot Base' : d.formType === 'homestead' ? 'Owner Details' : d.formType === 'youth_assessment' ? 'Youth Assessment' : d.formType.toUpperCase()}
+                        {d.formType === 'weekly' ? 'Weekly Activity' : d.formType === 'homestead' && !d.fromPages ? 'Plot Base' : d.formType === 'homestead' ? 'Homestead Details' : d.formType === 'youth_assessment' ? 'Youth Assessment' : d.formType.toUpperCase()}
                       </h3>
                       {d.gpsVerified ? (
                         <span className="text-[8px] font-black bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase shrink-0 ml-2">Verified GPS</span>
@@ -213,7 +213,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
 
                       <div className="flex justify-between gap-4 mt-2">
                         <div>
-                          <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Owner/Farmer</p>
+                          <p className="text-[8px] font-black text-slate-400 uppercase leading-none">Farmer</p>
                           <p className="text-[10px] font-bold text-slate-700">
                              {(() => {
                               const phone = d.farmerPhone || d.homesteadContact || (d as any).parentPhone || (d as any).farmer_phone;
@@ -329,16 +329,16 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
           />
         </div>
 
-        {/* HOMESTEAD OWNER */}
+        {/* HOMESTEAD FARMER */}
         <div className="mb-4">
           <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
-             <i className="fas fa-user-circle"></i> Homestead Owner Data
+             <i className="fas fa-user-circle"></i> Homestead Data
           </h3>
           <RegistryTable 
              items={data.filter(d => d.formType === 'homestead' && d.fromPages)}
              isSystemDev={isSystemDev}
              handleDeleteRecord={handleDeleteRecord}
-             typeLabel="Owner Details"
+             typeLabel="Homestead Details"
              users={users}
           />
         </div>
@@ -362,7 +362,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50">
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Homestead & Owner</th>
+                <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Homestead</th>
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cooperative</th>
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Details</th>
                 <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">GPS Status</th>
@@ -388,7 +388,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                     <div className="flex flex-col">
                       <span className="text-sm font-black text-slate-900">{d.householdName || d.homesteadName || d.homesteadVisitedName || d.farmName || 'General Plot'}</span>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                        Owner: {(() => {
+                        {(() => {
                           const phone = d.farmerPhone || d.homesteadContact || (d as any).parentPhone || (d as any).farmer_phone;
                           const user = users.find((u: any) => u.phone === phone);
                           if (user && user.name) return user.name;
@@ -427,6 +427,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                           {d.workDone && <span className="block mt-0.5">Work: {d.workDone?.join(', ')}</span>}
                           {d.productionOfficerName && <span className="block mt-0.5 text-slate-500 italic">Officer: {d.productionOfficerName}</span>}
                           {d.participants && <span className="block mt-1 text-xs text-blue-600 italic font-bold">Attendees: {d.participants}</span>}
+{d.workDone && <span className="block mt-0.5 font-bold text-[10px] text-slate-600">Work Done: {Array.isArray(d.workDone) ? d.workDone.join(', ') : d.workDone}</span>}
                         </>
                       )}
                     </div>
