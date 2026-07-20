@@ -431,7 +431,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
       setCornerC({ lat: '', lng: '' });
       setCornerD({ lat: '', lng: '' });
 
-      alert(`Plot Registered!\n\nHomestead: ${resolvedHomesteadName}\nPlot: ${newFarmName}\nOwner: ${currentIdentity?.name || 'Unknown'}\nCooperative: ${currentIdentity?.cluster || 'General'}\n\nBoundary & coordinates verified and captured.`);
+      alert(`Plot Registered!\n\nHomestead: ${resolvedHomesteadName}\nPlot: ${newFarmName}\nFarmer: ${currentIdentity?.name || 'Unknown'}\nCooperative: ${currentIdentity?.cluster || 'General'}\n\nBoundary & coordinates verified and captured.`);
     } catch (err: any) {
       console.error("Plot Registration Failed:", err);
       alert(`Registration failed: ${err.message}`);
@@ -512,6 +512,68 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
             </div>
           </button>
         ))}
+
+      {/* Global Registered Homesteads Section */}
+      <div className="bg-slate-900 p-8 rounded-[2.5rem] mt-12 shadow-2xl">
+        <div className="flex items-center gap-4 mb-8 border-b border-slate-700 pb-6">
+          <div className="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
+             <i className="fas fa-globe-africa text-2xl"></i>
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white">Registered Homesteads Directory</h2>
+            <p className="text-slate-400 font-bold text-xs mt-1 uppercase tracking-widest">Classified by Food Cooperative</p>
+          </div>
+        </div>
+
+        {Object.keys(groupedGlobalHomesteads).length > 0 ? (
+          <div className="space-y-8">
+            {Object.entries(groupedGlobalHomesteads).map(([coop, homesteads]) => (
+              <div key={coop} className="bg-slate-800/50 rounded-3xl p-6 border border-slate-700/50">
+                <h3 className="text-lg font-black text-emerald-400 uppercase tracking-widest flex items-center gap-3 mb-6">
+                  <i className="fas fa-store"></i> {coop}
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[10px] px-3 py-1 rounded-full">{homesteads.length} Homesteads</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {homesteads.map((h: any, idx: number) => (
+                    <div key={idx} onClick={() => setViewingHomestead(h.displayHomesteadName || h.homesteadName || h.farmName || 'Unknown Homestead')} className="bg-slate-800 p-5 rounded-2xl border border-slate-700 hover:border-emerald-500/50 transition-colors group cursor-pointer">
+                      <div className="flex justify-between items-start mb-3">
+                        <h4 className="font-black text-white text-sm group-hover:text-emerald-400 transition-colors">
+                          {h.displayHomesteadName || h.homesteadName || h.farmName || 'Unknown Homestead'}
+                        </h4>
+                        {h.gpsVerified && <i className="fas fa-satellite text-emerald-500 text-[10px]" title="GPS Verified"></i>}
+                      </div>
+                      <div className="space-y-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                         <p className="flex items-center gap-2 block truncate">
+                           <i className="fas fa-user text-slate-500 w-3"></i> 
+                           {(() => {
+                             const phone = h.farmerPhone || h.homesteadContact || h.farmer_phone;
+                             const user = users.find(u => u.phone === phone);
+                             if (user && user.name) return user.name;
+                             return h.farmerName || h.farmer_name || phone || 'Unknown Farmer';
+                           })()}
+                         </p>
+                         <p className="flex items-center gap-2 block truncate">
+                           <i className="fas fa-calendar-alt text-slate-500 w-3"></i> 
+                           {new Date(h.submittedAt).toLocaleDateString()}
+                         </p>
+                         <div className="pt-3 flex gap-2 flex-wrap">
+                            {!h.fromPages && <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded uppercase text-[8px] tracking-wider">Base Plot</span>}
+                            {h.fromPages && <span className="bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded uppercase text-[8px] tracking-wider">Form Profile</span>}
+                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <i className="fas fa-home text-slate-700 text-5xl mb-4"></i>
+            <p className="font-black text-slate-500 uppercase tracking-widest text-xs">No Homesteads Registered Yet</p>
+          </div>
+        )}
+      </div>
       </div>
     );
   }
@@ -932,7 +994,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                              const phone = h.farmerPhone || h.homesteadContact || h.farmer_phone;
                              const user = users.find(u => u.phone === phone);
                              if (user && user.name) return user.name;
-                             return h.farmerName || h.farmer_name || phone || 'Unknown Owner';
+                             return h.farmerName || h.farmer_name || phone || 'Unknown Farmer';
                            })()}
                          </p>
                          <p className="flex items-center gap-2 block truncate">
