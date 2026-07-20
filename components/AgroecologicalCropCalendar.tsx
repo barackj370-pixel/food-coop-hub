@@ -608,7 +608,7 @@ Include an **Adaptive Weather Outlook & Warning panel** in markdown style summar
                     <div key={idx} className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 text-[11px] text-emerald-950 font-bold flex justify-between gap-3 shadow-none">
                       <div>
                         <p className="text-slate-400 text-[9px] uppercase tracking-wider mb-1">
-                          Farmer: {log.farmerName || 'Homestead Owner'} • Subtmitted: {new Date(log.submittedAt).toLocaleDateString()}
+                          Farmer: {log.farmerName || 'Homestead Farmer'} • Subtmitted: {new Date(log.submittedAt).toLocaleDateString()}
                         </p>
                         <p className="leading-snug">
                           {log.weeklyActivities || log.workDone?.join(', ')}
