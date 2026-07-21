@@ -255,7 +255,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         const filePath = `solidarity/${fileName}`;
         
         const { error: uploadError } = await supabase.storage
-          .from('media')
+          .from('media_evidence')
           .upload(filePath, file);
           
         if (uploadError) {
@@ -263,7 +263,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           // throw uploadError; // depending on whether it's fatal
         } else {
           const { data: { publicUrl } } = supabase.storage
-            .from('media')
+            .from('media_evidence')
             .getPublicUrl(filePath);
           data.solidarityPic1Url = publicUrl;
         }
