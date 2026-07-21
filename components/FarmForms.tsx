@@ -663,7 +663,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           submittedAt: new Date().toISOString(),
           agentCluster: agentIdentity.cluster,
           agentRole: agentIdentity.role,
-          agentName: agentIdentity.name,
+          agentName: data.agentName || agentIdentity.name,
           farmerPhone: activeForm === "youth_assessment" 
             ? (data.parentPhone || agentIdentity.phone) 
             : (data.homesteadContact || data.productionOfficerContact || data.convenerContact || agentIdentity.phone),
@@ -843,12 +843,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-100">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Agent Name (Optional)</label>
-                  <input type="text" name="agentName" placeholder="Name of agent entering data" defaultValue={agentIdentity?.name} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Agent Name</label>
+                  <input type="text" name="agentName" placeholder="Enter name" required className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Agent Phone (Optional)</label>
-                  <input type="text" name="agentPhone" placeholder="Phone of agent entering data" defaultValue={agentIdentity?.phone} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Agent Phone</label>
+                  <input type="text" name="agentPhone" placeholder="Enter phone number" required className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
                 </div>
               </div>
 
