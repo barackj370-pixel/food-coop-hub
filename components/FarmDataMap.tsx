@@ -426,8 +426,15 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                           {d.weeklyActivities && <span className="block mt-0.5">Activities: {d.weeklyActivities}</span>}
                           {d.workDone && <span className="block mt-0.5">Work: {d.workDone?.join(', ')}</span>}
                           {d.productionOfficerName && <span className="block mt-0.5 text-slate-500 italic">Officer: {d.productionOfficerName}</span>}
-                          {d.participants && <span className="block mt-1 text-xs text-blue-600 italic font-bold">Attendees: {d.participants}</span>}
-{d.workDone && <span className="block mt-0.5 font-bold text-[10px] text-slate-600">Work Done: {Array.isArray(d.workDone) ? d.workDone.join(', ') : d.workDone}</span>}
+                          {d.totalParticipants && <span className="block mt-1 text-[11px] text-blue-800 font-bold uppercase tracking-widest"><i className="fas fa-users"></i> Total Attendees: {d.totalParticipants}</span>}
+                          {d.participants && <span className="block mt-1 text-[10px] text-blue-600 font-bold whitespace-pre-wrap"><i className="fas fa-list-ul"></i> Attendees List:<br/>{d.participants}</span>}
+                          {d.workDone && <span className="block mt-0.5 font-bold text-[10px] text-slate-600">Work Done: {Array.isArray(d.workDone) ? d.workDone.join(', ') : d.workDone}</span>}
+                          {d.solidarityPic1Url && (
+                            <div className="mt-2">
+                              <img src={d.solidarityPic1Url} alt="Solidarity Evidence" className="w-16 h-16 object-cover rounded-md border border-slate-200" />
+                            </div>
+                          )}
+
                         </>
                       )}
                     </div>
