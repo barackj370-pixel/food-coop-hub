@@ -176,7 +176,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         <body>
           <div class="header">
             <!-- KPL Logo -->
-            <img src="https://kenyanpeasantsleague.org/wp-content/uploads/2021/04/icon.png" alt="KPL Logo" class="logo" style="display:inline-block; max-width: 150px; margin: 0 auto; display: block;" />
+                        <!-- KPL Logo -->
+            <img src="${window.location.origin}/kpl-logo.png" alt="KPL Logo" class="logo" style="display:inline-block; max-width: 150px; margin: 0 auto; display: block;" />
             <h1>KPL Farm Labour Solidarity Building Form</h1>
           </div>
           <div class="section">
@@ -217,12 +218,93 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             <div class="section-title">4. Participants List</div>
             <div class="field" style="max-width: 300px;"><label>Total Number of Participants:</label><span class="line"></span></div>
             <p style="font-size: 13px; font-weight: bold; margin-bottom: 10px;">Names and Contacts of Participants:</p>
-            <div class="textarea-lines"></div>
-            <div class="textarea-lines"></div>
-            <div class="textarea-lines"></div>
-            <div class="textarea-lines"></div>
-            <div class="textarea-lines"></div>
-            <div class="textarea-lines"></div>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+              <thead>
+                <tr>
+                  <th style="width: 5%; text-align: left; padding: 4px; border: 1px solid #000; font-size: 12px;">#</th>
+                  <th style="width: 45%; text-align: left; padding: 4px; border: 1px solid #000; font-size: 12px;">Name</th>
+                  <th style="width: 50%; text-align: left; padding: 4px; border: 1px solid #000; font-size: 12px;">Contact</th>
+                </tr>
+              </thead>
+              <tbody>
+                
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">1.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">2.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">3.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">4.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">5.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">6.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">7.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">8.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">9.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">10.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">11.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">12.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">13.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">14.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">15.</td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <div class="section">
             <div class="section-title">5. Verification</div>
