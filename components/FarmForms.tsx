@@ -146,6 +146,189 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       });
   }, [agentIdentity.phone]);
 
+  const handlePrintSolidarityForm = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>KPL Farm Labour Solidarity Building Form</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; line-height: 1.5; color: #000; }
+            h1 { text-align: center; font-size: 20px; text-transform: uppercase; margin-bottom: 20px; color: #059669; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #059669; padding-bottom: 20px; }
+            .logo { max-width: 120px; margin-bottom: 15px; }
+            .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 15px; border-radius: 8px; }
+            .section-title { font-weight: bold; margin-bottom: 15px; background: #f8fafc; padding: 8px; text-transform: uppercase; font-size: 12px; border-left: 4px solid #059669; }
+            .field { margin-bottom: 15px; display: flex; align-items: flex-end; }
+            .field label { font-weight: bold; font-size: 13px; margin-right: 10px; white-space: nowrap; }
+            .field .line { flex-grow: 1; border-bottom: 1px dashed #000; height: 20px; }
+            .checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; margin-bottom: 15px; }
+            .checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+            .box { width: 16px; height: 16px; border: 1px solid #000; border-radius: 3px; }
+            .textarea-lines { border-bottom: 1px dashed #000; height: 30px; margin-bottom: 5px; width: 100%; }
+            @media print {
+              body { padding: 0; }
+              .section { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <!-- KPL Logo -->
+            <img src="https://kenyanpeasantsleague.org/wp-content/uploads/2021/04/icon.png" alt="KPL Logo" class="logo" style="display:inline-block; max-width: 150px; margin: 0 auto; display: block;" />
+            <h1>KPL Farm Labour Solidarity Building Form</h1>
+          </div>
+          <div class="section">
+            <div class="section-title">1. Agent Details</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div class="field"><label>Agent Name:</label><span class="line"></span></div>
+              <div class="field"><label>Agent Phone:</label><span class="line"></span></div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div class="field"><label>Food Coop:</label><span class="line"></span></div>
+              <div class="field"><label>Date:</label><span class="line"></span></div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-title">2. Type of Work Done</div>
+            <div class="checkboxes">
+              <div class="checkbox"><div class="box"></div> Ploughing</div>
+              <div class="checkbox"><div class="box"></div> Planting</div>
+              <div class="checkbox"><div class="box"></div> Weeding</div>
+              <div class="checkbox"><div class="box"></div> Harvesting</div>
+              <div class="checkbox"><div class="box"></div> Slashing</div>
+              <div class="checkbox"><div class="box"></div> Washing</div>
+              <div class="checkbox"><div class="box"></div> Sweeping</div>
+              <div class="checkbox"><div class="box"></div> Fetching water</div>
+              <div class="checkbox"><div class="box"></div> Watering crops</div>
+              <div class="checkbox"><div class="box"></div> Feeding animals</div>
+            </div>
+            <div class="field"><label>Other Work (Specify):</label><span class="line"></span></div>
+          </div>
+          <div class="section">
+            <div class="section-title">3. Homestead Owner Details</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div class="field"><label>Name of Homestead Owner:</label><span class="line"></span></div>
+              <div class="field"><label>Contact of Homestead Owner:</label><span class="line"></span></div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-title">4. Participants List</div>
+            <div class="field" style="max-width: 300px;"><label>Total Number of Participants:</label><span class="line"></span></div>
+            <p style="font-size: 13px; font-weight: bold; margin-bottom: 10px;">Names and Contacts of Participants:</p>
+            <div class="textarea-lines"></div>
+            <div class="textarea-lines"></div>
+            <div class="textarea-lines"></div>
+            <div class="textarea-lines"></div>
+            <div class="textarea-lines"></div>
+            <div class="textarea-lines"></div>
+          </div>
+          <div class="section">
+            <div class="section-title">5. Verification</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div class="field"><label>Homestead Owner Signature:</label><span class="line"></span></div>
+              <div class="field"><label>Agent Signature:</label><span class="line"></span></div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.setTimeout(() => {
+      printWindow.print();
+    }, 1000);
+  };
+
+  const handleUploadSolidarityForm = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsParsingForm(true);
+    setSubmitStatus({ type: 'loading', message: 'Analyzing scanned solidarity form via AI...' });
+    
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          responseMimeType: "application/json",
+          contents: [
+            { inlineData: { data: base64, mimeType: file.type } },
+            { text: "Extract data from this Farm Labour Solidarity Building Form image. Return ONLY a valid JSON object matching this exact structure: {\"agentName\": \"string\", \"agentPhone\": \"string\", \"workDone\": [\"Ploughing\", \"Planting\", \"Weeding\", \"Harvesting\", \"Slashing\", \"Washing\", \"Sweeping\", \"Fetching water\", \"Watering crops\", \"Feeding animals\", \"Other\"], \"otherWork\": \"string\", \"totalParticipants\": \"number\", \"participants\": \"string\", \"homesteadOwnerName\": \"string\", \"homesteadOwnerContact\": \"string\"}" }
+          ]
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to parse form');
+      const data = await response.json();
+      let parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
+      
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(parsedText);
+      } catch (e) {
+         throw new Error("AI returned invalid JSON: " + e.message);
+      }
+
+      const form = document.querySelector('form') as HTMLFormElement;
+      if (form) {
+        if (parsedJson.agentName) {
+           const el = form.elements.namedItem('agentName') as HTMLInputElement;
+           if (el) el.value = parsedJson.agentName;
+        }
+        if (parsedJson.agentPhone) {
+           const el = form.elements.namedItem('agentPhone') as HTMLInputElement;
+           if (el) el.value = parsedJson.agentPhone;
+        }
+        if (parsedJson.workDone && Array.isArray(parsedJson.workDone)) {
+           parsedJson.workDone.forEach((work) => {
+              const el = form.querySelector(`input[name="workDone"][value="${work}"]`) as HTMLInputElement;
+              if (el) el.checked = true;
+           });
+        }
+        if (parsedJson.otherWork) {
+            const el = form.elements.namedItem('otherWork') as HTMLInputElement;
+            if (el) {
+                el.value = parsedJson.otherWork;
+                const otherCb = form.querySelector(`input[name="workDone"][value="Other"]`) as HTMLInputElement;
+                if (otherCb) otherCb.checked = true;
+            }
+        }
+        if (parsedJson.participants) {
+           const el = form.elements.namedItem('participants') as HTMLTextAreaElement;
+           if (el) el.value = parsedJson.participants;
+        }
+        if (parsedJson.totalParticipants) {
+           const el = form.elements.namedItem('totalParticipants') as HTMLInputElement;
+           if (el) el.value = parsedJson.totalParticipants;
+        }
+        if (parsedJson.homesteadOwnerName) {
+           const el = form.elements.namedItem('homesteadVisitedName') as HTMLInputElement;
+           if (el) el.value = parsedJson.homesteadOwnerName;
+        }
+        if (parsedJson.homesteadOwnerContact) {
+           const el = form.elements.namedItem('homesteadVisitedContact') as HTMLInputElement;
+           if (el) el.value = parsedJson.homesteadOwnerContact;
+        }
+      }
+
+      setSubmitStatus({ type: 'success', message: 'Solidarity form parsed successfully!' });
+      setTimeout(() => setSubmitStatus(null), 3000);
+    } catch (err) {
+      setSubmitStatus({ type: 'error', message: 'Failed to parse form: ' + err.message });
+    } finally {
+      setIsParsingForm(false);
+      e.target.value = '';
+    }
+  };
+
   const handleUploadScannedForm = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -560,6 +743,33 @@ const FarmForms: React.FC<FarmFormsProps> = ({
 
           {activeForm === "solidarity" ? (
             <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex flex-col md:flex-row gap-4 mb-6 p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="flex-1">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2">Physical Form Operations</h3>
+                  <p className="text-[10px] text-slate-500 font-bold mb-4">Download a physical copy of this form for offline use, or upload a scanned filled form to automatically populate fields using AI.</p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button type="button" onClick={handlePrintSolidarityForm} className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-md flex items-center justify-center gap-2">
+                      <i className="fas fa-print"></i> Download Physical Form
+                    </button>
+                    <label className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer">
+                      <i className="fas fa-upload"></i> Upload Scanned Form
+                      <input type="file" accept="image/*" onChange={handleUploadSolidarityForm} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-100">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Agent Name (Optional)</label>
+                  <input type="text" name="agentName" placeholder="Name of agent entering data" defaultValue={agentIdentity?.name} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Agent Phone (Optional)</label>
+                  <input type="text" name="agentPhone" placeholder="Phone of agent entering data" defaultValue={agentIdentity?.phone} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
                   Type of Work Done
@@ -599,6 +809,10 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                     </label>
                   ))}
                 </div>
+                <div className="mt-4">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Other Work Done (if not in boxes)</label>
+                  <input type="text" name="otherWork" placeholder="Specify other work done" className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -626,12 +840,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
 
               <div className="space-y-6 pt-6 border-t border-slate-100">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">
-                  Homestead Farmer
+                  Homestead Owner
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
-                      Name of Homestead Visited
+                      Name of Homestead Owner
                     </label>
                     <input
                       type="text"
@@ -657,7 +871,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">
-                      Contact of Homestead Visited
+                      Contact of Homestead Owner
                     </label>
                     <input
                       type="text"
