@@ -356,6 +356,8 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
 
 // Helper component to keep the file cleaner
 const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, users = [] }: any) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [viewingAttendees, setViewingAttendees] = useState<any>(null);
   return (
         <div className="overflow-x-auto border border-slate-100 rounded-2xl">
           <table className="w-full text-left border-collapse bg-white">
@@ -399,7 +401,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                   </td>
                   <td className="py-4 px-4 text-sm font-bold text-slate-700">{d.foodCoopName || d.foodCoop || d.agentCluster}</td>
                   <td className="py-4 px-4 min-w-[250px]">
-                    <div className="text-[10px] text-slate-600 line-clamp-3 leading-relaxed">
+                    <div className={`text-[10px] text-slate-600 leading-relaxed ${expandedId === d.id ? "" : "line-clamp-3"}`}>
                       {d.formType === 'youth_assessment' ? (
                         <>
                           <span className="font-black text-emerald-600 block">Assessment: {d.householdName || 'Household'} ({d.foodCoopName || d.foodCoop || 'No Coop'})</span>
@@ -427,7 +429,14 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                           {d.workDone && <span className="block mt-0.5">Work: {d.workDone?.join(', ')}</span>}
                           {d.productionOfficerName && <span className="block mt-0.5 text-slate-500 italic">Officer: {d.productionOfficerName}</span>}
                           {d.totalParticipants && <span className="block mt-1 text-[11px] text-blue-800 font-bold uppercase tracking-widest"><i className="fas fa-users"></i> Total Attendees: {d.totalParticipants}</span>}
-                          {d.participants && <span className="block mt-1 text-[10px] text-blue-600 font-bold whitespace-pre-wrap"><i className="fas fa-list-ul"></i> Attendees List:<br/>{d.participants}</span>}
+                          {d.participants && (
+                            <button 
+                              onClick={() => setViewingAttendees(d)}
+                              className="block mt-2 text-[10px] bg-blue-50 text-blue-600 font-bold px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100 w-fit text-left"
+                            >
+                              <i className="fas fa-list-ul"></i> Click to View All Attendees
+                            </button>
+                          )}
                           {d.workDone && <span className="block mt-0.5 font-bold text-[10px] text-slate-600">Work Done: {Array.isArray(d.workDone) ? d.workDone.join(', ') : d.workDone}</span>}
                           {d.solidarityPic1Url && (
                             <div className="mt-2">
@@ -438,6 +447,15 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                         </>
                       )}
                     </div>
+                    {/* Show More Button if content is likely truncated */}
+                    {((d.participants && d.participants.length > 50) || (d.youthList && d.youthList.length > 3)) && (
+                      <button 
+                        onClick={() => setExpandedId(expandedId === d.id ? null : d.id)} 
+                        className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mt-2 hover:text-emerald-800 transition-colors bg-emerald-50 px-2 py-1 rounded"
+                      >
+                        {expandedId === d.id ? "Show Less" : "View All Details"}
+                      </button>
+                    )}
                   </td>
                   <td className="py-4 px-4 whitespace-nowrap">
                     {d.location ? (
@@ -471,6 +489,26 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
               )}
             </tbody>
           </table>
+      {viewingAttendees && (
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+            <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2">
+              <i className="fas fa-users text-emerald-600"></i> Attendees List
+            </h3>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap text-sm text-slate-700 font-medium">
+              {viewingAttendees.participants}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button 
+                onClick={() => setViewingAttendees(null)}
+                className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-slate-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </div>
   );
 };
