@@ -36,14 +36,14 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
         if (!groups[coop]) groups[coop] = [];
         
         // Use homesteadName or farmName as key, extract base name if it has a plot suffix
-        let nameKey = f.homesteadName || f.farmName || 'Unknown Homestead';
+        let nameKey = f.homesteadName || f.farmName || f.homesteadVisitedName || 'Unknown Homestead';
         if (nameKey.includes(' - ')) {
           nameKey = nameKey.split(' - ')[0];
         }
         
         // Prevent duplicates (prefer baselines over pages if both exist)
         const existingIdx = groups[coop].findIndex(e => {
-           let eNameKey = e.homesteadName || e.farmName || 'Unknown';
+           let eNameKey = e.homesteadName || e.farmName || e.homesteadVisitedName || 'Unknown';
            if (eNameKey.includes(' - ')) eNameKey = eNameKey.split(' - ')[0];
            return eNameKey === nameKey;
         });
@@ -447,6 +447,70 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   );
 
   // Merge local logs with props logs for redundant safety, avoiding duplicates by timestamp
+  const globalHomesteadsSection = (
+    <>
+      {/* Global Registered Homesteads Section */}
+      <div className="bg-slate-900 p-8 rounded-[2.5rem] mt-12 shadow-2xl">
+        <div className="flex items-center gap-4 mb-8 border-b border-slate-700 pb-6">
+          <div className="bg-emerald-500/20 p-3 rounded-full text-emerald-400">
+             <i className="fas fa-globe-africa text-2xl"></i>
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-white">Registered Homesteads Directory</h2>
+            <p className="text-slate-400 font-bold text-xs mt-1 uppercase tracking-widest">Classified by Food Cooperative</p>
+          </div>
+        </div>
+
+        {Object.keys(groupedGlobalHomesteads).length > 0 ? (
+          <div className="space-y-8">
+            {Object.entries(groupedGlobalHomesteads).map(([coop, homesteads]) => (
+              <div key={coop} className="bg-slate-800/50 rounded-3xl p-6 border border-slate-700/50">
+                <h3 className="text-lg font-black text-emerald-400 uppercase tracking-widest flex items-center gap-3 mb-6">
+                  <i className="fas fa-store"></i> {coop}
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[10px] px-3 py-1 rounded-full">{homesteads.length} Homesteads</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {homesteads.map((h: any, idx: number) => (
+                    <div key={idx} onClick={() => setViewingHomestead(h.displayHomesteadName || h.homesteadName || h.farmName || 'Unknown Homestead')} className="bg-slate-800 p-5 rounded-2xl border border-slate-700 hover:border-emerald-500/50 transition-colors group cursor-pointer">
+                      <div className="flex justify-between items-start mb-3">
+                        <h4 className="font-black text-white text-sm group-hover:text-emerald-400 transition-colors">
+                          {h.displayHomesteadName || h.homesteadName || h.farmName || 'Unknown Homestead'}
+                        </h4>
+                        {h.gpsVerified && <i className="fas fa-satellite text-emerald-500 text-[10px]" title="GPS Verified"></i>}
+                      </div>
+                      <div className="space-y-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                         <p className="flex items-center gap-2 block truncate">
+                           <i className="fas fa-user text-slate-500 w-3"></i> 
+                           {(() => {
+                             const phone = h.farmerPhone || h.homesteadContact || h.farmer_phone;
+                             const user = users.find(u => u.phone === phone);
+                             if (user && user.name) return user.name;
+                             return h.farmerName || h.farmer_name || h.homesteadContact || 'Member';
+                           })()}
+                         </p>
+                         {h.location && (
+                           <p className="flex items-center gap-2">
+                             <i className="fas fa-map-marker-alt text-emerald-500 w-3"></i> 
+                             Mapped
+                           </p>
+                         )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-slate-800/50 rounded-3xl border border-slate-700/50">
+            <i className="fas fa-seedling text-4xl text-slate-600 mb-4"></i>
+            <p className="text-slate-400 font-bold">No homesteads registered globally yet.</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
   const displayLogs = [...localActivityLogs];
   farmFormsData.filter(f => f.farmerPhone === currentIdentity.phone).forEach(propLog => {
     if (!displayLogs.find(l => l.submittedAt === propLog.submittedAt)) {
@@ -482,6 +546,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
             </button>
           </div>
         </div>
+        {globalHomesteadsSection}
       </div>
     );
   }
@@ -910,6 +975,14 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] font-black text-slate-400 uppercase">Crops:</span>
                           <span className="text-[10px] font-bold text-slate-600">{form.cropsGrown}</span>
+                        </div>
+                      )}
+
+                      
+                      {form.solidarityPic1Url && (
+                        <div className="mt-3">
+                          <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Media</p>
+                          <img src={form.solidarityPic1Url} alt="Solidarity Evidence" className="w-full max-w-[200px] h-32 object-cover rounded-xl border border-slate-200 shadow-sm" />
                         </div>
                       )}
 
