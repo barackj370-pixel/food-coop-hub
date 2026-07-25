@@ -1,3 +1,4 @@
+import html2pdf from 'html2pdf.js';
 import React, { useState, useEffect } from "react";
 import { supabase } from "../services/supabaseClient";
 import { AgentIdentity } from "../types";
@@ -147,179 +148,120 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   }, [agentIdentity.phone]);
 
   const handlePrintSolidarityForm = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>KPL Farm Labour Solidarity Building Form</title>
-          <style>
-            body { font-family: sans-serif; padding: 20px; line-height: 1.5; color: #000; }
-            h1 { text-align: center; font-size: 20px; text-transform: uppercase; margin-bottom: 20px; color: #059669; }
-            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #059669; padding-bottom: 20px; }
-            .logo { max-width: 120px; margin-bottom: 15px; }
-            .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 15px; border-radius: 8px; }
-            .section-title { font-weight: bold; margin-bottom: 15px; background: #f8fafc; padding: 8px; text-transform: uppercase; font-size: 12px; border-left: 4px solid #059669; }
-            .field { margin-bottom: 15px; display: flex; align-items: flex-end; }
-            .field label { font-weight: bold; font-size: 13px; margin-right: 10px; white-space: nowrap; }
-            .field .line { flex-grow: 1; border-bottom: 1px dashed #000; height: 20px; }
-            .checkboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; margin-bottom: 15px; }
-            .checkbox { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-            .box { width: 16px; height: 16px; border: 1px solid #000; border-radius: 3px; }
-            .textarea-lines { border-bottom: 1px dashed #000; height: 30px; margin-bottom: 5px; width: 100%; }
-            @media print {
-              body { padding: 0; }
-              .section { page-break-inside: avoid; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <!-- KPL Logo -->
-                        <!-- KPL Logo -->
-            <img src="${window.location.origin}/kpl-logo.png" alt="KPL Logo" class="logo" style="display:inline-block; max-width: 150px; margin: 0 auto; display: block;" />
-            <h1>KPL Farm Labour Solidarity Building Form</h1>
+    const htmlContent = `
+      <div class="page-container pdf-body">
+        <style>
+          .pdf-body { 
+            font-family: Arial, sans-serif; 
+            color: #000; 
+            margin: 0;
+            padding: 0;
+          }
+          .page-container {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+            margin: 0 auto;
+            background-color: white;
+          }
+          .page-container h1 { text-align: center; font-size: 16px; text-transform: uppercase; margin: 5px 0; color: #059669; }
+          .page-container .header { text-align: center; margin-bottom: 8px; border-bottom: 2px solid #059669; padding-bottom: 8px; }
+          .page-container .logo { max-width: 100px; margin-bottom: 5px; }
+          .page-container .section { margin-bottom: 6px; border: 1px solid #ccc; padding: 8px; border-radius: 6px; }
+          .page-container .section-title { font-weight: bold; margin-bottom: 6px; background: #f8fafc; padding: 4px; text-transform: uppercase; font-size: 12px; border-left: 4px solid #059669; }
+          .page-container .field { margin-bottom: 6px; display: flex; align-items: flex-end; }
+          .page-container .field label { font-weight: bold; font-size: 12px; margin-right: 8px; white-space: nowrap; }
+          .page-container .field .line { flex-grow: 1; border-bottom: 1px dashed #000; height: 14px; }
+          .page-container .checkboxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 5px; margin-bottom: 6px; }
+          .page-container .checkbox { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+          .page-container .box { width: 12px; height: 12px; border: 1px solid #000; border-radius: 2px; }
+          .page-container table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+          .page-container th, .page-container td { border: 1px solid #000; padding: 3px; font-size: 11px; text-align: left; }
+          .page-container th { background-color: #f8fafc; font-weight: bold; }
+        </style>
+        <div class="header">
+          <img src="${window.location.origin}/kpl-logo.png" alt="KPL Logo" class="logo" style="display:inline-block; max-width: 100px; margin: 0 auto; display: block;" />
+          <h1>KPL Farm Labour Solidarity Building Form</h1>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">1. Agent Details</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="field"><label>Agent Name:</label><span class="line"></span></div>
+            <div class="field"><label>Agent Phone:</label><span class="line"></span></div>
           </div>
-          <div class="section">
-            <div class="section-title">1. Agent Details</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-              <div class="field"><label>Agent Name:</label><span class="line"></span></div>
-              <div class="field"><label>Agent Phone:</label><span class="line"></span></div>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-              <div class="field"><label>Food Coop:</label><span class="line"></span></div>
-              <div class="field"><label>Date:</label><span class="line"></span></div>
-            </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="field"><label>Food Coop:</label><span class="line"></span></div>
+            <div class="field"><label>Date:</label><span class="line"></span></div>
           </div>
-          <div class="section">
-            <div class="section-title">2. Type of Work Done</div>
-            <div class="checkboxes">
-              <div class="checkbox"><div class="box"></div> Ploughing</div>
-              <div class="checkbox"><div class="box"></div> Planting</div>
-              <div class="checkbox"><div class="box"></div> Weeding</div>
-              <div class="checkbox"><div class="box"></div> Harvesting</div>
-              <div class="checkbox"><div class="box"></div> Slashing</div>
-              <div class="checkbox"><div class="box"></div> Washing</div>
-              <div class="checkbox"><div class="box"></div> Sweeping</div>
-              <div class="checkbox"><div class="box"></div> Fetching water</div>
-              <div class="checkbox"><div class="box"></div> Watering crops</div>
-              <div class="checkbox"><div class="box"></div> Feeding animals</div>
-            </div>
-            <div class="field"><label>Other Work (Specify):</label><span class="line"></span></div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">2. Type of Work Done</div>
+          <div class="checkboxes">
+            <div class="checkbox"><div class="box"></div> Ploughing</div>
+            <div class="checkbox"><div class="box"></div> Planting</div>
+            <div class="checkbox"><div class="box"></div> Weeding</div>
+            <div class="checkbox"><div class="box"></div> Harvesting</div>
+            <div class="checkbox"><div class="box"></div> Slashing</div>
+            <div class="checkbox"><div class="box"></div> Washing</div>
+            <div class="checkbox"><div class="box"></div> Sweeping</div>
+            <div class="checkbox"><div class="box"></div> Fetching water</div>
+            <div class="checkbox"><div class="box"></div> Watering crops</div>
+            <div class="checkbox"><div class="box"></div> Feeding animals</div>
           </div>
-          <div class="section">
-            <div class="section-title">3. Homestead Owner Details</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-              <div class="field"><label>Name of Homestead Owner:</label><span class="line"></span></div>
-              <div class="field"><label>Contact of Homestead Owner:</label><span class="line"></span></div>
-            </div>
+          <div class="field"><label>Other Work (Specify):</label><span class="line"></span></div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">3. Homestead Owner Details</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="field"><label>Name of Homestead Owner:</label><span class="line"></span></div>
+            <div class="field"><label>Contact of Homestead Owner:</label><span class="line"></span></div>
           </div>
-          <div class="section">
-            <div class="section-title">4. Participants List</div>
-            <div class="field" style="max-width: 300px;"><label>Total Number of Participants:</label><span class="line"></span></div>
-            <p style="font-size: 13px; font-weight: bold; margin-bottom: 10px;">Names and Contacts of Participants:</p>
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-              <thead>
-                <tr>
-                  <th style="width: 5%; text-align: left; padding: 4px; border: 1px solid #000; font-size: 12px;">#</th>
-                  <th style="width: 45%; text-align: left; padding: 4px; border: 1px solid #000; font-size: 12px;">Name</th>
-                  <th style="width: 50%; text-align: left; padding: 4px; border: 1px solid #000; font-size: 12px;">Contact</th>
-                </tr>
-              </thead>
-              <tbody>
-                
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">1.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">2.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">3.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">4.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">5.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">6.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">7.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">8.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">9.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">10.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">11.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">12.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">13.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">14.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-                <tr>
-                  <td style="padding: 10px 4px; border: 1px solid #000; font-size: 12px;">15.</td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                  <td style="padding: 10px 4px; border: 1px solid #000;"></td>
-                </tr>
-              </tbody>
-            </table>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">4. Participants List</div>
+          <div class="field" style="max-width: 300px; margin-bottom: 5px;"><label>Total Number of Participants:</label><span class="line"></span></div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 45%;">Name</th>
+                <th style="width: 50%;">Contact</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Array.from({ length: 15 }, (_, i) => `
+              <tr>
+                <td>${i + 1}.</td>
+                <td></td>
+                <td></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="section" style="margin-bottom: 0;">
+          <div class="section-title">5. Verification</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="field"><label>Homestead Owner Signature:</label><span class="line"></span></div>
+            <div class="field"><label>Agent Signature:</label><span class="line"></span></div>
           </div>
-          <div class="section">
-            <div class="section-title">5. Verification</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-              <div class="field"><label>Homestead Owner Signature:</label><span class="line"></span></div>
-              <div class="field"><label>Agent Signature:</label><span class="line"></span></div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.setTimeout(() => {
-      printWindow.print();
-    }, 1000);
+        </div>
+      </div>
+    `;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlContent;
+    
+    html2pdf().set({
+      margin: 5,
+      filename: 'KPL_Farm_Labour_Solidarity_Building_Form.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(tempDiv.firstElementChild).save();
   };
 
   const handleUploadSolidarityForm = async (e: React.ChangeEvent<HTMLInputElement>) => {
