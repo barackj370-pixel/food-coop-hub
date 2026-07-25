@@ -167,7 +167,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           .page-container h1 { text-align: center; font-size: 16px; text-transform: uppercase; margin: 5px 0; color: #059669; }
           .page-container .header { text-align: center; margin-bottom: 8px; border-bottom: 2px solid #059669; padding-bottom: 8px; }
           .page-container .logo { max-width: 100px; margin-bottom: 5px; }
-          .page-container .section { margin-bottom: 6px; border: 1px solid #ccc; padding: 8px; border-radius: 6px; }
+          .page-container .section { margin-bottom: 6px; border: 1px solid #ccc; padding: 8px; border-radius: 6px; page-break-inside: avoid; }
           .page-container .section-title { font-weight: bold; margin-bottom: 6px; background: #f8fafc; padding: 4px; text-transform: uppercase; font-size: 12px; border-left: 4px solid #059669; }
           .page-container .field { margin-bottom: 6px; display: flex; align-items: flex-end; }
           .page-container .field label { font-weight: bold; font-size: 12px; margin-right: 8px; white-space: nowrap; }
@@ -233,7 +233,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               </tr>
             </thead>
             <tbody>
-              ${Array.from({ length: 15 }, (_, i) => `
+              ${Array.from({ length: 12 }, (_, i) => `
               <tr>
                 <td>${i + 1}.</td>
                 <td></td>
@@ -278,7 +278,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         reader.readAsDataURL(file);
       });
 
-      const response = await fetch('/api/gemini', {
+      const fetchPromise = fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -289,6 +289,10 @@ const FarmForms: React.FC<FarmFormsProps> = ({
           ]
         })
       });
+      const response = await Promise.race([
+        fetchPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("AI Analysis timed out after 45 seconds")), 45000))
+      ]) as Response;
 
       if (!response.ok) throw new Error('Failed to parse form');
       const data = await response.json();
@@ -461,17 +465,24 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         const fileName = `${Math.random()}.${fileExt}`;
         const filePath = `solidarity/${fileName}`;
         
-        const { error: uploadError } = await supabase.storage
-          .from('media_evidence')
-          .upload(filePath, file);
-          
-        if (uploadError) {
-          console.error("Upload error:", uploadError);
-          // throw uploadError; // depending on whether it's fatal
-        } else {
-          const { data: { publicUrl } } = supabase.storage
-            .from('media_evidence')
-            .getPublicUrl(filePath);
+        let uploadError = null;
+        let publicUrl = null;
+        try {
+          const result: any = await Promise.race([
+            supabase.storage.from('media_evidence').upload(filePath, file),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out after 30 seconds")), 30000))
+          ]);
+          uploadError = result?.error;
+          if (!uploadError) {
+            const { data } = supabase.storage.from('media_evidence').getPublicUrl(filePath);
+            publicUrl = data?.publicUrl;
+          }
+        } catch (err: any) {
+          console.warn("Media upload failed/timed out, ignoring:", err);
+          uploadError = err;
+        }
+
+        if (!uploadError && publicUrl) {
           data.solidarityPic1Url = publicUrl;
         }
       }
@@ -526,10 +537,10 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       let targetBaselines = farmBaselines;
       if (targetPhone && targetPhone !== agentIdentity.phone) {
         try {
-          const { data: remoteBaselines } = await supabase
-             .from("farm_baselines")
-             .select("*")
-             .eq("farmer_phone", targetPhone);
+          const { data: remoteBaselines } = await Promise.race([
+             supabase.from("farm_baselines").select("*").eq("farmer_phone", targetPhone),
+             new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout fetching baselines")), 15000))
+          ]) as any;
           if (remoteBaselines) targetBaselines = remoteBaselines;
         } catch(e) {}
       }
@@ -631,8 +642,11 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         }),
       };
 
-      const { error } = await supabase.from("pages").insert(payload);
-      if (error) throw error;
+      const insertResult: any = await Promise.race([
+        supabase.from("pages").insert(payload),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Database insert timed out after 30 seconds")), 30000))
+      ]);
+      if (insertResult && insertResult.error) throw insertResult.error;
 
       setSubmitStatus({
         type: "success",
