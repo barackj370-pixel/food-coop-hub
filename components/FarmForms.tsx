@@ -791,7 +791,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                     </button>
                     <label className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer">
                       <i className="fas fa-upload"></i> Upload Scanned Form
-                      <input type="file" accept="image/*" onChange={handleUploadSolidarityForm} className="hidden" />
+                      <input type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleUploadSolidarityForm} className="hidden" />
                     </label>
                   </div>
                 </div>
@@ -871,7 +871,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Picture</label>
-                    <input type="file" accept="image/*" name="solidarityPic1" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
+                    <input type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" name="solidarityPic1" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
                   </div>
                 </div>
               </div>
@@ -1078,7 +1078,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                  <label className={`cursor-pointer px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 flex items-center gap-2 ${isParsingForm ? 'opacity-50 pointer-events-none' : ''}`}>
                     <i className={`fas ${isParsingForm ? 'fa-spinner fa-spin' : 'fa-camera'}`}></i>
                     {isParsingForm ? 'Scanning...' : 'Upload Form'}
-                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleUploadScannedForm} />
+                    <input type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={handleUploadScannedForm} />
                  </label>
               </div>
 
