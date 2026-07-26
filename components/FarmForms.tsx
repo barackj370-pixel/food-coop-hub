@@ -468,10 +468,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         let uploadError = null;
         let publicUrl = null;
         try {
-          const result: any = await Promise.race([
-            supabase.storage.from('media_evidence').upload(filePath, file),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out after 30 seconds")), 30000))
-          ]);
+          const result: any = await supabase.storage.from('media_evidence').upload(filePath, file);
           uploadError = result?.error;
           if (!uploadError) {
             const { data } = supabase.storage.from('media_evidence').getPublicUrl(filePath);
@@ -537,10 +534,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       let targetBaselines = farmBaselines;
       if (targetPhone && targetPhone !== agentIdentity.phone) {
         try {
-          const { data: remoteBaselines } = await Promise.race([
-             supabase.from("farm_baselines").select("*").eq("farmer_phone", targetPhone),
-             new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout fetching baselines")), 15000))
-          ]) as any;
+          const { data: remoteBaselines } = await supabase.from("farm_baselines").select("*").eq("farmer_phone", targetPhone);
           if (remoteBaselines) targetBaselines = remoteBaselines;
         } catch(e) {}
       }
@@ -642,11 +636,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         }),
       };
 
-      const insertResult: any = await Promise.race([
-        supabase.from("pages").insert(payload),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Database insert timed out after 30 seconds")), 30000))
-      ]);
-      if (insertResult && insertResult.error) throw insertResult.error;
+      const { error: insertError } = await supabase.from("pages").insert(payload);
+      if (insertError) throw insertError;
 
       setSubmitStatus({
         type: "success",
