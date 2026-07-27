@@ -357,6 +357,7 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
 // Helper component to keep the file cleaner
 const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, users = [] }: any) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [viewingAttendees, setViewingAttendees] = useState<any>(null);
   return (
         <div className="overflow-x-auto border border-slate-100 rounded-2xl">
@@ -442,7 +443,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                           {d.otherWork && <span className="block mt-0.5 font-bold text-[10px] text-slate-600">Other Work: {d.otherWork}</span>}
                           {d.solidarityPic1Url && (
                             <div className="mt-2">
-                              <img src={d.solidarityPic1Url} alt="Solidarity Evidence" className="w-16 h-16 object-cover rounded-md border border-slate-200" />
+                              <img src={d.solidarityPic1Url} alt="Solidarity Evidence" className="w-16 h-16 object-cover rounded-md border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setSelectedImage(d.solidarityPic1Url)} />
                             </div>
                           )}
 
@@ -511,7 +512,26 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
           </div>
         </div>
       )}
+    
+      {selectedImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setSelectedImage(null)}>
+          <div className="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center justify-center">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setSelectedImage(null); }}
+              className="absolute -top-12 right-0 text-white hover:text-emerald-400 transition-colors p-2"
+            >
+              <i className="fas fa-times text-2xl"></i>
+            </button>
+            <img 
+              src={selectedImage} 
+              alt="Enlarged view" 
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border-4 border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
         </div>
+      )}
+    </div>
   );
 };
 
