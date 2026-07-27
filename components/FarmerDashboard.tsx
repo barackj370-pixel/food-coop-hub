@@ -165,6 +165,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
   const [homesteadContact, setHomesteadContact] = useState('');
   const [selectedCoop, setSelectedCoop] = useState(currentIdentity?.cluster || '');
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Unique Homesteads
   const uniqueHomesteads = useMemo(() => {
@@ -982,7 +983,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                       {form.solidarityPic1Url && (
                         <div className="mt-3">
                           <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Media</p>
-                          <img src={form.solidarityPic1Url} alt="Solidarity Evidence" className="w-full max-w-[200px] h-32 object-cover rounded-xl border border-slate-200 shadow-sm" />
+                          <img src={form.solidarityPic1Url} alt="Solidarity Evidence" className="w-full max-w-[200px] h-32 object-cover rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setSelectedImage(form.solidarityPic1Url)} />
                         </div>
                       )}
 
@@ -1114,6 +1115,25 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                <button onClick={() => window.print()} className="px-6 py-3 bg-white text-slate-800 border border-slate-200 rounded-xl font-bold uppercase tracking-widest text-xs hover:text-black hover:border-slate-400 shadow-sm transition-all flex items-center gap-2"><i className="fas fa-file-pdf"></i> Download PDF</button>
                <button onClick={() => setViewingProfile(null)} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-slate-800 transition-colors">Close Profile</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {selectedImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setSelectedImage(null)}>
+          <div className="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center justify-center">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setSelectedImage(null); }}
+              className="absolute -top-12 right-0 text-white hover:text-emerald-400 transition-colors p-2"
+            >
+              <i className="fas fa-times text-2xl"></i>
+            </button>
+            <img 
+              src={selectedImage} 
+              alt="Enlarged view" 
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border-4 border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
       )}
