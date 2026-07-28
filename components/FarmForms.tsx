@@ -4,6 +4,45 @@ import { supabase } from "../services/supabaseClient";
 import { AgentIdentity } from "../types";
 import YouthAssessmentLog from "./YouthAssessmentLog";
 
+
+const compressImage = async (file: File, maxWidth: number = 1000): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
+
+const dataURItoBlob = (dataURI: string) => {
+  const byteString = atob(dataURI.split(',')[1]);
+  const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mimeString });
+};
+
 interface FarmFormsProps {
   agentIdentity: AgentIdentity;
   dynamicClusters: string[];
@@ -271,12 +310,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
     setSubmitStatus({ type: 'loading', message: 'Analyzing scanned solidarity form via AI...' });
     
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const dataUri = await compressImage(file, 1200);
+      const base64 = dataUri.split(',')[1];
 
       const fetchPromise = fetch('/api/gemini', {
         method: 'POST',
@@ -365,12 +400,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
     setSubmitStatus({ type: 'loading', message: 'Analyzing scanned form via AI...' });
     
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const dataUri = await compressImage(file, 1200);
+      const base64 = dataUri.split(',')[1];
 
       const response = await fetch('/api/gemini', {
         method: 'POST',
@@ -450,42 +481,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setSubmitStatus({ type: "loading", message: "Verifying GPS location..." });
+    setSubmitStatus({ type: "loading", message: "Processing form..." });
 
     try {
       const form = e.currentTarget;
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
-
-      // Handle file uploads
-      if (data.solidarityPic1 && data.solidarityPic1.size > 0) {
-        setSubmitStatus({ type: "loading", message: "Uploading media..." });
-        const file = data.solidarityPic1;
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `solidarity/${fileName}`;
-        
-        let uploadError = null;
-        let publicUrl = null;
-        try {
-          const result: any = await supabase.storage.from('media_evidence').upload(filePath, file);
-          uploadError = result?.error;
-          if (!uploadError) {
-            const { data } = supabase.storage.from('media_evidence').getPublicUrl(filePath);
-            publicUrl = data?.publicUrl;
-          }
-        } catch (err: any) {
-          console.warn("Media upload failed/timed out, ignoring:", err);
-          uploadError = err;
-        }
-
-        if (!uploadError && publicUrl) {
-          data.solidarityPic1Url = publicUrl;
-        }
-      }
-      
-      // Remove File object from data to avoid serialization issues
-      delete data.solidarityPic1;
 
       // Handle checkboxes
       const workDone = formData.getAll("workDone");
@@ -493,20 +494,45 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         data.workDone = workDone as any;
       }
 
-      // Capture GPS location
+      // Handle file uploads - fast fail
+      if (data.solidarityPic1 && data.solidarityPic1.size > 0) {
+        setSubmitStatus({ type: "loading", message: "Uploading image..." });
+        const file = data.solidarityPic1 as File;
+        
+        try {
+          const dataUri = await compressImage(file, 1000);
+          const blob = dataURItoBlob(dataUri);
+          const fileName = `${Math.random()}.jpg`;
+          const filePath = `solidarity/${fileName}`;
+          
+          const result: any = await Promise.race([
+            supabase.storage.from('media_evidence').upload(filePath, blob, { contentType: 'image/jpeg' }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Image upload timeout")), 15000))
+          ]);
+          
+          if (!result?.error) {
+            const { data: urlData } = supabase.storage.from('media_evidence').getPublicUrl(filePath);
+            if (urlData?.publicUrl) {
+              data.solidarityPic1Url = urlData.publicUrl;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Image upload skipped due to timeout or error:", err);
+          // Continue without image to ensure form submits!
+        }
+      }
+      
+      // Remove File object from data
+      delete data.solidarityPic1;
+
+      // Capture GPS location - super fast fail
       let location: { lat: number; lng: number } | null = null;
       try {
         location = await new Promise((resolve, reject) => {
-          let timeoutId: any;
+          if (!navigator.geolocation) return reject(new Error("No geolocation"));
           
-          if (!navigator.geolocation) {
-            return reject(new Error("Geolocation not supported."));
-          }
+          const timeoutId = setTimeout(() => reject(new Error("GPS timeout")), 3000);
           
-          timeoutId = setTimeout(() => {
-            reject(new Error("Geolocation request timed out. Please check browser permissions."));
-          }, 8000);
-
           navigator.geolocation.getCurrentPosition(
             (pos) => {
               clearTimeout(timeoutId);
@@ -516,25 +542,26 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               clearTimeout(timeoutId);
               reject(err);
             },
-            { timeout: 8000, enableHighAccuracy: true }
+            { timeout: 3000, enableHighAccuracy: false, maximumAge: 60000 }
           );
         });
       } catch (geoErr) {
-        console.warn("Could not get location:", geoErr);
-        // Do not throw, just allow submission without verified GPS
-        // We will log it as unverified
+        console.warn("GPS skipped:", geoErr);
       }
 
-      let confirmationMessage = "Form submitted successfully.";
+      setSubmitStatus({ type: "loading", message: "Saving data..." });
+      let confirmationMessage = "Form submitted successfully!";
       data.gpsVerificationStatus = "Not Verified";
 
       // Verify location against farm baselines
-      // Fetch baselines for THIS specific farmer if they are not the agent so we don't accidentally fail
       const targetPhone = data.homesteadContact || data.productionOfficerContact || data.convenerContact || data.mobileNumber || agentIdentity.phone;
       let targetBaselines = farmBaselines;
       if (targetPhone && targetPhone !== agentIdentity.phone) {
         try {
-          const { data: remoteBaselines } = await supabase.from("farm_baselines").select("*").eq("farmer_phone", targetPhone);
+          const { data: remoteBaselines } = await Promise.race([
+             supabase.from("farm_baselines").select("*").eq("farmer_phone", targetPhone),
+             new Promise((_, reject) => setTimeout(() => reject(new Error("DB Timeout")), 5000))
+          ]) as any;
           if (remoteBaselines) targetBaselines = remoteBaselines;
         } catch(e) {}
       }
@@ -549,16 +576,8 @@ const FarmForms: React.FC<FarmFormsProps> = ({
               data.verifiedFarmName = farm.farm_name;
               break;
             }
-            
-            const distance = getDistanceFromLatLonInM(
-              location.lat,
-              location.lng,
-              farm.latitude,
-              farm.longitude,
-            );
-            const sizeInAcres = farm.size_in_acres || 1; // Default to 1 acre
-            const allowedRadius = Math.sqrt((sizeInAcres * 4046) / Math.PI) + 50;
-            
+            const distance = getDistanceFromLatLonInM(location.lat, location.lng, farm.latitude, farm.longitude);
+            const allowedRadius = Math.sqrt(((farm.size_in_acres || 1) * 4046) / Math.PI) + 50;
             if (distance <= allowedRadius) {
               isVerified = true;
               data.verifiedFarmId = farm.id;
@@ -570,21 +589,15 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         if (!isVerified) {
           data.verifiedFarmId = "unverified (distance mismatch)";
           data.gpsVerificationStatus = "GPS Not Verified";
-          confirmationMessage = "Form submitted successfully! (GPS Not Verified - Away from location)";
         } else {
           data.gpsVerificationStatus = "GPS Verified";
-          confirmationMessage = "Form submitted successfully! (GPS Verified)";
         }
       } else if (targetBaselines.length === 0) {
-        // No farms registered, skip verification but allow submission? Or block?
-        // We will allow but flag unverified.
         data.verifiedFarmId = "unverified (no baseline)";
         data.gpsVerificationStatus = "GPS Not Verified";
-        confirmationMessage = "Form submitted successfully! (GPS Not Verified - No registered location)";
       } else if (!location) {
         data.verifiedFarmId = "unverified (no gps)";
         data.gpsVerificationStatus = "GPS Not Verified";
-        confirmationMessage = "Form submitted successfully! (GPS Not Verified - Unable to capture GPS)";
       }
 
       // Signature and Attestation Validation for Youth Assessment
@@ -592,52 +605,32 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         if (!parentAttested || !parentName.trim()) {
           throw new Error("Please type your name and check the box to sign the Parent/Guardian Electronic Attestation.");
         }
-        if (!salesAgentName.trim()) {
-          throw new Error("Please select the Sales Agent.");
-        }
-        if (!youthAgentAttested || !youthAgentName.trim()) {
-          throw new Error("Please type your name and check the box to sign the Youth Agent Confirmation Electronic Attestation.");
+        if (!youthAgentAttested) {
+          throw new Error("Agent must check the box to sign the Electronic Attestation.");
         }
       }
 
       const payload = {
-        id: `farm_form_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-        title: `FarmForm_${activeForm}`,
+        title: `${activeForm}_form_${Date.now()}`,
         content: JSON.stringify({
           ...data,
           formType: activeForm,
-          location,
           submittedAt: new Date().toISOString(),
-          agentCluster: agentIdentity.cluster,
-          agentRole: agentIdentity.role,
-          agentName: data.agentName || agentIdentity.name,
-          farmerPhone: activeForm === "youth_assessment" 
-            ? (data.parentPhone || agentIdentity.phone) 
-            : (data.homesteadContact || data.productionOfficerContact || data.convenerContact || agentIdentity.phone),
-          submittedByPhone: agentIdentity.phone, // Track who actually submitted it
+          agentPhone: agentIdentity.phone,
           ...(activeForm === "youth_assessment" ? {
-            youthList,
-            otherMemberList,
-            seedsList,
-            foodsList,
-            organicInputsList,
-            implementsList,
-            consumptionList,
             parentName,
-            parentSignedAt,
-            salesAgentName,
-            salesAgentSignedAt,
-            youthAgentName,
-            youthAgentSignedAt,
             parentAttested,
-            salesAgentAttested,
             youthAgentAttested
           } : {})
         }),
       };
 
-      const { error: insertError } = await supabase.from("pages").insert(payload);
-      if (insertError) throw insertError;
+      const result: any = await Promise.race([
+        supabase.from("pages").insert(payload),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Database connection is slow. Please try submitting again.")), 15000))
+      ]);
+      
+      if (result && result.error) throw result.error;
 
       setSubmitStatus({
         type: "success",
@@ -649,7 +642,6 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       }
       if (onFormSubmitted) onFormSubmitted();
 
-      // Auto-hide success message after 5 seconds
       setTimeout(() => setSubmitStatus(null), 5000);
     } catch (error: any) {
       console.error("Error submitting form:", error);
