@@ -10,8 +10,12 @@ const compressImage = async (file: File, maxWidth: number = 1000): Promise<strin
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (file.type === 'application/pdf') {
+        return resolve(result); // Do not compress PDFs
+      }
       const img = new Image();
-      img.src = event.target?.result as string;
+      img.src = result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let width = img.width;
@@ -26,7 +30,7 @@ const compressImage = async (file: File, maxWidth: number = 1000): Promise<strin
         ctx?.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
-      img.onerror = reject;
+      img.onerror = () => resolve(result); // If it fails to load as image (e.g. word doc), just return original
     };
     reader.onerror = reject;
   });
@@ -319,7 +323,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         body: JSON.stringify({
           responseMimeType: "application/json",
           contents: [
-            { inlineData: { data: base64, mimeType: file.type } },
+            { inlineData: { data: base64, mimeType: file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg' } },
             { text: "Extract data from this Farm Labour Solidarity Building Form image. Return ONLY a valid JSON object matching this exact structure: {\"agentName\": \"string\", \"agentPhone\": \"string\", \"workDone\": [\"Ploughing\", \"Planting\", \"Weeding\", \"Harvesting\", \"Slashing\", \"Washing\", \"Sweeping\", \"Fetching water\", \"Watering crops\", \"Feeding animals\", \"Other\"], \"otherWork\": \"string\", \"totalParticipants\": \"number\", \"participants\": \"string\", \"homesteadOwnerName\": \"string\", \"homesteadOwnerContact\": \"string\"}" }
           ]
         })
@@ -329,8 +333,16 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         new Promise((_, reject) => setTimeout(() => reject(new Error("AI Analysis timed out after 45 seconds")), 45000))
       ]) as Response;
 
-      if (!response.ok) throw new Error('Failed to parse form');
-      const data = await response.json();
+      let responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Failed to parse form (${response.status}): ${responseText.substring(0, 100)}`);
+      }
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (err) {
+        throw new Error("Server returned invalid JSON: " + responseText.substring(0, 100));
+      }
       let parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
       
       let parsedJson;
@@ -414,7 +426,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             {
               inlineData: {
                 data: base64,
-                mimeType: file.type
+                mimeType: file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg'
               }
             },
             {
@@ -424,8 +436,16 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         })
       });
 
-      if (!response.ok) throw new Error('Failed to parse form');
-      const data = await response.json();
+      let responseText = await response.text();
+      if (!response.ok) {
+        throw new Error(`Failed to parse form (${response.status}): ${responseText.substring(0, 100)}`);
+      }
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (err) {
+        throw new Error("Server returned invalid JSON: " + responseText.substring(0, 100));
+      }
       let parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
       
       let parsedJson;
@@ -502,11 +522,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         try {
           const dataUri = await compressImage(file, 1000);
           const blob = dataURItoBlob(dataUri);
-          const fileName = `${Math.random()}.jpg`;
+          const isPdf = file.type === 'application/pdf';
+          const fileName = `${Math.random()}.${isPdf ? 'pdf' : 'jpg'}`;
           const filePath = `solidarity/${fileName}`;
           
           const result: any = await Promise.race([
-            supabase.storage.from('media_evidence').upload(filePath, blob, { contentType: 'image/jpeg' }),
+            supabase.storage.from('media_evidence').upload(filePath, blob, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' }),
             new Promise((_, reject) => setTimeout(() => reject(new Error("Image upload timeout")), 15000))
           ]);
           
@@ -610,8 +631,10 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         }
       }
 
+      const formId = `${activeForm}_form_${Date.now()}`;
       const payload = {
-        title: `${activeForm}_form_${Date.now()}`,
+        id: formId,
+        title: formId,
         content: JSON.stringify({
           ...data,
           formType: activeForm,
