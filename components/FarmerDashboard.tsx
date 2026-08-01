@@ -955,7 +955,7 @@ const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ agentIdentity, farmFo
                        <span className="text-[10px] font-bold text-slate-400">{new Date(form.submittedAt).toLocaleDateString()}</span>
                     </div>
                     <p className="text-xs font-black text-slate-800 mb-2 py-1 px-3 bg-slate-50 rounded-lg inline-block">
-                      {form.formType === 'weekly' ? 'Weekly Update' : 'Solidarity Work'}
+                      {form.formType === 'weekly' ? 'Weekly Update' : form.formType === 'solidarity_men' ? 'Men Articulation Solidarity' : 'Solidarity Work'}
                     </p>
                     <div className="space-y-2 mt-2">
                       <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
