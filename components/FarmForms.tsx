@@ -343,7 +343,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       } catch (err) {
         throw new Error("Server returned invalid JSON: " + responseText.substring(0, 100));
       }
-      let parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
+      let parsedText = data.text;
+      const jsonMatch = parsedText.match(/\`\`\`(?:json)?\s*([\s\S]*?)\s*\`\`\`/);
+      if (jsonMatch) {
+        parsedText = jsonMatch[1];
+      }
+      parsedText = parsedText.trim();
       
       let parsedJson;
       try {
@@ -446,7 +451,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
       } catch (err) {
         throw new Error("Server returned invalid JSON: " + responseText.substring(0, 100));
       }
-      let parsedText = data.text.replace(/```json\n?|\n?```/g, '').trim();
+      let parsedText = data.text;
+      const jsonMatch = parsedText.match(/\`\`\`(?:json)?\s*([\s\S]*?)\s*\`\`\`/);
+      if (jsonMatch) {
+        parsedText = jsonMatch[1];
+      }
+      parsedText = parsedText.trim();
       
       let parsedJson;
       try {
@@ -705,6 +715,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             Labor Solidarity (Form A)
           </button>
           <button
+            onClick={() => setActiveForm("solidarity_men")}
+            className={`px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${activeForm === "solidarity_men" ? "bg-emerald-600 text-white shadow-lg" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            Men Articulation Labor Solidarity
+          </button>
+          <button
             onClick={() => setActiveForm("homestead")}
             className={`px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all ${activeForm === "homestead" ? "bg-emerald-600 text-white shadow-lg" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
           >
@@ -785,7 +801,7 @@ const FarmForms: React.FC<FarmFormsProps> = ({
             )}
           </div>
 
-          {activeForm === "solidarity" ? (
+          {activeForm === "solidarity" || activeForm === "solidarity_men" ? (
             <div className="space-y-6 animate-in fade-in duration-300">
               <div className="flex flex-col md:flex-row gap-4 mb-6 p-6 bg-slate-50 rounded-2xl border border-slate-200">
                 <div className="flex-1">
@@ -812,6 +828,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Agent Phone</label>
                   <input type="text" name="agentPhone" placeholder="Enter phone number" required className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
                 </div>
+                {activeForm === "solidarity_men" && (
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Food Coop Name</label>
+                    <input type="text" name="foodCoopName" placeholder="e.g. Mariwa Men Articulation Farm Labor Solidarity" required className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all" />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
