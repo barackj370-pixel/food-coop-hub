@@ -31,7 +31,7 @@ interface FarmFormsData {
   id: string;
   fromPages?: boolean;
   dbRowId?: string;
-  formType: 'weekly' | 'solidarity' | 'homestead' | 'youth_assessment';
+  formType: 'weekly' | 'solidarity' | 'homestead' | 'youth_assessment' | 'solidarity_men';
   location: { lat: number; lng: number } | null;
   gpsVerified?: boolean;
   submittedAt: string;
@@ -98,6 +98,8 @@ const getMarkerIcon = (farm: FarmFormsData) => {
     }
   } else if (farm.formType === 'solidarity') {
     color = '#8b5cf6'; // Purple
+  } else if (farm.formType === 'solidarity_men') {
+    color = '#a855f7'; // Purple-ish
   } else if (farm.formType === 'youth_assessment') {
     color = '#f97316'; // Orange
   } else if (farm.formType === 'homestead') {
@@ -314,6 +316,18 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
              users={users}
           />
         </div>
+        <div className="mb-12">
+          <h3 className="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+             <i className="fas fa-users"></i> Men Articulation Labor Solidarity
+          </h3>
+          <RegistryTable 
+             items={data.filter(d => d.formType === 'solidarity_men')}
+             isSystemDev={isSystemDev}
+             handleDeleteRecord={handleDeleteRecord}
+             typeLabel="Solidarity Men"
+             users={users}
+          />
+        </div>
 
         {/* YOUTH ASSESSMENT (FORM C) */}
         <div className="mb-12">
@@ -379,7 +393,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
                     <span className="text-sm font-bold text-slate-700">{new Date(d.submittedAt).toLocaleDateString()}</span>
                     <span className={`block mt-1 px-2 py-0.5 w-fit rounded-full text-[8px] font-black uppercase tracking-widest ${
                       d.formType === 'weekly' ? 'bg-emerald-100 text-emerald-700' :
-                      d.formType === 'solidarity' ? 'bg-purple-100 text-purple-700' :
+                      d.formType === 'solidarity' || d.formType === 'solidarity_men' ? 'bg-purple-100 text-purple-700' :
                       d.formType === 'youth_assessment' ? 'bg-orange-100 text-orange-700' :
                       typeLabel === 'Plot Base' ? 'bg-blue-100 text-blue-700' :
                       'bg-amber-100 text-amber-700'
