@@ -511,7 +511,7 @@ const App: React.FC = () => {
     try {
       const { data: baselines } = await supabase.from('farm_baselines').select('*');
       const { data: logs } = await supabase.from('farm_activity_logs').select('*');
-      const { data: pageForms } = await supabase.from('pages').select('*').like('title', 'FarmForm_%');
+      const { data: pageForms } = await supabase.from('pages').select('*').like('title', '%_form_%');
 
       const allFarmRecords: any[] = [];
 
