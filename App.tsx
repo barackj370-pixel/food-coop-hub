@@ -511,24 +511,44 @@ const App: React.FC = () => {
     try {
       const { data: baselines } = await supabase.from('farm_baselines').select('*');
       const { data: logs } = await supabase.from('farm_activity_logs').select('*');
-      const { data: pageForms } = await supabase.from('pages').select('*').like('title', '%_form_%');
+      const { data: pageForms } = await supabase.from('pages').select('*');
 
       const allFarmRecords: any[] = [];
+      const seenIds = new Set<string>();
 
       if (pageForms) {
         pageForms.forEach(p => {
+          if (p.id?.startsWith('system_')) return;
           try {
-            const parsedContent = JSON.parse(p.content);
-            allFarmRecords.push({
-              ...parsedContent,
-              id: p.id,
-              dbRowId: p.id,
-              formType: parsedContent.formType,
-              farmerPhone: parsedContent.farmerPhone || parsedContent.homesteadContact || parsedContent.productionOfficerContact || '',
-              farmId: p.id,
-              submittedAt: parsedContent.submittedAt || p.created_at,
-              fromPages: true
-            });
+            const parsedContent = typeof p.content === 'string' ? JSON.parse(p.content) : p.content;
+            if (!parsedContent || typeof parsedContent !== 'object') return;
+
+            let inferredType = parsedContent.formType || parsedContent.type;
+            if (!inferredType) {
+              const lowerTitle = (p.title || '').toLowerCase();
+              if (lowerTitle.includes('solidarity')) {
+                inferredType = 'solidarity';
+              } else if (lowerTitle.includes('youth') || lowerTitle.includes('assessment')) {
+                inferredType = 'youth_assessment';
+              } else if (lowerTitle.includes('weekly')) {
+                inferredType = 'weekly';
+              }
+            }
+
+            const recordId = p.id;
+            if (!seenIds.has(recordId)) {
+              seenIds.add(recordId);
+              allFarmRecords.push({
+                ...parsedContent,
+                id: recordId,
+                dbRowId: p.id,
+                formType: inferredType || 'solidarity',
+                farmerPhone: parsedContent.farmerPhone || parsedContent.homesteadContact || parsedContent.productionOfficerContact || parsedContent.agentPhone || '',
+                farmId: p.id,
+                submittedAt: parsedContent.submittedAt || parsedContent.date || p.created_at,
+                fromPages: true
+              });
+            }
           } catch (e) {
             console.warn("Failed to parse form content", e);
           }
@@ -537,35 +557,46 @@ const App: React.FC = () => {
 
       if (baselines) {
         baselines.forEach(b => {
-          allFarmRecords.push({
-            ...b,
-            id: b.id,
-            farmerPhone: b.farmer_phone,
-            farmerName: b.farmer_name,
-            farmName: b.farm_name,
-            formType: 'homestead',
-            submittedAt: b.verified_at,
-            agentCluster: b.cluster,
-            location: { lat: b.latitude, lng: b.longitude },
-            gpsVerified: true
-          });
+          if (!seenIds.has(b.id)) {
+            seenIds.add(b.id);
+            allFarmRecords.push({
+              ...b,
+              id: b.id,
+              farmerPhone: b.farmer_phone,
+              farmerName: b.farmer_name,
+              farmName: b.farm_name,
+              formType: 'homestead',
+              submittedAt: b.verified_at || b.created_at,
+              agentCluster: b.cluster,
+              location: { lat: b.latitude, lng: b.longitude },
+              gpsVerified: true
+            });
+          }
         });
       }
 
       if (logs) {
         logs.forEach(l => {
-          allFarmRecords.push({
-            ...l.data,
-            id: l.id,
-            formType: l.form_type,
-            farmerPhone: l.farmer_phone,
-            farmId: l.farm_id,
-            submittedAt: l.data.submittedAt || l.submitted_at
-          });
+          if (!seenIds.has(l.id)) {
+            seenIds.add(l.id);
+            const dataObj = typeof l.data === 'string' ? JSON.parse(l.data) : (l.data || {});
+            allFarmRecords.push({
+              ...dataObj,
+              id: l.id,
+              formType: l.form_type || dataObj.formType,
+              farmerPhone: l.farmer_phone || dataObj.homesteadContact,
+              farmId: l.farm_id,
+              submittedAt: dataObj.submittedAt || l.submitted_at || l.created_at
+            });
+          }
         });
       }
 
-      setFarmFormsData(allFarmRecords.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
+      setFarmFormsData(allFarmRecords.sort((a, b) => {
+        const timeA = new Date(a.submittedAt || a.date || 0).getTime();
+        const timeB = new Date(b.submittedAt || b.date || 0).getTime();
+        return timeB - timeA;
+      }));
     } catch (e) {
       console.error("Failed to fetch farm forms manually:", e);
     }
