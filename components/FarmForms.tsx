@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../services/supabaseClient";
 import { AgentIdentity } from "../types";
 import YouthAssessmentLog from "./YouthAssessmentLog";
+import SolidarityAttendanceLog from "./SolidarityAttendanceLog";
 
 
 const compressImage = async (file: File, maxWidth: number = 1000): Promise<string> => {
@@ -2015,6 +2016,11 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         {activeForm === "youth_assessment" && (
           <div className="mt-12 border-t border-slate-200 pt-12">
             <YouthAssessmentLog data={farmFormsData} isSystemDev={isSystemDev} agentIdentity={agentIdentity} />
+          </div>
+        )}
+        {(activeForm === "solidarity" || activeForm === "solidarity_men") && (
+          <div className="mt-12 border-t border-slate-200 pt-12">
+            <SolidarityAttendanceLog data={farmFormsData} agentIdentity={agentIdentity} dynamicClusters={dynamicClusters} />
           </div>
         )}
       </div>
