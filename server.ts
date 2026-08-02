@@ -56,6 +56,7 @@ async function startServer() {
         config: {
           systemInstruction,
           temperature: temperature ?? 0.7,
+          responseMimeType: req.body.responseMimeType,
         },
       });
 
@@ -80,6 +81,233 @@ async function startServer() {
     } catch (error: any) {
       console.error("Gemini API Error:", error);
       res.status(500).json({ error: error?.message || "Failed to call Gemini API" });
+    }
+  });
+
+  // M-Pesa C2B / Bank Deposit Webhook Listener (Safaricom Daraja / Absa Paybill / Till Callback)
+  // Safaricom strictly forbids the word "mpesa" in callback URLs!
+  const handleC2BCallback = async (req: express.Request, res: express.Response) => {
+    try {
+      console.log("C2B Callback Received:", JSON.stringify(req.body, null, 2));
+
+      // Daraja C2B standard payload format
+      const body = req.body;
+      const transactionId = body.TransID || body.MpesaReceiptNumber || `TRANS_${Date.now()}`;
+      const amount = parseFloat(body.TransAmount || body.Amount || "0");
+      const senderPhone = body.MSISDN || body.PhoneNumber || "254700000000";
+      const senderName = `${body.FirstName || ''} ${body.MiddleName || ''} ${body.LastName || ''}`.trim() || 'Sales Agent';
+      const rawRef = body.BillRefNumber || body.AccountReference || 'General Food Coop';
+      const transTime = body.TransTime || new Date().toISOString();
+      let depositType = 'Sales';
+      let foodCoop = rawRef;
+
+      if (rawRef.toLowerCase().includes('banking') || body.depositType === 'Food Banking') {
+        depositType = 'Food Banking';
+        foodCoop = rawRef.replace(/-(?:banking|food banking|table banking)/gi, '').trim();
+      } else if (rawRef.toLowerCase().includes('sales')) {
+        depositType = 'Sales';
+        foodCoop = rawRef.replace(/-sales/gi, '').trim();
+      }
+
+      const parsedRecord = {
+        id: `c2b_${transactionId}`,
+        transactionId,
+        agentName: senderName,
+        agentPhone: senderPhone,
+        cluster: foodCoop,
+        foodCoop: foodCoop,
+        depositType: depositType, // 'Sales' or 'Food Banking'
+        totalSale: amount,
+        commission: depositType === 'Sales' ? Math.round(amount * 0.10) : 0, // 10% coop commission for sales
+        remittanceStatus: 'Verified',
+        verified_finance: true,
+        verified_audit: true,
+        status: 'verified',
+        date: typeof transTime === 'string' && transTime.length === 14 
+          ? `${transTime.substring(0,4)}-${transTime.substring(4,6)}-${transTime.substring(6,8)}` 
+          : new Date().toISOString().split('T')[0],
+        submittedAt: new Date().toISOString(),
+        paymentChannel: 'M-Pesa (Absa Automated Deposit)',
+        isAutomatedPayment: true
+      };
+
+      // Always return 200 OK with ResultCode: 0 to Safaricom Daraja
+      return res.status(200).json({
+        ResultCode: 0,
+        ResultDesc: "Accepted",
+        record: parsedRecord
+      });
+    } catch (err: any) {
+      console.error("Error processing C2B Callback:", err);
+      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted with warnings" });
+    }
+  };
+
+  // Enable all HTTP methods (GET, POST, HEAD, OPTIONS) for C2B endpoints so Daraja pings succeed
+  app.all(["/confirmation", "/api/c2b/confirmation"], (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS" || req.method === "HEAD" || req.method === "GET") {
+      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
+    }
+    return handleC2BCallback(req, res);
+  });
+
+  app.all(["/validation", "/api/c2b/validation"], (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    return res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: "Accepted"
+    });
+  });
+
+  // Legacy alias without 'mpesa' in path for local simulation
+  app.all("/api/mpesa/c2b-callback", handleC2BCallback);
+
+  // Safaricom Daraja OAuth Token Generator
+  const getDarajaAccessToken = async () => {
+    const consumerKey = process.env.MPESA_CONSUMER_KEY || "cKD5nnReDGretVjw0WMyRUqx6ltAOXvJcaYmrpudlAzfsSAq";
+    const consumerSecret = process.env.MPESA_CONSUMER_SECRET || "WzocBcUVXPE24Bwy6Ejiqi6QqjocRvjp1NqgkPwwApms6jRUGYjnrnf68pJ6uvV2";
+    const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+    
+    const response = await fetch("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", {
+      headers: {
+        Authorization: `Basic ${auth}`
+      }
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Failed to generate Daraja token: ${errText}`);
+    }
+
+    const data = await response.json() as { access_token: string };
+    return data.access_token;
+  };
+
+  // Endpoint to get Daraja OAuth Token
+  app.get("/api/mpesa/daraja-token", async (req, res) => {
+    try {
+      const token = await getDarajaAccessToken();
+      res.json({ success: true, access_token: token });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Register C2B URLs with Safaricom Daraja API
+  app.post("/api/mpesa/c2b-register", async (req, res) => {
+    try {
+      const token = await getDarajaAccessToken();
+      const shortCode = req.body.shortCode || process.env.MPESA_SHORTCODE || "600980";
+      const host = req.headers.host || "ais-dev-obx6xw6tnafpcnodsfvcx3-60994209175.europe-west2.run.app";
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      
+      const defaultConfirmation = `${protocol}://${host}/api/c2b/confirmation`;
+      const defaultValidation = `${protocol}://${host}/api/c2b/validation`;
+
+      const confirmationUrl = req.body.confirmationUrl || defaultConfirmation;
+      const validationUrl = req.body.validationUrl || defaultValidation;
+
+      console.log(`Registering C2B URLs -> ShortCode: ${shortCode}, ConfirmationURL: ${confirmationUrl}, ValidationURL: ${validationUrl}`);
+
+      const response = await fetch("https://sandbox.safaricom.co.ke/mpesa/c2b/v1/registerurl", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ShortCode: shortCode,
+          ResponseType: "Completed",
+          ConfirmationURL: confirmationUrl,
+          ValidationURL: validationUrl
+        })
+      });
+
+      const data = await response.json();
+      res.json({ success: response.ok, data });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Simulate C2B Payment via Safaricom Daraja Sandbox
+  app.post("/api/mpesa/c2b-simulate-daraja", async (req, res) => {
+    try {
+      const token = await getDarajaAccessToken();
+      const { amount = 1000, phoneNumber = "254708374149", billRef = "Mariwa Food Coop-Sales" } = req.body;
+      const shortCode = process.env.MPESA_SHORTCODE || "600980";
+
+      const response = await fetch("https://sandbox.safaricom.co.ke/mpesa/c2b/v1/simulate", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ShortCode: shortCode,
+          CommandID: "CustomerPayBillOnline",
+          Amount: amount,
+          Msisdn: phoneNumber,
+          BillRefNumber: billRef
+        })
+      });
+
+      const data = await response.json();
+      res.json({ success: response.ok, data });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // M-Pesa Payment Simulation / Test Endpoint
+  app.post("/api/mpesa/simulate-payment", async (req, res) => {
+    try {
+      const { amount, agentName, agentPhone, foodCoop, billRef, depositType = 'Sales' } = req.body;
+      const simulatedTransId = `QGH${Math.floor(10000000 + Math.random() * 90000000)}`;
+      
+      const payload = {
+        TransID: simulatedTransId,
+        TransAmount: amount || 5000,
+        MSISDN: agentPhone || "254712345678",
+        FirstName: agentName ? agentName.split(' ')[0] : "John",
+        LastName: agentName && agentName.split(' ').length > 1 ? agentName.split(' ')[1] : "Kiprono",
+        BillRefNumber: billRef || foodCoop || "Mariwa Food Coop",
+        TransTime: new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
+      };
+
+      const parsedRecord = {
+        id: `mpesa_${simulatedTransId}`,
+        transactionId: simulatedTransId,
+        agentName: `${payload.FirstName} ${payload.LastName}`,
+        agentPhone: payload.MSISDN,
+        cluster: payload.BillRefNumber,
+        foodCoop: payload.BillRefNumber,
+        depositType: depositType, // 'Sales' or 'Food Banking'
+        totalSale: Number(payload.TransAmount),
+        commission: depositType === 'Sales' ? Math.round(Number(payload.TransAmount) * 0.10) : 0,
+        remittanceStatus: 'Verified',
+        verified_finance: true,
+        verified_audit: true,
+        status: 'verified',
+        date: new Date().toISOString().split('T')[0],
+        submittedAt: new Date().toISOString(),
+        paymentChannel: 'M-Pesa (Absa Automated Deposit)',
+        isAutomatedPayment: true
+      };
+
+      return res.json({
+        success: true,
+        message: `M-Pesa deposit of KES ${payload.TransAmount} (${depositType}) received successfully via Absa Paybill!`,
+        transactionId: simulatedTransId,
+        record: parsedRecord
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
     }
   });
 
