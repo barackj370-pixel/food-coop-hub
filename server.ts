@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import cors from "cors";
 
@@ -90,6 +91,11 @@ async function startServer() {
     try {
       console.log("C2B Callback Received:", JSON.stringify(req.body, null, 2));
 
+      // Initialize Supabase if credentials are present
+      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+      const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+
       // Daraja C2B standard payload format
       const body = req.body;
       const transactionId = body.TransID || body.MpesaReceiptNumber || `TRANS_${Date.now()}`;
@@ -109,6 +115,10 @@ async function startServer() {
         foodCoop = rawRef.replace(/-sales/gi, '').trim();
       }
 
+      const formattedDate = typeof transTime === 'string' && transTime.length === 14 
+          ? `${transTime.substring(0,4)}-${transTime.substring(4,6)}-${transTime.substring(6,8)}` 
+          : new Date().toISOString().split('T')[0];
+
       const parsedRecord = {
         id: `c2b_${transactionId}`,
         transactionId,
@@ -123,13 +133,44 @@ async function startServer() {
         verified_finance: true,
         verified_audit: true,
         status: 'verified',
-        date: typeof transTime === 'string' && transTime.length === 14 
-          ? `${transTime.substring(0,4)}-${transTime.substring(4,6)}-${transTime.substring(6,8)}` 
-          : new Date().toISOString().split('T')[0],
+        date: formattedDate,
         submittedAt: new Date().toISOString(),
         paymentChannel: 'M-Pesa (Absa Automated Deposit)',
         isAutomatedPayment: true
       };
+
+      if (supabase) {
+        if (depositType === 'Food Banking') {
+          console.log(`Inserting Food Banking record for ${foodCoop}`);
+          const { error } = await supabase.from('table_banking_contributions').insert([{
+            collection_date: formattedDate,
+            cluster: foodCoop,
+            amount_total: amount,
+            submitted_by: senderPhone,
+            submission_type: 'M-Pesa Automated'
+          }]);
+          if (error) console.error("Error inserting into table_banking_contributions:", error);
+        } else {
+          console.log(`Inserting Sales record for ${foodCoop}`);
+          const { error } = await supabase.from('records').insert([{
+            id: `c2b_${transactionId}`,
+            date: formattedDate,
+            crop_type: 'M-Pesa Automated Deposit',
+            agent_name: senderName,
+            agent_phone: senderPhone,
+            cluster: foodCoop,
+            total_sale: amount,
+            status: 'VERIFIED',
+            coop_profit: amount,
+            is_aggregate: true,
+            synced: true,
+            created_at: new Date().toISOString()
+          }]);
+          if (error) console.error("Error inserting into records:", error);
+        }
+      } else {
+        console.warn("Supabase credentials not found, cannot save C2B callback to DB.");
+      }
 
       // Always return 200 OK with ResultCode: 0 to Safaricom Daraja
       return res.status(200).json({
@@ -280,6 +321,8 @@ async function startServer() {
         TransTime: new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
       };
 
+      const formattedDate = new Date().toISOString().split('T')[0];
+
       const parsedRecord = {
         id: `mpesa_${simulatedTransId}`,
         transactionId: simulatedTransId,
@@ -294,11 +337,47 @@ async function startServer() {
         verified_finance: true,
         verified_audit: true,
         status: 'verified',
-        date: new Date().toISOString().split('T')[0],
+        date: formattedDate,
         submittedAt: new Date().toISOString(),
         paymentChannel: 'M-Pesa (Absa Automated Deposit)',
         isAutomatedPayment: true
       };
+
+      // Initialize Supabase if credentials are present
+      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+      const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+
+      if (supabase) {
+        if (depositType === 'Food Banking') {
+          console.log(`Inserting Simulated Food Banking record for ${payload.BillRefNumber}`);
+          const { error } = await supabase.from('table_banking_contributions').insert([{
+            collection_date: formattedDate,
+            cluster: payload.BillRefNumber,
+            amount_total: Number(payload.TransAmount),
+            submitted_by: payload.MSISDN,
+            submission_type: 'M-Pesa Automated'
+          }]);
+          if (error) console.error("Error inserting into table_banking_contributions:", error);
+        } else {
+          console.log(`Inserting Simulated Sales record for ${payload.BillRefNumber}`);
+          const { error } = await supabase.from('records').insert([{
+            id: `mpesa_${simulatedTransId}`,
+            date: formattedDate,
+            crop_type: 'M-Pesa Automated Deposit',
+            agent_name: `${payload.FirstName} ${payload.LastName}`,
+            agent_phone: payload.MSISDN,
+            cluster: payload.BillRefNumber,
+            total_sale: Number(payload.TransAmount),
+            status: 'VERIFIED',
+            coop_profit: Number(payload.TransAmount),
+            is_aggregate: true,
+            synced: true,
+            created_at: new Date().toISOString()
+          }]);
+          if (error) console.error("Error inserting into records:", error);
+        }
+      }
 
       return res.json({
         success: true,
