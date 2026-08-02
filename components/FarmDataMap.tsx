@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import AIAnalysisModal from './AIAnalysisModal';
+import SolidarityAttendanceLog from './SolidarityAttendanceLog';
 import { database } from '../src/db';
 import { Q } from '@nozbe/watermelondb';
 import { supabase } from '../services/supabaseClient';
@@ -356,6 +357,11 @@ const FarmDataMap: React.FC<FarmDataMapProps> = ({ data, isSystemDev, users = []
              users={users}
           />
         </div>
+
+        {/* Farm Labour Solidarity Attendance PDF & Date-Range Export Log */}
+        <div className="mt-12">
+          <SolidarityAttendanceLog data={data} />
+        </div>
       </div>
 
       {selectedFarmForAI && (
@@ -374,7 +380,8 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [viewingAttendees, setViewingAttendees] = useState<any>(null);
   return (
-        <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+    <>
+      <div className="overflow-x-auto border border-slate-100 rounded-2xl">
           <table className="w-full text-left border-collapse bg-white">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50">
@@ -506,6 +513,8 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
               )}
             </tbody>
           </table>
+        </div>
+
       {viewingAttendees && (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-8 max-w-lg w-full max-h-[80vh] overflow-y-auto">
@@ -545,7 +554,7 @@ const RegistryTable = ({ items, isSystemDev, handleDeleteRecord, typeLabel, user
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
