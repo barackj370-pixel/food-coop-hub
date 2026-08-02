@@ -519,38 +519,47 @@ const App: React.FC = () => {
       if (pageForms) {
         pageForms.forEach(p => {
           if (p.id?.startsWith('system_')) return;
-          try {
-            const parsedContent = typeof p.content === 'string' ? JSON.parse(p.content) : p.content;
-            if (!parsedContent || typeof parsedContent !== 'object') return;
-
-            let inferredType = parsedContent.formType || parsedContent.type;
-            if (!inferredType) {
-              const lowerTitle = (p.title || '').toLowerCase();
-              if (lowerTitle.includes('solidarity')) {
-                inferredType = 'solidarity';
-              } else if (lowerTitle.includes('youth') || lowerTitle.includes('assessment')) {
-                inferredType = 'youth_assessment';
-              } else if (lowerTitle.includes('weekly')) {
-                inferredType = 'weekly';
+          let parsedContent: any = null;
+          if (typeof p.content === 'object' && p.content !== null) {
+            parsedContent = p.content;
+          } else if (typeof p.content === 'string') {
+            const trimmed = p.content.trim();
+            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+              try {
+                parsedContent = JSON.parse(trimmed);
+              } catch (e) {
+                // Not valid JSON
               }
             }
+          }
 
-            const recordId = p.id;
-            if (!seenIds.has(recordId)) {
-              seenIds.add(recordId);
-              allFarmRecords.push({
-                ...parsedContent,
-                id: recordId,
-                dbRowId: p.id,
-                formType: inferredType || 'solidarity',
-                farmerPhone: parsedContent.farmerPhone || parsedContent.homesteadContact || parsedContent.productionOfficerContact || parsedContent.agentPhone || '',
-                farmId: p.id,
-                submittedAt: parsedContent.submittedAt || parsedContent.date || p.created_at,
-                fromPages: true
-              });
+          if (!parsedContent || typeof parsedContent !== 'object') return;
+
+          let inferredType = parsedContent.formType || parsedContent.type;
+          if (!inferredType) {
+            const lowerTitle = (p.title || '').toLowerCase();
+            if (lowerTitle.includes('solidarity')) {
+              inferredType = 'solidarity';
+            } else if (lowerTitle.includes('youth') || lowerTitle.includes('assessment')) {
+              inferredType = 'youth_assessment';
+            } else if (lowerTitle.includes('weekly')) {
+              inferredType = 'weekly';
             }
-          } catch (e) {
-            console.warn("Failed to parse form content", e);
+          }
+
+          const recordId = p.id;
+          if (!seenIds.has(recordId)) {
+            seenIds.add(recordId);
+            allFarmRecords.push({
+              ...parsedContent,
+              id: recordId,
+              dbRowId: p.id,
+              formType: inferredType || 'solidarity',
+              farmerPhone: parsedContent.farmerPhone || parsedContent.homesteadContact || parsedContent.productionOfficerContact || parsedContent.agentPhone || '',
+              farmId: p.id,
+              submittedAt: parsedContent.submittedAt || parsedContent.date || p.created_at,
+              fromPages: true
+            });
           }
         });
       }
