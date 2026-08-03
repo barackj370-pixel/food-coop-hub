@@ -812,10 +812,6 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                     <button type="button" onClick={handlePrintSolidarityForm} className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors shadow-md flex items-center justify-center gap-2">
                       <i className="fas fa-print"></i> Download Physical Form
                     </button>
-                    <label className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-blue-700 transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer">
-                      <i className="fas fa-upload"></i> Upload Scanned Form
-                      <input type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleUploadSolidarityForm} className="hidden" />
-                    </label>
                   </div>
                 </div>
               </div>
@@ -893,16 +889,6 @@ const FarmForms: React.FC<FarmFormsProps> = ({
                   placeholder="List the names and contacts of all participants here..."
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 font-bold text-slate-700 outline-none focus:bg-white focus:border-emerald-400 transition-all resize-none"
                 ></textarea>
-              </div>
-
-              <div className="space-y-6 pt-6 border-t border-slate-100">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Media Evidence</h3>
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Picture</label>
-                    <input type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" name="solidarityPic1" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 outline-none" />
-                  </div>
-                </div>
               </div>
 
               <div className="space-y-6 pt-6 border-t border-slate-100">
