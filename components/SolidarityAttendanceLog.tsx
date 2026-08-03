@@ -160,6 +160,11 @@ export const SolidarityAttendanceLog: React.FC<SolidarityAttendanceLogProps> = (
 
       // Date check
       const dateStr = parseItemDate(item);
+      if (!dateStr || new Date(dateStr).toString() === 'Invalid Date') return false;
+      
+      const contentStr = JSON.stringify(item).toLowerCase();
+      if (contentStr.includes('general plot')) return false;
+
       if (startDate && dateStr && dateStr < startDate) return false;
       if (endDate && dateStr && dateStr > endDate) return false;
 
