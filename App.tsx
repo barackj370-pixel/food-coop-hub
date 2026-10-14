@@ -2878,7 +2878,7 @@ const App: React.FC = () => {
 
         {currentPortal === 'TABLE_BANKING' && agentIdentity && (
           <div className="animate-in fade-in duration-300 space-y-12">
-            <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} onAddLedgerRecord={handleAddRecord} />
+            <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} />
             <FoodBankingLedger agentIdentity={agentIdentity} isSystemDev={isSystemDev} clusters={dynamicClusters} />
           </div>
         )}
