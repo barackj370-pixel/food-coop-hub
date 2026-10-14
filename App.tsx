@@ -22,7 +22,9 @@ import FarmForms from './components/FarmForms';
 import FarmDataMap from './components/FarmDataMap';
 import FarmerDashboard from './components/FarmerDashboard';
 import HomesteadRegistration from './components/HomesteadRegistration';
+import FoodBankVouchers from './components/FoodBankVouchers';
 import TableBanking from './components/TableBanking';
+import FoodBankingLedger from './components/FoodBankingLedger';
 import CoopRanking from './components/CoopRanking';
 import PhysicalVoucherGenerator from './components/PhysicalVoucherGenerator';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS, HISTORICAL_COMMISSIONS } from './constants';
@@ -38,7 +40,7 @@ import {
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING' | 'VOUCHERS' | 'YOUTH_ASSESSMENT_LOG' | 'COOP_RANKING';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING' | 'VOUCHERS' | 'FOOD_BANK_VOUCHERS' | 'YOUTH_ASSESSMENT_LOG' | 'COOP_RANKING';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 
@@ -681,7 +683,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'FOOD_BANK_VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -693,7 +695,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'FOOD_BANK_VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -1171,7 +1173,7 @@ const App: React.FC = () => {
     }
 
     // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FORUM', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FOOD_BANK_VOUCHERS', 'FORUM', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) {
@@ -2090,8 +2092,8 @@ const App: React.FC = () => {
                   
                   if (p === 'SYSTEM' && !isSystemDev) return null;
                   const hasUnreadForum = p === 'FORUM' && forumPosts.length > 0 && forumPosts[0].id !== lastReadForumPost;
-                  const label = p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'COOP_RANKING' ? 'COOPS RANKING' : p;
-                  const icon = p === 'FORMS' ? 'fa-clipboard-list' : p === 'FARM_DATA' ? 'fa-map' : p === 'TABLE_BANKING' ? 'fa-piggy-bank' : p === 'FORUM' ? 'fa-comments' : p === 'MY_FARM' ? 'fa-tractor' : p === 'COOP_RANKING' ? 'fa-trophy' : p === 'FINANCE' ? 'fa-file-invoice-dollar' : p === 'AUDIT' ? 'fa-history' : p === 'BOARD' ? 'fa-users' : p === 'SYSTEM' ? 'fa-cogs' : p === 'VOUCHERS' ? 'fa-ticket-alt' : 'fa-circle';
+                  const label = p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'FOOD_BANK_VOUCHERS' ? 'MEN VOUCHERS' : p === 'COOP_RANKING' ? 'COOPS RANKING' : p;
+                  const icon = p === 'FORMS' ? 'fa-clipboard-list' : p === 'FARM_DATA' ? 'fa-map' : p === 'TABLE_BANKING' ? 'fa-piggy-bank' : p === 'FOOD_BANK_VOUCHERS' ? 'fa-ticket-alt' : p === 'FORUM' ? 'fa-comments' : p === 'MY_FARM' ? 'fa-tractor' : p === 'COOP_RANKING' ? 'fa-trophy' : p === 'FINANCE' ? 'fa-file-invoice-dollar' : p === 'AUDIT' ? 'fa-history' : p === 'BOARD' ? 'fa-users' : p === 'SYSTEM' ? 'fa-cogs' : p === 'VOUCHERS' ? 'fa-ticket-alt' : 'fa-circle';
 
                   return (
                     <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`w-full text-left px-5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-between ${currentPortal === p ? 'bg-black text-white shadow-xl shadow-black/10' : 'text-slate-500 hover:bg-slate-50 hover:text-black border border-transparent hover:border-slate-100'}`}>
@@ -2184,7 +2186,7 @@ const App: React.FC = () => {
 
               return (
                 <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
-                  {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'COOP_RANKING' ? 'COOPERATIVES RANKING' : p}
+                  {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'FOOD_BANK_VOUCHERS' ? 'MEN VOUCHERS' : p === 'COOP_RANKING' ? 'COOPERATIVES RANKING' : p}
                   {hasUnreadForum && (
                     <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                   )}
@@ -2877,10 +2879,7 @@ const App: React.FC = () => {
         {currentPortal === 'TABLE_BANKING' && agentIdentity && (
           <div className="animate-in fade-in duration-300 space-y-12">
             <TableBanking agentIdentity={agentIdentity} clusters={dynamicClusters} onAddLedgerRecord={handleAddRecord} />
-            <div className="mt-12 bg-white/50 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200">
-               <h3 className="text-xl font-black mb-6 text-slate-800">Finance & Banking Ledger</h3>
-               <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => r.cropType?.startsWith('Table Banking') && isJulyOnwards(r.date))} title="Table Banking Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
-            </div>
+            <FoodBankingLedger agentIdentity={agentIdentity} isSystemDev={isSystemDev} clusters={dynamicClusters} />
           </div>
         )}
 
@@ -2888,6 +2887,10 @@ const App: React.FC = () => {
           <div className="animate-in fade-in duration-300">
             <PhysicalVoucherGenerator />
           </div>
+        )}
+
+        {currentPortal === 'FOOD_BANK_VOUCHERS' && agentIdentity && (
+          <FoodBankVouchers />
         )}
 
         {currentPortal === 'SYSTEM' && isSystemDev && agentIdentity && (
