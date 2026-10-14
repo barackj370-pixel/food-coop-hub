@@ -5,10 +5,9 @@ import { AgentIdentity } from '../types';
 interface TableBankingProps {
   agentIdentity: AgentIdentity;
   clusters: string[];
-  onAddLedgerRecord?: (data: any) => Promise<void>;
 }
 
-const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters, onAddLedgerRecord }) => {
+const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters }) => {
   const [activeTab, setActiveTab] = useState<'RECORD' | 'MEMBERS' | 'REPORTS'>('RECORD');
   
   // Member Form
