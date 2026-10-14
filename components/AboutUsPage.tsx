@@ -30,29 +30,27 @@ const AboutUsPage: React.FC<AboutUsPageProps> = ({ currentUser }) => {
     setLoading(true);
     let fetchedPages = await fetchPages();
     
-    // Merge fetched pages with ABOUT_US_DATA to ensure all default sections are always present
-    const mergedPages: Page[] = ABOUT_US_DATA.map((item, index) => {
-      const dbPage = fetchedPages.find(p => p.id === item.id);
-      if (dbPage) {
+    // Strictly restrict About Us to Vision, Mission, and Who We Are
+    const allowedIds = ['vision', 'mission', 'who-we-are'];
+    const mergedPages: Page[] = ABOUT_US_DATA
+      .filter(item => allowedIds.includes(item.id))
+      .map((item, index) => {
+        const dbPage = fetchedPages.find(p => p.id === item.id);
+        if (dbPage) {
+          return {
+            ...dbPage,
+            title: dbPage.title || item.title,
+            content: dbPage.content || item.content,
+            orderIndex: dbPage.orderIndex !== undefined ? dbPage.orderIndex : index
+          };
+        }
         return {
-          ...dbPage,
-          orderIndex: dbPage.orderIndex !== undefined ? dbPage.orderIndex : index
+          id: item.id,
+          title: item.title,
+          content: item.content,
+          orderIndex: index
         };
-      }
-      return {
-        id: item.id,
-        title: item.title,
-        content: item.content,
-        orderIndex: index
-      };
-    });
-
-    // Add any custom pages from DB that are NOT in ABOUT_US_DATA
-    fetchedPages.forEach(dbPage => {
-      if (!dbPage.id.startsWith('system_') && !mergedPages.some(p => p.id === dbPage.id)) {
-        mergedPages.push(dbPage);
-      }
-    });
+      });
 
     // Sort by orderIndex
     mergedPages.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
