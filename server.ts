@@ -85,32 +85,93 @@ async function startServer() {
     }
   });
 
-  // M-Pesa C2B / Bank Deposit Webhook Listener (Safaricom Daraja / Absa Paybill / Till Callback)
-  // Safaricom strictly forbids the word "mpesa" in callback URLs!
+  // M-Pesa C2B / Absa Bank Deposit Webhook Listener
+  // Supports both direct Safaricom Daraja callbacks and Absa Bank Corporate IPN payloads
   const handleC2BCallback = async (req: express.Request, res: express.Response) => {
     try {
-      console.log("C2B Callback Received:", JSON.stringify(req.body, null, 2));
+      console.log("Absa/C2B Deposit Callback Received:", JSON.stringify(req.body, null, 2));
 
       // Initialize Supabase if credentials are present
       const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
       const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
-      // Daraja C2B standard payload format
-      const body = req.body;
-      const transactionId = body.TransID || body.MpesaReceiptNumber || `TRANS_${Date.now()}`;
-      const amount = parseFloat(body.TransAmount || body.Amount || "0");
-      const senderPhone = body.MSISDN || body.PhoneNumber || "254700000000";
-      const senderName = `${body.FirstName || ''} ${body.MiddleName || ''} ${body.LastName || ''}`.trim() || 'Sales Agent';
-      const rawRef = body.BillRefNumber || body.AccountReference || 'General Food Coop';
-      const transTime = body.TransTime || new Date().toISOString();
+      const body = req.body || {};
+      
+      // Handle nested payloads if Absa wraps in a 'data' or 'transaction' key
+      const payload = body.data || body.transaction || body;
+
+      // Extract transaction ID across Safaricom and Absa formats
+      const transactionId = 
+        payload.TransID || 
+        payload.MpesaReceiptNumber || 
+        payload.transactionId || 
+        payload.receiptNumber || 
+        payload.paymentReference || 
+        payload.referenceNumber || 
+        `TRANS_${Date.now()}`;
+
+      // Extract amount
+      const amount = parseFloat(
+        payload.TransAmount || 
+        payload.Amount || 
+        payload.amount || 
+        payload.transactionAmount || 
+        "0"
+      );
+
+      // Extract sender phone
+      const senderPhone = 
+        payload.MSISDN || 
+        payload.PhoneNumber || 
+        payload.senderPhone || 
+        payload.customerMobile || 
+        payload.mobileNumber || 
+        "254700000000";
+
+      // Extract sender name
+      const constructedName = `${payload.FirstName || ''} ${payload.MiddleName || ''} ${payload.LastName || ''}`.trim();
+      const senderName = 
+        constructedName || 
+        payload.senderName || 
+        payload.customerName || 
+        payload.fullName || 
+        'Coop Member';
+
+      // Extract Account Reference (BillRefNumber)
+      const rawRef = 
+        payload.BillRefNumber || 
+        payload.AccountReference || 
+        payload.accountNumber || 
+        payload.reference || 
+        payload.narrative || 
+        'General Food Coop';
+
+      const transTime = 
+        payload.TransTime || 
+        payload.transactionDate || 
+        payload.paymentDate || 
+        new Date().toISOString();
+
       let depositType = 'Sales';
       let foodCoop = rawRef;
+      let memberPhone = senderPhone;
 
-      if (rawRef.toLowerCase().includes('banking') || body.depositType === 'Food Banking') {
+      const lowerRef = rawRef.toLowerCase();
+
+      // Detect Food Banking vs Sales
+      if (lowerRef.includes('banking') || payload.depositType === 'Food Banking') {
         depositType = 'Food Banking';
+        // Clean out '-banking', '-food banking', etc.
         foodCoop = rawRef.replace(/-(?:banking|food banking|table banking)/gi, '').trim();
-      } else if (rawRef.toLowerCase().includes('sales')) {
+        
+        // Extract embedded member phone if provided in reference (e.g. Mariwa-Banking-0712345678)
+        const phoneMatch = rawRef.match(/(?:254|\+254|0)[17]\d{8}/);
+        if (phoneMatch) {
+          memberPhone = phoneMatch[0];
+          foodCoop = foodCoop.replace(memberPhone, '').replace(/[-_]/g, ' ').trim();
+        }
+      } else if (lowerRef.includes('sales')) {
         depositType = 'Sales';
         foodCoop = rawRef.replace(/-sales/gi, '').trim();
       }
@@ -124,6 +185,7 @@ async function startServer() {
         transactionId,
         agentName: senderName,
         agentPhone: senderPhone,
+        memberPhone: memberPhone,
         cluster: foodCoop,
         foodCoop: foodCoop,
         depositType: depositType, // 'Sales' or 'Food Banking'
@@ -141,21 +203,21 @@ async function startServer() {
 
       if (supabase) {
         if (depositType === 'Food Banking') {
-          console.log(`Inserting Food Banking record for ${foodCoop}`);
+          console.log(`Inserting Absa Food Banking record for ${foodCoop} (Member: ${memberPhone})`);
           const { error } = await supabase.from('table_banking_contributions').insert([{
             collection_date: formattedDate,
             cluster: foodCoop,
             amount_total: amount,
-            submitted_by: senderPhone,
-            submission_type: 'M-Pesa Automated'
+            submitted_by: memberPhone,
+            submission_type: 'M-Pesa Automated (Absa)'
           }]);
           if (error) console.error("Error inserting into table_banking_contributions:", error);
         } else {
-          console.log(`Inserting Sales record for ${foodCoop}`);
+          console.log(`Inserting Absa Sales record for ${foodCoop}`);
           const { error } = await supabase.from('records').insert([{
             id: `c2b_${transactionId}`,
             date: formattedDate,
-            crop_type: 'M-Pesa Automated Deposit',
+            crop_type: 'M-Pesa Automated Deposit (Absa)',
             agent_name: senderName,
             agent_phone: senderPhone,
             cluster: foodCoop,
@@ -172,25 +234,33 @@ async function startServer() {
         console.warn("Supabase credentials not found, cannot save C2B callback to DB.");
       }
 
-      // Always return 200 OK with ResultCode: 0 to Safaricom Daraja
+      // Universal response satisfying both Safaricom Daraja and Absa Bank IPN specs
       return res.status(200).json({
         ResultCode: 0,
         ResultDesc: "Accepted",
+        statusCode: "00",
+        status: "SUCCESS",
+        message: "Payment processed successfully",
         record: parsedRecord
       });
     } catch (err: any) {
-      console.error("Error processing C2B Callback:", err);
-      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted with warnings" });
+      console.error("Error processing Absa/C2B Callback:", err);
+      return res.status(200).json({ 
+        ResultCode: 0, 
+        ResultDesc: "Accepted with warnings",
+        status: "WARNING",
+        error: err.message
+      });
     }
   };
 
-  // Enable all HTTP methods (GET, POST, HEAD, OPTIONS) for C2B endpoints so Daraja pings succeed
-  app.all(["/confirmation", "/api/c2b/confirmation"], (req, res) => {
+  // Route aliases for Absa IPN and C2B validation/confirmation
+  app.all(["/confirmation", "/api/c2b/confirmation", "/api/absa/callback", "/api/absa/confirmation", "/api/bank/ipn"], (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
     if (req.method === "OPTIONS" || req.method === "HEAD" || req.method === "GET") {
-      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
+      return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted", status: "OK" });
     }
     return handleC2BCallback(req, res);
   });
@@ -555,7 +625,7 @@ async function startServer() {
     // In production, serve the built static UI
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.use((req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
