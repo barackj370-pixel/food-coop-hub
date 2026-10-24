@@ -85,6 +85,75 @@ async function startServer() {
     }
   });
 
+  // SMS Dispatch Helper (Supports Africa's Talking, Advanta/Generic SMS API, and Console Fallback)
+  const sendSMSNotification = async (phoneNumbers: string[], message: string) => {
+    try {
+      const cleanRecipients = phoneNumbers
+        .map(p => {
+          let s = String(p || '').trim().replace(/\D/g, '');
+          if (s.startsWith('0')) s = '254' + s.slice(1);
+          if (s.startsWith('7') || s.startsWith('1')) s = '254' + s;
+          if (!s.startsWith('+') && s.startsWith('254')) s = '+' + s;
+          return s;
+        })
+        .filter(p => p.length >= 10);
+
+      if (cleanRecipients.length === 0) {
+        console.warn("[SMS] No valid recipient phone numbers provided.");
+        return { success: false, error: "No valid recipient phone numbers" };
+      }
+
+      console.log(`[SMS Notification Queue] To: ${cleanRecipients.join(', ')} | Text: "${message}"`);
+
+      // 1. If Africa's Talking credentials exist
+      const atApiKey = process.env.AFRICASTALKING_API_KEY;
+      const atUsername = process.env.AFRICASTALKING_USERNAME || 'sandbox';
+      const senderId = process.env.SMS_SENDER_ID;
+
+      if (atApiKey && atApiKey !== 'dummy') {
+        const bodyParams = new URLSearchParams();
+        bodyParams.append('username', atUsername);
+        bodyParams.append('to', cleanRecipients.join(','));
+        bodyParams.append('message', message);
+        if (senderId) bodyParams.append('from', senderId);
+
+        const atRes = await fetch("https://api.africastalking.com/version1/messaging", {
+          method: "POST",
+          headers: {
+            "apiKey": atApiKey,
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: bodyParams
+        });
+
+        const atData = await atRes.json().catch(() => ({}));
+        console.log("[SMS Africa's Talking Response]:", atData);
+        return { success: atRes.ok, provider: "Africa's Talking", data: atData };
+      }
+
+      // 2. Generic SMS Webhook fallback (e.g. Advanta, Celcom, or custom gateway)
+      const genericGatewayUrl = process.env.SMS_GATEWAY_URL;
+      if (genericGatewayUrl) {
+        const gatewayRes = await fetch(genericGatewayUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recipients: cleanRecipients, message })
+        });
+        const gwData = await gatewayRes.json().catch(() => ({}));
+        return { success: gatewayRes.ok, provider: "Custom Gateway", data: gwData };
+      }
+
+      // 3. Fallback: Logged successfully for audit/testing when no SMS key is provided
+      console.log(`[SMS Simulation] Dispatched successfully in virtual sandbox to ${cleanRecipients.length} recipient(s).`);
+      return { success: true, simulated: true, recipients: cleanRecipients, message };
+
+    } catch (err: any) {
+      console.error("[SMS Dispatch Error]:", err);
+      return { success: false, error: err.message };
+    }
+  };
+
   // M-Pesa C2B / Absa Bank Deposit Webhook Listener
   // Supports both direct Safaricom Daraja callbacks and Absa Bank Corporate IPN payloads
   const handleC2BCallback = async (req: express.Request, res: express.Response) => {
@@ -212,6 +281,39 @@ async function startServer() {
             submission_type: 'M-Pesa Automated (Absa)'
           }]);
           if (error) console.error("Error inserting into table_banking_contributions:", error);
+
+          // Calculate cumulative contributions for this member to include in SMS
+          let cumulativeTotal = amount;
+          try {
+            const cleanPhone = memberPhone.replace(/\D/g, '').slice(-9);
+            const { data: memberEntries } = await supabase
+              .from('table_banking_contributions')
+              .select('amount_total, submitted_by');
+            
+            if (memberEntries && memberEntries.length > 0) {
+              cumulativeTotal = memberEntries
+                .filter(entry => {
+                  const p = (entry.submitted_by || '').replace(/\D/g, '').slice(-9);
+                  return p && p === cleanPhone;
+                })
+                .reduce((sum, item) => sum + Number(item.amount_total || 0), 0);
+            }
+          } catch (sumErr) {
+            console.error("Error calculating cumulative contributions:", sumErr);
+          }
+
+          // Format month name (e.g. "October 2026")
+          const dateObj = new Date(formattedDate);
+          const monthName = !isNaN(dateObj.getTime())
+            ? dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+            : 'Monthly';
+
+          // Automated SMS message as requested
+          const smsText = `You have paid Ksh ${amount} for ${monthName} Remittance. Your total Food Banking contribution is Ksh ${cumulativeTotal}.`;
+          
+          console.log(`[Automated SMS Triggered] To: ${memberPhone} -> "${smsText}"`);
+          await sendSMSNotification([memberPhone], smsText);
+
         } else {
           console.log(`Inserting Absa Sales record for ${foodCoop}`);
           const { error } = await supabase.from('records').insert([{
@@ -426,9 +528,39 @@ async function startServer() {
             cluster: payload.BillRefNumber,
             amount_total: Number(payload.TransAmount),
             submitted_by: payload.MSISDN,
-            submission_type: 'M-Pesa Automated'
+            submission_type: 'M-Pesa Automated (Simulated)'
           }]);
           if (error) console.error("Error inserting into table_banking_contributions:", error);
+
+          // Calculate cumulative contributions for member
+          let cumulativeTotal = Number(payload.TransAmount);
+          try {
+            const cleanPhone = (payload.MSISDN || '').replace(/\D/g, '').slice(-9);
+            const { data: memberEntries } = await supabase
+              .from('table_banking_contributions')
+              .select('amount_total, submitted_by');
+            
+            if (memberEntries && memberEntries.length > 0) {
+              cumulativeTotal = memberEntries
+                .filter(entry => {
+                  const p = (entry.submitted_by || '').replace(/\D/g, '').slice(-9);
+                  return p && p === cleanPhone;
+                })
+                .reduce((sum, item) => sum + Number(item.amount_total || 0), 0);
+            }
+          } catch (sumErr) {
+            console.error("Error calculating cumulative contributions in simulation:", sumErr);
+          }
+
+          const dateObj = new Date(formattedDate);
+          const monthName = !isNaN(dateObj.getTime())
+            ? dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+            : 'Monthly';
+
+          const smsText = `You have paid Ksh ${payload.TransAmount} for ${monthName} Remittance. Your total Food Banking contribution is Ksh ${cumulativeTotal}.`;
+          console.log(`[Simulated SMS Triggered] To: ${payload.MSISDN} -> "${smsText}"`);
+          await sendSMSNotification([payload.MSISDN], smsText);
+
         } else {
           console.log(`Inserting Simulated Sales record for ${payload.BillRefNumber}`);
           const { error } = await supabase.from('records').insert([{
@@ -457,6 +589,27 @@ async function startServer() {
       });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Dedicated SMS Sending Endpoint (for UI triggers, blasts, and custom alerts)
+  app.post("/api/sms/send", async (req, res) => {
+    try {
+      const { phoneNumbers, message, recipients } = req.body;
+      const targetPhones = phoneNumbers || recipients || [];
+
+      if (!targetPhones || targetPhones.length === 0) {
+        return res.status(400).json({ success: false, error: "No recipient phone numbers provided." });
+      }
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ success: false, error: "No message content provided." });
+      }
+
+      const result = await sendSMSNotification(Array.isArray(targetPhones) ? targetPhones : [targetPhones], message);
+      return res.json(result);
+    } catch (err: any) {
+      console.error("Error in /api/sms/send:", err);
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 
