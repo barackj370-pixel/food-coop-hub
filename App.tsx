@@ -2358,7 +2358,7 @@ const App: React.FC = () => {
           <div className="p-4 lg:p-6 lg:flex-1 lg:overflow-y-auto">
              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 pl-4 hidden lg:block">Agent Menus</div>
              <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide">
-               {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS', 'HOMESTEAD'].includes(p)).map(p => {
+               {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS'].includes(p)).map(p => {
                   if (p === 'MARKET') {
                     return (
                       <div key={p} className="relative">
@@ -2378,8 +2378,8 @@ const App: React.FC = () => {
                   
                   if (p === 'SYSTEM' && !isSystemDev) return null;
                   const hasUnreadForum = p === 'FORUM' && forumPosts.length > 0 && forumPosts[0].id !== lastReadForumPost;
-                  const label = p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'FOOD_BANK_VOUCHERS' ? 'MEN VOUCHERS' : p === 'COOP_RANKING' ? 'COOPS RANKING' : p;
-                  const icon = p === 'FORMS' ? 'fa-clipboard-list' : p === 'FARM_DATA' ? 'fa-map' : p === 'TABLE_BANKING' ? 'fa-piggy-bank' : p === 'FOOD_BANK_VOUCHERS' ? 'fa-ticket-alt' : p === 'FORUM' ? 'fa-comments' : p === 'MY_FARM' ? 'fa-tractor' : p === 'COOP_RANKING' ? 'fa-trophy' : p === 'FINANCE' ? 'fa-file-invoice-dollar' : p === 'AUDIT' ? 'fa-history' : p === 'BOARD' ? 'fa-users' : p === 'SYSTEM' ? 'fa-cogs' : p === 'VOUCHERS' ? 'fa-ticket-alt' : 'fa-circle';
+                  const label = p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'FOOD_BANK_VOUCHERS' ? 'MEN VOUCHERS' : p === 'COOP_RANKING' ? 'COOPS RANKING' : p === 'HOMESTEAD' ? 'HOMESTEADS REG.' : p;
+                  const icon = p === 'FORMS' ? 'fa-clipboard-list' : p === 'FARM_DATA' ? 'fa-map' : p === 'TABLE_BANKING' ? 'fa-piggy-bank' : p === 'FOOD_BANK_VOUCHERS' ? 'fa-ticket-alt' : p === 'FORUM' ? 'fa-comments' : p === 'MY_FARM' ? 'fa-tractor' : p === 'COOP_RANKING' ? 'fa-trophy' : p === 'HOMESTEAD' ? 'fa-house-chimney-user' : p === 'FINANCE' ? 'fa-file-invoice-dollar' : p === 'AUDIT' ? 'fa-history' : p === 'BOARD' ? 'fa-users' : p === 'SYSTEM' ? 'fa-cogs' : p === 'VOUCHERS' ? 'fa-ticket-alt' : 'fa-circle';
 
                   return (
                     <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`w-full text-left px-5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-between ${currentPortal === p ? 'bg-black text-white shadow-xl shadow-black/10' : 'text-slate-500 hover:bg-slate-50 hover:text-black border border-transparent hover:border-slate-100'}`}>
@@ -2440,7 +2440,7 @@ const App: React.FC = () => {
             <div className="flex gap-4">
               <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
               <button onClick={() => setCurrentPortal('PRODUCTS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'PRODUCTS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Marketplace</button>
-              {!agentIdentity && <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Get Soil Data</button>}
+              <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Homesteads Reg.</button>
               <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
               <button onClick={() => setCurrentPortal('WEATHER')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'WEATHER' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Agro-Weather</button>
               <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
@@ -2500,16 +2500,12 @@ const App: React.FC = () => {
 
         {currentPortal === 'HOMESTEAD' && (
           <div className="space-y-12 animate-in fade-in duration-300">
-             {agentIdentity ? (
-                <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center">
-                  <i className="fas fa-exclamation-triangle text-amber-500 text-6xl mb-6"></i>
-                  <h2 className="text-2xl font-black text-black mb-4">Access Restricted</h2>
-                  <p className="text-slate-500 mb-6 font-medium">As a registered member, you cannot use this open-source portal. Please go to your Farm Dashboard to add a homestead or register farming lands.</p>
-                  <button onClick={() => setCurrentPortal('MY_FARM')} className="bg-black text-white px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-xs">Go to Farm Dashboard</button>
-                </div>
-             ) : (
-                <HomesteadRegistration users={combinedUsers} onSuccess={() => setCurrentPortal('HOME')} />
-             )}
+            <HomesteadRegistration 
+              agentIdentity={agentIdentity} 
+              clusters={dynamicClusters} 
+              users={combinedUsers} 
+              onSuccess={() => {}} 
+            />
           </div>
         )}
 

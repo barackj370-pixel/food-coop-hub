@@ -159,8 +159,155 @@ export const COUNTY_PROFILES: Record<string, CountyProfile> = {
     waterHarvestingPriority: 'High',
     climateRiskNotes: 'Prolonged droughts lasting multiple cropping cycles. Absolute requirement for micro-basin catchments (Zai Pits), deep mulching, and planting of local drought-resilient seedbanks.',
     centerCoordinates: { lat: -1.8041, lng: 37.6203 }
+  },
+  'Baringo': {
+    countyName: 'Baringo (Kabarnet)',
+    agroecologicalZone: 'Rift Valley Escarpment & Highland Transition (UM3-LH2)',
+    rainfallPattern: 'Bimodal with semi-arid lowland valleys',
+    longRainsStart: 'April',
+    longRainsEnd: 'June',
+    shortRainsStart: 'October',
+    shortRainsEnd: 'November',
+    elevationRange: '1000m - 2100m',
+    dominantSoils: 'Volcanic Loams and shallow stony Lithosols',
+    soilTexture: 'Loamy (shallow rocky loam on escarpments, clay loam in basins)',
+    droughtRisk: 'High',
+    floodRisk: 'Low',
+    suitableCrops: ['Sorghum', 'Finger Millet', 'Pigeon Peas', 'Cassava', 'Cowpeas', 'Sweet Potatoes', 'Indigenous Vegetables'],
+    dominantFarmingSystem: 'Terraced hillside agroecology and pastoralist livestock integration',
+    agroforestrySpecies: ['Acacia tortilis', 'Croton macrostachyus', 'Moringa oleifera'],
+    waterHarvestingPriority: 'High',
+    climateRiskNotes: 'Escarpment soil erosion during flash downpours; deep water retention pits and bench terracing essential.',
+    centerCoordinates: { lat: 0.4919, lng: 35.7430 }
+  },
+  'Nairobi': {
+    countyName: 'Nairobi (Kangemi / Peri-Urban)',
+    agroecologicalZone: 'Central Highland Transitional Zone (UM2-UM3)',
+    rainfallPattern: 'Bimodal (March-May and October-December)',
+    longRainsStart: 'March',
+    longRainsEnd: 'May',
+    shortRainsStart: 'October',
+    shortRainsEnd: 'December',
+    elevationRange: '1600m - 1800m',
+    dominantSoils: 'Deep Red Volcanic Nitosols and Phaeozems',
+    soilTexture: 'Loamy (rich red volcanic loam, high organic matter, excellent aeration)',
+    droughtRisk: 'Low',
+    floodRisk: 'Low',
+    suitableCrops: ['Sukuma Wiki (Kales)', 'Spinach', 'Managu (Nightshade)', 'Terere (Amaranth)', 'Tomatoes', 'Spring Onions', 'Beans'],
+    dominantFarmingSystem: 'Intense peri-urban agroecological bio-intensive gardening and sack gardens',
+    agroforestrySpecies: ['Grevillea robusta', 'Calliandra calothyrsus', 'Fruit trees'],
+    waterHarvestingPriority: 'Medium',
+    climateRiskNotes: 'High urban runoff; rooftop water harvesting and compost mulching maintain continuous vegetable yields.',
+    centerCoordinates: { lat: -1.2683, lng: 36.7492 }
+  },
+  'Busia': {
+    countyName: 'Busia (Sibembe / Ligega)',
+    agroecologicalZone: 'Lake Victoria Medium Falls Zone (LM1-LM2)',
+    rainfallPattern: 'Bimodal (very moist and continuous)',
+    longRainsStart: 'March',
+    longRainsEnd: 'June',
+    shortRainsStart: 'August',
+    shortRainsEnd: 'November',
+    elevationRange: '1140m - 1300m',
+    dominantSoils: 'Ferralsols and Acrisols with localized swamp Gleysols',
+    soilTexture: 'Loamy (sandy clay loam, with Silty alluvial pockets along riverbeds)',
+    droughtRisk: 'Low',
+    floodRisk: 'Medium',
+    suitableCrops: ['Cassava', 'Sweet Potatoes', 'Sorghum', 'Finger Millet', 'Cowpeas', 'Groundnuts', 'Maize', 'Sesame'],
+    dominantFarmingSystem: 'Multi-canopy legume-tuber polyculture with poultry',
+    agroforestrySpecies: ['Markhamia lutea', 'Sesbania sesban', 'Albizia coriaria'],
+    waterHarvestingPriority: 'Medium',
+    climateRiskNotes: 'Acid leaching on slopes; apply wood ash, compost, and biochar to buffer pH.',
+    centerCoordinates: { lat: 0.4608, lng: 34.1115 }
   }
 };
+
+export type PrimarySoilTexture = 'Loamy' | 'Clay' | 'Sandy' | 'Silty';
+
+export interface SoilTextureDetails {
+  type: PrimarySoilTexture;
+  name: string;
+  swahiliName: string;
+  particleSize: string;
+  drainage: string;
+  waterRetention: string;
+  workability: string;
+  agroecologicalCare: string;
+  recommendedCrops: string[];
+}
+
+export const SOIL_TEXTURE_DEFINITIONS: Record<PrimarySoilTexture, SoilTextureDetails> = {
+  'Loamy': {
+    type: 'Loamy',
+    name: 'Loamy Soil',
+    swahiliName: 'Udongo wa Rutuba / Kichanga na Mfinyanzi sawia',
+    particleSize: 'Optimal balanced blend: ~40% Sand, ~40% Silt, and ~20% Clay',
+    drainage: 'Excellent, permits root breathability without water stagnation',
+    waterRetention: 'Optimal sponge-like water holding capacity',
+    workability: 'Crumbly, friable, easy to spade and cultivate in both wet and dry seasons',
+    agroecologicalCare: 'Protect soil microbiology with perpetual 5-10cm dry straw mulching, compost tea, and legume rotations (beans, cowpeas).',
+    recommendedCrops: ['Maize', 'Beans', 'Sukuma Wiki', 'Tomatoes', 'Bananas', 'Sweet Potatoes', 'Indigenous Greens', 'Onions']
+  },
+  'Clay': {
+    type: 'Clay',
+    name: 'Clay Soil',
+    swahiliName: 'Udongo Mfinyanzi / Black Cotton (Vertisols)',
+    particleSize: 'Ultrafine microscopic mineral particles (<0.002mm)',
+    drainage: 'Slow drainage; prone to waterlogging and surface ponding during heavy rains',
+    waterRetention: 'Extremely high; swells when wet and contracts into wide cracks when dry',
+    workability: 'Heavy, very sticky when wet and rock-hard when dry; difficult to till with hand tools',
+    agroecologicalCare: 'Incorporate biochar, coarse compost, and well-rotted cattle/goat manure to open up pores. Construct raised beds or broad ridges to avoid root rot.',
+    recommendedCrops: ['Sorghum', 'Finger Millet', 'Pigeon Peas', 'Cassava', 'Cowpeas', 'Rice (in basin bottoms)', 'Sweet Potatoes']
+  },
+  'Sandy': {
+    type: 'Sandy',
+    name: 'Sandy Soil',
+    swahiliName: 'Udongo wa Mchanga',
+    particleSize: 'Coarse gritty visible grains (0.05mm – 2.0mm)',
+    drainage: 'Excessively rapid percolation; rain washes quickly below root depth',
+    waterRetention: 'Low water storage; topsoil heats up and dries out fast under sunshine',
+    workability: 'Lightweight, loose, effortless to dig and weed',
+    agroecologicalCare: 'Heavy dry mulching (10cm) is mandatory to suppress evaporation. Add heavy amounts of goat/poultry manure and biochar to build organic sponge layers.',
+    recommendedCrops: ['Cassava', 'Groundnuts (Njugu)', 'Watermelons', 'Cowpeas', 'Pearl Millet', 'Sweet Potatoes', 'Pigeon Peas']
+  },
+  'Silty': {
+    type: 'Silty',
+    name: 'Silty Soil',
+    swahiliName: 'Udongo wa Tope / Alluvial',
+    particleSize: 'Fine flour-like smooth particles (0.002mm – 0.05mm)',
+    drainage: 'Moderate drainage; prone to surface crusting/capping after heavy downpours',
+    waterRetention: 'High moisture retention with excellent natural mineral fertility from river sediments',
+    workability: 'Silky and soft like talcum powder when dry, soapy and slippery when wet. Highly susceptible to wind and water erosion.',
+    agroecologicalCare: 'Adopt zero or minimum tillage to preserve soil aggregation. Plant vetiver grass and napier along contours to stop topsoil erosion.',
+    recommendedCrops: ['Indigenous Vegetables', 'Kales', 'Maize', 'Sugarcane', 'Bananas', 'Arrowroots (Nduma)', 'Carrots']
+  }
+};
+
+/**
+ * Automatically classifies any technical soil description or county into one of the 4 primary types:
+ * Loamy, Clay, Sandy, or Silty.
+ */
+export function detectPrimarySoilTexture(textureOrDesc: string = '', countyOrCluster: string = ''): PrimarySoilTexture {
+  const t = (textureOrDesc + ' ' + countyOrCluster).toLowerCase();
+  
+  if (t.includes('silt') || t.includes('alluvial') || t.includes('river basin') || t.includes('riverbed')) {
+    return 'Silty';
+  }
+  if (t.includes('sand') && !t.includes('clay loam') && !t.includes('loam')) {
+    return 'Sandy';
+  }
+  if (t.includes('vertisol') || t.includes('black cotton') || (t.includes('clay') && !t.includes('loam'))) {
+    return 'Clay';
+  }
+  if (t.includes('sand') && (t.includes('makueni') || t.includes('machakos') || t.includes('kitui') || t.includes('arid'))) {
+    return 'Sandy';
+  }
+  if (t.includes('clay') && (t.includes('kisumu') || t.includes('kano') || t.includes('vertisol'))) {
+    return 'Clay';
+  }
+  // Clay loam, sandy loam, humic loam, and general fertile volcanic soils fall under Loamy
+  return 'Loamy';
+}
 
 /**
  * Calculates nearest county based on geographical coordinates (haversine-approximate)
