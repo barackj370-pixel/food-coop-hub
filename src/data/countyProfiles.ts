@@ -200,6 +200,26 @@ export const COUNTY_PROFILES: Record<string, CountyProfile> = {
     climateRiskNotes: 'High urban runoff; rooftop water harvesting and compost mulching maintain continuous vegetable yields.',
     centerCoordinates: { lat: -1.2683, lng: 36.7492 }
   },
+  'Kiambu': {
+    countyName: 'Kiambu (Juja / Thika / Central Agroecology)',
+    agroecologicalZone: 'Upper Midland Agroecological Zone (UM1-UM3)',
+    rainfallPattern: 'Bimodal (March-May long rains, October-December short rains)',
+    longRainsStart: 'March',
+    longRainsEnd: 'May',
+    shortRainsStart: 'October',
+    shortRainsEnd: 'December',
+    elevationRange: '1450m - 1850m',
+    dominantSoils: 'Deep Red Clay Loams (Nitosols and Andosols derived from volcanic ash)',
+    soilTexture: 'Loamy (humic-rich volcanic loam with high moisture-buffering capacity)',
+    droughtRisk: 'Low',
+    floodRisk: 'Low',
+    suitableCrops: ['Maize', 'Beans', 'Sukuma Wiki (Kales)', 'Spinach', 'Sweet Potatoes', 'Bananas', 'Avocados', 'Indigenous Vegetables (Terere, Managu)', 'Tomatoes', 'Coffee', 'French Beans'],
+    dominantFarmingSystem: 'Bio-intensive peri-urban agroecological horticulture with dairy and poultry integration',
+    agroforestrySpecies: ['Grevillea robusta', 'Calliandra calothyrsus', 'Markhamia lutea', 'Macadamia'],
+    waterHarvestingPriority: 'Medium',
+    climateRiskNotes: 'Occasional mid-season dry spells; organic mulching with farm residues and rooftop water harvesting strongly recommended.',
+    centerCoordinates: { lat: -1.1015, lng: 37.0132 }
+  },
   'Busia': {
     countyName: 'Busia (Sibembe / Ligega)',
     agroecologicalZone: 'Lake Victoria Medium Falls Zone (LM1-LM2)',

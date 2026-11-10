@@ -63,8 +63,10 @@ export const AgroecologicalCropCalendar: React.FC<AgroecologicalCropCalendarProp
     const coopName = agentIdentity.cluster || '';
     if (['Mariwa', 'Mulo', 'Rabolo', 'Nyamagagana', 'Apuoyo'].includes(coopName)) {
       return COUNTY_PROFILES['Migori'];
-    } else if (['Kangemi', 'New Kangemi Food Coop'].includes(coopName)) {
-      return COUNTY_PROFILES['Machakos']; // Kangemi can align with Machakos or fallback to closer profile
+    } else if (['Kangemi', 'New Kangemi Food Coop', 'Hope', 'Wages'].includes(coopName)) {
+      return COUNTY_PROFILES['Nairobi'] || COUNTY_PROFILES['Machakos'];
+    } else if (['Juja', 'Red Hill', 'Apuoyo', 'Umisio'].includes(coopName)) {
+      return COUNTY_PROFILES['Kiambu'] || COUNTY_PROFILES['Nairobi'];
     } else if (coopName.includes('Matisi') || coopName.includes('Kiboroa')) {
       return COUNTY_PROFILES['Trans Nzoia'];
     } else if (coopName.includes('Ligega') || coopName.includes('Utoma')) {

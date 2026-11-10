@@ -29,7 +29,9 @@ export const CLUSTER_COORDINATES: Record<string, { lat: number; lng: number }> =
   'Ligega': { lat: 0.1583, lng: 34.2583 },        // Siaya
   'Utoma Widows Food coop': { lat: 0.1250, lng: 34.3333 }, // Siaya
   'New Grassroots Food Coop': { lat: -1.2867, lng: 36.8172 }, // Nairobi
-  'New Kangemi Food Coop': { lat: -1.2693, lng: 36.7442 }
+  'New Kangemi Food Coop': { lat: -1.2693, lng: 36.7442 },
+  'Juja': { lat: -1.1015, lng: 37.0132 },                    // Kiambu County
+  'Umisio': { lat: -1.2200, lng: 36.8900 }                   // Central Agroecology Network
 };
 
 export const updateClusterCoordinates = (newCoords: Record<string, { lat: number; lng: number }>) => {
