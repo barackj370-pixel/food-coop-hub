@@ -44,6 +44,11 @@ export const TEN_PERCENT_COOPS = ['Mariwa', 'Mulo', 'Kangemi', 'Kabarnet', 'Apuo
 // Background Sync Polling Interval (30 Seconds)
 export const SYNC_POLLING_INTERVAL = 30000;
 
+// Absa Bank Kenya Corporate M-Pesa Remittance & Sales Configuration
+export const ABSA_PAYBILL = '303030';
+export const ABSA_ACCOUNT_NUMBER = '2043041021';
+export const ABSA_ACCOUNT_NAME = 'Kenya Peasants League (KPL)';
+
 export const normalizeProductName = (name: string): string => {
   const lower = name.toLowerCase().trim();
   

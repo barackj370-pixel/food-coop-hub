@@ -77,6 +77,11 @@ export interface MarketOrder {
   produceId?: string;
   isDirectOrder?: boolean;
   customerFoodCoop?: string;
+  eventTag?: string; // e.g. 'COUNTER_COP_31'
+  unitPrice?: number;
+  totalAmount?: number;
+  placedByName?: string;
+  placedByRole?: string;
 }
 
 export interface ProduceListing {

@@ -188,6 +188,29 @@ const FoodBankingLedger: React.FC<FoodBankingLedgerProps> = ({ agentIdentity, is
         </button>
       </div>
 
+      {/* Absa M-Pesa Automated Remittance Banner */}
+      <div className="bg-gradient-to-r from-emerald-900 to-slate-900 text-white p-5 rounded-3xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 text-xl font-black">
+            KPL
+          </div>
+          <div>
+            <h4 className="font-bold text-sm tracking-tight flex items-center gap-2">
+              <span>Absa Automated M-Pesa Remittance</span>
+              <span className="bg-emerald-500/30 text-emerald-300 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-400/30">Live IPN</span>
+            </h4>
+            <div className="text-xs text-slate-300 mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span>Business Paybill: <strong className="text-white font-mono bg-white/10 px-2 py-0.5 rounded">303030</strong></span>
+              <span>Account Number: <strong className="text-white font-mono bg-white/10 px-2 py-0.5 rounded">2043041021</strong></span>
+              <span className="text-emerald-300">Name: Kenya Peasants League</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-[11px] text-slate-300 bg-white/10 px-3.5 py-2 rounded-xl border border-white/10 max-w-xs">
+          Contributions sent to this Absa account auto-update the ledger & trigger instant SMS confirmation to the member.
+        </div>
+      </div>
+
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-emerald-50/70 border border-emerald-100 p-6 rounded-3xl">

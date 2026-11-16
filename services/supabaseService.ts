@@ -320,46 +320,88 @@ export const deleteAllUsers = async (): Promise<boolean> => {
 };
 
 /* MARKET ORDERS */
-const mapOrderToDb = (o: MarketOrder) => ({
-  id: o.id,
-  date: o.date,
-  crop_type: o.cropType,
-  units_requested: o.unitsRequested,
-  unit_type: o.unitType,
-  customer_name: o.customerName,
-  customer_phone: o.customerPhone,
-  status: o.status,
-  agent_phone: o.agentPhone,
-  cluster: o.cluster,
-  delivery_address: o.deliveryAddress,
-  delivery_fee: o.deliveryFee,
-  supplier_name: o.supplierName,
-  supplier_phone: o.supplierPhone,
-  produce_id: o.produceId,
-  is_direct_order: o.isDirectOrder,
-  customer_food_coop: o.customerFoodCoop
-});
+const mapOrderToDb = (o: MarketOrder) => {
+  // Encode event/unitPrice safely in delivery_address/id so Supabase never rejects unknown columns
+  let address = o.deliveryAddress || '';
+  if (o.eventTag === 'COUNTER_COP_31' && !address.toLowerCase().includes('counter cop 31')) {
+    address = address ? `Counter COP 31 - ${address}` : 'Counter COP 31 National Event Pickup (Nov 17-21)';
+  }
+  if (o.unitPrice !== undefined && o.unitPrice > 0 && !address.includes('[P:')) {
+    address = `${address} [P:${o.unitPrice}]`.trim();
+  }
+  if (o.placedByName && !address.includes('[By:')) {
+    address = `${address} [By:${o.placedByName}]`.trim();
+  }
 
-const mapDbToOrder = (db: any): MarketOrder => ({
-  id: db.id,
-  date: db.date,
-  cropType: db.crop_type || db.cropType,
-  unitsRequested: Number(db.units_requested || db.unitsRequested || 0),
-  unitType: db.unit_type || db.unitType,
-  customerName: db.customer_name || db.customerName,
-  customerPhone: db.customer_phone || db.customerPhone,
-  status: db.status,
-  agentPhone: db.agent_phone || db.agentPhone,
-  cluster: db.cluster,
-  deliveryAddress: db.delivery_address || db.deliveryAddress,
-  deliveryFee: db.delivery_fee !== undefined ? Number(db.delivery_fee) : (db.deliveryFee !== undefined ? Number(db.deliveryFee) : undefined),
-  supplierName: db.supplier_name || db.supplierName,
-  supplierPhone: db.supplier_phone || db.supplierPhone,
-  produceId: db.produce_id || db.produceId,
-  isDirectOrder: db.is_direct_order !== undefined ? Boolean(db.is_direct_order) : (db.isDirectOrder !== undefined ? Boolean(db.isDirectOrder) : undefined),
-  customerFoodCoop: db.customer_food_coop || db.customerFoodCoop,
-  synced: true
-});
+  return {
+    id: o.id,
+    date: o.date,
+    crop_type: o.cropType,
+    units_requested: o.unitsRequested,
+    unit_type: o.unitType,
+    customer_name: o.customerName,
+    customer_phone: o.customerPhone,
+    status: o.status,
+    agent_phone: o.agentPhone,
+    cluster: o.cluster,
+    delivery_address: address,
+    delivery_fee: o.deliveryFee,
+    supplier_name: o.supplierName,
+    supplier_phone: o.supplierPhone,
+    produce_id: o.produceId,
+    is_direct_order: o.isDirectOrder,
+    customer_food_coop: o.customerFoodCoop
+  };
+};
+
+const mapDbToOrder = (db: any): MarketOrder => {
+  const rawAddress = db.delivery_address || db.deliveryAddress || '';
+  const priceMatch = rawAddress.match(/\[P:([0-9.]+)\]/);
+  const byMatch = rawAddress.match(/\[By:([^\]]+)\]/);
+  const cleanAddress = rawAddress
+    .replace(/\s*\[P:[0-9.]+\]/g, '')
+    .replace(/\s*\[By:[^\]]+\]/g, '')
+    .trim();
+
+  const isCop31 =
+    String(db.id || '').startsWith('cop31-') ||
+    rawAddress.toLowerCase().includes('counter cop 31');
+
+  const unitsRequested = Number(db.units_requested || db.unitsRequested || 0);
+  const parsedUnitPrice = priceMatch ? Number(priceMatch[1]) : (db.unitPrice !== undefined ? Number(db.unitPrice) : undefined);
+  const rawFee = db.delivery_fee !== undefined && db.delivery_fee !== null
+    ? Number(db.delivery_fee)
+    : (db.deliveryFee !== undefined && db.deliveryFee !== null ? Number(db.deliveryFee) : (isCop31 ? 0 : undefined));
+
+  const deliveryFee = isCop31 ? 0 : rawFee;
+
+  return {
+    id: db.id,
+    date: db.date,
+    cropType: db.crop_type || db.cropType,
+    unitsRequested,
+    unitType: db.unit_type || db.unitType,
+    customerName: db.customer_name || db.customerName,
+    customerPhone: db.customer_phone || db.customerPhone,
+    status: db.status,
+    agentPhone: db.agent_phone || db.agentPhone || '',
+    cluster: db.cluster,
+    deliveryAddress: cleanAddress,
+    deliveryFee,
+    supplierName: db.supplier_name || db.supplierName,
+    supplierPhone: db.supplier_phone || db.supplierPhone,
+    produceId: db.produce_id || db.produceId,
+    isDirectOrder: db.is_direct_order !== undefined && db.is_direct_order !== null
+      ? Boolean(db.is_direct_order)
+      : (db.isDirectOrder !== undefined ? Boolean(db.isDirectOrder) : (String(db.id || '').startsWith('dir-') || isCop31)),
+    customerFoodCoop: db.customer_food_coop || db.customerFoodCoop,
+    eventTag: isCop31 ? 'COUNTER_COP_31' : undefined,
+    unitPrice: parsedUnitPrice,
+    totalAmount: parsedUnitPrice !== undefined ? (parsedUnitPrice * unitsRequested) + (deliveryFee || 0) : undefined,
+    placedByName: byMatch ? byMatch[1] : undefined,
+    synced: true
+  };
+};
 
 export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
   if (!isClientReady()) return false;

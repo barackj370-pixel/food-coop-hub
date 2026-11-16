@@ -125,6 +125,26 @@ const TableBanking: React.FC<TableBankingProps> = ({ agentIdentity, clusters }) 
           ))}
         </div>
 
+        {/* Absa M-Pesa Remittance Instruction Card */}
+        <div className="mb-6 p-5 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black text-xs">
+              ABSA
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-900 tracking-wide">
+                Direct M-Pesa Remittance via Absa Bank
+              </p>
+              <p className="text-xs text-emerald-800 font-mono mt-0.5">
+                Paybill: <strong className="bg-emerald-200/60 px-1.5 py-0.5 rounded text-emerald-950 font-bold">303030</strong> &bull; Account: <strong className="bg-emerald-200/60 px-1.5 py-0.5 rounded text-emerald-950 font-bold">2043041021</strong>
+              </p>
+            </div>
+          </div>
+          <div className="text-[11px] font-bold text-emerald-800 bg-white/80 px-3 py-1.5 rounded-xl border border-emerald-200">
+            Deposits auto-sync & trigger member SMS receipts
+          </div>
+        </div>
+
         {message && <div className="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-center text-slate-700">{message}</div>}
 
         {activeTab === 'RECORD' && (

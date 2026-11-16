@@ -105,9 +105,14 @@ export default function FoodBankVouchers() {
     }
   };
 
-  const handleTransaction = () => {
+  const handleTransaction = async () => {
     if (!selectedContributor || !amount || typeof amount !== 'number') return;
     
+    const previousBalance = selectedContributor.currentBalance;
+    const initialVoucherLimit = selectedContributor.currentVoucherLimit;
+    let finalBalance = previousBalance;
+    let amountUsed = 0;
+
     const updatedList = contributors.map(c => {
       if (c.id === selectedContributor.id) {
         let updated = { ...c };
@@ -116,26 +121,58 @@ export default function FoodBankVouchers() {
             alert('Amount exceeds available balance!');
             return c;
           }
+          amountUsed = amount;
           updated.currentBalance -= amount;
           updated.outstandingLoan += calculateRepaymentDue(amount);
+          finalBalance = updated.currentBalance;
         } else if (transactMode === 'REPAY') {
           if (amount >= updated.outstandingLoan) {
-              const surplus = amount - updated.outstandingLoan;
-              updated.outstandingLoan = 0;
-              updated.currentVoucherLimit += amount; 
-              updated.currentBalance = updated.currentVoucherLimit; 
+            const surplus = amount - updated.outstandingLoan;
+            updated.outstandingLoan = 0;
+            updated.currentVoucherLimit += amount; 
+            updated.currentBalance = updated.currentVoucherLimit; 
           } else {
-              updated.outstandingLoan -= amount;
-              updated.currentVoucherLimit += amount; 
-              updated.currentBalance += amount;
+            updated.outstandingLoan -= amount;
+            updated.currentVoucherLimit += amount; 
+            updated.currentBalance += amount;
           }
+          finalBalance = updated.currentBalance;
         }
         return updated;
       }
       return c;
     });
     
-    saveContributors(updatedList);
+    await saveContributors(updatedList);
+
+    // Automated SMS notification on voucher action
+    if (selectedContributor.phone) {
+      try {
+        let smsText = '';
+        if (transactMode === 'USE') {
+          // Exact requested format: "your voucher value is this, you have used this amount and the remaining balance is this"
+          smsText = `Hello ${selectedContributor.name}, your voucher value was Ksh ${previousBalance}, you have used Ksh ${amountUsed}, and your remaining balance is Ksh ${finalBalance}.`;
+        } else if (transactMode === 'REPAY') {
+          smsText = `Hello ${selectedContributor.name}, you have repaid Ksh ${amount}. Your active food voucher balance is now Ksh ${finalBalance}.`;
+        }
+
+        if (smsText) {
+          fetch('/api/sms/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phoneNumbers: [selectedContributor.phone],
+              message: smsText
+            })
+          }).then(res => res.json()).then(data => {
+            console.log('[Voucher Transaction SMS Result]:', data);
+          }).catch(err => console.warn('[Voucher SMS Failed]:', err));
+        }
+      } catch (smsErr) {
+        console.warn('Could not dispatch voucher SMS:', smsErr);
+      }
+    }
+
     setTransactMode(null);
     setAmount('');
   };

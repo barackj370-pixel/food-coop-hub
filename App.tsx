@@ -26,6 +26,7 @@ import TableBanking from './components/TableBanking';
 import FoodBankingLedger from './components/FoodBankingLedger';
 import CoopRanking from './components/CoopRanking';
 import PhysicalVoucherGenerator from './components/PhysicalVoucherGenerator';
+import OrdersDashboard from './components/OrdersDashboard';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS, HISTORICAL_COMMISSIONS } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -122,6 +123,27 @@ const mergeData = (cloudItems: any[], localItems: any[]): any[] => {
         }
         if (localItem.isAggregate === true && !merged[index].isAggregate) {
            merged[index].isAggregate = localItem.isAggregate;
+        }
+        if (localItem.unitPrice !== undefined && merged[index].unitPrice === undefined) {
+           merged[index].unitPrice = localItem.unitPrice;
+        }
+        if (localItem.totalAmount !== undefined && merged[index].totalAmount === undefined) {
+           merged[index].totalAmount = localItem.totalAmount;
+        }
+        if (localItem.eventTag && !merged[index].eventTag) {
+           merged[index].eventTag = localItem.eventTag;
+        }
+        if (localItem.deliveryFee !== undefined && merged[index].deliveryFee === undefined) {
+           merged[index].deliveryFee = localItem.deliveryFee;
+        }
+        if (localItem.deliveryAddress && !merged[index].deliveryAddress) {
+           merged[index].deliveryAddress = localItem.deliveryAddress;
+        }
+        if (localItem.placedByName && !merged[index].placedByName) {
+           merged[index].placedByName = localItem.placedByName;
+        }
+        if (localItem.isDirectOrder !== undefined && merged[index].isDirectOrder === undefined) {
+           merged[index].isDirectOrder = localItem.isDirectOrder;
         }
       }
     }
@@ -1095,35 +1117,97 @@ const App: React.FC = () => {
 
   const handleOrderNow = (product: ProduceListing) => {
     if (!agentIdentity) {
-      alert("Please login or register as a Customer to place an order.");
+      alert("Please login to place an order or log a customer order.");
       setCurrentPortal('LOGIN');
       return;
     }
-    
-    if (agentIdentity.role !== SystemRole.CUSTOMER && 
-        agentIdentity.role !== SystemRole.SYSTEM_DEVELOPER && 
-        agentIdentity.role !== SystemRole.MANAGER) {
-      alert("Only Customers can place direct orders.");
-      return;
-    }
-    
+
     setOrderingProduct(product);
   };
 
-  const handleClearTestOrder = async (orderId: string) => {
-    if (window.confirm("Are you sure you want to clear this test record?")) {
-      const success = await deleteOrder(orderId);
+  const handleCreateDirectOrder = async (order: MarketOrder) => {
+    setMarketOrders(prev => {
+      const updated = [order, ...prev];
+      persistence.set('food_coop_orders', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (navigator.onLine) {
+      const success = await saveOrder(order);
       if (success) {
-        setMarketOrders(prev => prev.filter(o => o.id !== orderId));
-      } else {
-        alert("Failed to clear test record.");
+        setMarketOrders(prev => {
+          const updated = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
+          persistence.set('food_coop_orders', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    }
+  };
+
+  const handleFulfillOrderDirect = async (order: MarketOrder) => {
+    if (!window.confirm(`Mark order for ${order.unitsRequested} ${order.unitType}(s) of ${order.cropType} (${order.customerName}) as Fulfilled?`)) {
+      return;
+    }
+
+    const updatedOrder: MarketOrder = { ...order, status: OrderStatus.FULFILLED, synced: false };
+    setMarketOrders(prev => {
+      const updated = prev.map(o => o.id === order.id ? updatedOrder : o);
+      persistence.set('food_coop_orders', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (order.produceId) {
+      setProduceListings(prev => {
+        const target = prev.find(p => p.id === order.produceId);
+        if (!target) return prev;
+        const remaining = Math.max(0, target.unitsAvailable - order.unitsRequested);
+        const updatedProd: ProduceListing = {
+          ...target,
+          unitsAvailable: remaining,
+          status: remaining <= 0 ? 'SOLD_OUT' : 'AVAILABLE',
+          synced: false
+        };
+        const newList = prev.map(p => p.id === target.id ? updatedProd : p);
+        persistence.set('food_coop_produce', JSON.stringify(newList));
+        if (navigator.onLine) {
+          saveProduce(updatedProd).then(ok => {
+            if (ok) {
+              setProduceListings(cur => cur.map(p => p.id === updatedProd.id ? { ...p, synced: true } : p));
+            }
+          }).catch(e => console.error("Inventory update failed:", e));
+        }
+        return newList;
+      });
+    }
+
+    if (navigator.onLine) {
+      const success = await saveOrder(updatedOrder);
+      if (success) {
+        setMarketOrders(prev => {
+          const syncedList = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
+          persistence.set('food_coop_orders', JSON.stringify(syncedList));
+          return syncedList;
+        });
+      }
+    }
+  };
+
+  const handleClearTestOrder = async (orderId: string) => {
+    if (window.confirm("Are you sure you want to delete this order?")) {
+      setMarketOrders(prev => {
+        const updated = prev.filter(o => o.id !== orderId);
+        persistence.set('food_coop_orders', JSON.stringify(updated));
+        return updated;
+      });
+      if (navigator.onLine) {
+        await deleteOrder(orderId);
       }
     }
   };
 
   const handleFulfillDirectOrder = (order: MarketOrder) => {
     const product = produceListings.find(p => p.id === order.produceId);
-    const unitPrice = product ? product.sellingPrice : 0;
+    const unitPrice = product ? product.sellingPrice : (order.unitPrice || 0);
     
     setFulfillmentData({
       date: new Date().toISOString().split('T')[0],
@@ -2796,55 +2880,16 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <>
-                {agentIdentity.role !== SystemRole.SUPPLIER && directOrders.length > 0 && (
-                  <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm mb-8">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <i className="fas fa-truck text-emerald-600"></i>
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-black text-slate-800 tracking-tight">Customers Direct Orders</h2>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Pending Fulfillment</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {directOrders.map(order => (
-                        <div key={order.id} className="bg-slate-50 rounded-2xl p-5 border border-slate-100 flex flex-col justify-between">
-                          <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <div>
-                                <h3 className="text-sm font-black text-slate-800">{order.cropType}</h3>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Qty: {order.unitsRequested} {order.unitType}s</p>
-                              </div>
-                              <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-widest">Pending</span>
-                            </div>
-                            <div className="space-y-2 text-xs font-bold text-slate-600 mb-4">
-                              <p><i className="fas fa-user w-4 text-slate-400"></i> {order.customerName} ({order.customerPhone})</p>
-                              <p><i className="fas fa-map-marker-alt w-4 text-slate-400"></i> {order.deliveryAddress}</p>
-                              <p><i className="fas fa-store w-4 text-slate-400"></i> Supplier: {order.supplierName}</p>
-                              <p><i className="fas fa-truck w-4 text-slate-400"></i> Delivery Fee: KSh {order.deliveryFee}</p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            <button 
-                              onClick={() => handleFulfillDirectOrder(order)}
-                              className="w-full bg-black hover:bg-slate-800 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                            >
-                              <i className="fas fa-check-circle"></i> Fulfill Order
-                            </button>
-                            {(agentIdentity.role === SystemRole.SYSTEM_DEVELOPER || agentIdentity.role === SystemRole.MANAGER) && (
-                              <button 
-                                onClick={() => handleClearTestOrder(order.id)}
-                                className="w-full bg-red-50 hover:bg-red-100 text-red-600 py-2 rounded-xl font-black uppercase text-[9px] tracking-[0.15em] transition-colors flex items-center justify-center gap-2"
-                              >
-                                <i className="fas fa-trash"></i> Clear Test Record
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {agentIdentity.role !== SystemRole.SUPPLIER && (
+                  <OrdersDashboard
+                    orders={marketOrders}
+                    produceListings={produceListings}
+                    agentIdentity={agentIdentity}
+                    clusters={dynamicClusters}
+                    onCreateOrder={handleCreateDirectOrder}
+                    onFulfillOrder={handleFulfillOrderDirect}
+                    onDeleteOrder={handleClearTestOrder}
+                  />
                 )}
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} agentPhone={agentIdentity.phone} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
@@ -2978,6 +3023,16 @@ const App: React.FC = () => {
                 })()}
               </div>
             </div>
+            <OrdersDashboard
+              orders={marketOrders}
+              produceListings={produceListings}
+              agentIdentity={agentIdentity}
+              clusters={dynamicClusters}
+              onCreateOrder={handleCreateDirectOrder}
+              onFulfillOrder={handleFulfillOrderDirect}
+              onDeleteOrder={handleClearTestOrder}
+              title="All Market & Counter COP 31 Orders Summary"
+            />
             <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && (r.status === RecordStatus.DRAFT || r.status === RecordStatus.PENDING) && isJulyOnwards(r.date))} title="Fulfilled Orders Ledger" groupBy="cluster_and_date" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
@@ -3126,6 +3181,16 @@ const App: React.FC = () => {
                 </table>
               </div>
             </div>
+            <OrdersDashboard
+              orders={marketOrders}
+              produceListings={produceListings}
+              agentIdentity={agentIdentity}
+              clusters={dynamicClusters}
+              onCreateOrder={handleCreateDirectOrder}
+              onFulfillOrder={handleFulfillOrderDirect}
+              onDeleteOrder={handleClearTestOrder}
+              title="National Counter COP 31 & Customer Orders Tracker"
+            />
             <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
           </div>
         )}
@@ -3318,22 +3383,15 @@ const App: React.FC = () => {
           agentIdentity={agentIdentity} 
           onClose={() => setOrderingProduct(null)} 
           onSubmit={async (order) => {
-            const newOrders = [...marketOrders, order];
-            setMarketOrders(newOrders);
-            persistence.set('food_coop_orders', JSON.stringify(newOrders));
             setOrderingProduct(null);
-            alert("Order placed successfully! You pay on delivery.");
-            // Sync immediately if online
-            if (navigator.onLine) {
-              const success = await saveOrder(order);
-              if (success) {
-                setMarketOrders(prev => {
-                  const updated = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
-                  persistence.set('food_coop_orders', JSON.stringify(updated));
-                  return updated;
-                });
-              }
-            }
+            await handleCreateDirectOrder(order);
+            const isCop31 = order.eventTag === 'COUNTER_COP_31';
+            alert(
+              `${isCop31 ? 'Counter COP 31 Order' : 'Order'} placed for ${order.customerName}! ` +
+              `Total: KSh ${(order.totalAmount || 0).toLocaleString()} ` +
+              `(${order.deliveryFee === 0 ? 'Free Delivery' : `Delivery KSh ${order.deliveryFee}`}). ` +
+              `Reflected in Market -> Sales Portal & Board/Finance Orders Summary.`
+            );
           }} 
         />
       )}

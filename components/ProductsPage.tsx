@@ -10,14 +10,26 @@ interface Props {
 
 const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCoop, setSelectedCoop] = useState('ALL');
+
+  const availableCoops = useMemo(() => {
+    const coops = produceListings
+      .filter(p => p.status === 'AVAILABLE')
+      .map(p => p.cluster)
+      .filter(Boolean);
+    return Array.from(new Set(coops)).sort();
+  }, [produceListings]);
 
   const groupedProducts = useMemo(() => {
     const available = produceListings.filter(p => p.status === 'AVAILABLE');
-    const filtered = available.filter(p => 
-      p.cropType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.cluster.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.supplierName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filtered = available.filter(p => {
+      const matchesCoop = selectedCoop === 'ALL' || p.cluster === selectedCoop;
+      const matchesSearch =
+        p.cropType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.cluster.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.supplierName.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesCoop && matchesSearch;
+    });
     
     const groups: Record<string, ProduceListing[]> = {};
 
@@ -30,25 +42,38 @@ const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
     });
 
     return groups;
-  }, [produceListings, searchTerm]);
+  }, [produceListings, searchTerm, selectedCoop]);
 
   return (
     <div className="animate-in fade-in slide-in-from-top-4 duration-700 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">Available Products</h1>
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Browse all repository products</p>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Browse all Food Coop products &bull; Counter COP 31 Ready</p>
         </div>
         
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search products or coops..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-          />
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <select
+            value={selectedCoop}
+            onChange={(e) => setSelectedCoop(e.target.value)}
+            className="px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+          >
+            <option value="ALL">All Food Coops ({availableCoops.length})</option>
+            {availableCoops.map(coop => (
+              <option key={coop} value={coop}>{coop}</option>
+            ))}
+          </select>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search products or coops..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            />
+          </div>
         </div>
       </div>
 

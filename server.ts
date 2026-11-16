@@ -225,16 +225,14 @@ async function startServer() {
       let depositType = 'Sales';
       let foodCoop = rawRef;
       let memberPhone = senderPhone;
+      let resolvedMemberName = senderName;
 
       const lowerRef = rawRef.toLowerCase();
 
-      // Detect Food Banking vs Sales
+      // Check if reference explicitly states Food Banking or Sales
       if (lowerRef.includes('banking') || payload.depositType === 'Food Banking') {
         depositType = 'Food Banking';
-        // Clean out '-banking', '-food banking', etc.
         foodCoop = rawRef.replace(/-(?:banking|food banking|table banking)/gi, '').trim();
-        
-        // Extract embedded member phone if provided in reference (e.g. Mariwa-Banking-0712345678)
         const phoneMatch = rawRef.match(/(?:254|\+254|0)[17]\d{8}/);
         if (phoneMatch) {
           memberPhone = phoneMatch[0];
@@ -245,6 +243,44 @@ async function startServer() {
         foodCoop = rawRef.replace(/-sales/gi, '').trim();
       }
 
+      // Member Profile Resolution for Absa Paybill 303030 (where Account No is often the 10-digit Absa account number)
+      if (supabase) {
+        try {
+          const cleanSender9 = String(senderPhone || '').replace(/\D/g, '').slice(-9);
+          if (cleanSender9) {
+            const { data: matchedProfiles } = await supabase
+              .from('profiles')
+              .select('id, name, phone, cluster, role');
+            
+            const profile = (matchedProfiles || []).find((p: any) => 
+              (p.phone || '').replace(/\D/g, '').slice(-9) === cleanSender9
+            );
+
+            if (profile) {
+              if (profile.name && (!resolvedMemberName || resolvedMemberName === 'Coop Member')) {
+                resolvedMemberName = profile.name;
+              }
+              if (profile.cluster) {
+                // If foodCoop was generic or an account number, use the member's registered cluster
+                if (!foodCoop || foodCoop === rawRef || /^\d+$/.test(foodCoop.replace(/[\s-_#]/g, '')) || foodCoop.toLowerCase().includes('general')) {
+                  foodCoop = profile.cluster;
+                }
+              }
+              // If reference did not specify, deduce by role:
+              if (!lowerRef.includes('sales') && !lowerRef.includes('banking')) {
+                if (profile.role === 'SALES_AGENT' || profile.role === 'SUPER_AGENT') {
+                  depositType = 'Sales';
+                } else {
+                  depositType = 'Food Banking';
+                }
+              }
+            }
+          }
+        } catch (profileErr) {
+          console.warn("Could not query profiles for Absa sender:", profileErr);
+        }
+      }
+
       const formattedDate = typeof transTime === 'string' && transTime.length === 14 
           ? `${transTime.substring(0,4)}-${transTime.substring(4,6)}-${transTime.substring(6,8)}` 
           : new Date().toISOString().split('T')[0];
@@ -252,7 +288,7 @@ async function startServer() {
       const parsedRecord = {
         id: `c2b_${transactionId}`,
         transactionId,
-        agentName: senderName,
+        agentName: resolvedMemberName,
         agentPhone: senderPhone,
         memberPhone: memberPhone,
         cluster: foodCoop,
