@@ -59,9 +59,11 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
     agentIdentity.role === SystemRole.AUDITOR ||
     agentIdentity.role === SystemRole.SALES_MANAGER;
 
-  const canPlaceOrder =
-    allowCreation &&
-    agentIdentity.role !== SystemRole.SUPPLIER;
+  const isAgentRole =
+    agentIdentity.role === SystemRole.SALES_AGENT ||
+    agentIdentity.role === SystemRole.YOUTH_AGENT;
+
+  const canPlaceOrder = allowCreation;
 
   // Enrich orders with unit price and total amount (KSh)
   const enrichedOrders = useMemo(() => {
@@ -91,19 +93,23 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
     });
   }, [orders, produceListings]);
 
-  // Visibility: Counter COP 31 orders are national event orders visible across all coops & agents;
-  // Standard orders follow cluster scoping unless placed by current user or privileged role.
+  // Visibility:
+  // - Privileged roles see ALL orders.
+  // - Sales Agents & Youth Agents see ALL Counter COP 31 orders + their Food Coop's orders + orders they placed.
+  // - Customers / Farmers / Suppliers see orders they placed (self or on behalf of customers), orders for their phone, or orders for their produce.
   const visibleOrders = useMemo(() => {
+    const myPhone9 = (agentIdentity.phone || '').replace(/\D/g, '').slice(-9);
+    const matchesPhone = (p?: string) => Boolean(myPhone9 && p && p.replace(/\D/g, '').slice(-9) === myPhone9);
+
     const filtered = enrichedOrders.filter(o => {
       if (isPrivileged) return true;
-      if (o.isCop31) return true;
-      if (o.cluster === agentIdentity.cluster) return true;
-      if (o.agentPhone && agentIdentity.phone && o.agentPhone.slice(-9) === agentIdentity.phone.slice(-9)) return true;
+      if (matchesPhone(o.agentPhone) || matchesPhone(o.customerPhone) || matchesPhone(o.supplierPhone)) return true;
+      if (isAgentRole && (o.isCop31 || o.cluster === agentIdentity.cluster)) return true;
       return false;
     });
 
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [enrichedOrders, isPrivileged, agentIdentity]);
+  }, [enrichedOrders, isPrivileged, isAgentRole, agentIdentity]);
 
   // Filtered Orders
   const filteredOrders = useMemo(() => {
@@ -695,9 +701,43 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
               )}
 
               {/* Customer Info & Quantity */}
+              <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-600">
+                  Order Recipient:
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomerName(agentIdentity.name);
+                      setCustomerPhone(agentIdentity.phone);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                      customerName === agentIdentity.name ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    For Myself
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customerName === agentIdentity.name) {
+                        setCustomerName('');
+                        setCustomerPhone('');
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                      customerName !== agentIdentity.name ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    For a Customer
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Customer Name *</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Customer / Recipient Name *</label>
                   <input
                     type="text"
                     required

@@ -10,15 +10,16 @@ interface Props {
 }
 
 const OrderModal: React.FC<Props> = ({ product, agentIdentity, onClose, onSubmit }) => {
-  const canOrderOnBehalf =
+  const isAgentOrManager =
     agentIdentity.role === SystemRole.SALES_AGENT ||
     agentIdentity.role === SystemRole.YOUTH_AGENT ||
     agentIdentity.role === SystemRole.SALES_MANAGER ||
     agentIdentity.role === SystemRole.MANAGER ||
     agentIdentity.role === SystemRole.SYSTEM_DEVELOPER;
 
+  const canOrderOnBehalf = true;
   const [quantity, setQuantity] = useState<number>(1);
-  const [orderForCustomer, setOrderForCustomer] = useState<boolean>(canOrderOnBehalf);
+  const [orderForCustomer, setOrderForCustomer] = useState<boolean>(isAgentOrManager);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAffiliation, setCustomerAffiliation] = useState('');

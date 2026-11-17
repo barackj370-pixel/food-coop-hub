@@ -2654,7 +2654,21 @@ const App: React.FC = () => {
         )}
 
         {currentPortal === 'PRODUCTS' && (
-          <ProductsPage produceListings={produceListings} onOrderNow={handleOrderNow} />
+          <div className="space-y-12">
+            <ProductsPage produceListings={produceListings} onOrderNow={handleOrderNow} />
+            {agentIdentity && (
+              <OrdersDashboard
+                orders={marketOrders}
+                produceListings={produceListings}
+                agentIdentity={agentIdentity}
+                clusters={dynamicClusters}
+                onCreateOrder={handleCreateDirectOrder}
+                onFulfillOrder={handleFulfillOrderDirect}
+                onDeleteOrder={handleClearTestOrder}
+                title="My Orders & Counter COP 31 Tracker"
+              />
+            )}
+          </div>
         )}
 
         {currentPortal === 'NEWS' && (
@@ -2880,17 +2894,15 @@ const App: React.FC = () => {
             </div>
             {marketView === 'SALES' && (
               <>
-                {agentIdentity.role !== SystemRole.SUPPLIER && (
-                  <OrdersDashboard
-                    orders={marketOrders}
-                    produceListings={produceListings}
-                    agentIdentity={agentIdentity}
-                    clusters={dynamicClusters}
-                    onCreateOrder={handleCreateDirectOrder}
-                    onFulfillOrder={handleFulfillOrderDirect}
-                    onDeleteOrder={handleClearTestOrder}
-                  />
-                )}
+                <OrdersDashboard
+                  orders={marketOrders}
+                  produceListings={produceListings}
+                  agentIdentity={agentIdentity}
+                  clusters={dynamicClusters}
+                  onCreateOrder={handleCreateDirectOrder}
+                  onFulfillOrder={handleFulfillOrderDirect}
+                  onDeleteOrder={handleClearTestOrder}
+                />
                 {agentIdentity.role !== SystemRole.SUPPLIER && <SaleForm clusters={dynamicClusters} produceListings={produceListings} agentCluster={agentIdentity.cluster} userRole={agentIdentity.role} agentPhone={agentIdentity.phone} onSubmit={handleAddRecord} initialData={fulfillmentData || undefined} />}
                 <AuditLogTable onEdit={handleEditRecord} data={records.filter(r => ( (r.isAggregate === true || r.cropType === 'AGGREGATE (Weekly)') && !r.cropType?.startsWith('Table Banking') ) && isJulyOnwards(r.date))} title="Universal Ledger" isSystemDev={isSystemDev} agentIdentity={agentIdentity} currentPortal={currentPortal} marketView={marketView} handleDeleteRecord={handleDeleteRecord} />
               </>
