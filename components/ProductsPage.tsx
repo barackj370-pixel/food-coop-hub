@@ -1,24 +1,44 @@
 import React, { useState, useMemo } from 'react';
 import { ProduceListing } from '../types';
-import { Search, ShoppingCart } from 'lucide-react';
-import { normalizeProductName } from '../constants';
+import { Search, ShoppingCart, Plus } from 'lucide-react';
+import { normalizeProductName, FOOD_COOPS } from '../constants';
 
 interface Props {
   produceListings: ProduceListing[];
+  foodCoops?: string[];
   onOrderNow: (product: ProduceListing) => void;
+  onOrderCustom?: (prefill?: { cluster?: string; cropType?: string }) => void;
 }
 
-const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
+const ProductsPage: React.FC<Props> = ({
+  produceListings,
+  foodCoops = FOOD_COOPS,
+  onOrderNow,
+  onOrderCustom
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCoop, setSelectedCoop] = useState('ALL');
 
-  const availableCoops = useMemo(() => {
-    const coops = produceListings
+  const { allCoops, productCountsByCoop } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    produceListings
       .filter(p => p.status === 'AVAILABLE')
-      .map(p => p.cluster)
-      .filter(Boolean);
-    return Array.from(new Set(coops)).sort();
-  }, [produceListings]);
+      .forEach(p => {
+        if (p.cluster) {
+          counts[p.cluster] = (counts[p.cluster] || 0) + 1;
+        }
+      });
+
+    const combined = Array.from(new Set([...foodCoops, ...Object.keys(counts)]))
+      .filter(c => c && c !== '-' && c !== 'Unassigned')
+      .sort((a, b) => {
+        // Show coops with active listings first, then alphabetically
+        const diff = (counts[b] || 0) - (counts[a] || 0);
+        return diff !== 0 ? diff : a.localeCompare(b);
+      });
+
+    return { allCoops: combined, productCountsByCoop: counts };
+  }, [produceListings, foodCoops]);
 
   const groupedProducts = useMemo(() => {
     const available = produceListings.filter(p => p.status === 'AVAILABLE');
@@ -30,7 +50,7 @@ const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
         p.supplierName.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesCoop && matchesSearch;
     });
-    
+
     const groups: Record<string, ProduceListing[]> = {};
 
     filtered.forEach(product => {
@@ -44,27 +64,42 @@ const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
     return groups;
   }, [produceListings, searchTerm, selectedCoop]);
 
+  const triggerCustomOrder = () => {
+    if (!onOrderCustom) return;
+    onOrderCustom({
+      cluster: selectedCoop !== 'ALL' ? selectedCoop : undefined,
+      cropType: searchTerm.trim() || undefined
+    });
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-top-4 duration-700 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">Available Products</h1>
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Browse all Food Coop products &bull; Counter COP 31 Ready</p>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">
+            All {allCoops.length} Food Coops &bull; Counter COP 31 Ready
+          </p>
         </div>
-        
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
           <select
             value={selectedCoop}
             onChange={(e) => setSelectedCoop(e.target.value)}
             className="px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
           >
-            <option value="ALL">All Food Coops ({availableCoops.length})</option>
-            {availableCoops.map(coop => (
-              <option key={coop} value={coop}>{coop}</option>
-            ))}
+            <option value="ALL">All Food Coops ({allCoops.length})</option>
+            {allCoops.map(coop => {
+              const count = productCountsByCoop[coop] || 0;
+              return (
+                <option key={coop} value={coop}>
+                  {coop} {count > 0 ? `(${count} listed)` : '(Custom Order)'}
+                </option>
+              );
+            })}
           </select>
 
-          <div className="relative w-full sm:w-72">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
@@ -74,59 +109,110 @@ const ProductsPage: React.FC<Props> = ({ produceListings, onOrderNow }) => {
               className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             />
           </div>
+
+          {onOrderCustom && (
+            <button
+              type="button"
+              onClick={triggerCustomOrder}
+              className="px-5 py-3 bg-slate-900 hover:bg-black text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all shrink-0 active:scale-95"
+            >
+              <Plus className="w-4 h-4" /> Order Unlisted Product
+            </button>
+          )}
         </div>
       </div>
 
       <div className="space-y-12">
         {Object.keys(groupedProducts).length === 0 ? (
-          <div className="bg-white rounded-3xl p-8 text-center border border-slate-100">
-            <p className="text-sm font-bold text-slate-400">No products found.</p>
+          <div className="bg-white rounded-3xl p-10 text-center border border-slate-100 shadow-sm space-y-4">
+            <p className="text-base font-black text-slate-700">
+              {selectedCoop !== 'ALL'
+                ? `No listed products in the online repository yet for ${selectedCoop}.`
+                : 'No matching products found in the online repository.'}
+            </p>
+            <p className="text-xs font-bold text-slate-400 max-w-md mx-auto">
+              You can still place a Customer or Counter COP 31 order for any Food Coop even if the product has not been added to the products database yet.
+            </p>
+            {onOrderCustom && (
+              <button
+                type="button"
+                onClick={triggerCustomOrder}
+                className="inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                {selectedCoop !== 'ALL'
+                  ? `Place Unlisted Order from ${selectedCoop}`
+                  : 'Place Custom / Unlisted Order'}
+              </button>
+            )}
           </div>
         ) : (
-          Object.entries(groupedProducts).sort(([a], [b]) => a.localeCompare(b)).map(([cropType, products]) => (
-            <div key={cropType} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -z-10"></div>
-              
-              <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <span className="text-emerald-600 font-black text-lg">{cropType.charAt(0).toUpperCase()}</span>
-                </div>
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight">{cropType}</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map((product, pIdx) => (
-                  <div key={pIdx} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 hover:border-emerald-200 transition-colors flex flex-col justify-between h-full">
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1 pr-2">
-                          <h3 className="text-sm font-black text-slate-800 truncate">{product.cluster}</h3>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5 truncate">Supplier: {product.supplierName}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-[10px] font-bold text-slate-400 mr-1">KSh</span>
-                          <span className="text-lg font-black text-emerald-600">{Number(product.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">per {product.unitType}</p>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center py-2">
-                        <span className="text-xs font-bold text-slate-500">Available:</span>
-                        <span className="text-sm font-black text-slate-800">{product.unitsAvailable} {product.unitType}s</span>
-                      </div>
-                    </div>
-                    
-                    <button 
-                      onClick={() => onOrderNow(product)}
-                      className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 mt-auto"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                      Order Now
-                    </button>
+          <>
+            {Object.entries(groupedProducts).sort(([a], [b]) => a.localeCompare(b)).map(([cropType, products]) => (
+              <div key={cropType} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -z-10"></div>
+
+                <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <span className="text-emerald-600 font-black text-lg">{cropType.charAt(0).toUpperCase()}</span>
                   </div>
-                ))}
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight">{cropType}</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {products.map((product, pIdx) => (
+                    <div key={pIdx} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 hover:border-emerald-200 transition-colors flex flex-col justify-between h-full">
+                      <div>
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1 pr-2">
+                            <h3 className="text-sm font-black text-slate-800 truncate">{product.cluster}</h3>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5 truncate">Supplier: {product.supplierName}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] font-bold text-slate-400 mr-1">KSh</span>
+                            <span className="text-lg font-black text-emerald-600">{Number(product.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">per {product.unitType}</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-xs font-bold text-slate-500">Available:</span>
+                          <span className="text-sm font-black text-slate-800">{product.unitsAvailable} {product.unitType}s</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => onOrderNow(product)}
+                        className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.15em] shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 mt-auto"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        Order Now
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+
+            {onOrderCustom && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-black text-emerald-950 uppercase tracking-wider">
+                    Product or Food Coop Missing From Above?
+                  </h3>
+                  <p className="text-xs font-bold text-emerald-700 mt-1">
+                    Agents and members can place an order for any of the {allCoops.length} Food Coops even when a product is not yet in the online database.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={triggerCustomOrder}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all shrink-0 flex items-center gap-2 active:scale-95"
+                >
+                  <Plus className="w-4 h-4" /> Order Unlisted Product
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

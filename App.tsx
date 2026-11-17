@@ -1114,6 +1114,8 @@ const App: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
   const [orderingProduct, setOrderingProduct] = useState<ProduceListing | null>(null);
+  const [isCustomOrderModalOpen, setIsCustomOrderModalOpen] = useState(false);
+  const [customOrderPrefill, setCustomOrderPrefill] = useState<{ cluster?: string; cropType?: string } | undefined>(undefined);
 
   const handleOrderNow = (product: ProduceListing) => {
     if (!agentIdentity) {
@@ -1122,7 +1124,21 @@ const App: React.FC = () => {
       return;
     }
 
+    setIsCustomOrderModalOpen(false);
+    setCustomOrderPrefill(undefined);
     setOrderingProduct(product);
+  };
+
+  const handleOrderCustom = (prefill?: { cluster?: string; cropType?: string }) => {
+    if (!agentIdentity) {
+      alert("Please login to place an order or log a customer order.");
+      setCurrentPortal('LOGIN');
+      return;
+    }
+
+    setOrderingProduct(null);
+    setCustomOrderPrefill(prefill);
+    setIsCustomOrderModalOpen(true);
   };
 
   const handleCreateDirectOrder = async (order: MarketOrder) => {
@@ -2655,7 +2671,12 @@ const App: React.FC = () => {
 
         {currentPortal === 'PRODUCTS' && (
           <div className="space-y-12">
-            <ProductsPage produceListings={produceListings} onOrderNow={handleOrderNow} />
+            <ProductsPage
+              produceListings={produceListings}
+              foodCoops={dynamicClusters}
+              onOrderNow={handleOrderNow}
+              onOrderCustom={handleOrderCustom}
+            />
             {agentIdentity && (
               <OrdersDashboard
                 orders={marketOrders}
@@ -3388,21 +3409,29 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Order Modal */}
-      {orderingProduct && agentIdentity && (
+      {/* Order Modal (Supports both Listed Products & Unlisted Custom Products) */}
+      {(orderingProduct || isCustomOrderModalOpen) && agentIdentity && (
         <OrderModal 
           product={orderingProduct} 
           agentIdentity={agentIdentity} 
-          onClose={() => setOrderingProduct(null)} 
+          clusters={dynamicClusters}
+          prefill={customOrderPrefill}
+          onClose={() => {
+            setOrderingProduct(null);
+            setIsCustomOrderModalOpen(false);
+            setCustomOrderPrefill(undefined);
+          }} 
           onSubmit={async (order) => {
             setOrderingProduct(null);
+            setIsCustomOrderModalOpen(false);
+            setCustomOrderPrefill(undefined);
             await handleCreateDirectOrder(order);
             const isCop31 = order.eventTag === 'COUNTER_COP_31';
             alert(
               `${isCop31 ? 'Counter COP 31 Order' : 'Order'} placed for ${order.customerName}! ` +
               `Total: KSh ${(order.totalAmount || 0).toLocaleString()} ` +
               `(${order.deliveryFee === 0 ? 'Free Delivery' : `Delivery KSh ${order.deliveryFee}`}). ` +
-              `Reflected in Market -> Sales Portal & Board/Finance Orders Summary.`
+              `Reflected in Marketplace, Market -> Sales Portal & Board/Finance Orders Summary.`
             );
           }} 
         />
