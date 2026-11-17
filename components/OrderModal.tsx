@@ -26,6 +26,16 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
   const isCustomMode = !product;
   const allCoops = clusters.length > 0 ? clusters : FOOD_COOPS;
 
+  const defaultTargetCoop =
+    (prefill?.cluster && prefill.cluster !== 'ALL' ? prefill.cluster : '') ||
+    (product ? product.cluster : '') ||
+    (agentIdentity.cluster && agentIdentity.cluster !== '-' && agentIdentity.cluster !== 'Unassigned'
+      ? agentIdentity.cluster
+      : '') ||
+    allCoops[0] ||
+    '';
+
+  const [targetCluster, setTargetCluster] = useState<string>(defaultTargetCoop);
   const [orderForCustomer, setOrderForCustomer] = useState<boolean>(isAgentOrManager);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -34,26 +44,30 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [quantity, setQuantity] = useState<number>(1);
 
-  // Custom / Unlisted product fields (when product is null)
-  const [customCluster, setCustomCluster] = useState<string>(
-    (prefill?.cluster && prefill.cluster !== 'ALL' ? prefill.cluster : '') || agentIdentity.cluster || allCoops[0] || ''
-  );
+  // Custom / Unlisted product fields (or price override)
   const [customCrop, setCustomCrop] = useState<string>(prefill?.cropType || '');
-  const [customUnitType, setCustomUnitType] = useState<string>('Kg');
-  const [customUnitPrice, setCustomUnitPrice] = useState<string>('');
+  const [customUnitType, setCustomUnitType] = useState<string>(
+    (prefill?.cropType && CROP_CONFIG[prefill.cropType as keyof typeof CROP_CONFIG]?.[0]) || 'Kg'
+  );
+  const [customUnitPrice, setCustomUnitPrice] = useState<string>(
+    product ? String(product.sellingPrice || '') : ''
+  );
   const [customSupplierName, setCustomSupplierName] = useState<string>('');
 
-  const resolvedCluster = product ? product.cluster : customCluster;
-  const resolvedUnitPrice = product ? Number(product.sellingPrice || 0) : (parseFloat(customUnitPrice) || 0);
+  const resolvedCluster = targetCluster;
+  const resolvedUnitPrice = customUnitPrice !== ''
+    ? (parseFloat(customUnitPrice) || 0)
+    : (product ? Number(product.sellingPrice || 0) : 0);
   const resolvedUnitType = product ? product.unitType : (customUnitType.trim() || 'Unit');
   const resolvedCropType = product ? product.cropType : customCrop.trim();
 
   // Delivery fee logic:
   // Counter COP 31 orders ALWAYS have KSh 0 delivery fee (national gathering, no delivery charge).
-  // Otherwise: Free if customer's cluster matches product's cluster, else Ksh 200.
+  // Otherwise: Free if target coop matches source/product cluster, else Ksh 200.
+  const sourceCluster = product ? product.cluster : targetCluster;
   const deliveryFee = isCounterCop31
     ? 0
-    : (agentIdentity.cluster === resolvedCluster ? 0 : 200);
+    : (resolvedCluster === sourceCluster && agentIdentity.cluster === resolvedCluster ? 0 : 200);
 
   const subtotal = resolvedUnitPrice * quantity;
   const totalCost = subtotal + deliveryFee;
@@ -61,11 +75,12 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!resolvedCluster) {
+      alert('Please select the Target Food Coop.');
+      return;
+    }
+
     if (isCustomMode) {
-      if (!resolvedCluster) {
-        alert('Please select the supplying Food Coop.');
-        return;
-      }
       if (!resolvedCropType) {
         alert('Please enter the product name.');
         return;
@@ -97,13 +112,23 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
       return;
     }
 
+    const crossCoopNote = product && product.cluster !== resolvedCluster
+      ? ` (Stock from ${product.cluster})`
+      : '';
+
     const resolvedAddress = isCounterCop31
       ? (deliveryAddress.trim()
-          ? `Counter COP 31 - ${deliveryAddress.trim()}`
-          : 'Counter COP 31 National Event Pickup (Nov 17-21)')
-      : deliveryAddress.trim();
+          ? `Counter COP 31 - ${deliveryAddress.trim()}${crossCoopNote}`
+          : `Counter COP 31 National Event Pickup (Nov 17-21)${crossCoopNote}`)
+      : `${deliveryAddress.trim()}${crossCoopNote}`;
 
     const orderIdPrefix = isCounterCop31 ? 'cop31-ord' : 'dir-ord';
+
+    const supplierLabel = product
+      ? (product.cluster !== resolvedCluster
+          ? `${product.supplierName} (${product.cluster})`
+          : product.supplierName)
+      : (customSupplierName.trim() || `${resolvedCluster} Food Coop`);
 
     const newOrder: MarketOrder = {
       id: `${orderIdPrefix}-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
@@ -115,17 +140,17 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
       customerPhone: finalCustomerPhone,
       status: OrderStatus.OPEN,
       agentPhone: agentIdentity.phone,
-      cluster: resolvedCluster,
+      cluster: resolvedCluster, // Attributed to the Target / Ordering Food Coop (e.g. Rabolo)
       synced: false,
       deliveryAddress: resolvedAddress,
       deliveryFee,
-      supplierName: product ? product.supplierName : (customSupplierName.trim() || `${resolvedCluster} Food Coop`),
+      supplierName: supplierLabel,
       supplierPhone: product ? product.supplierPhone : '',
       produceId: product?.id,
       isDirectOrder: true,
       customerFoodCoop: orderForCustomer
-        ? (customerAffiliation.trim() || (isCounterCop31 ? 'Counter COP 31 Customer' : agentIdentity.cluster))
-        : agentIdentity.cluster,
+        ? (customerAffiliation.trim() || resolvedCluster)
+        : resolvedCluster,
       eventTag: isCounterCop31 ? 'COUNTER_COP_31' : undefined,
       unitPrice: resolvedUnitPrice,
       totalAmount: totalCost,
@@ -142,10 +167,10 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
         <div className="bg-emerald-700 p-5 flex justify-between items-center text-white shrink-0">
           <div>
             <h2 className="text-xl font-black tracking-tight">
-              {isCustomMode ? 'Order Unlisted / Custom Product' : 'Place Order'}
+              {isCustomMode ? 'Order Product for Food Coop' : 'Place Order'}
             </h2>
             <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mt-1">
-              {isCustomMode ? 'Order from any Food Coop (Even if not listed online)' : `${agentIdentity.role} Assisted / Direct Order`}
+              {isCustomMode ? 'Order any product under any Food Coop' : `${agentIdentity.role} Assisted / Direct Order`}
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-2 bg-emerald-800/60 hover:bg-emerald-800 rounded-full transition-colors">
@@ -155,49 +180,70 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
 
         <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden flex-1">
           <div className="p-5 space-y-4 overflow-y-auto flex-1">
-            {product ? (
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                <h3 className="font-black text-slate-800 text-lg">{product.cropType}</h3>
-                <p className="text-xs font-bold text-slate-500 mt-1">
-                  Food Coop: <span className="text-slate-800">{product.cluster}</span> &bull; Supplier: {product.supplierName}
+            {/* Target Food Coop Selector (Always editable so Rabolo can order Sugar stocked in Mulo/Apuoyo) */}
+            <div className="bg-emerald-50/70 rounded-2xl p-4 border border-emerald-200 space-y-2">
+              <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5" /> Target Food Coop (Order Belongs To) *
+              </label>
+              <select
+                value={targetCluster}
+                onChange={e => setTargetCluster(e.target.value)}
+                className="w-full bg-white border border-emerald-300 rounded-xl px-3.5 py-2.5 text-sm font-black text-slate-900 focus:outline-none focus:border-emerald-600"
+                required
+              >
+                <option value="">-- Select Target Food Coop --</option>
+                {allCoops.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              {product && targetCluster && targetCluster !== product.cluster && (
+                <p className="text-[11px] font-bold text-emerald-800">
+                  Ordering <strong>{product.cropType}</strong> (supplied from <strong>{product.cluster}</strong>) under <strong>{targetCluster}</strong>.
                 </p>
-                <div className="mt-3 flex justify-between items-center">
-                  <span className="text-sm font-bold text-slate-600">Unit Price:</span>
-                  <span className="font-black text-emerald-600">KSh {Number(product.sellingPrice).toLocaleString()} / {product.unitType}</span>
+              )}
+            </div>
+
+            {product ? (
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-black text-slate-800 text-lg">{product.cropType}</h3>
+                    <p className="text-xs font-bold text-slate-500 mt-0.5">
+                      Source Coop: <span className="text-slate-800">{product.cluster}</span> &bull; Supplier: {product.supplierName}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-slate-800 block">{product.unitsAvailable} {product.unitType}s</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Available</span>
+                  </div>
                 </div>
-                <div className="mt-1 flex justify-between items-center">
-                  <span className="text-sm font-bold text-slate-600">Available Stock:</span>
-                  <span className="font-black text-slate-800">{product.unitsAvailable} {product.unitType}s</span>
+                <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between gap-3">
+                  <label className="text-xs font-bold text-slate-600">Unit Price (KSh / {product.unitType}):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={customUnitPrice}
+                    onChange={e => setCustomUnitPrice(e.target.value)}
+                    className="w-32 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-right font-black text-emerald-700 text-sm focus:outline-none focus:border-emerald-500"
+                    required
+                  />
                 </div>
               </div>
             ) : (
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
                 <p className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <Store className="w-4 h-4 text-emerald-600" /> Product & Food Coop Details
+                  <Package className="w-4 h-4 text-emerald-600" /> Product Details
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Supplying Food Coop *</label>
-                    <select
-                      value={customCluster}
-                      onChange={e => setCustomCluster(e.target.value)}
-                      className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
-                      required
-                    >
-                      <option value="">-- Select Food Coop --</option>
-                      {allCoops.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Product Name *</label>
                     <input
                       type="text"
                       list="order-modal-crops"
                       value={customCrop}
                       onChange={e => setCustomCrop(e.target.value)}
-                      placeholder="e.g. Cassava, Honey, Beans"
+                      placeholder="e.g. Sugar, Cassava, Honey, Beans"
                       className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
                       required
                     />
@@ -226,18 +272,18 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
                       step="0.01"
                       value={customUnitPrice}
                       onChange={e => setCustomUnitPrice(e.target.value)}
-                      placeholder="e.g. 200"
+                      placeholder="e.g. 160"
                       className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
                       required
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Supplier / Farmer Name (Optional)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Source Supplier / Coop (Optional)</label>
                     <input
                       type="text"
                       value={customSupplierName}
                       onChange={e => setCustomSupplierName(e.target.value)}
-                      placeholder="e.g. Coop Stall / Farmer Name"
+                      placeholder="e.g. Mulo / Apuoyo / Local Farmer"
                       className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
                     />
                   </div>
@@ -289,7 +335,7 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
                       Standard Delivery
                     </span>
                     <span className="text-[10px] font-black bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">
-                      {agentIdentity.cluster === resolvedCluster ? 'FREE' : 'KSh 200'}
+                      {resolvedCluster === sourceCluster && agentIdentity.cluster === resolvedCluster ? 'FREE' : 'KSh 200'}
                     </span>
                   </div>
                   <p className="text-[11px] font-semibold text-slate-500 mt-1">

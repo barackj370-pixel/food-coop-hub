@@ -1117,7 +1117,7 @@ const App: React.FC = () => {
   const [isCustomOrderModalOpen, setIsCustomOrderModalOpen] = useState(false);
   const [customOrderPrefill, setCustomOrderPrefill] = useState<{ cluster?: string; cropType?: string } | undefined>(undefined);
 
-  const handleOrderNow = (product: ProduceListing) => {
+  const handleOrderNow = (product: ProduceListing, targetCoop?: string) => {
     if (!agentIdentity) {
       alert("Please login to place an order or log a customer order.");
       setCurrentPortal('LOGIN');
@@ -1125,7 +1125,7 @@ const App: React.FC = () => {
     }
 
     setIsCustomOrderModalOpen(false);
-    setCustomOrderPrefill(undefined);
+    setCustomOrderPrefill(targetCoop && targetCoop !== 'ALL' ? { cluster: targetCoop } : undefined);
     setOrderingProduct(product);
   };
 

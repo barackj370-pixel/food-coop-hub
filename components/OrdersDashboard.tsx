@@ -38,11 +38,17 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
 
   // Quick Order Modal State (for Sales Agents & Youth Agents to place orders directly)
   const [isQuickModalOpen, setIsQuickModalOpen] = useState(false);
+  const defaultUserCoop =
+    agentIdentity.cluster && agentIdentity.cluster !== '-' && agentIdentity.cluster !== 'Unassigned'
+      ? agentIdentity.cluster
+      : (clusters[0] || '');
+
   const [entryType, setEntryType] = useState<'LISTED' | 'CUSTOM'>('LISTED');
   const [selectedProduceId, setSelectedProduceId] = useState<string>('');
+  const [targetListedCoop, setTargetListedCoop] = useState<string>(defaultUserCoop);
   const [customCrop, setCustomCrop] = useState<string>('Tomatoes');
   const [customUnitType, setCustomUnitType] = useState<string>('Kg');
-  const [customCoop, setCustomCoop] = useState<string>(agentIdentity.cluster || clusters[0] || '');
+  const [customCoop, setCustomCoop] = useState<string>(defaultUserCoop);
   const [customUnitPrice, setCustomUnitPrice] = useState<string>('');
   const [customSupplierName, setCustomSupplierName] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
@@ -208,11 +214,15 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
         alert(`Only ${selectedProduct.unitsAvailable} ${selectedProduct.unitType}s available.`);
         return;
       }
+      const resolvedListedCoop = targetListedCoop || selectedProduct.cluster;
       orderCrop = selectedProduct.cropType;
       orderUnit = selectedProduct.unitType;
-      orderCluster = selectedProduct.cluster;
+      orderCluster = resolvedListedCoop;
       orderUnitPrice = Number(selectedProduct.sellingPrice || 0);
-      orderSupplierName = selectedProduct.supplierName;
+      orderSupplierName =
+        selectedProduct.cluster !== resolvedListedCoop
+          ? `${selectedProduct.supplierName} (${selectedProduct.cluster})`
+          : selectedProduct.supplierName;
       orderSupplierPhone = selectedProduct.supplierPhone;
       orderProduceId = selectedProduct.id;
     } else {
@@ -233,11 +243,18 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
       ? 0
       : (agentIdentity.cluster === orderCluster ? 0 : 200);
 
+    const crossCoopSuffix =
+      entryType === 'LISTED' && selectedProduct && selectedProduct.cluster !== orderCluster
+        ? ` (Stock from ${selectedProduct.cluster})`
+        : '';
+
     const totalAmount = orderUnitPrice * quantity + deliveryFee;
     const prefix = isCounterCop31 ? 'cop31-ord' : 'dir-ord';
     const address = isCounterCop31
-      ? (pickupNote.trim() ? `Counter COP 31 - ${pickupNote.trim()}` : 'Counter COP 31 National Event Pickup (Nov 17-21)')
-      : (pickupNote.trim() || `${orderCluster} Delivery`);
+      ? (pickupNote.trim()
+          ? `Counter COP 31 - ${pickupNote.trim()}${crossCoopSuffix}`
+          : `Counter COP 31 National Event Pickup (Nov 17-21)${crossCoopSuffix}`)
+      : `${pickupNote.trim() || `${orderCluster} Delivery`}${crossCoopSuffix}`;
 
     const newOrder: MarketOrder = {
       id: `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
@@ -613,23 +630,46 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
               </div>
 
               {entryType === 'LISTED' ? (
-                <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
-                    Select Product (Any Food Coop)
-                  </label>
-                  <select
-                    value={selectedProduceId}
-                    onChange={e => setSelectedProduceId(e.target.value)}
-                    className="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
-                    required
-                  >
-                    <option value="">-- Choose Produce --</option>
-                    {availableProducts.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.cropType} ({p.cluster} • {p.supplierName}) — KSh {p.sellingPrice}/{p.unitType} [{p.unitsAvailable} avail]
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      Target Food Coop (Order Belongs To) *
+                    </label>
+                    <select
+                      value={targetListedCoop}
+                      onChange={e => setTargetListedCoop(e.target.value)}
+                      className="w-full mt-1 bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm font-black text-slate-900 outline-none focus:border-emerald-500"
+                      required
+                    >
+                      <option value="">-- Select Target Food Coop --</option>
+                      {clusters.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      Select Product (Any Food Coop Stock)
+                    </label>
+                    <select
+                      value={selectedProduceId}
+                      onChange={e => setSelectedProduceId(e.target.value)}
+                      className="w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-emerald-500"
+                      required
+                    >
+                      <option value="">-- Choose Produce --</option>
+                      {availableProducts.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.cropType} ({p.cluster} • {p.supplierName}) — KSh {p.sellingPrice}/{p.unitType} [{p.unitsAvailable} avail]
+                        </option>
+                      ))}
+                    </select>
+                    {selectedProduct && targetListedCoop && selectedProduct.cluster !== targetListedCoop && (
+                      <p className="text-[11px] font-bold text-emerald-700 mt-1 ml-1">
+                        Ordering {selectedProduct.cropType} (stocked in {selectedProduct.cluster}) under <strong>{targetListedCoop}</strong>.
+                      </p>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
@@ -790,7 +830,7 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
                 const unitPrice = entryType === 'LISTED'
                   ? Number(selectedProduct?.sellingPrice || 0)
                   : (parseFloat(customUnitPrice) || 0);
-                const clusterName = entryType === 'LISTED' ? (selectedProduct?.cluster || '') : customCoop;
+                const clusterName = entryType === 'LISTED' ? (targetListedCoop || selectedProduct?.cluster || '') : customCoop;
                 const fee = isCounterCop31 ? 0 : (agentIdentity.cluster === clusterName ? 0 : 200);
                 const total = unitPrice * quantity + fee;
                 return (
