@@ -321,13 +321,25 @@ export const deleteAllUsers = async (): Promise<boolean> => {
 
 /* MARKET ORDERS */
 const mapOrderToDb = (o: MarketOrder) => {
-  // Encode event/unitPrice safely in delivery_address/id so Supabase never rejects unknown columns
+  // Encode event/pricing/quality safely in delivery_address/id so Supabase never rejects unknown columns
   let address = o.deliveryAddress || '';
   if (o.eventTag === 'COUNTER_COP_31' && !address.toLowerCase().includes('counter cop 31')) {
     address = address ? `Counter COP 31 - ${address}` : 'Counter COP 31 National Event Pickup (Nov 17-21)';
   }
   if (o.unitPrice !== undefined && o.unitPrice > 0 && !address.includes('[P:')) {
     address = `${address} [P:${o.unitPrice}]`.trim();
+  }
+  if (o.buyingPrice !== undefined && o.buyingPrice >= 0 && !address.includes('[BP:')) {
+    address = `${address} [BP:${o.buyingPrice}]`.trim();
+  }
+  if (o.quality && !address.includes('[Q:')) {
+    address = `${address} [Q:${o.quality.replace(/[\[\]]/g, '')}]`.trim();
+  }
+  if (o.profit !== undefined && !address.includes('[PR:')) {
+    address = `${address} [PR:${o.profit}]`.trim();
+  }
+  if (o.amountToSubmit !== undefined && !address.includes('[SUB:')) {
+    address = `${address} [SUB:${o.amountToSubmit}]`.trim();
   }
   if (o.placedByName && !address.includes('[By:')) {
     address = `${address} [By:${o.placedByName}]`.trim();
@@ -357,9 +369,17 @@ const mapOrderToDb = (o: MarketOrder) => {
 const mapDbToOrder = (db: any): MarketOrder => {
   const rawAddress = db.delivery_address || db.deliveryAddress || '';
   const priceMatch = rawAddress.match(/\[P:([0-9.]+)\]/);
+  const buyingPriceMatch = rawAddress.match(/\[BP:([0-9.]+)\]/);
+  const qualityMatch = rawAddress.match(/\[Q:([^\]]+)\]/);
+  const profitMatch = rawAddress.match(/\[PR:(-?[0-9.]+)\]/);
+  const submitMatch = rawAddress.match(/\[SUB:([0-9.]+)\]/);
   const byMatch = rawAddress.match(/\[By:([^\]]+)\]/);
   const cleanAddress = rawAddress
     .replace(/\s*\[P:[0-9.]+\]/g, '')
+    .replace(/\s*\[BP:[0-9.]+\]/g, '')
+    .replace(/\s*\[Q:[^\]]+\]/g, '')
+    .replace(/\s*\[PR:-?[0-9.]+\]/g, '')
+    .replace(/\s*\[SUB:[0-9.]+\]/g, '')
     .replace(/\s*\[By:[^\]]+\]/g, '')
     .trim();
 
@@ -369,6 +389,23 @@ const mapDbToOrder = (db: any): MarketOrder => {
 
   const unitsRequested = Number(db.units_requested || db.unitsRequested || 0);
   const parsedUnitPrice = priceMatch ? Number(priceMatch[1]) : (db.unitPrice !== undefined ? Number(db.unitPrice) : undefined);
+  const parsedBuyingPrice = buyingPriceMatch ? Number(buyingPriceMatch[1]) : (db.buyingPrice !== undefined ? Number(db.buyingPrice) : undefined);
+  const parsedQuality = qualityMatch ? qualityMatch[1] : db.quality;
+  const parsedProfit = profitMatch
+    ? Number(profitMatch[1])
+    : (db.profit !== undefined
+        ? Number(db.profit)
+        : (parsedUnitPrice !== undefined && parsedBuyingPrice !== undefined
+            ? Math.max(0, (parsedUnitPrice - parsedBuyingPrice) * unitsRequested)
+            : undefined));
+  const parsedAmountToSubmit = submitMatch
+    ? Number(submitMatch[1])
+    : (db.amountToSubmit !== undefined
+        ? Number(db.amountToSubmit)
+        : (parsedProfit !== undefined && parsedProfit > 0
+            ? Math.round((parsedProfit * 0.10 + 1) * 100) / 100
+            : (parsedProfit === 0 ? 0 : undefined)));
+
   const rawFee = db.delivery_fee !== undefined && db.delivery_fee !== null
     ? Number(db.delivery_fee)
     : (db.deliveryFee !== undefined && db.deliveryFee !== null ? Number(db.deliveryFee) : (isCop31 ? 0 : undefined));
@@ -397,6 +434,10 @@ const mapDbToOrder = (db: any): MarketOrder => {
     customerFoodCoop: db.customer_food_coop || db.customerFoodCoop,
     eventTag: isCop31 ? 'COUNTER_COP_31' : undefined,
     unitPrice: parsedUnitPrice,
+    buyingPrice: parsedBuyingPrice,
+    quality: parsedQuality,
+    profit: parsedProfit,
+    amountToSubmit: parsedAmountToSubmit,
     totalAmount: parsedUnitPrice !== undefined ? (parsedUnitPrice * unitsRequested) + (deliveryFee || 0) : undefined,
     placedByName: byMatch ? byMatch[1] : undefined,
     synced: true

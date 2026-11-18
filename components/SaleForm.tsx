@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ProduceListing, SystemRole, isSuperAgent } from '../types';
+import { FOOD_COOPS } from '../constants';
 
 interface SaleFormProps {
   clusters: string[];
@@ -47,6 +48,12 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
   const isPrivilegedDirectEntry = userRole === SystemRole.SYSTEM_DEVELOPER || 
                                   userRole === SystemRole.MANAGER ||
                                   (agentPhone && (agentPhone.includes('742773244') || agentPhone.includes('768750668')));
+
+  const allCoops = useMemo(() => {
+    return Array.from(new Set([...FOOD_COOPS, ...clusters]))
+      .filter(c => c && c !== '-' && c !== 'Unassigned')
+      .sort((a, b) => a.localeCompare(b));
+  }, [clusters]);
 
   const [entryMode, setEntryMode] = useState<'CALCULATED' | 'DIRECT'>('CALCULATED');
   const [directCommission, setDirectCommission] = useState<number>(0);
@@ -191,7 +198,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
         </div>
 
         {/* Selected Food Coop */}
-        {(isSuper && clusters.length > 0) ? (
+        {(isSuper && allCoops.length > 0) ? (
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Food Coop</label>
             <select 
@@ -199,8 +206,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
               onChange={(e) => setFormData({...formData, cluster: e.target.value})}
               className="w-full bg-slate-50 border border-slate-100 rounded-2xl text-[13px] font-bold text-black p-4 focus:bg-white focus:border-green-400 outline-none transition-all appearance-none"
             >
-              <option value="" disabled>Select Food Coop...</option>
-              {clusters.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="" disabled>Select Food Coop ({allCoops.length})...</option>
+              {allCoops.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         ) : (

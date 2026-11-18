@@ -24,7 +24,9 @@ const OrderModal: React.FC<Props> = ({ product, agentIdentity, clusters = FOOD_C
     agentIdentity.role === SystemRole.SYSTEM_DEVELOPER;
 
   const isCustomMode = !product;
-  const allCoops = clusters.length > 0 ? clusters : FOOD_COOPS;
+  const allCoops = Array.from(new Set([...FOOD_COOPS, ...clusters]))
+    .filter(c => c && c !== '-' && c !== 'Unassigned')
+    .sort((a, b) => a.localeCompare(b));
 
   const defaultTargetCoop =
     (prefill?.cluster && prefill.cluster !== 'ALL' ? prefill.cluster : '') ||

@@ -1113,9 +1113,24 @@ const App: React.FC = () => {
   const [fulfillmentData, setFulfillmentData] = useState<Partial<SaleFormSubmission> | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isMarketMenuOpen, setIsMarketMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [orderingProduct, setOrderingProduct] = useState<ProduceListing | null>(null);
   const [isCustomOrderModalOpen, setIsCustomOrderModalOpen] = useState(false);
   const [customOrderPrefill, setCustomOrderPrefill] = useState<{ cluster?: string; cropType?: string } | undefined>(undefined);
+
+  const navigateHome = () => {
+    setCurrentPortal('HOME');
+    setIsMarketMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToPortal = (portal: PortalType) => {
+    setCurrentPortal(portal);
+    setIsMarketMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleOrderNow = (product: ProduceListing, targetCoop?: string) => {
     if (!agentIdentity) {
@@ -1550,12 +1565,12 @@ const App: React.FC = () => {
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
-    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM'];
+    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
     if (!agentIdentity) return guestPortals;
     
     // GUEST FARMER (Not tied to any coop)
     if (agentIdentity.role === SystemRole.FARMER && agentIdentity.cluster === 'Guest') {
-      return ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'FARM_DATA'];
+      return ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'FARM_DATA', 'COOP_RANKING'];
     }
 
     // Add FORUM to logged in base
@@ -2413,18 +2428,26 @@ const App: React.FC = () => {
         <p className="text-slate-600 font-medium leading-relaxed">
           Our platform is designed to empower local farmers and consumers through a transparent, high-integrity marketplace. We leverage agroecological principles to ensure sustainable growth for our community.
         </p>
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => navigateToPortal('PRODUCTS')}
+            className="bg-emerald-600 text-white px-7 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-emerald-700 transition-all flex items-center gap-2"
+          >
+            <i className="fas fa-shopping-basket"></i> Marketplace &amp; COP 31 Orders
+          </button>
           {agentIdentity ? (
-            <button onClick={() => setCurrentPortal('MARKET')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button>
+            <button type="button" onClick={() => navigateToPortal('MARKET')} className="bg-black text-white px-7 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Explore Market</button>
           ) : (
-            <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Get Started</button>
+            <button type="button" onClick={() => navigateToPortal('LOGIN')} className="bg-black text-white px-7 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">Member Login / Register</button>
           )}
           
           <button 
+             type="button"
              onClick={() => setShowPublicSupplierStats(true)} 
-             className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-green-700 transition-all flex items-center gap-2"
+             className="bg-white border-2 border-green-600 text-green-700 px-7 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-sm hover:bg-green-50 transition-all flex items-center gap-2"
           >
-             <i className="fas fa-chart-pie"></i> SUPPLIERS: CHECK YOUR SHARES
+             <i className="fas fa-chart-pie"></i> Suppliers: Check Shares
           </button>
         </div>
       </div>
@@ -2449,13 +2472,27 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col lg:flex-row">
       {agentIdentity && (
         <aside className="w-full lg:w-72 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-40 relative lg:min-h-screen">
-          <div className="p-8 border-b border-slate-100 hidden lg:flex items-center gap-4">
-            <div className="bg-black w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"><img src={APP_LOGO} alt="KPL Logo" className="w-7 h-7 object-contain" /></div>
+          <button
+            type="button"
+            onClick={navigateHome}
+            title="Go to Homepage"
+            className="p-8 border-b border-slate-100 hidden lg:flex items-center gap-4 text-left w-full hover:bg-slate-50 transition-colors cursor-pointer group"
+          >
+            <div className="bg-black w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform"><img src={APP_LOGO} alt="KPL Logo" className="w-7 h-7 object-contain" /></div>
             <div>
               <h1 className="text-xl font-black uppercase tracking-tighter leading-none text-black">KPL<br/><span className="text-green-600 text-[10px] tracking-[0.2em]">Market</span></h1>
             </div>
-          </div>
+          </button>
           <div className="p-4 lg:p-6 lg:flex-1 lg:overflow-y-auto">
+             <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-3 pl-4 hidden lg:block">Quick Pages</div>
+             <div className="hidden lg:flex flex-col gap-1.5 mb-5">
+               <button type="button" onClick={navigateHome} className={`w-full text-left px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 ${currentPortal === 'HOME' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50 hover:text-black'}`}>
+                 <i className="fas fa-home w-4 text-center opacity-80"></i> Home
+               </button>
+               <button type="button" onClick={() => navigateToPortal('PRODUCTS')} className={`w-full text-left px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 ${currentPortal === 'PRODUCTS' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50 hover:text-black'}`}>
+                 <i className="fas fa-shopping-basket w-4 text-center opacity-80"></i> Marketplace
+               </button>
+             </div>
              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 pl-4 hidden lg:block">Agent Menus</div>
              <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide">
                {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS'].includes(p)).map(p => {
@@ -2494,20 +2531,40 @@ const App: React.FC = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0" onClick={() => setIsMarketMenuOpen(false)}>
-      <header className="bg-white text-black pt-8 pb-8 shadow-sm border-b border-slate-200 relative overflow-hidden z-20">
-        <div className="container mx-auto px-6 lg:px-12 relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-          <div className="flex items-center space-x-5">
-            <div className="bg-white w-16 h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden"><img src={APP_LOGO} alt="KPL Logo" className="w-10 h-10 object-contain" /></div>
-            <div>
-              <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">KPL Food Coop Market</h1>
-              <div className="flex items-center space-x-2 mt-1.5"><span className="text-[9px] font-black uppercase tracking-[0.4em] italic">Connecting <span className="text-green-600">Producers</span> with <span className="text-red-600">Consumers</span></span></div>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{agentIdentity ? (isSystemDev ? 'Master Node Access' : `${agentIdentity.cluster} Food Coop`) : 'Guest Hub Access'}</p>
-            </div>
+      <header className="bg-white text-black pt-6 pb-8 shadow-sm border-b border-slate-200 relative overflow-hidden z-20">
+        <div className="container mx-auto px-6 lg:px-12 relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5">
+          <div className="flex items-center justify-between w-full lg:w-auto gap-4">
+            <button
+              type="button"
+              onClick={navigateHome}
+              title="Go to Homepage"
+              className="flex items-center space-x-4 sm:space-x-5 text-left cursor-pointer group focus:outline-none"
+            >
+              <div className="bg-white w-14 h-14 sm:w-16 sm:h-16 rounded-3xl flex items-center justify-center border border-slate-100 shadow-sm overflow-hidden group-hover:border-emerald-400 group-hover:scale-105 transition-all shrink-0">
+                <img src={APP_LOGO} alt="KPL Logo" className="w-9 h-9 sm:w-10 sm:h-10 object-contain" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight leading-none text-black group-hover:text-emerald-700 transition-colors">KPL Food Coop Market</h1>
+                <div className="flex items-center space-x-2 mt-1.5"><span className="text-[9px] font-black uppercase tracking-[0.35em] italic">Connecting <span className="text-green-600">Producers</span> with <span className="text-red-600">Consumers</span></span></div>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-1.5">{agentIdentity ? (isSystemDev ? 'Master Node Access' : `${agentIdentity.cluster} Food Coop`) : 'Guest Hub Access'}</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shrink-0"
+              aria-label="Toggle Homepage Menu"
+            >
+              <i className={`fas ${isMobileMenuOpen ? 'fa-times' : 'fa-bars'} text-sm`}></i>
+              <span>Menu</span>
+            </button>
           </div>
-          <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
+
+          <div className="flex flex-col items-stretch lg:items-end gap-3 w-full lg:w-auto">
             {agentIdentity ? (
-              <div className={`bg-slate-50 px-6 py-4 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-end space-x-6 ${!isOnline || pendingSyncCount > 0 ? 'border-red-200 bg-red-50' : ''}`}>
-                   <div className="text-right">
+              <div className={`bg-slate-50 px-5 py-3.5 rounded-3xl border border-slate-100 text-right w-full lg:w-auto shadow-sm flex items-center justify-between lg:justify-end space-x-5 ${!isOnline || pendingSyncCount > 0 ? 'border-red-200 bg-red-50' : ''}`}>
+                   <div className="text-left lg:text-right">
                      <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${!isOnline || pendingSyncCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>
                        {isOnline ? (pendingSyncCount > 0 ? `${pendingSyncCount} PENDING SYNC` : 'Network Sync v1.2') : 'OFFLINE MODE'}
                      </p>
@@ -2515,72 +2572,94 @@ const App: React.FC = () => {
                        {isSyncing ? 'Syncing...' : (!isOnline ? 'Queued' : (lastSyncTime?.toLocaleTimeString() || 'Connected'))}
                      </p>
                    </div>
-                   {pendingSyncCount > 0 && isOnline && !isSyncing && (
+                   <div className="flex items-center gap-2">
+                     {pendingSyncCount > 0 && isOnline && !isSyncing && (
+                       <button 
+                         type="button"
+                         onClick={() => syncPendingData()}
+                         className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-all shadow-lg animate-pulse"
+                         title="Sync Pending Data"
+                       >
+                         <i className="fas fa-sync-alt text-xs"></i>
+                       </button>
+                     )}
                      <button 
-                       onClick={() => syncPendingData()}
-                       className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-all shadow-lg animate-pulse"
-                       title="Sync Pending Data"
+                       type="button" 
+                       onClick={handleLogout} 
+                       title="Sign Out"
+                       className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100 cursor-pointer"
                      >
-                       <i className="fas fa-sync-alt text-xs"></i>
+                       <i className="fas fa-power-off text-sm"></i>
                      </button>
-                   )}
-                   <button 
-                     type="button" 
-                     onClick={handleLogout} 
-                     className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition-all border border-red-100 cursor-pointer"
-                   >
-                     <i className="fas fa-power-off text-sm"></i>
-                   </button>
+                   </div>
               </div>
             ) : (
-              <button onClick={() => setCurrentPortal('LOGIN')} className="bg-black text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center gap-3">
-                <i className="fas fa-user-shield"></i> Member Login
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2.5">
+                <button type="button" onClick={() => navigateToPortal('PRODUCTS')} className="bg-emerald-600 text-white px-5 py-3.5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-md hover:bg-emerald-700 transition-all flex items-center gap-2">
+                  <i className="fas fa-shopping-basket"></i> COP 31 Orders
+                </button>
+                <button type="button" onClick={() => navigateToPortal('LOGIN')} className="bg-black text-white px-6 py-3.5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center gap-2">
+                  <i className="fas fa-user-shield"></i> Member Login
+                </button>
+              </div>
             )}
-            <div className="flex gap-4">
-              <button onClick={() => setCurrentPortal('HOME')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOME' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Home</button>
-              <button onClick={() => setCurrentPortal('PRODUCTS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'PRODUCTS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Marketplace</button>
-              <button onClick={() => setCurrentPortal('HOMESTEAD')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'HOMESTEAD' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Homesteads Reg.</button>
-              <button onClick={() => setCurrentPortal('NEWS')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'NEWS' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>News</button>
-              <button onClick={() => setCurrentPortal('WEATHER')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'WEATHER' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Agro-Weather</button>
-              <button onClick={() => setCurrentPortal('ABOUT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'ABOUT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>About Us</button>
-              <button onClick={() => setCurrentPortal('CONTACT')} className={`text-[10px] font-black uppercase tracking-widest ${currentPortal === 'CONTACT' ? 'text-black border-b-2 border-black' : 'text-slate-400 hover:text-black transition-colors'}`}>Contact Us</button>
-            </div>
           </div>
         </div>
-        {!agentIdentity && (
-          <nav className="container mx-auto px-6 lg:px-12 flex flex-wrap gap-3 mt-6 relative z-10">
-            {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS', 'HOMESTEAD'].includes(p)).map(p => {
-              if (p === 'MARKET') {
-                return (
-                  <div key={p} className="relative">
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setCurrentPortal('MARKET'); setIsMarketMenuOpen(!isMarketMenuOpen); }} className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border flex items-center gap-2 ${currentPortal === 'MARKET' ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>Market <i className={`fas fa-chevron-down opacity-50 transition-transform ${isMarketMenuOpen ? 'rotate-180' : ''}`}></i></button>
-                    {isMarketMenuOpen && (
-                      <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SUPPLIER'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SUPPLIER' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-seedling mr-2"></i> Supplier Portal</button>
-                        <button type="button" onClick={() => { setCurrentPortal('MARKET'); setMarketView('SALES'); setIsMarketMenuOpen(false); }} className={`w-full text-left px-6 py-3 text-[10px] font-black uppercase tracking-widest ${marketView === 'SALES' && currentPortal === 'MARKET' ? 'text-green-600' : 'text-slate-500 hover:text-black hover:bg-slate-50'}`}><i className="fas fa-shopping-cart mr-2"></i> Sales Portal</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-              
-              // Double check: If 'SYSTEM' somehow got into the list for a non-dev, don't render the button.
-              if (p === 'SYSTEM' && !isSystemDev) return null;
 
-              const hasUnreadForum = p === 'FORUM' && forumPosts.length > 0 && forumPosts[0].id !== lastReadForumPost;
-
+        {/* Complete Primary Homepage Navigation Menu */}
+        <div className={`container mx-auto px-6 lg:px-12 mt-5 relative z-10 ${isMobileMenuOpen ? 'block' : 'hidden lg:block'}`}>
+          <nav className="flex flex-wrap items-center gap-2 bg-slate-50/90 p-2 rounded-2xl border border-slate-200/80">
+            {[
+              { id: 'HOME' as PortalType, label: 'Home', icon: 'fa-home' },
+              { id: 'PRODUCTS' as PortalType, label: 'Marketplace', icon: 'fa-shopping-basket', badge: 'COP 31' },
+              { id: 'MY_FARM' as PortalType, label: 'Farm Dashboard', icon: 'fa-tractor' },
+              { id: 'HOMESTEAD' as PortalType, label: 'Homesteads Reg.', icon: 'fa-house-chimney-user' },
+              { id: 'COOP_RANKING' as PortalType, label: 'Coops Ranking', icon: 'fa-trophy' },
+              { id: 'WEATHER' as PortalType, label: 'Agro-Weather', icon: 'fa-cloud-sun-rain' },
+              { id: 'NEWS' as PortalType, label: 'News', icon: 'fa-newspaper' },
+              { id: 'ABOUT' as PortalType, label: 'About Us', icon: 'fa-circle-info' },
+              { id: 'CONTACT' as PortalType, label: 'Contact Us', icon: 'fa-envelope' }
+            ].map((item) => {
+              const isActive = currentPortal === item.id;
               return (
-                <button key={p} type="button" onClick={() => { setCurrentPortal(p); setIsMarketMenuOpen(false); }} className={`relative px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${currentPortal === p ? 'bg-black text-white border-black shadow-lg shadow-black/10 scale-105' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-black'}`}>
-                  {p === 'FARM_DATA' ? 'FARM DATA' : p === 'MY_FARM' ? 'FARM DASHBOARD' : p === 'TABLE_BANKING' ? 'FOOD BANKING' : p === 'FOOD_BANK_VOUCHERS' ? 'MEN VOUCHERS' : p === 'COOP_RANKING' ? 'COOPERATIVES RANKING' : p}
-                  {hasUnreadForum && (
-                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => navigateToPortal(item.id)}
+                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                    isActive
+                      ? 'bg-black text-white shadow-md'
+                      : 'bg-white text-slate-600 hover:text-black hover:bg-slate-100 border border-slate-200/70'
+                  }`}
+                >
+                  <i className={`fas ${item.icon} text-[11px] ${isActive ? 'text-emerald-400' : 'text-emerald-600'}`}></i>
+                  <span>{item.label}</span>
+                  {item.badge && (
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black ${
+                      isActive ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {item.badge}
+                    </span>
                   )}
                 </button>
               );
             })}
+            {!agentIdentity && (
+              <button
+                type="button"
+                onClick={() => navigateToPortal('LOGIN')}
+                className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ml-auto ${
+                  currentPortal === 'LOGIN'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-600 hover:text-white border border-emerald-200'
+                }`}
+              >
+                <i className="fas fa-sign-in-alt text-[11px]"></i>
+                <span>Login / Sign Up</span>
+              </button>
+            )}
           </nav>
-        )}
+        </div>
       </header>
 
       <main className="container mx-auto px-6 lg:px-12 -mt-8 relative z-20 space-y-12 pb-20" onClick={() => setIsMarketMenuOpen(false)}>
@@ -2617,6 +2696,39 @@ const App: React.FC = () => {
                newsArticles={newsArticles} 
                onReadNews={handleOpenNews} 
             />
+
+            {/* Homepage Quick Portal Menu */}
+            <div className="bg-white rounded-[2rem] p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">Quick Portal Directory</h3>
+                  <p className="text-lg font-black text-slate-900 tracking-tight mt-0.5">Explore All KPL Services &amp; Food Coops</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[
+                  { id: 'PRODUCTS' as PortalType, title: 'Marketplace', subtitle: 'All 53+ Coops & COP 31', icon: 'fa-shopping-basket', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-400' },
+                  { id: 'MY_FARM' as PortalType, title: 'Farm Dashboard', subtitle: 'Crop Calendar & Plan', icon: 'fa-tractor', color: 'bg-green-50 text-green-700 border-green-200 hover:border-green-400' },
+                  { id: 'HOMESTEAD' as PortalType, title: 'Homesteads Reg.', subtitle: 'Register Household', icon: 'fa-house-chimney-user', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400' },
+                  { id: 'WEATHER' as PortalType, title: 'Agro-Weather', subtitle: 'Forecasts & Advice', icon: 'fa-cloud-sun-rain', color: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400' },
+                  { id: 'COOP_RANKING' as PortalType, title: 'Coops Ranking', subtitle: 'National Leaderboard', icon: 'fa-trophy', color: 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-400' },
+                  { id: (agentIdentity ? 'MARKET' : 'NEWS') as PortalType, title: agentIdentity ? 'Market Portal' : 'KPL News', subtitle: agentIdentity ? 'Sales & Suppliers' : 'Stories & Events', icon: agentIdentity ? 'fa-store' : 'fa-newspaper', color: 'bg-slate-100 text-slate-800 border-slate-200 hover:border-slate-400' }
+                ].map((tile) => (
+                  <button
+                    key={tile.title}
+                    type="button"
+                    onClick={() => navigateToPortal(tile.id)}
+                    className={`p-4 rounded-2xl border text-left transition-all active:scale-95 flex flex-col justify-between gap-2.5 ${tile.color}`}
+                  >
+                    <i className={`fas ${tile.icon} text-lg`}></i>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider">{tile.title}</p>
+                      <p className="text-[10px] font-bold opacity-80 mt-0.5">{tile.subtitle}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Weather Ticker Carousel */}
             <WeatherCarousel />
@@ -3252,7 +3364,7 @@ const App: React.FC = () => {
 
 
 
-        {currentPortal === 'COOP_RANKING' && agentIdentity && (
+        {currentPortal === 'COOP_RANKING' && (
           <CoopRanking records={records} />
         )}
 

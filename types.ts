@@ -79,6 +79,10 @@ export interface MarketOrder {
   customerFoodCoop?: string;
   eventTag?: string; // e.g. 'COUNTER_COP_31'
   unitPrice?: number;
+  buyingPrice?: number;
+  quality?: string;
+  profit?: number;
+  amountToSubmit?: number;
   totalAmount?: number;
   placedByName?: string;
   placedByRole?: string;
