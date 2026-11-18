@@ -35,8 +35,13 @@ const isCop31Order = (o: MarketOrder): boolean =>
   Boolean(o.id?.startsWith('cop31-')) ||
   Boolean(o.deliveryAddress?.toLowerCase().includes('counter cop 31'));
 
+const PURGED_ORDER_IDS = new Set([
+  'cop31-ord-1794910356182-79FQ',
+  'cop31-ord-1794973949497-SWKG'
+]);
+
 const isCop31EventWindowOrder = (o: MarketOrder): boolean => {
-  if (!o || !o.date) return false;
+  if (!o || !o.date || PURGED_ORDER_IDS.has(o.id)) return false;
   const d = new Date(o.date);
   if (isNaN(d.getTime())) return false;
   let nairobiDate = '';

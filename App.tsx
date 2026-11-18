@@ -770,8 +770,13 @@ const App: React.FC = () => {
     return [];
   });
 
+  const PURGED_ORDER_IDS = new Set([
+    'cop31-ord-1794910356182-79FQ',
+    'cop31-ord-1794973949497-SWKG'
+  ]);
+
   const isValidCop31OrFutureOrder = (o: MarketOrder): boolean => {
-    if (!o || !o.date) return false;
+    if (!o || !o.date || PURGED_ORDER_IDS.has(o.id)) return false;
     const d = new Date(o.date);
     if (isNaN(d.getTime())) return false;
     let nairobiDate = '';
@@ -1665,7 +1670,8 @@ const App: React.FC = () => {
       const sbOrders = await fetchOrders();
       if (sbOrders) {
         setMarketOrders(prev => {
-          const merged = mergeData(sbOrders, prev).filter(isValidCop31OrFutureOrder);
+          const unsyncedLocal = prev.filter(o => o.synced === false);
+          const merged = mergeData(sbOrders, unsyncedLocal).filter(isValidCop31OrFutureOrder);
           persistence.set('food_coop_orders', JSON.stringify(merged));
           return merged;
         });
