@@ -321,7 +321,7 @@ export const deleteAllUsers = async (): Promise<boolean> => {
 
 /* MARKET ORDERS */
 const mapOrderToDb = (o: MarketOrder) => {
-  // Encode event/pricing/quality safely in delivery_address/id so Supabase never rejects unknown columns
+  // Encode event/pricing/quality safely so Supabase never drops fields on strict 11-column orders schemas
   let address = o.deliveryAddress || '';
   if (o.eventTag === 'COUNTER_COP_31' && !address.toLowerCase().includes('counter cop 31')) {
     address = address ? `Counter COP 31 - ${address}` : 'Counter COP 31 National Event Pickup (Nov 17-21)';
@@ -333,7 +333,7 @@ const mapOrderToDb = (o: MarketOrder) => {
     address = `${address} [BP:${o.buyingPrice}]`.trim();
   }
   if (o.quality && !address.includes('[Q:')) {
-    address = `${address} [Q:${o.quality.replace(/[\[\]]/g, '')}]`.trim();
+    address = `${address} [Q:${o.quality.replace(/[\[\]|]/g, '')}]`.trim();
   }
   if (o.profit !== undefined && !address.includes('[PR:')) {
     address = `${address} [PR:${o.profit}]`.trim();
@@ -345,6 +345,19 @@ const mapOrderToDb = (o: MarketOrder) => {
     address = `${address} [By:${o.placedByName}]`.trim();
   }
 
+  // Also pack compact metadata inside customer_phone (which is guaranteed to exist in Supabase orders)
+  const basePhone = (o.customerPhone || 'N/A').replace(/\s*\[M:[^\]]+\]/g, '').trim();
+  const metaParts: string[] = [];
+  if (o.unitPrice !== undefined && o.unitPrice > 0) metaParts.push(`P=${o.unitPrice}`);
+  if (o.buyingPrice !== undefined && o.buyingPrice >= 0) metaParts.push(`BP=${o.buyingPrice}`);
+  if (o.quality) metaParts.push(`Q=${o.quality.replace(/[\[\]|=;]/g, '')}`);
+  if (o.profit !== undefined) metaParts.push(`PR=${o.profit}`);
+  if (o.amountToSubmit !== undefined) metaParts.push(`SUB=${o.amountToSubmit}`);
+  if (o.deliveryFee !== undefined) metaParts.push(`FEE=${o.deliveryFee}`);
+  if (o.eventTag === 'COUNTER_COP_31') metaParts.push('COP31=1');
+  if (o.placedByName) metaParts.push(`BY=${o.placedByName.replace(/[\[\]|=;]/g, '')}`);
+  const encodedPhone = metaParts.length > 0 ? `${basePhone} [M:${metaParts.join('|')}]`.trim() : basePhone;
+
   return {
     id: o.id,
     date: o.date,
@@ -352,7 +365,7 @@ const mapOrderToDb = (o: MarketOrder) => {
     units_requested: o.unitsRequested,
     unit_type: o.unitType,
     customer_name: o.customerName,
-    customer_phone: o.customerPhone,
+    customer_phone: encodedPhone,
     status: o.status,
     agent_phone: o.agentPhone,
     cluster: o.cluster,
@@ -368,6 +381,21 @@ const mapOrderToDb = (o: MarketOrder) => {
 
 const mapDbToOrder = (db: any): MarketOrder => {
   const rawAddress = db.delivery_address || db.deliveryAddress || '';
+  const rawPhone = db.customer_phone || db.customerPhone || '';
+
+  // Parse compact [M:...] block from customer_phone if present
+  const phoneMetaMatch = rawPhone.match(/\[M:([^\]]+)\]/);
+  const phoneMeta: Record<string, string> = {};
+  if (phoneMetaMatch) {
+    phoneMetaMatch[1].split('|').forEach((pair: string) => {
+      const idx = pair.indexOf('=');
+      if (idx > 0) {
+        phoneMeta[pair.slice(0, idx)] = pair.slice(idx + 1);
+      }
+    });
+  }
+  const cleanPhone = rawPhone.replace(/\s*\[M:[^\]]+\]/g, '').trim() || 'N/A';
+
   const priceMatch = rawAddress.match(/\[P:([0-9.]+)\]/);
   const buyingPriceMatch = rawAddress.match(/\[BP:([0-9.]+)\]/);
   const qualityMatch = rawAddress.match(/\[Q:([^\]]+)\]/);
@@ -385,30 +413,41 @@ const mapDbToOrder = (db: any): MarketOrder => {
 
   const isCop31 =
     String(db.id || '').startsWith('cop31-') ||
+    phoneMeta['COP31'] === '1' ||
     rawAddress.toLowerCase().includes('counter cop 31');
 
   const unitsRequested = Number(db.units_requested || db.unitsRequested || 0);
-  const parsedUnitPrice = priceMatch ? Number(priceMatch[1]) : (db.unitPrice !== undefined ? Number(db.unitPrice) : undefined);
-  const parsedBuyingPrice = buyingPriceMatch ? Number(buyingPriceMatch[1]) : (db.buyingPrice !== undefined ? Number(db.buyingPrice) : undefined);
-  const parsedQuality = qualityMatch ? qualityMatch[1] : db.quality;
+  const parsedUnitPrice = priceMatch
+    ? Number(priceMatch[1])
+    : (phoneMeta['P'] !== undefined ? Number(phoneMeta['P']) : (db.unitPrice !== undefined ? Number(db.unitPrice) : undefined));
+  const parsedBuyingPrice = buyingPriceMatch
+    ? Number(buyingPriceMatch[1])
+    : (phoneMeta['BP'] !== undefined ? Number(phoneMeta['BP']) : (db.buyingPrice !== undefined ? Number(db.buyingPrice) : undefined));
+  const parsedQuality = qualityMatch ? qualityMatch[1] : (phoneMeta['Q'] || db.quality);
   const parsedProfit = profitMatch
     ? Number(profitMatch[1])
-    : (db.profit !== undefined
-        ? Number(db.profit)
-        : (parsedUnitPrice !== undefined && parsedBuyingPrice !== undefined
-            ? Math.max(0, (parsedUnitPrice - parsedBuyingPrice) * unitsRequested)
-            : undefined));
+    : (phoneMeta['PR'] !== undefined
+        ? Number(phoneMeta['PR'])
+        : (db.profit !== undefined
+            ? Number(db.profit)
+            : (parsedUnitPrice !== undefined && parsedBuyingPrice !== undefined
+                ? Math.max(0, Math.round((parsedUnitPrice - parsedBuyingPrice) * unitsRequested * 100) / 100)
+                : undefined)));
   const parsedAmountToSubmit = submitMatch
     ? Number(submitMatch[1])
-    : (db.amountToSubmit !== undefined
-        ? Number(db.amountToSubmit)
-        : (parsedProfit !== undefined && parsedProfit > 0
-            ? Math.round((parsedProfit * 0.10 + 1) * 100) / 100
-            : (parsedProfit === 0 ? 0 : undefined)));
+    : (phoneMeta['SUB'] !== undefined
+        ? Number(phoneMeta['SUB'])
+        : (db.amountToSubmit !== undefined
+            ? Number(db.amountToSubmit)
+            : (parsedProfit !== undefined && parsedProfit > 0
+                ? Math.round((parsedProfit * 0.10 + 1) * 100) / 100
+                : (parsedProfit === 0 ? 0 : undefined))));
 
   const rawFee = db.delivery_fee !== undefined && db.delivery_fee !== null
     ? Number(db.delivery_fee)
-    : (db.deliveryFee !== undefined && db.deliveryFee !== null ? Number(db.deliveryFee) : (isCop31 ? 0 : undefined));
+    : (phoneMeta['FEE'] !== undefined
+        ? Number(phoneMeta['FEE'])
+        : (db.deliveryFee !== undefined && db.deliveryFee !== null ? Number(db.deliveryFee) : (isCop31 ? 0 : undefined)));
 
   const deliveryFee = isCop31 ? 0 : rawFee;
 
@@ -419,7 +458,7 @@ const mapDbToOrder = (db: any): MarketOrder => {
     unitsRequested,
     unitType: db.unit_type || db.unitType,
     customerName: db.customer_name || db.customerName,
-    customerPhone: db.customer_phone || db.customerPhone,
+    customerPhone: cleanPhone,
     status: db.status,
     agentPhone: db.agent_phone || db.agentPhone || '',
     cluster: db.cluster,
@@ -438,8 +477,8 @@ const mapDbToOrder = (db: any): MarketOrder => {
     quality: parsedQuality,
     profit: parsedProfit,
     amountToSubmit: parsedAmountToSubmit,
-    totalAmount: parsedUnitPrice !== undefined ? (parsedUnitPrice * unitsRequested) + (deliveryFee || 0) : undefined,
-    placedByName: byMatch ? byMatch[1] : undefined,
+    totalAmount: parsedUnitPrice !== undefined ? Math.round(((parsedUnitPrice * unitsRequested) + (deliveryFee || 0)) * 100) / 100 : undefined,
+    placedByName: byMatch ? byMatch[1] : (phoneMeta['BY'] || undefined),
     synced: true
   };
 };

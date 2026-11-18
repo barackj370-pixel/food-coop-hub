@@ -35,6 +35,20 @@ const isCop31Order = (o: MarketOrder): boolean =>
   Boolean(o.id?.startsWith('cop31-')) ||
   Boolean(o.deliveryAddress?.toLowerCase().includes('counter cop 31'));
 
+const isCop31EventWindowOrder = (o: MarketOrder): boolean => {
+  if (!o || !o.date) return false;
+  const d = new Date(o.date);
+  if (isNaN(d.getTime())) return false;
+  let nairobiDate = '';
+  try {
+    nairobiDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' }).format(d);
+  } catch {
+    nairobiDate = d.toISOString().slice(0, 10);
+  }
+  if (nairobiDate > '2026-11-21') return true;
+  return isCop31Order(o) && nairobiDate >= '2026-11-17' && nairobiDate <= '2026-11-21';
+};
+
 const QUALITY_OPTIONS = [
   'Grade A (Prime Organic)',
   'Grade B (Standard Fair)',
@@ -167,12 +181,13 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
     });
   }, [orders, produceListings]);
 
-  // Visibility
+  // Visibility (restricted to valid COP 31 Nov 17-21 event orders)
   const visibleOrders = useMemo(() => {
     const myPhone9 = (agentIdentity.phone || '').replace(/\D/g, '').slice(-9);
     const matchesPhone = (p?: string) => Boolean(myPhone9 && p && p.replace(/\D/g, '').slice(-9) === myPhone9);
 
     const filtered = enrichedOrders.filter(o => {
+      if (!isCop31EventWindowOrder(o)) return false;
       if (isPrivileged) return true;
       if (matchesPhone(o.agentPhone) || matchesPhone(o.customerPhone) || matchesPhone(o.supplierPhone)) return true;
       if (isAgentRole && (o.isCop31 || o.cluster === agentIdentity.cluster)) return true;
@@ -314,7 +329,7 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
       alert('Please select a Food Coop.');
       return;
     }
-    if (!customerName.trim()) {
+    if (pricingMode === 'UNIT' && !customerName.trim()) {
       alert('Please enter the customer name.');
       return;
     }
@@ -391,14 +406,23 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
           : `Counter COP 31 National Event Pickup (Nov 17-21)${crossCoopSuffix}`)
       : `${pickupNote.trim() || `${resolvedCoopName} Delivery`}${crossCoopSuffix}`;
 
+    const finalCustomerName =
+      pricingMode === 'AGGREGATE'
+        ? `${resolvedCoopName} Aggregate Batch`
+        : customerName.trim();
+    const finalCustomerPhone =
+      pricingMode === 'AGGREGATE'
+        ? 'Aggregate'
+        : (customerPhone.trim() || 'Walk-in Customer');
+
     const newOrder: MarketOrder = {
       id: `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
       date: new Date().toISOString(),
       cropType: orderCrop,
       unitsRequested: quantity,
       unitType: orderUnit,
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim() || 'Walk-in Customer',
+      customerName: finalCustomerName,
+      customerPhone: finalCustomerPhone,
       status: OrderStatus.OPEN,
       agentPhone: agentIdentity.phone,
       cluster: resolvedCoopName,
@@ -668,7 +692,11 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-bold text-slate-600 mb-3 bg-white/80 p-3.5 rounded-xl border border-slate-100">
                     <p className="flex items-center gap-1.5 truncate">
                       <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{order.customerName} ({order.customerPhone})</span>
+                      <span className="truncate">
+                        {order.customerPhone === 'Aggregate'
+                          ? `${order.customerName} (Aggregate Totals)`
+                          : `${order.customerName} (${order.customerPhone})`}
+                      </span>
                     </p>
                     <p className="flex items-center gap-1.5 truncate">
                       <Store className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -830,65 +858,94 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
                 )}
               </div>
 
-              {/* 2. Customer Info */}
+              {/* 2. Pricing Entry Mode + Customer Details (Customer Name/Phone hidden in Aggregate mode) */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-emerald-600" /> 2. Customer Details
+                    <User className="w-3.5 h-3.5 text-emerald-600" /> 2. Order Type &amp; Customer
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex bg-white p-1 rounded-xl border border-slate-200">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (customerName === agentIdentity.name) {
-                          setCustomerName('');
-                          setCustomerPhone('');
-                        }
-                      }}
+                      onClick={() => setPricingMode('AGGREGATE')}
                       className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                        customerName !== agentIdentity.name ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        pricingMode === 'AGGREGATE' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      For a Customer
+                      Aggregate Totals
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setCustomerName(agentIdentity.name);
-                        setCustomerPhone(agentIdentity.phone);
-                      }}
+                      onClick={() => setPricingMode('UNIT')}
                       className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                        customerName === agentIdentity.name ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        pricingMode === 'UNIT' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      For Myself
+                      Individual Customer
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Customer Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={customerName}
-                      onChange={e => setCustomerName(e.target.value)}
-                      placeholder="Full name"
-                      className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Customer Phone</label>
-                    <input
-                      type="tel"
-                      value={customerPhone}
-                      onChange={e => setCustomerPhone(e.target.value)}
-                      placeholder="07XXXXXXXX"
-                      className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-800"
-                    />
-                  </div>
-                </div>
+                {pricingMode === 'AGGREGATE' ? (
+                  <p className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-2.5">
+                    Aggregate batch entry selected — no individual customer name or phone number needed.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customerName === agentIdentity.name) {
+                            setCustomerName('');
+                            setCustomerPhone('');
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                          customerName !== agentIdentity.name ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        For a Customer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomerName(agentIdentity.name);
+                          setCustomerPhone(agentIdentity.phone);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                          customerName === agentIdentity.name ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        For Myself
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Customer Name *</label>
+                        <input
+                          type="text"
+                          required={pricingMode === 'UNIT'}
+                          value={customerName}
+                          onChange={e => setCustomerName(e.target.value)}
+                          placeholder="Full name"
+                          className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Customer Phone</label>
+                        <input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={e => setCustomerPhone(e.target.value)}
+                          placeholder="07XXXXXXXX"
+                          className="w-full mt-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-800"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* 3. Commodity, Quality, Quantity & Prices */}

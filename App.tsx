@@ -770,10 +770,37 @@ const App: React.FC = () => {
     return [];
   });
 
+  const isValidCop31OrFutureOrder = (o: MarketOrder): boolean => {
+    if (!o || !o.date) return false;
+    const d = new Date(o.date);
+    if (isNaN(d.getTime())) return false;
+    let nairobiDate = '';
+    try {
+      nairobiDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi' }).format(d);
+    } catch {
+      nairobiDate = d.toISOString().slice(0, 10);
+    }
+    if (nairobiDate > '2026-11-21') return true;
+    const isCop31 =
+      o.eventTag === 'COUNTER_COP_31' ||
+      Boolean(o.id?.startsWith('cop31-')) ||
+      Boolean(o.deliveryAddress?.toLowerCase().includes('counter cop 31'));
+    return isCop31 && nairobiDate >= '2026-11-17' && nairobiDate <= '2026-11-21';
+  };
+
   const [marketOrders, setMarketOrders] = useState<MarketOrder[]>(() => {
     const saved = persistence.get('food_coop_orders');
     if (saved) {
-      try { return Array.isArray(JSON.parse(saved)) ? JSON.parse(saved) : []; } catch (e) { return []; }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(isValidCop31OrFutureOrder);
+          if (filtered.length !== parsed.length) {
+            persistence.set('food_coop_orders', JSON.stringify(filtered));
+          }
+          return filtered;
+        }
+      } catch (e) { return []; }
     }
     return [];
   });
@@ -1636,9 +1663,9 @@ const App: React.FC = () => {
       }
 
       const sbOrders = await fetchOrders();
-      if (sbOrders && sbOrders.length > 0) {
+      if (sbOrders) {
         setMarketOrders(prev => {
-          const merged = mergeData(sbOrders, prev);
+          const merged = mergeData(sbOrders, prev).filter(isValidCop31OrFutureOrder);
           persistence.set('food_coop_orders', JSON.stringify(merged));
           return merged;
         });
