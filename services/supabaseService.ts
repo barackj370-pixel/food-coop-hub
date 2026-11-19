@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle, Page, RecordStatus } from '../types';
+import { SaleRecord, AgentIdentity, MarketOrder, ProduceListing, ForumPost, NewsArticle, Page, RecordStatus, GalleryItem } from '../types';
 
 const isClientReady = (): boolean => {
   if (!supabase) {
@@ -9,38 +9,43 @@ const isClientReady = (): boolean => {
   return true;
 };
 
-// HELPER: Get current User ID
+// FAST IN-MEMORY AUTH CACHE: Avoids repeated slow network auth lookups on every save
+let cachedAuthUserId: string | undefined = undefined;
+let cachedAuthCheckedAt = 0;
+const AUTH_CACHE_TTL_MS = 5 * 60 * 1000;
+
+if (supabase?.auth?.onAuthStateChange) {
+  supabase.auth.onAuthStateChange((_event, session) => {
+    cachedAuthUserId = session?.user?.id;
+    cachedAuthCheckedAt = Date.now();
+  });
+}
+
+// HELPER: Get current User ID (non-blocking & cached)
 const getCurrentUserId = async (): Promise<string | undefined> => {
-  let { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  
-  if (sessionError) {
-    if (!sessionError.message.toLowerCase().includes('refresh token')) {
-       console.warn("Session error:", sessionError.message);
-       await supabase.auth.signOut().catch(() => {});
-    }
+  const now = Date.now();
+  if (cachedAuthCheckedAt > 0 && now - cachedAuthCheckedAt < AUTH_CACHE_TTL_MS) {
+    return cachedAuthUserId;
   }
-  
-  if (!session) {
-    try {
-      const saved = localStorage.getItem('agent_session');
-      if (saved) {
-        const agent = JSON.parse(saved);
-        if (agent.phone && agent.passcode) {
-          const password = agent.passcode.length === 4 ? `${agent.passcode}00` : agent.passcode;
-          const { data } = await supabase.auth.signInWithPassword({
-            phone: agent.phone,
-            password
-          });
-          session = data.session;
-        }
+
+  try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      if (!sessionError.message.toLowerCase().includes('refresh token')) {
+        console.warn("Session error:", sessionError.message);
       }
-    } catch (e) {
-      console.warn("Auto-login failed", e);
+      cachedAuthUserId = undefined;
+      cachedAuthCheckedAt = now;
+      return undefined;
     }
+    cachedAuthUserId = session?.user?.id;
+    cachedAuthCheckedAt = now;
+    return cachedAuthUserId;
+  } catch {
+    cachedAuthUserId = undefined;
+    cachedAuthCheckedAt = now;
+    return undefined;
   }
-  
-  if (!session) { window.dispatchEvent(new CustomEvent("force_logout")); }
-  return session?.user?.id;
 };
 
 // HELPER: Error Handler
@@ -160,44 +165,28 @@ export const saveRecord = async (record: SaleRecord): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
-    
     const dbPayload = mapRecordToDb(record);
-    const payload = { ...dbPayload, synced: true };
-    
+    const payload: any = { ...dbPayload, synced: true };
     if (userId) {
-      (payload as any).agent_id = userId;
+      payload.agent_id = userId;
     }
-    
-    let { error, data } = await supabase.from('records').upsert(payload, { onConflict: 'id' }).select();
-    if (!error && (!data || data.length === 0)) throw new Error('RLS blocked update');
-    
-    // Auto-fix for schema mismatch (missing columns like order_id, produce_id, agent_id)
+
+    // Fast path: skip returning full row (.select()) to minimize payload & latency
+    let { error } = await supabase.from('records').upsert(payload, { onConflict: 'id' });
+
+    // Auto-fix for schema mismatch (if an older deployment is missing optional columns)
     if (error && (error.code === '42703' || error.code === 'PGRST204')) {
       console.warn("Schema mismatch in records. Retrying with safe payload.");
-      const { order_id, produce_id, agent_id, synced, agent_phone, agent_name, buying_price, is_aggregate, ...safePayload } = payload as any;
-      const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' }).select();
+      const { order_id, produce_id, agent_id, synced, agent_phone, agent_name, buying_price, is_aggregate, ...safePayload } = payload;
+      const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
-      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
-    if (error && error.code === '23503' && userId) {
-       console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
-       await supabase.from('profiles').upsert({
-         id: userId,
-         name: record.agentName || 'Unknown',
-         phone: record.agentPhone || 'Unknown',
-         role: 'Sales Agent', // Default fallback
-         cluster: record.cluster || 'Unassigned',
-         status: 'ACTIVE',
-         created_at: new Date().toISOString()
-       });
-       
-       // Always retry without agent_id to ensure the record is saved
-       const { agent_id, ...safePayload } = payload as any;
-       const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' }).select();
-       error = retry.error;
-      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
+    if (error && error.code === '23503') {
+      const { agent_id, ...safePayload } = payload;
+      const retry = await supabase.from('records').upsert(safePayload, { onConflict: 'id' });
+      error = retry.error;
     }
 
     if (error) throw error;
@@ -487,39 +476,34 @@ export const saveOrder = async (order: MarketOrder): Promise<boolean> => {
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
-    const payload = mapOrderToDb(order);
+    const fullMapped = mapOrderToDb(order);
+
+    // Send ONLY the exact 11 columns present in the live Supabase `orders` schema
+    // (all extended metadata is safely packed inside customer_phone [M:...]).
+    // This eliminates guaranteed 42703/PGRST204 double round-trips on every order!
+    const fastPayload: any = {
+      id: fullMapped.id,
+      date: fullMapped.date,
+      crop_type: fullMapped.crop_type,
+      units_requested: fullMapped.units_requested,
+      unit_type: fullMapped.unit_type,
+      customer_name: fullMapped.customer_name,
+      customer_phone: fullMapped.customer_phone,
+      status: fullMapped.status,
+      agent_phone: fullMapped.agent_phone,
+      cluster: fullMapped.cluster,
+    };
     if (userId) {
-      (payload as any).agent_id = userId;
-    }
-    let { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
-    
-    // Auto-fix for schema mismatch
-    if (error && (error.code === '42703' || error.code === 'PGRST204')) {
-      console.warn("Schema mismatch in orders. Retrying with safe payload.");
-      const { agent_id, agent_phone, delivery_address, delivery_fee, supplier_name, supplier_phone, produce_id, is_direct_order, customer_food_coop, ...safePayload } = payload as any;
-      const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
-      error = retry.error;
-      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
+      fastPayload.agent_id = userId;
     }
 
-    // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
-    if (error && error.code === '23503' && userId) {
-       console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
-       await supabase.from('profiles').upsert({
-         id: userId,
-         name: order.customerName || 'Unknown',
-         phone: order.customerPhone || 'Unknown',
-         role: 'Sales Agent', // Default fallback
-         cluster: order.cluster || 'Unassigned',
-         status: 'ACTIVE',
-         created_at: new Date().toISOString()
-       });
-       
-       // Always retry without agent_id to ensure the record is saved
-       const { agent_id, ...safePayload } = payload as any;
-       const retry = await supabase.from('orders').upsert(safePayload, { onConflict: 'id' });
-       error = retry.error;
-      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
+    let { error } = await supabase.from('orders').upsert(fastPayload, { onConflict: 'id' });
+
+    // Fallback if agent_id FK or column fails
+    if (error && (error.code === '23503' || error.code === '42703' || error.code === 'PGRST204')) {
+      const { agent_id, ...minimalPayload } = fastPayload;
+      const retry = await supabase.from('orders').upsert(minimalPayload, { onConflict: 'id' });
+      error = retry.error;
     }
 
     if (error) throw error;
@@ -627,40 +611,29 @@ export const saveProduce = async (produce: ProduceListing): Promise<boolean> => 
   if (!isClientReady()) return false;
   try {
     const userId = await getCurrentUserId();
-    const payload = mapProduceToDb(produce);
+    // Send exact columns supported by live `produce` table (omits non-existent wholesale_price)
+    const payload: any = {
+      id: produce.id,
+      date: produce.date,
+      crop_type: produce.cropType,
+      units_available: produce.unitsAvailable,
+      unit_type: produce.unitType,
+      selling_price: produce.sellingPrice,
+      supplier_name: produce.supplierName,
+      supplier_phone: produce.supplierPhone,
+      cluster: produce.cluster,
+      status: produce.status,
+      images: produce.images ? JSON.stringify(produce.images) : null
+    };
     if (userId) {
-      (payload as any).agent_id = userId;
+      payload.agent_id = userId;
     }
     let { error } = await supabase.from('produce').upsert(payload, { onConflict: 'id' });
-    
-    // Auto-fix for schema mismatch (missing images or agent_id column in DB)
-    const msg = error?.message?.toLowerCase() || '';
-    if (error && (error.code === 'PGRST204' || error.code === '42703')) {
-      console.warn("Schema mismatch detected in produce. Retrying with safe payload.");
-      const { images, agent_id, ...safePayload } = payload as any;
+
+    if (error && (error.code === 'PGRST204' || error.code === '42703' || error.code === '23503')) {
+      const { agent_id, ...safePayload } = payload;
       const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
       error = retry.error;
-      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
-    }
-
-    // RETRY LOGIC: Foreign Key Violation (Profile Missing in DB)
-    if (error && error.code === '23503' && userId) {
-       console.log("Self-Healing: User profile missing in DB (FK Error). Recreating...");
-       await supabase.from('profiles').upsert({
-         id: userId,
-         name: produce.supplierName || 'Unknown',
-         phone: produce.supplierPhone || 'Unknown',
-         role: 'Supplier', // Default fallback
-         cluster: produce.cluster || 'Unassigned',
-         status: 'ACTIVE',
-         created_at: new Date().toISOString()
-       });
-       
-       // Always retry without agent_id to ensure the record is saved
-       const { agent_id, ...safePayload } = payload as any;
-       const retry = await supabase.from('produce').upsert(safePayload, { onConflict: 'id' });
-       error = retry.error;
-      if (!error && (!retry.data || retry.data.length === 0)) throw new Error('RLS blocked retry');
     }
 
     if (error) throw error;
@@ -931,3 +904,113 @@ export const updateForumPost = async (id: string, updates: Partial<ForumPost>): 
     return false;
   }
 };
+
+/* GALLERY PORTAL MEDIA & ITEMS */
+export const uploadGalleryMedia = async (
+  file: File | Blob,
+  fileExt: string,
+  contentType: string
+): Promise<string | null> => {
+  if (!isClientReady()) return null;
+  try {
+    const cleanExt = fileExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'bin';
+    const filePath = `gallery/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${cleanExt}`;
+    const { error: uploadError } = await supabase.storage
+      .from('media_evidence')
+      .upload(filePath, file, { contentType, upsert: false });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('media_evidence')
+      .getPublicUrl(filePath);
+
+    return data?.publicUrl || null;
+  } catch (err: any) {
+    handleSupabaseError('uploadGalleryMedia', err);
+    return null;
+  }
+};
+
+export const fetchGalleryItems = async (): Promise<GalleryItem[]> => {
+  if (!isClientReady()) return [];
+  try {
+    const { data, error } = await supabase
+      .from('pages')
+      .select('id, title, content, image_url, updated_at')
+      .like('id', 'gallery_item_%')
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    const items: GalleryItem[] = [];
+    (data || []).forEach((row: any) => {
+      try {
+        const parsed = typeof row.content === 'string' ? JSON.parse(row.content) : row.content;
+        if (parsed && parsed.title && parsed.mediaType) {
+          items.push({
+            id: row.id,
+            title: parsed.title || row.title,
+            description: parsed.description || '',
+            mediaType: parsed.mediaType,
+            mediaUrl: parsed.mediaUrl || row.image_url || '',
+            youtubeUrl: parsed.youtubeUrl,
+            youtubeId: parsed.youtubeId,
+            thumbnailUrl: parsed.thumbnailUrl || row.image_url || undefined,
+            durationLabel: parsed.durationLabel,
+            category: parsed.category || 'Field Exchange',
+            cluster: parsed.cluster || 'All Food Coops / National',
+            eventDate: parsed.eventDate || (row.updated_at ? String(row.updated_at).split('T')[0] : new Date().toISOString().split('T')[0]),
+            authorName: parsed.authorName || 'KPL Member',
+            authorPhone: parsed.authorPhone || '',
+            authorRole: parsed.authorRole || 'Member',
+            createdAt: parsed.createdAt || row.updated_at || new Date().toISOString(),
+            synced: true
+          });
+        }
+      } catch {
+        // Ignore malformed rows
+      }
+    });
+    return items;
+  } catch (err: any) {
+    handleSupabaseError('fetchGalleryItems', err);
+    return [];
+  }
+};
+
+export const saveGalleryItem = async (item: GalleryItem): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const payload = {
+      id: item.id,
+      title: item.title,
+      image_url: item.thumbnailUrl || (item.mediaType === 'PHOTO' ? item.mediaUrl : null),
+      content: JSON.stringify({
+        type: 'gallery_item',
+        ...item,
+        synced: true
+      }),
+      updated_at: item.createdAt || new Date().toISOString()
+    };
+    const { error } = await supabase.from('pages').upsert(payload, { onConflict: 'id' });
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('saveGalleryItem', err);
+    return false;
+  }
+};
+
+export const deleteGalleryItem = async (id: string): Promise<boolean> => {
+  if (!isClientReady()) return false;
+  try {
+    const { error } = await supabase.from('pages').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err: any) {
+    handleSupabaseError('deleteGalleryItem', err);
+    return false;
+  }
+};
+

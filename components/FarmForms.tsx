@@ -52,7 +52,7 @@ interface FarmFormsProps {
   agentIdentity: AgentIdentity;
   dynamicClusters: string[];
   users?: AgentIdentity[];
-  onFormSubmitted?: () => void;
+  onFormSubmitted?: (newRecord?: any) => void;
   farmFormsData?: any[];
   isSystemDev?: boolean;
 }
@@ -512,12 +512,12 @@ const FarmForms: React.FC<FarmFormsProps> = ({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setSubmitStatus({ type: "loading", message: "Processing form..." });
+    setSubmitStatus({ type: "loading", message: "Saving record..." });
 
     try {
       const form = e.currentTarget;
       const formData = new FormData(form);
-      const data = Object.fromEntries(formData.entries());
+      const data: any = Object.fromEntries(formData.entries());
 
       // Handle checkboxes
       const workDone = formData.getAll("workDone");
@@ -525,78 +525,89 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         data.workDone = workDone as any;
       }
 
-      // Handle file uploads - fast fail
-      if (data.solidarityPic1 && data.solidarityPic1.size > 0) {
-        setSubmitStatus({ type: "loading", message: "Uploading image..." });
-        const file = data.solidarityPic1 as File;
-        
-        try {
-          const dataUri = await compressImage(file, 1000);
-          const blob = dataURItoBlob(dataUri);
-          const isPdf = file.type === 'application/pdf';
-          const fileName = `${Math.random()}.${isPdf ? 'pdf' : 'jpg'}`;
-          const filePath = `solidarity/${fileName}`;
-          
-          const result: any = await Promise.race([
-            supabase.storage.from('media_evidence').upload(filePath, blob, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Image upload timeout")), 15000))
-          ]);
-          
-          if (!result?.error) {
-            const { data: urlData } = supabase.storage.from('media_evidence').getPublicUrl(filePath);
-            if (urlData?.publicUrl) {
-              data.solidarityPic1Url = urlData.publicUrl;
-            }
-          }
-        } catch (err: any) {
-          console.warn("Image upload skipped due to timeout or error:", err);
-          // Continue without image to ensure form submits!
+      // Signature and Attestation Validation for Youth Assessment (validate BEFORE any network call)
+      if (activeForm === "youth_assessment") {
+        if (!parentAttested || !parentName.trim()) {
+          throw new Error("Please type your name and check the box to sign the Parent/Guardian Electronic Attestation.");
+        }
+        if (!youthAgentAttested) {
+          throw new Error("Agent must check the box to sign the Electronic Attestation.");
         }
       }
-      
-      // Remove File object from data
+
+      const rawPicFile = data.solidarityPic1 && (data.solidarityPic1 as File).size > 0
+        ? (data.solidarityPic1 as File)
+        : null;
       delete data.solidarityPic1;
 
-      // Capture GPS location - super fast fail
-      let location: { lat: number; lng: number } | null = null;
-      try {
-        location = await new Promise((resolve, reject) => {
-          if (!navigator.geolocation) return reject(new Error("No geolocation"));
-          
-          const timeoutId = setTimeout(() => reject(new Error("GPS timeout")), 3000);
-          
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              clearTimeout(timeoutId);
-              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-            },
-            (err) => {
-              clearTimeout(timeoutId);
-              reject(err);
-            },
-            { timeout: 3000, enableHighAccuracy: false, maximumAge: 60000 }
-          );
-        });
-      } catch (geoErr) {
-        console.warn("GPS skipped:", geoErr);
-      }
-
-      setSubmitStatus({ type: "loading", message: "Saving data..." });
-      let confirmationMessage = "Form submitted successfully!";
-      data.gpsVerificationStatus = "Not Verified";
-
-      // Verify location against farm baselines
       const targetPhone = data.homesteadContact || data.productionOfficerContact || data.convenerContact || data.mobileNumber || agentIdentity.phone;
-      let targetBaselines = farmBaselines;
-      if (targetPhone && targetPhone !== agentIdentity.phone) {
+
+      // Run photo upload (if any), fast cached GPS (1.2s cap), and baseline lookup IN PARALLEL
+      const uploadTask = (async (): Promise<string | null> => {
+        if (!rawPicFile) return null;
         try {
-          const { data: remoteBaselines } = await Promise.race([
-             supabase.from("farm_baselines").select("*").eq("farmer_phone", targetPhone),
-             new Promise((_, reject) => setTimeout(() => reject(new Error("DB Timeout")), 5000))
-          ]) as any;
-          if (remoteBaselines) targetBaselines = remoteBaselines;
-        } catch(e) {}
+          const dataUri = await compressImage(rawPicFile, 900);
+          const blob = dataURItoBlob(dataUri);
+          const isPdf = rawPicFile.type === 'application/pdf';
+          const filePath = `solidarity/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${isPdf ? 'pdf' : 'jpg'}`;
+          const result: any = await Promise.race([
+            supabase.storage.from('media_evidence').upload(filePath, blob, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Image upload timeout")), 8000))
+          ]);
+          if (!result?.error) {
+            const { data: urlData } = supabase.storage.from('media_evidence').getPublicUrl(filePath);
+            return urlData?.publicUrl || null;
+          }
+        } catch (err) {
+          console.warn("Image upload skipped due to timeout or error:", err);
+        }
+        return null;
+      })();
+
+      const gpsTask = (async (): Promise<{ lat: number; lng: number } | null> => {
+        try {
+          return await new Promise((resolve, reject) => {
+            if (!navigator.geolocation) return reject(new Error("No geolocation"));
+            const timeoutId = setTimeout(() => reject(new Error("GPS timeout")), 1200);
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                clearTimeout(timeoutId);
+                resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              },
+              (err) => {
+                clearTimeout(timeoutId);
+                reject(err);
+              },
+              { timeout: 1200, enableHighAccuracy: false, maximumAge: 300000 }
+            );
+          });
+        } catch {
+          return null;
+        }
+      })();
+
+      const baselineTask = (async (): Promise<any[]> => {
+        if (targetPhone && targetPhone !== agentIdentity.phone) {
+          try {
+            const { data: remoteBaselines } = await Promise.race([
+              supabase.from("farm_baselines").select("*").eq("farmer_phone", targetPhone),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("DB Timeout")), 2500))
+            ]) as any;
+            if (remoteBaselines) return remoteBaselines;
+          } catch {
+            // Fall back to cached baselines
+          }
+        }
+        return farmBaselines;
+      })();
+
+      const [uploadedPicUrl, location, targetBaselines] = await Promise.all([uploadTask, gpsTask, baselineTask]);
+
+      if (uploadedPicUrl) {
+        data.solidarityPic1Url = uploadedPicUrl;
       }
+
+      data.gpsVerificationStatus = "Not Verified";
 
       if (targetBaselines.length > 0 && location) {
         let isVerified = false;
@@ -632,51 +643,55 @@ const FarmForms: React.FC<FarmFormsProps> = ({
         data.gpsVerificationStatus = "GPS Not Verified";
       }
 
-      // Signature and Attestation Validation for Youth Assessment
-      if (activeForm === "youth_assessment") {
-        if (!parentAttested || !parentName.trim()) {
-          throw new Error("Please type your name and check the box to sign the Parent/Guardian Electronic Attestation.");
-        }
-        if (!youthAgentAttested) {
-          throw new Error("Agent must check the box to sign the Electronic Attestation.");
-        }
-      }
-
+      const submittedAt = new Date().toISOString();
       const formId = `${activeForm}_form_${Date.now()}`;
+      const recordContent = {
+        ...data,
+        formType: activeForm,
+        submittedAt,
+        agentPhone: agentIdentity.phone,
+        ...(activeForm === "youth_assessment" ? {
+          parentName,
+          parentAttested,
+          youthAgentAttested
+        } : {})
+      };
+
       const payload = {
         id: formId,
         title: formId,
-        content: JSON.stringify({
-          ...data,
-          formType: activeForm,
-          submittedAt: new Date().toISOString(),
-          agentPhone: agentIdentity.phone,
-          ...(activeForm === "youth_assessment" ? {
-            parentName,
-            parentAttested,
-            youthAgentAttested
-          } : {})
-        }),
+        content: JSON.stringify(recordContent),
+        updated_at: submittedAt
       };
 
       const result: any = await Promise.race([
         supabase.from("pages").insert(payload),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Database connection is slow. Please try submitting again.")), 15000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Database connection is slow. Please try submitting again.")), 10000))
       ]);
-      
+
       if (result && result.error) throw result.error;
+
+      // Immediately reflect the new record in UI without waiting for a full 3-table reload
+      const optimisticRecord = {
+        ...recordContent,
+        id: formId,
+        dbRowId: formId,
+        farmerPhone: recordContent.farmerPhone || recordContent.homesteadContact || recordContent.productionOfficerContact || recordContent.agentPhone || '',
+        farmId: formId,
+        fromPages: true
+      };
 
       setSubmitStatus({
         type: "success",
-        message: confirmationMessage,
+        message: "Record saved successfully!",
       });
       form.reset();
       if (activeForm === "youth_assessment") {
         resetCustomForm();
       }
-      if (onFormSubmitted) onFormSubmitted();
+      if (onFormSubmitted) onFormSubmitted(optimisticRecord);
 
-      setTimeout(() => setSubmitStatus(null), 5000);
+      setTimeout(() => setSubmitStatus(null), 4000);
     } catch (error: any) {
       console.error("Error submitting form:", error);
       setSubmitStatus({

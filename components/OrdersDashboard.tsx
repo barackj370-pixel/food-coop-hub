@@ -452,7 +452,8 @@ export const OrdersDashboard: React.FC<OrdersDashboardProps> = ({
 
     setIsSubmitting(true);
     try {
-      await onCreateOrder(newOrder);
+      // Trigger optimistic update + background cloud sync immediately so modal closes instantaneously
+      void onCreateOrder(newOrder);
       setIsQuickModalOpen(false);
       setCustomerName('');
       setCustomerPhone('');

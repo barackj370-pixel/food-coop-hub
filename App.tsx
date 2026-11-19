@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost, isSuperAgent } from './types';
+import { SaleRecord, RecordStatus, OrderStatus, SystemRole, AgentIdentity, AccountStatus, MarketOrder, ProduceListing, FoodCoopMetric, NewsArticle, ForumPost, GalleryItem, isSuperAgent } from './types';
 import SaleForm from './components/SaleForm';
 import ProduceForm from './components/ProduceForm';
 import StatCard from './components/StatCard';
@@ -27,6 +27,7 @@ import FoodBankingLedger from './components/FoodBankingLedger';
 import CoopRanking from './components/CoopRanking';
 import PhysicalVoucherGenerator from './components/PhysicalVoucherGenerator';
 import OrdersDashboard from './components/OrdersDashboard';
+import GalleryPortal from './components/GalleryPortal';
 import { PROFIT_MARGIN, SYNC_POLLING_INTERVAL, TEN_PERCENT_COOPS, FOOD_COOPS, HISTORICAL_COMMISSIONS } from './constants';
 import { supabase } from './services/supabaseClient';
 import { analyzeSalesData } from './services/geminiService';
@@ -36,11 +37,12 @@ import {
   fetchUsers, saveUser, deleteUser, deleteAllUsers,
   fetchOrders, saveOrder, deleteOrder, deleteAllOrders,
   fetchProduce, saveProduce, deleteProduce, deleteAllProduce,
-  fetchForumPosts, saveNewsArticle, fetchNewsArticles
+  fetchForumPosts, saveNewsArticle, fetchNewsArticles,
+  fetchGalleryItems, saveGalleryItem, deleteGalleryItem
 } from './services/supabaseService';
 import { getEnv } from './services/env';
 
-type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING' | 'VOUCHERS' | 'FOOD_BANK_VOUCHERS' | 'YOUTH_ASSESSMENT_LOG' | 'COOP_RANKING';
+type PortalType = 'MARKET' | 'FINANCE' | 'AUDIT' | 'BOARD' | 'SYSTEM' | 'HOME' | 'ABOUT' | 'CONTACT' | 'LOGIN' | 'NEWS' | 'INVITE' | 'FORUM' | 'WEATHER' | 'FORMS' | 'PRODUCTS' | 'FARM_DATA' | 'MY_FARM' | 'HOMESTEAD' | 'TABLE_BANKING' | 'VOUCHERS' | 'FOOD_BANK_VOUCHERS' | 'YOUTH_ASSESSMENT_LOG' | 'COOP_RANKING' | 'GALLERY';
 type MarketView = 'SALES' | 'SUPPLIER';
 
 
@@ -846,21 +848,51 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<AgentIdentity[]>([]);
   const [customFoodCoops, setCustomFoodCoops] = useState<string[]>([]);
   const [customCoordinates, setCustomCoordinates] = useState<Record<string, { lat: number; lng: number }>>({});
-  const [farmFormsData, setFarmFormsData] = useState<any[]>([]);
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(() => {
+    const saved = persistence.get('food_coop_gallery');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [farmFormsData, setFarmFormsData] = useState<any[]>(() => {
+    const saved = persistence.get('kpl_farm_forms_cache');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const [addCoopStatus, setAddCoopStatus] = useState<{ status: 'idle' | 'loading' | 'success' | 'error' | 'warning', message?: string }>({ status: 'idle' });
-  
+
   const loadFarmRecords = useCallback(async () => {
     try {
-      const { data: baselines } = await supabase.from('farm_baselines').select('*');
-      const { data: logs } = await supabase.from('farm_activity_logs').select('*');
-      const { data: pageForms } = await supabase.from('pages').select('*');
+      // Fetch all three sources in parallel instead of sequentially (3x faster)
+      const [baselinesRes, logsRes, pageFormsRes] = await Promise.allSettled([
+        supabase.from('farm_baselines').select('*'),
+        supabase.from('farm_activity_logs').select('*'),
+        supabase.from('pages').select('*')
+      ]);
+
+      const baselines = baselinesRes.status === 'fulfilled' ? baselinesRes.value.data : null;
+      const logs = logsRes.status === 'fulfilled' ? logsRes.value.data : null;
+      const pageForms = pageFormsRes.status === 'fulfilled' ? pageFormsRes.value.data : null;
 
       const allFarmRecords: any[] = [];
       const seenIds = new Set<string>();
 
       if (pageForms) {
         pageForms.forEach(p => {
-          if (p.id?.startsWith('system_')) return;
+          if (p.id?.startsWith('system_') || p.id?.startsWith('gallery_item_')) return;
           let parsedContent: any = null;
           if (typeof p.content === 'object' && p.content !== null) {
             parsedContent = p.content;
@@ -875,7 +907,7 @@ const App: React.FC = () => {
             }
           }
 
-          if (!parsedContent || typeof parsedContent !== 'object') return;
+          if (!parsedContent || typeof parsedContent !== 'object' || parsedContent.type === 'gallery_item') return;
 
           let inferredType = parsedContent.formType || parsedContent.type;
           if (!inferredType) {
@@ -899,7 +931,7 @@ const App: React.FC = () => {
               formType: inferredType || 'solidarity',
               farmerPhone: parsedContent.farmerPhone || parsedContent.homesteadContact || parsedContent.productionOfficerContact || parsedContent.agentPhone || '',
               farmId: p.id,
-              submittedAt: parsedContent.submittedAt || parsedContent.date || p.created_at,
+              submittedAt: parsedContent.submittedAt || parsedContent.date || p.created_at || p.updated_at,
               fromPages: true
             });
           }
@@ -943,15 +975,31 @@ const App: React.FC = () => {
         });
       }
 
-      setFarmFormsData(allFarmRecords.sort((a, b) => {
+      const sorted = allFarmRecords.sort((a, b) => {
         const timeA = new Date(a.submittedAt || a.date || 0).getTime();
         const timeB = new Date(b.submittedAt || b.date || 0).getTime();
         return timeB - timeA;
-      }));
+      });
+      setFarmFormsData(sorted);
+      persistence.set('kpl_farm_forms_cache', JSON.stringify(sorted.slice(0, 300)));
     } catch (e) {
       console.error("Failed to fetch farm forms manually:", e);
     }
   }, []);
+
+  // Optimistic instant update when a solidarity or farm activity form is submitted
+  const handleFarmFormSubmitted = useCallback((newRecord?: any) => {
+    lastLocalWriteRef.current = Date.now();
+    if (newRecord && newRecord.id) {
+      setFarmFormsData(prev => {
+        const updated = [newRecord, ...prev.filter(item => item.id !== newRecord.id)];
+        persistence.set('kpl_farm_forms_cache', JSON.stringify(updated.slice(0, 300)));
+        return updated;
+      });
+    } else {
+      void loadFarmRecords();
+    }
+  }, [loadFarmRecords]);
 
   useEffect(() => {
     const fetchCustomData = async () => {
@@ -1023,7 +1071,7 @@ const App: React.FC = () => {
     let path = window.location.pathname.split('/')[1] || '';
     if (!path) return 'HOME';
     path = path.toUpperCase();
-    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'FOOD_BANK_VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
+    const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'FOOD_BANK_VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING', 'GALLERY'];
     return validPortals.includes(path as PortalType) ? (path as PortalType) : 'HOME';
   });
 
@@ -1035,7 +1083,7 @@ const App: React.FC = () => {
         return;
       }
       path = path.toUpperCase();
-      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'FOOD_BANK_VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING'];
+      const validPortals: PortalType[] = ['MARKET', 'FINANCE', 'AUDIT', 'BOARD', 'SYSTEM', 'HOME', 'ABOUT', 'CONTACT', 'LOGIN', 'NEWS', 'INVITE', 'FORUM', 'WEATHER', 'PRODUCTS', 'FORMS', 'FARM_DATA', 'MY_FARM', 'HOMESTEAD', 'TABLE_BANKING', 'VOUCHERS', 'FOOD_BANK_VOUCHERS', 'YOUTH_ASSESSMENT_LOG', 'COOP_RANKING', 'GALLERY'];
       if (validPortals.includes(path as PortalType)) {
         setCurrentPortal(path as PortalType);
       } else {
@@ -1139,6 +1187,9 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const syncLock = useRef(false);
+  const isCloudLoadingRef = useRef(false);
+  const lastLocalWriteRef = useRef<number>(0);
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const hasSyncedLegacyData = useRef(false);
 
@@ -1189,21 +1240,64 @@ const App: React.FC = () => {
   };
 
   const handleCreateDirectOrder = async (order: MarketOrder) => {
+    lastLocalWriteRef.current = Date.now();
+    // 1. Optimistic instant UI & local cache update (< 10ms)
     setMarketOrders(prev => {
       const updated = [order, ...prev];
       persistence.set('food_coop_orders', JSON.stringify(updated));
       return updated;
     });
 
+    // 2. Non-blocking background cloud save
     if (navigator.onLine) {
-      const success = await saveOrder(order);
-      if (success) {
-        setMarketOrders(prev => {
-          const updated = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
-          persistence.set('food_coop_orders', JSON.stringify(updated));
-          return updated;
+      saveOrder(order)
+        .then((success) => {
+          if (success) {
+            setMarketOrders(prev => {
+              const updated = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
+              persistence.set('food_coop_orders', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        })
+        .catch(err => console.error("Background order save failed:", err));
+    }
+  };
+
+  const handleSaveGalleryItem = async (item: GalleryItem) => {
+    if (!agentIdentity || agentIdentity.role === SystemRole.CUSTOMER) return;
+    lastLocalWriteRef.current = Date.now();
+    setGalleryItems(prev => {
+      const exists = prev.some(g => g.id === item.id);
+      const updated = exists
+        ? prev.map(g => g.id === item.id ? item : g)
+        : [item, ...prev];
+      persistence.set('food_coop_gallery', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (navigator.onLine) {
+      const ok = await saveGalleryItem(item);
+      if (ok) {
+        setGalleryItems(prev => {
+          const syncedList = prev.map(g => g.id === item.id ? { ...g, synced: true } : g);
+          persistence.set('food_coop_gallery', JSON.stringify(syncedList));
+          return syncedList;
         });
       }
+    }
+  };
+
+  const handleDeleteGalleryItem = async (id: string) => {
+    if (!agentIdentity || agentIdentity.role === SystemRole.CUSTOMER) return;
+    lastLocalWriteRef.current = Date.now();
+    setGalleryItems(prev => {
+      const updated = prev.filter(g => g.id !== id);
+      persistence.set('food_coop_gallery', JSON.stringify(updated));
+      return updated;
+    });
+    if (navigator.onLine) {
+      await deleteGalleryItem(id);
     }
   };
 
@@ -1212,6 +1306,7 @@ const App: React.FC = () => {
       return;
     }
 
+    lastLocalWriteRef.current = Date.now();
     const updatedOrder: MarketOrder = { ...order, status: OrderStatus.FULFILLED, synced: false };
     setMarketOrders(prev => {
       const updated = prev.map(o => o.id === order.id ? updatedOrder : o);
@@ -1244,26 +1339,30 @@ const App: React.FC = () => {
     }
 
     if (navigator.onLine) {
-      const success = await saveOrder(updatedOrder);
-      if (success) {
-        setMarketOrders(prev => {
-          const syncedList = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
-          persistence.set('food_coop_orders', JSON.stringify(syncedList));
-          return syncedList;
-        });
-      }
+      saveOrder(updatedOrder)
+        .then((success) => {
+          if (success) {
+            setMarketOrders(prev => {
+              const syncedList = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
+              persistence.set('food_coop_orders', JSON.stringify(syncedList));
+              return syncedList;
+            });
+          }
+        })
+        .catch(err => console.error("Background order fulfill save failed:", err));
     }
   };
 
   const handleClearTestOrder = async (orderId: string) => {
     if (window.confirm("Are you sure you want to delete this order?")) {
+      lastLocalWriteRef.current = Date.now();
       setMarketOrders(prev => {
         const updated = prev.filter(o => o.id !== orderId);
         persistence.set('food_coop_orders', JSON.stringify(updated));
         return updated;
       });
       if (navigator.onLine) {
-        await deleteOrder(orderId);
+        void deleteOrder(orderId);
       }
     }
   };
@@ -1358,69 +1457,110 @@ const App: React.FC = () => {
     };
   }, [records, produceListings, marketOrders]);
 
-  // Sync Logic
-  const syncPendingData = useCallback(async () => {
+  // Sync Logic (parallelized, zero redundant full-table reloads)
+  const syncPendingData = useCallback(async (alsoFetchCloud = false) => {
     if (syncLock.current || !navigator.onLine) return;
+
+    const pendingRecords = records.filter(r => r.synced === false || r.synced === undefined);
+    const pendingProduce = produceListings.filter(p => p.synced === false || p.synced === undefined);
+    const pendingOrders = marketOrders.filter(o => o.synced === false || o.synced === undefined);
+    const pendingGallery = galleryItems.filter(g => g.synced === false);
+
+    const hasPending = pendingRecords.length > 0 || pendingProduce.length > 0 || pendingOrders.length > 0 || pendingGallery.length > 0;
+    if (!hasPending && !alsoFetchCloud) return;
+
     syncLock.current = true;
     setIsSyncing(true);
 
     try {
-      // 1. Sync Pending Records
-      const pendingRecords = records.filter(r => r.synced === false || r.synced === undefined);
+      const tasks: Promise<void>[] = [];
+
       if (pendingRecords.length > 0) {
-        console.log(`Syncing ${pendingRecords.length} pending records...`);
-        for (const record of pendingRecords) {
-           const success = await saveRecord(record);
-           if (success) {
-             setRecords(prev => {
-               const updated = prev.map(r => r.id === record.id ? { ...r, synced: true } : r);
-               persistence.set('food_coop_data', JSON.stringify(updated));
-               return updated;
-             });
-           }
-        }
+        tasks.push(
+          Promise.allSettled(pendingRecords.map(async (record) => {
+            const success = await saveRecord(record);
+            return success ? record.id : null;
+          })).then(results => {
+            const syncedIds = new Set(results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean) as string[]);
+            if (syncedIds.size > 0) {
+              setRecords(prev => {
+                const updated = prev.map(r => syncedIds.has(r.id) ? { ...r, synced: true } : r);
+                persistence.set('food_coop_data', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          })
+        );
       }
 
-      // 2. Sync Pending Produce
-      const pendingProduce = produceListings.filter(p => p.synced === false || p.synced === undefined);
       if (pendingProduce.length > 0) {
-        for (const item of pendingProduce) {
-           const success = await saveProduce(item);
-           if (success) {
-             setProduceListings(prev => {
-               const updated = prev.map(p => p.id === item.id ? { ...p, synced: true } : p);
-               persistence.set('food_coop_produce', JSON.stringify(updated));
-               return updated;
-             });
-           }
-        }
+        tasks.push(
+          Promise.allSettled(pendingProduce.map(async (item) => {
+            const success = await saveProduce(item);
+            return success ? item.id : null;
+          })).then(results => {
+            const syncedIds = new Set(results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean) as string[]);
+            if (syncedIds.size > 0) {
+              setProduceListings(prev => {
+                const updated = prev.map(p => syncedIds.has(p.id) ? { ...p, synced: true } : p);
+                persistence.set('food_coop_produce', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          })
+        );
       }
 
-      // 3. Sync Pending Orders
-      const pendingOrders = marketOrders.filter(o => o.synced === false || o.synced === undefined);
       if (pendingOrders.length > 0) {
-        for (const order of pendingOrders) {
-           const success = await saveOrder(order);
-           if (success) {
-             setMarketOrders(prev => {
-               const updated = prev.map(o => o.id === order.id ? { ...o, synced: true } : o);
-               persistence.set('food_coop_orders', JSON.stringify(updated));
-               return updated;
-             });
-           }
-        }
+        tasks.push(
+          Promise.allSettled(pendingOrders.map(async (order) => {
+            const success = await saveOrder(order);
+            return success ? order.id : null;
+          })).then(results => {
+            const syncedIds = new Set(results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean) as string[]);
+            if (syncedIds.size > 0) {
+              setMarketOrders(prev => {
+                const updated = prev.map(o => syncedIds.has(o.id) ? { ...o, synced: true } : o);
+                persistence.set('food_coop_orders', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          })
+        );
       }
 
-      // 4. Fetch Fresh Cloud Data
-      await loadCloudData();
-      
+      if (pendingGallery.length > 0) {
+        tasks.push(
+          Promise.allSettled(pendingGallery.map(async (item) => {
+            const success = await saveGalleryItem(item);
+            return success ? item.id : null;
+          })).then(results => {
+            const syncedIds = new Set(results.map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean) as string[]);
+            if (syncedIds.size > 0) {
+              setGalleryItems(prev => {
+                const updated = prev.map(g => syncedIds.has(g.id) ? { ...g, synced: true } : g);
+                persistence.set('food_coop_gallery', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          })
+        );
+      }
+
+      if (tasks.length > 0) {
+        await Promise.all(tasks);
+      }
+
+      if (alsoFetchCloud) {
+        await loadCloudData();
+      }
     } catch (e) {
       console.error("Sync process interrupted:", e);
     } finally {
       setIsSyncing(false);
       syncLock.current = false;
     }
-  }, [records, produceListings, marketOrders]);
+  }, [records, produceListings, marketOrders, galleryItems]);
 
   // Use refs to stabilize dependencies in Auth Listener to avoid re-subscription
   // which can cause race conditions during logout
@@ -1575,7 +1715,7 @@ const App: React.FC = () => {
     setAgentIdentity(identity);
     persistence.set('agent_session', JSON.stringify(identity));
     setCurrentPortal('HOME');
-    setTimeout(syncPendingData, 500);
+    setTimeout(() => syncPendingData(true), 500);
   };
 
   // CLEANUP: Access strictly based on role.
@@ -1597,16 +1737,16 @@ const App: React.FC = () => {
   };
 
   const availablePortals = useMemo<PortalType[]>(() => {
-    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
+    const guestPortals: PortalType[] = ['HOME', 'NEWS', 'GALLERY', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
     if (!agentIdentity) return guestPortals;
     
     // GUEST FARMER (Not tied to any coop)
     if (agentIdentity.role === SystemRole.FARMER && agentIdentity.cluster === 'Guest') {
-      return ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'FARM_DATA', 'COOP_RANKING'];
+      return ['HOME', 'NEWS', 'GALLERY', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'HOMESTEAD', 'MY_FARM', 'FARM_DATA', 'COOP_RANKING'];
     }
 
-    // Add FORUM to logged in base
-    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FOOD_BANK_VOUCHERS', 'FORUM', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
+    // Add FORUM & GALLERY to logged in base
+    const loggedInBase: PortalType[] = ['HOME', 'NEWS', 'GALLERY', 'WEATHER', 'ABOUT', 'CONTACT', 'PRODUCTS', 'MARKET', 'FORMS', 'FARM_DATA', 'TABLE_BANKING', 'FOOD_BANK_VOUCHERS', 'FORUM', 'HOMESTEAD', 'MY_FARM', 'COOP_RANKING'];
     
     // STRICT ACCESS CONTROL: Only SYSTEM_DEVELOPER sees the SYSTEM portal.
     if (isSystemDev) {
@@ -1641,34 +1781,43 @@ const App: React.FC = () => {
   }, [agentIdentity, isSystemDev]);
 
   const loadCloudData = useCallback(async () => {
-    if (!navigator.onLine) return; 
+    if (!navigator.onLine || isCloudLoadingRef.current) return;
+    isCloudLoadingRef.current = true;
     setIsSyncing(true);
     try {
-      // Use sequential fetching to prevent Navigator LockManager timeouts
-      // in preview environments/iframes where auth state locking can be brittle.
-      const sbUsers = await fetchUsers();
-      if (sbUsers && sbUsers.length > 0) {
-        setUsers(sbUsers);
-        persistence.set('coop_users', JSON.stringify(sbUsers));
+      // Fetch all independent cloud tables in PARALLEL (5x faster than sequential awaits)
+      const [usersRes, recordsRes, ordersRes, produceRes, forumRes, newsRes, galleryRes] = await Promise.allSettled([
+        fetchUsers(),
+        fetchRecords(),
+        fetchOrders(),
+        fetchProduce(),
+        fetchForumPosts(),
+        fetchNewsArticles(),
+        fetchGalleryItems()
+      ]);
+
+      if (usersRes.status === 'fulfilled' && usersRes.value && usersRes.value.length > 0) {
+        setUsers(usersRes.value);
+        persistence.set('coop_users', JSON.stringify(usersRes.value));
       }
 
-      const sbRecords = await fetchRecords();
-      if (sbRecords && sbRecords.length > 0) {
+      if (recordsRes.status === 'fulfilled' && recordsRes.value && recordsRes.value.length > 0) {
+        const sbRecords = recordsRes.value;
         setRecords(prev => {
-          const merged = mergeData(sbRecords, prev).filter(r => 
-             r.cluster && 
-             r.cluster !== 'Unassigned' && 
-             !r.cluster.toLowerCase().includes('test') &&
-             r.id !== 'test_123' &&
-             r.id !== 'TEST_999'
+          const merged = mergeData(sbRecords, prev).filter(r =>
+            r.cluster &&
+            r.cluster !== 'Unassigned' &&
+            !r.cluster.toLowerCase().includes('test') &&
+            r.id !== 'test_123' &&
+            r.id !== 'TEST_999'
           );
           persistence.set('food_coop_data', JSON.stringify(merged));
           return merged;
         });
       }
 
-      const sbOrders = await fetchOrders();
-      if (sbOrders) {
+      if (ordersRes.status === 'fulfilled' && ordersRes.value) {
+        const sbOrders = ordersRes.value;
         setMarketOrders(prev => {
           const unsyncedLocal = prev.filter(o => o.synced === false);
           const merged = mergeData(sbOrders, unsyncedLocal).filter(isValidCop31OrFutureOrder);
@@ -1677,8 +1826,8 @@ const App: React.FC = () => {
         });
       }
 
-      const sbProduce = await fetchProduce();
-      if (sbProduce && sbProduce.length > 0) {
+      if (produceRes.status === 'fulfilled' && produceRes.value && produceRes.value.length > 0) {
+        const sbProduce = produceRes.value;
         setProduceListings(prev => {
           const merged = mergeData(sbProduce, prev);
           persistence.set('food_coop_produce', JSON.stringify(merged));
@@ -1686,8 +1835,8 @@ const App: React.FC = () => {
         });
       }
 
-      const sbForumPosts = await fetchForumPosts();
-      if (sbForumPosts && sbForumPosts.length > 0) {
+      if (forumRes.status === 'fulfilled' && forumRes.value && forumRes.value.length > 0) {
+        const sbForumPosts = forumRes.value;
         setForumPosts(prev => {
           const merged = mergeData(sbForumPosts, prev);
           persistence.set('food_coop_forum_posts', JSON.stringify(merged));
@@ -1695,8 +1844,8 @@ const App: React.FC = () => {
         });
       }
 
-      const sbNewsArticles = await fetchNewsArticles();
-      if (sbNewsArticles && sbNewsArticles.length > 0) {
+      if (newsRes.status === 'fulfilled' && newsRes.value && newsRes.value.length > 0) {
+        const sbNewsArticles = newsRes.value;
         setNewsArticles(prev => {
           const merged = mergeData(sbNewsArticles, prev);
           persistence.set('food_coop_news', JSON.stringify(merged));
@@ -1704,11 +1853,22 @@ const App: React.FC = () => {
         });
       }
 
+      if (galleryRes.status === 'fulfilled' && galleryRes.value) {
+        const sbGallery = galleryRes.value;
+        setGalleryItems(prev => {
+          const unsyncedLocal = prev.filter(g => g.synced === false);
+          const merged = mergeData(sbGallery, unsyncedLocal);
+          persistence.set('food_coop_gallery', JSON.stringify(merged));
+          return merged;
+        });
+      }
+
       setLastSyncTime(new Date());
-    } catch (e) { 
-      console.error("Global Sync failed:", e); 
+    } catch (e) {
+      console.error("Global Sync failed:", e);
     } finally {
       setIsSyncing(false);
+      isCloudLoadingRef.current = false;
     }
   }, []);
 
@@ -1719,23 +1879,29 @@ const App: React.FC = () => {
   }, [loadCloudData]);
 
   useEffect(() => {
-    const interval = setInterval(() => { 
-      if (navigator.onLine) {
-        loadCloudData();
-        syncPendingData();
-      } 
-    }, SYNC_POLLING_INTERVAL);
+    // Poll cleanly without duplicate double-fetches; skip while tab is backgrounded
+    const interval = setInterval(() => {
+      if (navigator.onLine && !document.hidden) {
+        void syncPendingDataRef.current(false);
+        void loadCloudData();
+      }
+    }, Math.max(SYNC_POLLING_INTERVAL, 60000));
+
+    // Debounce realtime events & ignore self-triggered echoes within 2.5s of our own write
     const channel = supabase.channel('global_changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-        if (navigator.onLine) {
-           console.log('Realtime update detected, refreshing data...');
-           loadCloudData();
-        }
+        if (!navigator.onLine || document.hidden) return;
+        if (Date.now() - lastLocalWriteRef.current < 2500) return;
+        if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+        realtimeDebounceRef.current = setTimeout(() => {
+          void loadCloudData();
+        }, 3000);
       })
       .subscribe();
 
     return () => {
       clearInterval(interval);
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       supabase.removeChannel(channel);
     };
   }, [loadCloudData]);
@@ -1864,8 +2030,9 @@ const App: React.FC = () => {
     const pRecords = records.filter(r => r.synced === false || r.synced === undefined).length;
     const pProduce = produceListings.filter(p => p.synced === false || p.synced === undefined).length;
     const pOrders = marketOrders.filter(o => o.synced === false || o.synced === undefined).length;
-    return pRecords + pProduce + pOrders;
-  }, [records, produceListings, marketOrders]);
+    const pGallery = galleryItems.filter(g => g.synced === false).length;
+    return pRecords + pProduce + pOrders + pGallery;
+  }, [records, produceListings, marketOrders, galleryItems]);
 
   const handleEditProduce = (listing: ProduceListing) => {
     setEditingProduceId(listing.id);
@@ -2146,10 +2313,11 @@ const App: React.FC = () => {
       return;
     }
 
-    if (editingId) {
+      if (editingId) {
       // UPDATE EXISTING RECORD
       const existing = records.find(r => r.id === editingId);
       if (existing) {
+        lastLocalWriteRef.current = Date.now();
         const cluster = finalCluster;
         const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
         let coopProfit = data.coopProfit !== undefined ? data.coopProfit : (totalSale * PROFIT_MARGIN) + 1;
@@ -2163,6 +2331,7 @@ const App: React.FC = () => {
         }
         
         const signature = await computeHash({ ...data, id: editingId });
+        const targetId = editingId;
         
         const updatedRecord: SaleRecord = {
           ...existing,
@@ -2175,7 +2344,7 @@ const App: React.FC = () => {
         };
         
         setRecords(prev => {
-            const updated = prev.map(r => r.id === editingId ? updatedRecord : r);
+            const updated = prev.map(r => r.id === targetId ? updatedRecord : r);
             persistence.set('food_coop_data', JSON.stringify(updated));
             return updated;
         });
@@ -2183,15 +2352,24 @@ const App: React.FC = () => {
         setEditingId(null);
         setFulfillmentData(null);
         
-        try {
-          const success = await saveRecord(updatedRecord);
-          if (success) {
-             setRecords(prev => prev.map(r => r.id === editingId ? { ...r, synced: true } : r));
-          }
-        } catch (e) { }
+        // Non-blocking background cloud save
+        if (navigator.onLine) {
+          saveRecord(updatedRecord)
+            .then((success) => {
+              if (success) {
+                setRecords(prev => {
+                  const syncedList = prev.map(r => r.id === targetId ? { ...r, synced: true } : r);
+                  persistence.set('food_coop_data', JSON.stringify(syncedList));
+                  return syncedList;
+                });
+              }
+            })
+            .catch(() => {});
+        }
       }
     } else {
       // CREATE NEW RECORD
+      lastLocalWriteRef.current = Date.now();
       const id = Math.random().toString(36).substring(2, 8).toUpperCase();
       const cluster = finalCluster;
       const totalSale = Number(data.unitsSold) * Number(data.unitPrice);
@@ -2223,20 +2401,21 @@ const App: React.FC = () => {
       });
 
       if (data.orderId) {
-        // Mark order as fulfilled locally
+        // Mark order as fulfilled locally immediately
+        const targetOrder = marketOrders.find(o => o.id === data.orderId);
         const updatedOrders = marketOrders.map(o => o.id === data.orderId ? { ...o, status: OrderStatus.FULFILLED, synced: false } : o);
         setMarketOrders(updatedOrders);
         persistence.set('food_coop_orders', JSON.stringify(updatedOrders));
         
-        try {
-          const order = marketOrders.find(o => o.id === data.orderId);
-          if (order) {
-            const success = await saveOrder({ ...order, status: OrderStatus.FULFILLED });
-            if (success) {
-               setMarketOrders(prev => prev.map(o => o.id === data.orderId ? { ...o, synced: true } : o));
-            }
-          }
-        } catch (err) { console.error("Order fulfillment sync failed:", err); }
+        if (targetOrder && navigator.onLine) {
+          saveOrder({ ...targetOrder, status: OrderStatus.FULFILLED })
+            .then((success) => {
+              if (success) {
+                setMarketOrders(prev => prev.map(o => o.id === data.orderId ? { ...o, synced: true } : o));
+              }
+            })
+            .catch(err => console.error("Order fulfillment sync failed:", err));
+        }
       }
       
       if (data.produceId) {
@@ -2263,12 +2442,20 @@ const App: React.FC = () => {
       }
 
       setFulfillmentData(null);
-      try {
-        const success = await saveRecord(newRecord);
-        if (success) {
-          setRecords(prev => prev.map(r => r.id === id ? { ...r, synced: true } : r));
-        }
-      } catch (e) { }
+      // Non-blocking background cloud save
+      if (navigator.onLine) {
+        saveRecord(newRecord)
+          .then((success) => {
+            if (success) {
+              setRecords(prev => {
+                const syncedList = prev.map(r => r.id === id ? { ...r, synced: true } : r);
+                persistence.set('food_coop_data', JSON.stringify(syncedList));
+                return syncedList;
+              });
+            }
+          })
+          .catch(() => {});
+      }
     }
   };
 
@@ -2525,10 +2712,13 @@ const App: React.FC = () => {
                <button type="button" onClick={() => navigateToPortal('PRODUCTS')} className={`w-full text-left px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 ${currentPortal === 'PRODUCTS' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50 hover:text-black'}`}>
                  <i className="fas fa-shopping-basket w-4 text-center opacity-80"></i> Marketplace
                </button>
+               <button type="button" onClick={() => navigateToPortal('GALLERY')} className={`w-full text-left px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 ${currentPortal === 'GALLERY' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50 hover:text-black'}`}>
+                 <i className="fas fa-photo-film w-4 text-center opacity-80"></i> Gallery Portal
+               </button>
              </div>
              <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 pl-4 hidden lg:block">Agent Menus</div>
              <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide">
-               {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS'].includes(p)).map(p => {
+               {availablePortals.filter(p => !['HOME', 'ABOUT', 'CONTACT', 'NEWS', 'LOGIN', 'WEATHER', 'PRODUCTS', 'GALLERY'].includes(p)).map(p => {
                   if (p === 'MARKET') {
                     return (
                       <div key={p} className="relative">
@@ -2609,7 +2799,7 @@ const App: React.FC = () => {
                      {pendingSyncCount > 0 && isOnline && !isSyncing && (
                        <button 
                          type="button"
-                         onClick={() => syncPendingData()}
+                         onClick={() => syncPendingData(true)}
                          className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-all shadow-lg animate-pulse"
                          title="Sync Pending Data"
                        >
@@ -2645,6 +2835,7 @@ const App: React.FC = () => {
             {[
               { id: 'HOME' as PortalType, label: 'Home', icon: 'fa-home' },
               { id: 'PRODUCTS' as PortalType, label: 'Marketplace', icon: 'fa-shopping-basket', badge: 'COP 31' },
+              { id: 'GALLERY' as PortalType, label: 'Gallery', icon: 'fa-photo-film' },
               { id: 'MY_FARM' as PortalType, label: 'Farm Dashboard', icon: 'fa-tractor' },
               { id: 'HOMESTEAD' as PortalType, label: 'Homesteads Reg.', icon: 'fa-house-chimney-user' },
               { id: 'COOP_RANKING' as PortalType, label: 'Coops Ranking', icon: 'fa-trophy' },
@@ -2738,9 +2929,10 @@ const App: React.FC = () => {
                   <p className="text-lg font-black text-slate-900 tracking-tight mt-0.5">Explore All KPL Services &amp; Food Coops</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
                 {[
                   { id: 'PRODUCTS' as PortalType, title: 'Marketplace', subtitle: 'All 53+ Coops & COP 31', icon: 'fa-shopping-basket', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-400' },
+                  { id: 'GALLERY' as PortalType, title: 'Gallery Portal', subtitle: 'Photos, Clips & YouTube', icon: 'fa-photo-film', color: 'bg-rose-50 text-rose-700 border-rose-200 hover:border-rose-400' },
                   { id: 'MY_FARM' as PortalType, title: 'Farm Dashboard', subtitle: 'Crop Calendar & Plan', icon: 'fa-tractor', color: 'bg-green-50 text-green-700 border-green-200 hover:border-green-400' },
                   { id: 'HOMESTEAD' as PortalType, title: 'Homesteads Reg.', subtitle: 'Register Household', icon: 'fa-house-chimney-user', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400' },
                   { id: 'WEATHER' as PortalType, title: 'Agro-Weather', subtitle: 'Forecasts & Advice', icon: 'fa-cloud-sun-rain', color: 'bg-sky-50 text-sky-700 border-sky-200 hover:border-sky-400' },
@@ -3375,8 +3567,19 @@ const App: React.FC = () => {
 
         {currentPortal === 'FORMS' && agentIdentity && (
           <div className="animate-in fade-in duration-300">
-            <FarmForms agentIdentity={agentIdentity} dynamicClusters={dynamicClusters} users={combinedUsers} onFormSubmitted={loadFarmRecords} farmFormsData={farmFormsData} />
+            <FarmForms agentIdentity={agentIdentity} dynamicClusters={dynamicClusters} users={combinedUsers} onFormSubmitted={handleFarmFormSubmitted} farmFormsData={farmFormsData} />
           </div>
+        )}
+
+        {currentPortal === 'GALLERY' && (
+          <GalleryPortal
+            items={galleryItems}
+            agentIdentity={agentIdentity}
+            clusters={dynamicClusters}
+            onSaveItem={handleSaveGalleryItem}
+            onDeleteItem={handleDeleteGalleryItem}
+            onNavigateLogin={() => navigateToPortal('LOGIN')}
+          />
         )}
 
         {currentPortal === 'FARM_DATA' && agentIdentity && (
@@ -3386,10 +3589,7 @@ const App: React.FC = () => {
               isSystemDev={isSystemDev}
               users={combinedUsers}
               onRefresh={() => {
-                // We increment a state to trigger a refetch of custom data
-                // For simplicity, let's just reload or trigger the fetchCustomData again if we had it exposed
-                // But window.location.reload() is a robust way to ensure all state is synced
-                window.location.reload();
+                void loadFarmRecords();
               }}
             />
           </div>

@@ -65,6 +65,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
 
   const [aggregateBuyingPrice, setAggregateBuyingPrice] = useState<number>(0);
   const [aggregateSellingPrice, setAggregateSellingPrice] = useState<number>(0);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
   
   const [commissionType, setCommissionType] = useState<'gross_sale_10' | 'gross_profit_10_plus_1' | 'profit_100'>('gross_profit_10_plus_1');
 
@@ -140,6 +141,8 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
     setAggregateBuyingPrice(0);
     setAggregateSellingPrice(0);
     setDirectCommission(0);
+    setSavedNotice(`Sales entry for ${finalCluster} recorded instantly and syncing in background.`);
+    setTimeout(() => setSavedNotice(null), 3500);
   };
 
   return (
@@ -164,6 +167,13 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, clusters, agentCluster, u
           </div>
         )}
       </div>
+
+      {savedNotice && (
+        <div className="mb-6 px-5 py-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2.5">
+          <i className="fas fa-check-circle text-emerald-600"></i>
+          <span>{savedNotice}</span>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         

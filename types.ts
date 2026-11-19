@@ -178,3 +178,26 @@ export interface NewsArticle {
   category: string;
   image: string;
 }
+
+export type GalleryMediaType = 'PHOTO' | 'VIDEO' | 'YOUTUBE';
+
+export interface GalleryItem {
+  id: string;
+  title: string;
+  description: string;
+  mediaType: GalleryMediaType;
+  mediaUrl: string; // Public storage URL for photo/short video, or embed/watch URL for YouTube
+  youtubeUrl?: string;
+  youtubeId?: string;
+  thumbnailUrl?: string;
+  durationLabel?: string; // e.g. "0:42" or "54 min Documentary"
+  category: string;
+  cluster: string; // Food Coop or "All Food Coops / National"
+  eventDate: string; // YYYY-MM-DD
+  authorName: string;
+  authorPhone: string;
+  authorRole: string;
+  createdAt: string;
+  synced?: boolean;
+}
+
